@@ -461,7 +461,7 @@ class CaptureViewSet(viewsets.ViewSet):
             user_msg = f"Unknown index: '{error}'. Try recreating this capture."
             server_msg = (
                 f"Unknown index: '{error}'. Try running the init_indices "
-                "subcommand if this is index should exist."
+                "subcommand if this index should exist."
             )
             log.error(server_msg)
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
@@ -814,7 +814,7 @@ class CaptureViewSet(viewsets.ViewSet):
             user_msg = f"Unknown index: '{e}'. Try recreating this capture."
             server_msg = (
                 f"Unknown index: '{e}'. Try running the init_indices "
-                "subcommand if this is index should exist."
+                "subcommand if this index should exist."
             )
             log.error(server_msg)
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
@@ -985,30 +985,31 @@ class CaptureViewSet(viewsets.ViewSet):
             404: OpenApiResponse(description="Capture not found"),
         },
     )
-    def post_processing_status(self, request, pk=None):
+    def post_processing_status(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Get post-processing status for a capture."""
-        try:
-            capture = get_object_or_404(
-                Capture,
-                pk=pk,
-                owner=request.user,
-                is_deleted=False,
-            )
+        capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
 
-            # Get all post-processed data for this capture
-            processed_data = capture.visualization_post_processed_data.all().order_by(
-                "processing_type", "-created_at"
-            )
+        # Get all post-processed data for this capture
+        processed_data = capture.visualization_post_processed_data.all().order_by(
+            "processing_type", "-created_at"
+        )
 
-            return Response(
-                {
-                    "capture_uuid": str(capture.uuid),
-                    "post_processed_data": PostProcessedDataSerializer(
-                        processed_data, many=True
-                    ).data,
-                },
-                status=status.HTTP_200_OK,
-            )
+        return Response(
+            {
+                "capture_uuid": str(capture.uuid),
+                "post_processed_data": PostProcessedDataSerializer(
+                    processed_data, many=True
+                ).data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=["get"])
     @extend_schema(
@@ -1208,55 +1209,56 @@ class CaptureViewSet(viewsets.ViewSet):
         description="Get metadata for post-processed data",
     )
     @action(detail=True, methods=["get"])
-    def get_post_processed_metadata(self, request, pk=None):
+    def get_post_processed_metadata(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Get metadata for post-processed data."""
-        try:
-            capture = get_object_or_404(
-                Capture,
-                pk=pk,
-                owner=request.user,
-                is_deleted=False,
+        capture = get_object_or_404(
+            Capture,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        processing_type = request.query_params.get("processing_type")
+
+        if not processing_type:
+            return Response(
+                {"error": "processing_type parameter is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-            processing_type = request.query_params.get("processing_type")
-
-            if not processing_type:
-                return Response(
-                    {"error": "processing_type parameter is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Get the most recent post-processed data for this capture and
-            # processing type
-            processed_data = (
-                capture.visualization_post_processed_data.filter(
-                    processing_type=processing_type,
-                    processing_status="completed",
-                )
-                .order_by("-created_at")
-                .first()
+        # Get the most recent post-processed data for this capture and
+        # processing type
+        processed_data = (
+            capture.visualization_post_processed_data.filter(
+                processing_type=processing_type,
+                processing_status=ProcessingStatus.Completed.value,
             )
+            .order_by("-created_at")
+            .first()
+        )
 
-            if not processed_data:
-                return Response(
-                    {
-                        "error": (
-                            f"No completed {processing_type} data found for this "
-                            f"capture"
-                        )
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            # Return the metadata
+        if not processed_data:
             return Response(
                 {
-                    "metadata": processed_data.metadata,
-                    "processing_type": processed_data.processing_type,
-                    "created_at": processed_data.created_at,
-                    "processing_parameters": processed_data.processing_parameters,
-                }
+                    "error": (
+                        f"No completed {processing_type} data found for this "
+                        f"capture"
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
             )
+
+        # Return the metadata
+        return Response(
+            {
+                "metadata": processed_data.metadata,
+                "processing_type": processed_data.processing_type,
+                "created_at": processed_data.created_at,
+                "processing_parameters": processed_data.processing_parameters,
+            }
+        )
 
     @extend_schema(
         responses={
@@ -1276,7 +1278,9 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
     )
     @action(detail=True, methods=["get"], url_path="waterfall_metadata_stream")
-    def waterfall_metadata_stream(self, request, pk=None):
+    def waterfall_metadata_stream(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Get waterfall metadata without preprocessing for streaming visualization.
 
         This endpoint computes metadata from capture properties stored in OpenSearch,
@@ -1444,7 +1448,9 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
     )
     @action(detail=True, methods=["get"], url_path="waterfall_slices_stream")
-    def waterfall_slices_stream(self, request, pk=None):
+    def waterfall_slices_stream(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Compute and return waterfall slices on-demand for streaming visualization."""
         try:
             capture = get_object_or_404(
