@@ -219,10 +219,10 @@ def compute_slices_on_demand(
 def get_waterfall_power_bounds(
     drf_path: Path, channel: str, margin_fraction: float = 0.05
 ) -> dict[str, float] | None:
-    """Compute power bounds from a small sample of slices for consistent color scale.
+    """Compute power bounds from sample slices for color scale.
 
-    Uses the same formula as the frontend calculatePowerBoundsFromSamples(): min/max
-    over 3 slices (start, middle, end) plus a margin, so streaming and master match.
+    Samples slices spread across the capture (same idea as master's full-data min/max).
+    Uses 5% margin by default to match master's calculatePowerBounds().
 
     Args:
         drf_path: Path to DigitalRF data directory
@@ -237,8 +237,12 @@ def get_waterfall_power_bounds(
     if total_slices == 0:
         return None
 
-    # Same 3 slices as frontend: first, middle, last
-    indices = [0, total_slices // 2, total_slices - 1]
+    # Sample slices spread across capture (better approximation of full range)
+    n_samples = min(7, total_slices)
+    indices = [
+        (total_slices - 1) * i // (n_samples - 1) if n_samples > 1 else 0
+        for i in range(n_samples)
+    ]
     indices = [i for i in indices if i < total_slices]
     if not indices:
         return None
@@ -372,8 +376,16 @@ def convert_drf_to_waterfall_json(
         global_min = min(global_min, slice_min)
         global_max = max(global_max, slice_max)
 
-    power_scale_min = global_min if global_min != float("inf") else None
-    power_scale_max = global_max if global_max != float("-inf") else None
+    # Apply 5% margin so stored scale matches master (calculatePowerBounds uses same margin)
+    margin_frac = 0.05
+    if global_min != float("inf") and global_max != float("-inf"):
+        span = global_max - global_min
+        margin = span * margin_frac
+        power_scale_min = global_min - margin
+        power_scale_max = global_max + margin
+    else:
+        power_scale_min = None
+        power_scale_max = None
 
     # Log final summary
     if power_scale_min is not None and power_scale_max is not None:
@@ -400,11 +412,9 @@ def convert_drf_to_waterfall_json(
         "fft_size": base_params.fft_size,
         "samples_per_slice": SAMPLES_PER_SLICE,
         "channel": channel,
-        "power_bounds": {
-            "min": power_scale_min,
-            "max": power_scale_max,
-        },
     }
+    if power_scale_min is not None and power_scale_max is not None:
+        metadata["power_bounds"] = {"min": power_scale_min, "max": power_scale_max}
 
     return {
         "json_data": waterfall_data,

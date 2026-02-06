@@ -63,6 +63,7 @@ from sds_gateway.visualizations.models import PostProcessedData
 from sds_gateway.visualizations.models import ProcessingStatus
 from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
 from sds_gateway.visualizations.processing.waterfall import FFT_SIZE
+from sds_gateway.visualizations.processing.waterfall import get_waterfall_power_bounds
 from sds_gateway.visualizations.processing.waterfall import SAMPLES_PER_SLICE
 from sds_gateway.visualizations.processing.waterfall import compute_slices_on_demand
 from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
@@ -1392,6 +1393,25 @@ class CaptureViewSet(viewsets.ViewSet):
                 "samples_per_slice": samples_per_slice,
                 "channel": capture.channel,
             }
+
+            # Add power_bounds (3-slice sample) so frontend shows correct scale (e.g. 76 to -4)
+            try:
+                capture_files = get_capture_files(capture, include_deleted=False)
+                if capture_files.exists():
+                    dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
+                    drf_path = reconstruct_drf_files(
+                        capture, capture_files, dummy_temp_path
+                    )
+                    power_bounds = get_waterfall_power_bounds(
+                        drf_path, capture.channel
+                    )
+                    if power_bounds is not None:
+                        metadata["power_bounds"] = power_bounds
+            except (ValueError, OSError, KeyError, UnknownIndexError) as e:
+                log.debug(
+                    "Could not compute power_bounds for streaming metadata: %s",
+                    e,
+                )
 
             log.info(
                 f"Streaming metadata for capture {pk}: {total_slices} total slices, "
