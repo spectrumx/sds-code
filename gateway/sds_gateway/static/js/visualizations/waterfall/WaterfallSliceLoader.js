@@ -238,6 +238,7 @@ class WaterfallSliceLoader {
 
 			const response = await fetch(url, {
 				method: "GET",
+				credentials: "same-origin",
 				headers: {
 					"Content-Type": "application/json",
 					"X-CSRFToken": this._getCSRFToken(),
@@ -356,13 +357,22 @@ class WaterfallSliceLoader {
 	}
 
 	/**
-	 * Cancel all pending requests
+	 * Cancel all pending requests and reject any debounce-pending promises
 	 */
 	cancelPendingRequests() {
-		// Clear debounce timer
+		// Clear debounce timer and reject pending debounce callers so they don't hang
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
 			this.debounceTimer = null;
+		}
+		const pending = this.debouncePendingPromises;
+		this.debouncePendingPromises = [];
+		for (const { reject } of pending) {
+			try {
+				reject(new Error("WaterfallSliceLoader cancelled"));
+			} catch (_) {
+				// ignore if reject throws
+			}
 		}
 
 		// Clear pending requests

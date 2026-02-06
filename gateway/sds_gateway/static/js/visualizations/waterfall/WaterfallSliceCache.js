@@ -20,6 +20,11 @@ class WaterfallSliceCache {
 	 * @returns {Object|null} The slice data or null if not cached
 	 */
 	getSlice(sliceIndex) {
+		const idx = Number.parseInt(sliceIndex, 10);
+		if (!Number.isFinite(idx) || idx < 0) {
+			return null;
+		}
+		sliceIndex = idx;
 		if (this.cache.has(sliceIndex)) {
 			// Update access order (move to end = most recently used)
 			this._updateAccessOrder(sliceIndex);
@@ -35,8 +40,10 @@ class WaterfallSliceCache {
 	 * @returns {Array} Array of cached slices (may contain nulls for missing slices)
 	 */
 	getSliceRange(startIndex, endIndex) {
+		const start = Math.max(0, Number.parseInt(startIndex, 10) || 0);
+		const end = Math.max(start, Number.parseInt(endIndex, 10) || start);
 		const slices = [];
-		for (let i = startIndex; i < endIndex; i++) {
+		for (let i = start; i < end; i++) {
 			const slice = this.getSlice(i);
 			slices.push(slice);
 		}
@@ -50,8 +57,10 @@ class WaterfallSliceCache {
 	 * @returns {Array<number>} Array of missing slice indices
 	 */
 	getMissingSlices(startIndex, endIndex) {
+		const start = Math.max(0, Number.parseInt(startIndex, 10) || 0);
+		const end = Math.max(start, Number.parseInt(endIndex, 10) || start);
 		const missing = [];
-		for (let i = startIndex; i < endIndex; i++) {
+		for (let i = start; i < end; i++) {
 			if (!this.cache.has(i)) {
 				missing.push(i);
 			}
@@ -65,6 +74,12 @@ class WaterfallSliceCache {
 	 * @param {Object} sliceData - The slice data to cache
 	 */
 	setSlice(sliceIndex, sliceData) {
+		const idx = Number.parseInt(sliceIndex, 10);
+		if (!Number.isFinite(idx) || idx < 0) {
+			return;
+		}
+		sliceIndex = idx;
+
 		// If already cached, just update access order
 		if (this.cache.has(sliceIndex)) {
 			this._updateAccessOrder(sliceIndex);
@@ -102,7 +117,8 @@ class WaterfallSliceCache {
 	 * @returns {boolean} True if cached, false otherwise
 	 */
 	hasSlice(sliceIndex) {
-		return this.cache.has(sliceIndex);
+		const idx = Number.parseInt(sliceIndex, 10);
+		return Number.isFinite(idx) && idx >= 0 && this.cache.has(idx);
 	}
 
 	/**
