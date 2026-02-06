@@ -70,9 +70,6 @@ from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 MAX_SLICE_BATCH_SIZE = 100  # Maximum number of slices that can be requested at once
-UNIX_TIMESTAMP_THRESHOLD = (
-    1_000_000_000  # Year 2000 in seconds (for timestamp detection)
-)
 
 
 def _validate_slice_indices(
@@ -459,7 +456,7 @@ class CaptureViewSet(viewsets.ViewSet):
     def _handle_capture_creation_errors(
         self, capture: Capture, error: Exception
     ) -> Response:
-        """Handle errors during capture creation and cleanup."""
+        """Handle errors during capture creation. Transaction auto-rolls back on error."""
         if isinstance(error, UnknownIndexError):
             user_msg = f"Unknown index: '{error}'. Try recreating this capture."
             server_msg = (
@@ -467,16 +464,13 @@ class CaptureViewSet(viewsets.ViewSet):
                 "subcommand if this is index should exist."
             )
             log.error(server_msg)
-            # Transaction will automatically rollback, so no need to manually delete
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
         if isinstance(error, ValueError):
             user_msg = f"Error handling metadata for capture '{capture.uuid}': {error}"
-            # Transaction will automatically rollback, so no need to manually delete
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
         if isinstance(error, os_exceptions.ConnectionError):
             user_msg = f"Error connecting to OpenSearch: {error}"
             log.error(user_msg)
-            # Transaction will automatically rollback, so no need to manually delete
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
         # Re-raise unexpected errors
         raise error
@@ -600,17 +594,6 @@ class CaptureViewSet(viewsets.ViewSet):
             msg = "'metadata_filters' could not be parsed from request"
             log.warning(msg)
             raise ValueError(msg) from err
-
-    def _paginate_captures(
-        self,
-        captures: QuerySet[Capture],
-        request: Request,
-    ) -> Response:
-        """Paginate and serialize capture results."""
-        paginator = CapturePagination()
-        paginated_captures = paginator.paginate_queryset(captures, request=request)
-        serializer = CaptureGetSerializer(paginated_captures, many=True)
-        return paginator.get_paginated_response(serializer.data)
 
     def _paginate_composite_captures(
         self,
@@ -1027,12 +1010,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        except Capture.DoesNotExist:
-            return Response(
-                {"error": "Capture not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
     @action(detail=True, methods=["get"])
     @extend_schema(
         parameters=[
@@ -1281,12 +1258,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 }
             )
 
-        except Capture.DoesNotExist:
-            return Response(
-                {"error": "Capture not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
     @extend_schema(
         responses={
             200: OpenApiResponse(
@@ -1342,8 +1313,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 )
 
             samples_per_second = capture_props.get("samples_per_second", 0)
-            # Bounds can be stored as timestamps (seconds) or as sample indices
-            # If values look like UNIX timestamps (> 1000000000), they're in seconds
             start_bound = capture_props.get("start_bound", 0)
             end_bound = capture_props.get("end_bound", 0)
             center_frequencies = capture_props.get("center_frequencies", [0])
@@ -1360,19 +1329,13 @@ class CaptureViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Calculate duration - bounds may be in seconds (timestamps) or samples
-            # If bounds look like UNIX timestamps (> year 2000), convert to duration
-            if start_bound > UNIX_TIMESTAMP_THRESHOLD:  # Likely a UNIX timestamp
-                duration_seconds = end_bound - start_bound
-                total_samples = int(duration_seconds * samples_per_second)
-                log.debug(
-                    f"Using timestamp mode: duration={duration_seconds}s, "
-                    f"total_samples={total_samples}"
-                )
-            else:
-                # Bounds are already in samples
-                total_samples = end_bound - start_bound
-                log.debug(f"Using sample mode: total_samples={total_samples}")
+            # Bounds are in seconds (from DRF metadata: sample_index / samples_per_second)
+            duration_seconds = end_bound - start_bound
+            total_samples = int(duration_seconds * samples_per_second)
+            log.debug(
+                f"Streaming metadata: duration={duration_seconds}s, "
+                f"total_samples={total_samples}"
+            )
             # Use constants from waterfall module to ensure consistency
             samples_per_slice = SAMPLES_PER_SLICE
             fft_size = FFT_SIZE
@@ -1429,11 +1392,6 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_200_OK,
             )
 
-        except Capture.DoesNotExist:
-            return Response(
-                {"error": "Capture not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         except (ValueError, OSError, KeyError, UnknownIndexError) as e:
             log.error(f"Error getting waterfall metadata for capture {pk}: {e}")
             return Response(
@@ -1536,11 +1494,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
             return Response(result, status=status.HTTP_200_OK)
 
-        except Capture.DoesNotExist:
-            return Response(
-                {"error": "Capture not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
         except (ValueError, OSError, KeyError) as e:
             log.error(f"Error computing waterfall slices for capture {pk}: {e}")
             return Response(
@@ -1603,7 +1556,7 @@ def _check_capture_creation_constraints(
     """
 
     log.debug(
-        "No channel and top_level_dir conflictsfor current user's DigitalRF captures."
+        "No channel and top_level_dir conflicts for current user's DigitalRF captures."
     )
 
     capture_type = capture_candidate.get("capture_type")
