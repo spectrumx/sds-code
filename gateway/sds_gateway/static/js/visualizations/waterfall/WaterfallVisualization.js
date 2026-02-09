@@ -232,10 +232,6 @@ class WaterfallVisualization {
 	 */
 	async render() {
 		if (this.isStreamingMode) {
-			// Check if we have any slices in the visible window
-			const startIndex = this.waterfallWindowStart;
-
-
 			if (this.totalSlices === 0) {
 				return;
 			}
