@@ -2,6 +2,7 @@
 
 import datetime
 import os
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -154,8 +155,13 @@ def validate_digitalrf_data(
 
 
 def _get_drf_cache_dir() -> Path:
-    """Get the directory for caching reconstructed DRF files."""
-    cache_dir = Path(settings.MEDIA_ROOT) / "drf_cache"
+    """Get the directory for caching reconstructed DRF files.
+
+    Uses DRF_CACHE_DIR (outside MEDIA_ROOT) so cached capture data is never
+    exposed via MEDIA_URL. Default is <project_root>/cache/drf; override with
+    DRF_CACHE_DIR in production (e.g. /var/cache/sds-gateway/drf).
+    """
+    cache_dir = Path(settings.DRF_CACHE_DIR)
     cache_dir.mkdir(parents=True, exist_ok=True)
     return cache_dir
 
@@ -250,8 +256,14 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     # Use count() to avoid materializing entire queryset
     total_files = capture_files.count()
     for idx, file_obj in enumerate(capture_files):
-        # Create the directory structure using Path operations for safety
-        file_path = (capture_dir / file_obj.directory / file_obj.name).resolve()
+        # Build path under capture_dir; file_obj.directory may be absolute
+        # (e.g. /files/user@/...), so use a relative part to stay under cache_dir
+        rel_dir = (
+            file_obj.directory.lstrip("/")
+            if file_obj.directory
+            else ""
+        )
+        file_path = (capture_dir / rel_dir / file_obj.name).resolve()
         if not file_path.is_relative_to(cache_dir):
             error_msg = (
                 f"Invalid file path during reconstruction: "
@@ -265,13 +277,37 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
         if file_path.exists():
             continue
 
-        # Download the file from MinIO
-        logger.debug(f"Downloading file {idx + 1}/{total_files}: {file_obj.name}")
-        minio_client.fget_object(
-            bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-            object_name=file_obj.file.name,
-            file_path=str(file_path),
-        )
+        # Download to a temp file in the same directory, then rename to final path.
+        # This avoids relying on MinIO client's internal .part.minio temp file and
+        # rename, which can fail (e.g. Errno 2) when the client uses a different path.
+        fd, temp_path = None, None
+        try:
+            fd, temp_path = tempfile.mkstemp(
+                dir=file_path.parent,
+                prefix=".drf.",
+                suffix=".tmp",
+            )
+            os.close(fd)
+            fd = None
+            logger.debug(f"Downloading file {idx + 1}/{total_files}: {file_obj.name}")
+            minio_client.fget_object(
+                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                object_name=file_obj.file.name,
+                file_path=temp_path,
+            )
+            os.rename(temp_path, file_path)
+            temp_path = None
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            if temp_path is not None and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    logger.warning("Could not remove temp file %s", temp_path)
 
     # Find the DigitalRF root directory using shared helper
     drf_root = _find_drf_root(capture_dir)

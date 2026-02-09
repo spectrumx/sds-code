@@ -258,6 +258,12 @@ MEDIA_ROOT: str = str(APPS_DIR / "media")
 # https://docs.djangoproject.com/en/4.2/ref/settings/#media-url
 MEDIA_URL: str = "/media/"
 
+# DRF reconstruction cache (must be outside MEDIA_ROOT so it is not web-served)
+DRF_CACHE_DIR: str = env.str(
+    "DRF_CACHE_DIR",
+    default=str(BASE_DIR / "cache" / "drf"),
+)
+
 # TEMPLATES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/4.2/ref/settings/#templates
