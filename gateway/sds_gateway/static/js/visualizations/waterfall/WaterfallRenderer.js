@@ -132,9 +132,13 @@ class WaterfallRenderer {
 			const sliceIndex = windowStart + i;
 			if (sliceIndex >= totalSlices) break;
 
-			// In streaming mode, data array may start at startIndex
-			// waterfallData is an array that may contain nulls for missing slices
-			const slice = i < waterfallData.length ? waterfallData[i] : null;
+			// Index into waterfallData using startIndex so we support both window-aligned
+			// arrays (startIndex === windowStart) and full arrays (startIndex === 0)
+			const dataIndex = sliceIndex - startIndex;
+			const slice =
+				dataIndex >= 0 && dataIndex < waterfallData.length
+					? waterfallData[dataIndex]
+					: null;
 
 			// Calculate Y position
 			const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
