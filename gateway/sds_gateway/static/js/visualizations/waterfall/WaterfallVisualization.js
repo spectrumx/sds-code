@@ -648,12 +648,22 @@ class WaterfallVisualization {
 
 			// Provide more helpful error messages
 			let userMessage = error.message;
-			if (error.message.includes("404")) {
+			const msg = error.message ?? "";
+			if (
+				error.name === "TypeError" &&
+				(msg.includes("fetch") || msg.includes("NetworkError"))
+			) {
 				userMessage =
-					"Capture not found or you do not have permission to access it.";
-			} else if (error.message.includes("403")) {
+					"Unable to reach the server. Check your connection and that the server is running.";
+			} else if (msg.includes("404")) {
+				// Prefer backend message when it explains the 404 (e.g. no completed waterfall data)
+				if (!msg.includes("No completed") && !msg.includes("not found")) {
+					userMessage =
+						"Capture not found or you do not have permission to access it.";
+				}
+			} else if (msg.includes("403")) {
 				userMessage = "You do not have permission to access this capture.";
-			} else if (error.message.includes("500")) {
+			} else if (msg.includes("500")) {
 				userMessage = "Server error occurred. Please try again later.";
 			}
 
@@ -670,8 +680,12 @@ class WaterfallVisualization {
 			`/api/latest/assets/captures/${this.captureUuid}/download_post_processed_data/?processing_type=waterfall`,
 		);
 		if (!dataResponse.ok) {
+			const body = await dataResponse.json().catch(() => ({}));
+			const apiError = body?.error ?? body?.detail;
 			throw new Error(
-				`Failed to download waterfall data: ${dataResponse.status}`,
+				typeof apiError === "string" && apiError
+					? apiError
+					: `Failed to download waterfall data: ${dataResponse.status}`,
 			);
 		}
 		const waterfallJson = await dataResponse.json();
@@ -698,9 +712,11 @@ class WaterfallVisualization {
 	 */
 	async tryLoadStreamingMode() {
 		try {
-			// Get metadata from streaming endpoint - this is instant, no preprocessing
+			// Get metadata from streaming endpoint. Request power_bounds here so we get
+			// scale for streaming mode; omit in initial loadWaterfallData for speed.
 			const metadataUrl = get_waterfall_metadata_stream_endpoint(
 				this.captureUuid,
+				true, // include_power_bounds for scale (min/max dB)
 			);
 			const metadataResponse = await fetch(metadataUrl, {
 				headers: {

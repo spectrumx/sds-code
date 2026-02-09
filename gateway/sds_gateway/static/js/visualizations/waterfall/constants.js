@@ -69,8 +69,16 @@ export const get_waterfall_slices_endpoint = (
 };
 
 // Streaming endpoints - compute FFT on-demand without preprocessing
-export const get_waterfall_metadata_stream_endpoint = (capture_uuid) => {
-	return `/api/latest/assets/captures/${capture_uuid}/waterfall_metadata_stream/`;
+// include_power_bounds: when true, backend may do expensive DRF sample for scale (slower).
+export const get_waterfall_metadata_stream_endpoint = (
+	capture_uuid,
+	include_power_bounds = false,
+) => {
+	const base = `/api/latest/assets/captures/${capture_uuid}/waterfall_metadata_stream/`;
+	if (include_power_bounds) {
+		return `${base}?include_power_bounds=true`;
+	}
+	return base;
 };
 
 export const get_waterfall_slices_stream_endpoint = (
