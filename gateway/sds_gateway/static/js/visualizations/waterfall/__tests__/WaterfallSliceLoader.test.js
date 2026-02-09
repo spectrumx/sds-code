@@ -33,10 +33,11 @@ describe("WaterfallSliceLoader", () => {
 		mockFetch = jest.fn();
 		global.fetch = mockFetch;
 
-		// Mock document for CSRF token
+		// Mock document for CSRF token (_getCSRFToken() reads token.value)
 		global.document = {
 			querySelector: jest.fn(() => ({
 				getAttribute: jest.fn(() => "test-csrf-token"),
+				value: "test-csrf-token",
 			})),
 		};
 

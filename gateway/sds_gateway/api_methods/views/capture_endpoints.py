@@ -6,6 +6,8 @@ from pathlib import Path
 from typing import Any
 from typing import cast
 
+import ijson
+
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import FileResponse
@@ -128,6 +130,68 @@ def _validate_slice_indices(
         )
 
     return (start_index, end_index)
+
+
+def _extract_waterfall_slice_range(
+    file_handle,
+    start_index: int,
+    end_index: int,
+    total_slices_from_metadata: int | None,
+) -> tuple[list[Any], int]:
+    """Extract a range of waterfall slices from a JSON array file using ijson.
+
+    Stream-parses the file so only the requested range is held in memory.
+    Supports early termination once end_index items have been consumed.
+
+    Args:
+        file_handle: Binary file-like object (opened with 'rb') of JSON array.
+        start_index: Start index (inclusive).
+        end_index: End index (exclusive).
+        total_slices_from_metadata: If set, used for validation and clamping;
+            avoids a counting pass. Should come from PostProcessedData.metadata.
+
+    Returns:
+        Tuple of (list of slice objects, total_slices).
+
+    Raises:
+        ValueError: If total_slices_from_metadata is set and start_index >= total.
+        ijson.JSONError: On invalid JSON.
+    """
+    total_slices: int
+    if total_slices_from_metadata is not None:
+        total_slices = total_slices_from_metadata
+        if start_index >= total_slices:
+            raise ValueError(
+                f"start_index ({start_index}) exceeds total slices ({total_slices})"
+            )
+        end_index = min(end_index, total_slices)
+    else:
+        # One pass to count array length (no list storage)
+        count = 0
+        try:
+            for _ in ijson.items(file_handle, "item"):
+                count += 1
+        except ijson.JSONError:
+            file_handle.seek(0)
+            raise
+        total_slices = count
+        if start_index >= total_slices:
+            raise ValueError(
+                f"start_index ({start_index}) exceeds total slices ({total_slices})"
+            )
+        end_index = min(end_index, total_slices)
+        file_handle.seek(0)
+
+    requested_slices: list[Any] = []
+    current = 0
+    for item in ijson.items(file_handle, "item"):
+        if current >= end_index:
+            break
+        if current >= start_index:
+            requested_slices.append(item)
+        current += 1
+
+    return requested_slices, total_slices
 
 
 class CapturePagination(PageNumberPagination):
@@ -341,7 +405,14 @@ class CaptureViewSet(viewsets.ViewSet):
         )
 
         if not processed_data:
-            msg = f"No completed {processing_type} data found for this capture"
+            hint = ""
+            if capture.capture_type == CaptureType.DigitalRF and processing_type == "waterfall":
+                hint = " For DigitalRF captures, streaming mode may work without preprocessed data; otherwise run post-processing to generate waterfall data."
+            else:
+                hint = " Run post-processing to generate this data."
+            msg = (
+                f"No completed {processing_type} data found for this capture.{hint}"
+            )
             raise Http404(msg)
 
         if not processed_data.data_file:
@@ -1124,53 +1195,36 @@ class CaptureViewSet(viewsets.ViewSet):
                 request, pk, processing_type
             )
 
-            # Read and parse the JSON file
+            metadata = processed_data.metadata or {}
+            total_slices_from_metadata = metadata.get("total_slices")
+            if total_slices_from_metadata is not None:
+                total_slices_from_metadata = int(total_slices_from_metadata)
+
             try:
-                processed_data.data_file.seek(0)
-                waterfall_json = json.load(processed_data.data_file)
-            except (OSError, json.JSONDecodeError) as e:
+                with processed_data.data_file.open("rb") as f:
+                    requested_slices, total_slices = _extract_waterfall_slice_range(
+                        f,
+                        start_index,
+                        end_index,
+                        total_slices_from_metadata,
+                    )
+            except ValueError as e:
+                return Response(
+                    {"error": str(e)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            except (OSError, ijson.JSONError, json.JSONDecodeError) as e:
                 log.error(f"Failed to read waterfall JSON file for capture {pk}: {e}")
                 return Response(
                     {"error": "Failed to read waterfall data file"},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
 
-            # Validate that waterfall_json is a list
-            if not isinstance(waterfall_json, list):
-                return Response(
-                    {"error": "Invalid waterfall data format"},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-
-            total_slices = len(waterfall_json)
-
-            # Validate indices against total slices
-            if start_index >= total_slices:
-                return Response(
-                    {
-                        "error": (
-                            f"start_index ({start_index}) exceeds total slices "
-                            f"({total_slices})"
-                        )
-                    },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Clamp end_index to total_slices if it exceeds
-            end_index = min(end_index, total_slices)
-
-            # Extract the requested slice range
-            requested_slices = waterfall_json[start_index:end_index]
-
-            # Get metadata from processed_data
-            metadata = processed_data.metadata or {}
-
-            # Build response
             response_data = {
                 "slices": requested_slices,
                 "total_slices": total_slices,
                 "start_index": start_index,
-                "end_index": end_index,
+                "end_index": min(end_index, total_slices),
                 "metadata": metadata,
             }
 
@@ -1240,11 +1294,16 @@ class CaptureViewSet(viewsets.ViewSet):
         )
 
         if not processed_data:
+            hint = ""
+            if capture.capture_type == CaptureType.DigitalRF and processing_type == "waterfall":
+                hint = " For DigitalRF captures, streaming mode may work without preprocessed data; otherwise run post-processing to generate waterfall data."
+            else:
+                hint = " Run post-processing to generate this data."
             return Response(
                 {
                     "error": (
                         f"No completed {processing_type} data found for this "
-                        f"capture"
+                        f"capture.{hint}"
                     )
                 },
                 status=status.HTTP_404_NOT_FOUND,
@@ -1261,6 +1320,20 @@ class CaptureViewSet(viewsets.ViewSet):
         )
 
     @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="include_power_bounds",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                default=False,
+                description=(
+                    "If true, compute power_bounds (min/max dB) by sampling DRF data, "
+                    "which may trigger MinIO download and processing. Omit or false for "
+                    "fast metadata-only response."
+                ),
+            ),
+        ],
         responses={
             200: OpenApiResponse(
                 description="Waterfall metadata for streaming visualization"
@@ -1273,8 +1346,8 @@ class CaptureViewSet(viewsets.ViewSet):
         description=(
             "Get metadata for waterfall visualization without triggering "
             "preprocessing. Returns total_slices, frequency bounds, and other "
-            "metadata immediately. Use this endpoint to initialize the streaming "
-            "waterfall visualization."
+            "metadata immediately. By default avoids MinIO/file access for speed. "
+            "Set include_power_bounds=true to also get power_bounds (may be slow)."
         ),
     )
     @action(detail=True, methods=["get"], url_path="waterfall_metadata_stream")
@@ -1284,7 +1357,9 @@ class CaptureViewSet(viewsets.ViewSet):
         """Get waterfall metadata without preprocessing for streaming visualization.
 
         This endpoint computes metadata from capture properties stored in OpenSearch,
-        avoiding the need to download files from MinIO. This makes it very fast.
+        avoiding the need to download files from MinIO. This makes it very fast when
+        include_power_bounds is false (default). Set include_power_bounds=true only
+        when the client needs scale bounds; that path may reconstruct DRF and use MinIO.
         """
 
         try:
@@ -1361,24 +1436,31 @@ class CaptureViewSet(viewsets.ViewSet):
                 "channel": capture.channel,
             }
 
-            # Add power_bounds (3-slice sample) so frontend shows correct scale (e.g. 76 to -4)
-            try:
-                capture_files = get_capture_files(capture, include_deleted=False)
-                if capture_files.exists():
-                    dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
-                    drf_path = reconstruct_drf_files(
-                        capture, capture_files, dummy_temp_path
+            # Optional: power_bounds (3-slice sample) for frontend scale. Expensive:
+            # can trigger DRF reconstruction and MinIO download on cache miss.
+            include_power_bounds = request.query_params.get(
+                "include_power_bounds", "false"
+            ).lower() in ("true", "1", "yes")
+            if include_power_bounds:
+                try:
+                    capture_files = get_capture_files(
+                        capture, include_deleted=False
                     )
-                    power_bounds = get_waterfall_power_bounds(
-                        drf_path, capture.channel
+                    if capture_files.exists():
+                        dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
+                        drf_path = reconstruct_drf_files(
+                            capture, capture_files, dummy_temp_path
+                        )
+                        power_bounds = get_waterfall_power_bounds(
+                            drf_path, capture.channel
+                        )
+                        if power_bounds is not None:
+                            metadata["power_bounds"] = power_bounds
+                except (ValueError, OSError, KeyError, UnknownIndexError) as e:
+                    log.debug(
+                        "Could not compute power_bounds for streaming metadata: %s",
+                        e,
                     )
-                    if power_bounds is not None:
-                        metadata["power_bounds"] = power_bounds
-            except (ValueError, OSError, KeyError, UnknownIndexError) as e:
-                log.debug(
-                    "Could not compute power_bounds for streaming metadata: %s",
-                    e,
-                )
 
             log.info(
                 f"Streaming metadata for capture {pk}: {total_slices} total slices, "
