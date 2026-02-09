@@ -20,8 +20,6 @@ class WaterfallSliceLoader {
 
 		// Request tracking
 		this.pendingRequests = new Map(); // Map of request key -> Promise
-		this.requestQueue = [];
-		this.isProcessingQueue = false;
 
 		// Retry configuration
 		this.maxRetries = 3;
@@ -150,7 +148,9 @@ class WaterfallSliceLoader {
 	 * @returns {Promise<Array>} Promise resolving to loaded slices
 	 */
 	async _loadBatch(startIndex, endIndex, processingType) {
-		const requestKey = `${startIndex}-${endIndex}`;
+		const streamingMode = this.useStreamingEndpoint ? "stream" : "rest";
+		const captureId = this.captureUuid || "no-capture";
+		const requestKey = `${captureId}:${processingType}:${streamingMode}:${startIndex}-${endIndex}`;
 
 		// Check if request is already pending
 		if (this.pendingRequests.has(requestKey)) {
@@ -389,7 +389,9 @@ class WaterfallSliceLoader {
 	}
 }
 
-// Make the class globally available
-window.WaterfallSliceLoader = WaterfallSliceLoader;
+// Expose on window in browser for debugging; safe in non-browser (tests/SSR)
+if (typeof window !== "undefined") {
+	window.WaterfallSliceLoader = WaterfallSliceLoader;
+}
 
 export default WaterfallSliceLoader;
