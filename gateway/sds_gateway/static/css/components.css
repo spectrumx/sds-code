@@ -167,9 +167,11 @@ textarea.form-control-plaintext {
 	background-color: var(--bs-gray-100);
 	opacity: 0.8;
 }
+
 .readonly-row td {
 	color: var(--bs-gray-600);
 }
+
 .readonly-row .badge {
 	opacity: 0.7;
 }
@@ -333,7 +335,7 @@ textarea.form-control-plaintext {
 }
 
 .hero-content a {
-	color: var(--bs-white);
+	color: var(--secondary-color);
 	text-decoration: underline;
 }
 

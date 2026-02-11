@@ -235,6 +235,7 @@ MIDDLEWARE: list[str] = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "sds_gateway.middleware.SocialAccountFallbackMiddleware",
 ]
 
 # STATIC
@@ -427,8 +428,21 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
 ACCOUNT_ALLOW_REGISTRATION: bool = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_LOGIN_METHODS: set[str] = {"email"}
-ACCOUNT_SIGNUP_FIELDS: list[str] = ["email*"]
+ACCOUNT_EMAIL_REQUIRED: bool = True
+ACCOUNT_USERNAME_REQUIRED: bool = False
+# In allauth 65+, ACCOUNT_LOGIN_METHODS dict controls authentication methods,
+# replacing the now deprecated ACCOUNT_AUTHENTICATION_METHOD
+# Format: {"email": ["password"]} enables password-based email login
+ACCOUNT_LOGIN_METHODS: dict[str, list[str]] = {
+    "email": ["password"],  # enable password login, disable code-based
+}
+
+# fields marked with an asterisk (e.g. 'email*') are required.
+ACCOUNT_SIGNUP_FIELDS: list[str] = ["email*", "password1*", "password2*"]
+# If fields are missing from here, they won't show up in the login form either,
+#   and in the absence of a password, allauth might redirect the user to login using
+#   a code sent to their email instead.
+
 ACCOUNT_USER_MODEL_USERNAME_FIELD: str | None = None
 # USERNAME_FIELD in sds_gateway/users/models.py:
 ACCOUNT_USER_MODEL_EMAIL_FIELD: str = "email"
@@ -443,7 +457,14 @@ ACCOUNT_FORMS: dict[str, str] = {
     "signup": "sds_gateway.users.forms.UserSignupForm",
 }
 
+# https://docs.allauth.org/en/latest/mfa/configuration.html
+# Explicitly disable passwordless authentication methods
+ACCOUNT_LOGIN_BY_CODE_ENABLED: bool = False  # disable to use passwords
+MFA_PASSKEY_LOGIN_ENABLED: bool = False  # enable to use passkeys
+MFA_SUPPORTED_TYPES: list[str] = ["recovery_codes", "totp"]
+
 # https://docs.allauth.org/en/latest/socialaccount/configuration.html
+SOCIALACCOUNT_ONLY: bool = False  # allow password authentication
 SOCIALACCOUNT_ADAPTER: str = "sds_gateway.users.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_FORMS: dict[str, str] = {
     "signup": "sds_gateway.users.forms.UserSocialSignupForm",
