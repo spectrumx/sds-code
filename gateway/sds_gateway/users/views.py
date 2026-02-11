@@ -1265,10 +1265,8 @@ def _get_captures_for_template(
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
         capture_data["is_shared_with_me"] = capture.owner != request.user
-        capture_data["owner_name"] = (
-            capture.owner.name if capture.owner.name else "Owner"
-        )
-        capture_data["owner_email"] = capture.owner.email if capture.owner.email else ""
+        capture_data["owner_name"] = capture.owner.name or "Owner"
+        capture_data["owner_email"] = capture.owner.email or ""
 
         # Add the original model instance for template use
         capture_data["capture"] = capture
@@ -3127,7 +3125,7 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
         # Cannot make DRAFT dataset public - must be FINAL first
         if is_public_value is True:
             # Check if dataset will be DRAFT after this update
-            new_status = status_value if status_value else dataset.status
+            new_status = status_value or dataset.status
             if new_status == DatasetStatus.DRAFT:
                 error_messages.append(
                     "Draft datasets cannot be made public. Status must be Final."

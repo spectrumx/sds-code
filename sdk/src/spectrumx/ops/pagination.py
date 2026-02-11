@@ -132,7 +132,7 @@ class Paginator(Generic[T]):
         )  # Make a copy to avoid modifying the original
         self._next_page = start_page
         self._page_size = page_size
-        self._total_matches = total_matches if total_matches else 1
+        self._total_matches = total_matches or 1
         self._verbose: bool = verbose
 
         # internal state

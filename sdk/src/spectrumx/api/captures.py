@@ -151,9 +151,7 @@ class CaptureAPI:
             rng = random.Random()  # noqa: S311
             return [
                 _generate_capture(
-                    capture_type=capture_type
-                    if capture_type
-                    else rng.choice(list(CaptureType))
+                    capture_type=capture_type or rng.choice(list(CaptureType))
                 )
                 for _ in range(num_captures)
             ]

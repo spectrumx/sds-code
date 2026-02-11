@@ -134,6 +134,9 @@ function snapshot_opensearch() {
     snapshot_repo="my-fs-repository"
     snapshot_name="snapshot_${BACKUP_NAME}"
 
+    # TIP: if this is failing, make sure you "register the snapshots repository"
+    #   see dev-notes.md for instructions.
+
     snapshot_repo_status=$(docker exec -it sds-gateway-prod-opensearch bash -c "curl -k -u "'"'"\$OPENSEARCH_ADMIN_USER:\$OPENSEARCH_INITIAL_ADMIN_PASSWORD"'"'" https://localhost:9200/_snapshot/${snapshot_repo}/" | jq .)
     if [[ "$(echo "${snapshot_repo_status}" | jq -r '._shards.successful')" != "$(echo "${snapshot_repo_status}" | jq -r '._shards.total')" ]]; then
         log_error "Snapshot repository '${snapshot_repo}' is not healthy."
