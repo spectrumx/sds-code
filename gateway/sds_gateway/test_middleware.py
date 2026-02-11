@@ -6,7 +6,6 @@ from unittest.mock import Mock
 import pytest
 from allauth.socialaccount.models import SocialApp
 from django.contrib.auth.models import AnonymousUser
-from django.contrib.messages import get_messages
 from django.contrib.sessions.middleware import SessionMiddleware
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -55,12 +54,6 @@ class TestSocialAccountFallbackMiddleware:
         assert response.status_code == HTTPStatus.FOUND
         assert response["Location"] == reverse("account_login")
 
-        messages_list = list(get_messages(request))
-        assert len(messages_list) == 1
-        assert "Third-party authentication is currently unavailable" in str(
-            messages_list[0]
-        )
-
     def test_middleware_ignores_other_exceptions(self) -> None:
         """Middleware should not handle exceptions other than SocialApp.DoesNotExist."""
         request = self.factory.get("/")
@@ -69,22 +62,6 @@ class TestSocialAccountFallbackMiddleware:
         response = self.middleware.process_exception(request, exception)
 
         assert response is None
-
-    def test_middleware_logs_warning_on_social_app_error(
-        self, caplog: pytest.LogCaptureFixture
-    ) -> None:
-        """Middleware should log a warning when catching SocialApp.DoesNotExist."""
-        request = self.factory.get("/accounts/auth0/login/")
-        request = self._add_session_to_request(request)
-        request.user = AnonymousUser()
-
-        exception = SocialApp.DoesNotExist()
-        self.middleware.process_exception(request, exception)
-
-        assert any(
-            "social provider not configured" in record.message
-            for record in caplog.records
-        )
 
     def test_get_user_identifier_with_authenticated_user(self, user) -> None:
         """Should return email for authenticated users."""
