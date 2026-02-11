@@ -155,11 +155,12 @@ class CaptureViewSet(viewsets.ViewSet):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             # reconstruct the file tree in a temporary directory
+            cap_type = CaptureType(capture.capture_type)
             tmp_dir_path, files_to_connect = reconstruct_tree(
                 target_dir=Path(temp_dir),
                 virtual_top_dir=top_level_dir,
                 owner=requester,
-                capture_type=capture.capture_type,
+                capture_type=cap_type,
                 drf_channel=drf_channel,
                 rh_scan_group=rh_scan_group,
                 verbose=False,
@@ -221,7 +222,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 ProcessingType.Spectrogram.value: {},
             }
 
-            result = start_capture_post_processing.delay(
+            result = start_capture_post_processing.delay(  # pyright: ignore[reportFunctionMemberAccess]
                 str(capture.uuid), processing_config
             )
             log.info(
@@ -1131,7 +1132,6 @@ def _check_capture_creation_constraints(
                             (`serializer.validated_data`) to check constraints against.
     Raises:
         ValueError:         If any of the constraints are violated.
-        AssertionError:     If an internal assertion fails.
     """
 
     log.debug(
@@ -1140,29 +1140,22 @@ def _check_capture_creation_constraints(
 
     capture_type = capture_candidate.get("capture_type")
     top_level_dir = capture_candidate.get("top_level_dir")
-    _errors: dict[str, str] = {}
 
-    required_fields = {
-        "capture_type": capture_type,
-        "top_level_dir": top_level_dir,
-    }
-
-    _errors.update(
-        {
-            field: f"'{field}' is required."
-            for field, value in required_fields.items()
-            if value is None
-        },
-    )
-
-    if _errors:
-        msg = "Capture creation constraints violated:" + "".join(
-            f"\n\t{rule}: {error}" for rule, error in _errors.items()
+    if capture_type is None or top_level_dir is None:
+        missing = [
+            f
+            for f in ["capture_type", "top_level_dir"]
+            if capture_candidate.get(f) is None
+        ]
+        msg = "Capture creation constraints violated:\n" + "\n".join(
+            f"\t{field}: '{field}' is required." for field in missing
         )
         log.warning(msg)
-        raise AssertionError(msg)
+        raise ValueError(msg)
 
     # capture creation constraints
+
+    _validation_errors: dict[str, str] = {}
 
     # CONSTRAINT: DigitalRF captures must have unique channel and top_level_dir
     if capture_type == CaptureType.DigitalRF:
@@ -1192,7 +1185,7 @@ def _check_capture_creation_constraints(
                 f"{conflicting_capture.uuid} for channel '{channel}' "
                 f"and top_level_dir '{top_level_dir}'"
             )
-            _errors.update(
+            _validation_errors.update(
                 {
                     "drf_unique_channel_and_tld": (
                         "This channel and top level directory are already in use by "
@@ -1221,7 +1214,7 @@ def _check_capture_creation_constraints(
         elif cap_qs.exists():
             conflicting_capture = cap_qs.first()
             assert conflicting_capture is not None, "QuerySet should not be empty here."
-            _errors.update(
+            _validation_errors.update(
                 {
                     "rh_unique_scan_group": (
                         f"This scan group is already in use by "
@@ -1234,8 +1227,8 @@ def _check_capture_creation_constraints(
                 "No `scan_group` conflicts for current user's captures.",
             )
 
-    if _errors:
+    if _validation_errors:
         msg = "Capture creation constraints violated:"
-        for rule, error in _errors.items():
+        for rule, error in _validation_errors.items():
             msg += f"\n\t{rule}: {error}"
         raise ValueError(msg)

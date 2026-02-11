@@ -39,11 +39,10 @@ from sds_gateway.api_methods.utils.asset_access_control import (
 )
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.users.models import User
 
 if TYPE_CHECKING:
     from django.http.request import QueryDict
-
-    from sds_gateway.users.models import User
 
 
 class FilePagination(PageNumberPagination):
@@ -125,6 +124,9 @@ class FileViewSet(ViewSet):
             "permissions",
             "expiration_date",
         ]
+        assert isinstance(request.user, User), (
+            "Expected request.user to be an instance of the custom User model"
+        )
         user_dir = f"/files/{request.user.email}"
         if serializer.is_valid(raise_exception=False):
             serializer.save()

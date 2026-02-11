@@ -839,7 +839,7 @@ class TemporaryZipFile(BaseModel):
 
     def mark_completed(self):
         """Mark the file as completed."""
-        self.creation_status = ZipFileStatus.Completed.value
+        self.creation_status = ZipFileStatus.Created.value
         self.save(update_fields=["creation_status"])
 
     def delete_file(self):
@@ -931,7 +931,7 @@ class UserSharePermission(BaseModel):
     def __str__(self) -> str:
         return (
             f"{self.owner.email} shared {self.item_type} {self.item_uuid} "
-            f"with {self.shared_with.email}"
+            f"with {self.shared_with.email if self.shared_with else 'N/A'} "
         )
 
     @property
@@ -948,10 +948,13 @@ class UserSharePermission(BaseModel):
         cls, user: "User", item_type: str | None = None
     ) -> QuerySet["UserSharePermission"]:
         """Get all items shared with a user, optionally filtered by item type."""
-        queryset = cls.objects.filter(
-            shared_with=user,
-            is_deleted=False,
-            is_enabled=True,
+        queryset = cast(
+            "QuerySet[UserSharePermission]",
+            cls.objects.filter(
+                shared_with=user,
+                is_deleted=False,
+                is_enabled=True,
+            ),
         )
         if item_type:
             queryset = queryset.filter(item_type=item_type)
@@ -976,12 +979,15 @@ class UserSharePermission(BaseModel):
         cls, item_uuid: uuid.UUID, item_type: str
     ) -> QuerySet["UserSharePermission"]:
         """Get all users who have been shared a specific item."""
-        return cls.objects.filter(
-            item_uuid=item_uuid,
-            item_type=item_type,
-            is_deleted=False,
-            is_enabled=True,
-        ).select_related("shared_with")
+        return cast(
+            "QuerySet[UserSharePermission]",
+            cls.objects.filter(
+                item_uuid=item_uuid,
+                item_type=item_type,
+                is_deleted=False,
+                is_enabled=True,
+            ).select_related("shared_with"),
+        )
 
     @classmethod
     def get_user_permission_level(
@@ -1006,7 +1012,7 @@ class UserSharePermission(BaseModel):
         }
 
         if item_type in item_models:
-            model_class = item_models[item_type]
+            model_class = item_models[ItemType(item_type)]
             if model_class.objects.filter(
                 uuid=item_uuid, owner=user, is_deleted=False
             ).exists():
@@ -1191,7 +1197,7 @@ class DEPRECATEDPostProcessedData(BaseModel):
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
         with Path(file_path).open("rb") as f:
-            self.data_file.save(filename, f, save=False)
+            self.data_file.save(filename, File(f), save=False)
         self.save(update_fields=["data_file"])
 
 

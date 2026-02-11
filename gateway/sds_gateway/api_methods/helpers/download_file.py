@@ -34,6 +34,7 @@ def download_file(target_file: File) -> bytes:
     temp_file = None
     file_content = None
     file_path = None
+    temp_file_path = None
 
     try:
         # Create a temporary file to download to

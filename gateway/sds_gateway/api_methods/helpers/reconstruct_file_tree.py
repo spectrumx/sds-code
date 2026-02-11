@@ -1,5 +1,6 @@
 import json
 import uuid
+from collections.abc import Iterable
 from pathlib import Path
 
 from django.conf import settings
@@ -231,7 +232,7 @@ def _check_fetch_conditions(
 
 
 def _check_disk_space_available_for_reconstruction(
-    capture_files: list[File],
+    capture_files: Iterable[File],
     capture_type: CaptureType,
     filenames_of_interest: set[str],
     target_dir: Path,

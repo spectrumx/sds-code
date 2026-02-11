@@ -2,9 +2,11 @@
 
 from datetime import UTC
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from typing import NoReturn
 from typing import cast
+from uuid import UUID
 
 from django.core.management.base import BaseCommand
 from django.core.management.base import CommandParser
@@ -468,19 +470,20 @@ class Command(BaseCommand):
 
     def _delete_doc_by_capture_uuid(
         self,
-        capture_uuid: str,
+        capture_uuid: str | UUID,
     ) -> None:
         """Delete an OpenSearch document based on capture UUID."""
+        capture_uuid_str = str(capture_uuid)
         try:
             # try to get the document
-            self.client.get(index=self.index_name, id=capture_uuid)
+            self.client.get(index=self.index_name, id=capture_uuid_str)
         except NotFoundError:
             log.warning(
                 f"Document by capture UUID: '{capture_uuid}' not found",
             )
             return
         else:
-            self.client.delete(index=self.index_name, id=capture_uuid)
+            self.client.delete(index=self.index_name, id=capture_uuid_str)
 
     def _find_duplicate_captures(self) -> dict[tuple[str], QuerySet[Capture]]:
         """Find duplicate captures in the database.
@@ -594,18 +597,22 @@ class Command(BaseCommand):
         """Reindex a capture."""
         log.warning(f"Reindexing capture manually: '{capture.uuid}'...")
         capture_viewset = CaptureViewSet()
+        if capture.owner is None:
+            log.error(f"Capture '{capture.uuid}' has no owner, skipping reindex...")
+            return False
         try:
             capture_viewset.ingest_capture(
                 capture=capture,
                 drf_channel=capture.channel,
                 rh_scan_group=capture.scan_group,
                 requester=capture.owner,
-                top_level_dir=capture.top_level_dir,
+                top_level_dir=Path(capture.top_level_dir),
             )
 
             # apply field transforms to search_props fields
+            cap_type = CaptureType(capture.capture_type)
             Transforms(
-                capture_type=capture.capture_type,
+                capture_type=cap_type,
             ).apply_field_transforms(
                 index_name=capture.index_name,
                 capture_uuid=str(capture.uuid),

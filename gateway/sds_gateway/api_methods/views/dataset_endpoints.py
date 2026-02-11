@@ -1,7 +1,6 @@
 """Dataset operations endpoints for the SDS Gateway API."""
 
 from django.db.models import QuerySet
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
@@ -23,6 +22,7 @@ from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
+from sds_gateway.users.models import User
 
 
 class DatasetViewSet(ViewSet):
@@ -74,9 +74,7 @@ class DatasetViewSet(ViewSet):
         summary="Get Dataset Files Manifest",
     )
     @action(detail=True, methods=["get"], url_path="files", url_name="files")
-    def get_dataset_files(
-        self, request: Request, pk: str | None = None
-    ) -> JsonResponse:
+    def get_dataset_files(self, request: Request, pk: str | None = None) -> Response:
         """Get a paginated list of files in the dataset to be downloaded."""
 
         if pk is None:
@@ -91,6 +89,9 @@ class DatasetViewSet(ViewSet):
             is_deleted=False,
         )
 
+        assert isinstance(request.user, User), (
+            "Expected request.user to be an instance of the custom User model"
+        )
         if not user_has_access_to_item(
             request.user, target_dataset.uuid, ItemType.DATASET
         ):

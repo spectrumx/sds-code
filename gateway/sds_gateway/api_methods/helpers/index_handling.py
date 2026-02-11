@@ -60,7 +60,8 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
         )
 
         # apply field transforms to create search_props fields
-        Transforms(capture.capture_type).apply_field_transforms(
+        cap_type = CaptureType(capture.capture_type)
+        Transforms(cap_type).apply_field_transforms(
             index_name=capture.index_name,
             capture_uuid=str(capture.uuid),
         )
@@ -88,22 +89,24 @@ def retrieve_indexed_metadata(
     try:
         os_client = get_opensearch_client()
 
-        is_many = isinstance(capture_or_captures, list)
-
-        if not is_many:
+        if not isinstance(capture_or_captures, list):
             if not isinstance(capture_or_captures, Capture):  # pragma: no cover
                 msg = "Invalid input type for metadata retrieval"
-                raise ValueError(msg)
+                raise TypeError(msg)
+            # single capture case
             response = os_client.get(
                 index=capture_or_captures.index_name,
                 id=capture_or_captures.uuid,
             )
             return response["_source"]["capture_props"]
 
+        # we know it's a list here
+        captures_list = capture_or_captures
+
         # build mget body for all captures
         docs = [
-            {"_index": capture.index_name, "_id": str(capture.uuid)}
-            for capture in capture_or_captures
+            {"_index": capture.index_name, "_id": str(capture.uuid)}  # ty:ignore[unresolved-attribute]
+            for capture in captures_list
         ]
 
         if not docs:
@@ -128,7 +131,7 @@ def retrieve_indexed_metadata(
         return {
             str(capture.uuid): doc.get("_source", {}).get("capture_props", {})
             for capture, doc in zip(
-                capture_or_captures,
+                captures_list,
                 response["docs"],
                 strict=True,
             )

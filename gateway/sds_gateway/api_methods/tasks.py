@@ -16,7 +16,7 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.template.loader import render_to_string
-from loguru import logger
+from loguru import logger as log
 from redis import Redis
 
 from sds_gateway.api_methods.models import Capture
@@ -69,25 +69,25 @@ def cleanup_orphaned_zips() -> int:
                     # No database record, this is an orphaned file
                     zip_file.unlink()
                     cleaned_count += 1
-                    logger.info(f"Cleaned up orphaned zip file: {zip_file}")
+                    log.info(f"Cleaned up orphaned zip file: {zip_file}")
                 elif temp_zip_record.creation_status == ZipFileStatus.Failed.value:
                     # File is marked as failed, clean it up
                     zip_file.unlink()
                     cleaned_count += 1
-                    logger.info(f"Cleaned up failed zip file: {zip_file}")
+                    log.info(f"Cleaned up failed zip file: {zip_file}")
                 # Skip pending files - they are actively being created
                 elif temp_zip_record.creation_status == ZipFileStatus.Pending.value:
-                    logger.debug(f"Skipping pending zip file: {zip_file}")
+                    log.debug(f"Skipping pending zip file: {zip_file}")
                     continue
         except (OSError, ValueError) as e:
-            logger.error(f"Error processing zip file {zip_file}: {e}")
+            log.error(f"Error processing zip file {zip_file}: {e}")
             # Try to delete the problematic file anyway
             try:
                 zip_file.unlink()
                 cleaned_count += 1
-                logger.info(f"Cleaned up problematic zip file: {zip_file}")
+                log.info(f"Cleaned up problematic zip file: {zip_file}")
             except OSError:
-                logger.error(f"Failed to delete problematic zip file: {zip_file}")
+                log.error(f"Failed to delete problematic zip file: {zip_file}")
 
     return cleaned_count
 
@@ -183,7 +183,7 @@ def acquire_user_lock(user_id: str, task_name: str, timeout: int = 300) -> bool:
         )
         return bool(acquired)
     except (redis.RedisError, ConnectionError) as e:
-        logger.error(f"Error acquiring lock for user {user_id}: {e}")
+        log.error(f"Error acquiring lock for user {user_id}: {e}")
         return False
 
 
@@ -204,7 +204,7 @@ def release_user_lock(user_id: str, task_name: str) -> bool:
     try:
         redis_client.delete(lock_key)
     except (redis.RedisError, ConnectionError) as e:
-        logger.error(f"Error releasing lock for user {user_id}: {e}")
+        log.error(f"Error releasing lock for user {user_id}: {e}")
         return False
     else:
         return True
@@ -227,7 +227,7 @@ def is_user_locked(user_id: str, task_name: str) -> bool:
     try:
         return bool(redis_client.exists(lock_key))
     except (redis.RedisError, ConnectionError) as e:
-        logger.error(f"Error checking lock for user {user_id}: {e}")
+        log.error(f"Error checking lock for user {user_id}: {e}")
         return False
 
 
@@ -242,7 +242,7 @@ def check_celery_task(message: str = "Hello from Celery!") -> str:
     Returns:
         str: The message with a timestamp
     """
-    logger.info(f"Test Celery task executed with message: {message}")
+    log.info(f"Test Celery task executed with message: {message}")
     return f"{message} - Task completed successfully!"
 
 
@@ -265,9 +265,9 @@ def check_email_task(email_address: str = "test@example.com") -> str:
             to=[email_address],
         )
         email.send()
-        logger.info(f"Test email sent successfully to {email_address}")
+        log.info(f"Test email sent successfully to {email_address}")
     except (OSError, ValueError) as e:
-        logger.error(f"Failed to send test email: {e}")
+        log.error(f"Failed to send test email: {e}")
         return f"Failed to send email: {e}"
     else:
         return f"Test email sent to {email_address}"
@@ -354,10 +354,10 @@ def create_zip_from_files(
                 total_size += file_size
                 files_processed += 1
 
-                logger.info(f"Streamed file {safe_filename} to zip ({file_size} bytes)")
+                log.info(f"Streamed file {safe_filename} to zip ({file_size} bytes)")
 
             except (OSError, ValueError, RuntimeError) as e:
-                logger.exception(f"Failed to process file {file_obj.name}: {e}")
+                log.exception(f"Failed to process file {file_obj.name}: {e}")
                 # Continue with other files
                 continue
 
@@ -381,7 +381,7 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
         count = expired_files.count()
 
         if count == 0:
-            logger.info("No expired temporary zip files to clean up")
+            log.info("No expired temporary zip files to clean up")
             return {
                 "status": "success",
                 "message": "No expired files found",
@@ -389,7 +389,7 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
                 "failed_count": 0,
             }
 
-        logger.info(f"Cleaning up {count} expired temporary zip files")
+        log.info(f"Cleaning up {count} expired temporary zip files")
 
         deleted_count = 0
         failed_count = 0
@@ -399,15 +399,15 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
                 # Delete the file from disk
                 temp_zip.delete_file()
                 deleted_count += 1
-                logger.info(f"Soft deleted expired file: {temp_zip.filename}")
+                log.info(f"Soft deleted expired file: {temp_zip.filename}")
             except (OSError, ValueError) as e:
                 failed_count += 1
-                logger.exception(f"Failed to delete {temp_zip.filename}: {e}")
+                log.exception(f"Failed to delete {temp_zip.filename}: {e}")
 
-        logger.info(f"Cleanup complete: {deleted_count} deleted, {failed_count} failed")
+        log.info(f"Cleanup complete: {deleted_count} deleted, {failed_count} failed")
 
     except (OSError, ValueError) as e:
-        logger.exception("Error in cleanup_expired_temp_zips")
+        log.exception("Error in cleanup_expired_temp_zips")
         return {
             "status": "error",
             "message": f"Cleanup failed: {e}",
@@ -440,16 +440,16 @@ def cleanup_orphaned_zip_files() -> dict[str, str | int]:
         cleaned_count = cleanup_orphaned_zips()
 
         if cleaned_count == 0:
-            logger.info("No orphaned zip files found to clean up")
+            log.info("No orphaned zip files found to clean up")
             return {
                 "status": "success",
                 "message": "No orphaned files found",
                 "cleaned_count": 0,
             }
 
-        logger.info(f"Cleaned up {cleaned_count} orphaned zip files")
+        log.info(f"Cleaned up {cleaned_count} orphaned zip files")
     except (OSError, ValueError) as e:
-        logger.exception("Error in cleanup_orphaned_zip_files")
+        log.exception("Error in cleanup_orphaned_zip_files")
         return {
             "status": "error",
             "message": f"Cleanup failed: {e}",
@@ -515,7 +515,7 @@ def get_user_task_status(
             "user_id": user_id,
         }
     except (redis.RedisError, ConnectionError) as e:
-        logger.error(f"Error getting task status for user {user_id}: {e}")
+        log.error(f"Error getting task status for user {user_id}: {e}")
         return {
             "is_locked": False,
             "lock_timestamp": None,
@@ -629,7 +629,7 @@ def start_capture_post_processing(
                 "waterfall": {"processed_data_id": "uuid"}
             }
     """
-    logger.info(f"Starting post-processing pipeline for capture {capture_uuid}")
+    log.info(f"Starting post-processing pipeline for capture {capture_uuid}")
 
     try:
         # Validate processing config
@@ -646,7 +646,7 @@ def start_capture_post_processing(
         )
     except Exception as e:
         error_msg = f"Unexpected error in post-processing pipeline: {e}"
-        logger.exception(error_msg)
+        log.exception(error_msg)
         raise
 
 
@@ -686,7 +686,7 @@ def _process_item_files(
     """
     files = _get_item_files(user, item, item_type)
     if not files:
-        logger.warning(f"No files found for {item_type} {item_uuid}")
+        log.warning(f"No files found for {item_type} {item_uuid}")
         error_message = f"No files found in {item_type}"
         _send_item_download_error_email(
             user=user, item=item, item_type=item_type, error_message=error_message
@@ -707,7 +707,7 @@ def _process_item_files(
     # Check if download size exceeds web download limit
     max_download_size = settings.MAX_WEB_DOWNLOAD_SIZE
     if total_file_size > max_download_size:
-        logger.warning(
+        log.warning(
             f"{item_type} {item_uuid} size ({format_file_size(total_file_size)}) "
             f"exceeds web download limit ({format_file_size(max_download_size)})"
         )
@@ -738,7 +738,7 @@ def _process_item_files(
     # Clean up any orphaned zip files before checking disk space
     cleaned_count = cleanup_orphaned_zips()
     if cleaned_count > 0:
-        logger.info(f"Cleaned up {cleaned_count} orphaned zip files before processing")
+        log.info(f"Cleaned up {cleaned_count} orphaned zip files before processing")
 
     # Check available disk space
     if not check_disk_space_available(estimated_zip_size):
@@ -750,7 +750,7 @@ def _process_item_files(
         except (OSError, ValueError):
             available_space = 0
 
-        logger.warning(
+        log.warning(
             f"Insufficient disk space for {item_type} {item_uuid}. "
             f"Required: {format_file_size(estimated_zip_size)}, "
             f"Available: {format_file_size(available_space)}"
@@ -785,7 +785,7 @@ def _process_item_files(
             zip_uuid=temp_zip.uuid,
         )
     except (OSError, ValueError) as e:
-        logger.exception(f"Failed to create zip file for {item_type} {item_uuid}: {e}")
+        log.exception(f"Failed to create zip file for {item_type} {item_uuid}: {e}")
         error_message = f"Failed to create download file: {e}"
         _send_item_download_error_email(user, item, item_type, error_message)
         return (
@@ -798,7 +798,7 @@ def _process_item_files(
         )
 
     if files_processed == 0:
-        logger.warning(f"No files were processed for {item_type} {item_uuid}")
+        log.warning(f"No files were processed for {item_type} {item_uuid}")
         error_message = "No files could be processed"
         _send_item_download_error_email(user, item, item_type, error_message)
         return (
@@ -821,9 +821,7 @@ def _handle_user_lock_validation(
         dict: Error response if lock validation fails, None if successful
     """
     if is_user_locked(user_id, task_name):
-        logger.warning(
-            f"User {user_id} already has a {item_type} download task running"
-        )
+        log.warning(f"User {user_id} already has a {item_type} download task running")
         error_message = (
             f"You already have a {item_type} download in progress. "
             "Please wait for it to complete."
@@ -836,7 +834,7 @@ def _handle_user_lock_validation(
         )
 
     if not acquire_user_lock(user_id, task_name):
-        logger.warning(f"Failed to acquire lock for user {user_id}")
+        log.warning(f"Failed to acquire lock for user {user_id}")
         error_message = (
             "Another download is already in progress. Please wait for it to complete."
         )
@@ -960,7 +958,7 @@ def _handle_timeout_exception(
     exception: Exception,
 ) -> Mapping[str, int | str | UUID]:
     """Handle timeout exceptions in the download task."""
-    logger.exception(
+    log.exception(
         f"Timeout or soft time limit exceeded for {item_type} download "
         f"for {item_uuid}: {exception}"
     )
@@ -1038,7 +1036,7 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
         if lock_error:
             return lock_error
 
-        logger.info(
+        log.info(
             f"Acquired lock for user {user_id}, starting {item_type_enum} download"
         )
 
@@ -1097,7 +1095,7 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
             files_processed=files_processed,
         )
 
-        logger.info(
+        log.info(
             f"Successfully sent {item_type_enum} download email for {item_uuid} "
             f"to {user.email}"
         )
@@ -1111,7 +1109,7 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
         }
 
     except (OSError, ValueError) as e:
-        logger.exception(
+        log.exception(
             f"Error processing {item_type_enum} download for {item_uuid}: {e}"
         )
         # Send error email if we have user and item
@@ -1139,7 +1137,7 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
         # Always release the lock, even if there was an error
         if user_id is not None:
             release_user_lock(user_id, task_name)
-            logger.info(f"Released lock for user {user_id}")
+            log.info(f"Released lock for user {user_id}")
 
         # Clean up partial zip file if task failed and file exists
         if (
@@ -1151,11 +1149,9 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
                 zip_path = Path(zip_file_path)
                 if zip_path.exists():
                     zip_path.unlink()
-                    logger.info(f"Cleaned up partial zip file: {zip_file_path}")
+                    log.info(f"Cleaned up partial zip file: {zip_file_path}")
             except (OSError, ValueError) as e:
-                logger.error(
-                    f"Failed to clean up partial zip file {zip_file_path}: {e}"
-                )
+                log.error(f"Failed to clean up partial zip file {zip_file_path}: {e}")
 
     if result:
         return result
@@ -1204,7 +1200,7 @@ def _validate_item_download_request(
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
-        logger.warning(f"User {user_id} not found for {item_type} download")
+        log.warning(f"User {user_id} not found for {item_type} download")
         return (
             {
                 "status": "error",
@@ -1218,7 +1214,7 @@ def _validate_item_download_request(
 
     # Validate item access (either as owner or shared user)
     if not user_has_access_to_item(user, item_uuid, item_type):
-        logger.warning(
+        log.warning(
             f"{item_type.capitalize()} {item_uuid} not found or access denied "
             f"for user {user_id}"
         )
@@ -1240,7 +1236,7 @@ def _validate_item_download_request(
             is_deleted=False,
         )
     except model_class.DoesNotExist:
-        logger.warning(f"{item_type.capitalize()} {item_uuid} not found")
+        log.warning(f"{item_type.capitalize()} {item_uuid} not found")
         return (
             {
                 "status": "error",
@@ -1277,15 +1273,15 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
             item, include_deleted=False
         )
         files = list(files_queryset)  # Convert to list before len() to avoid SQL issues
-        logger.info(f"Found {len(files)} files for dataset {item.uuid}")
+        log.info(f"Found {len(files)} files for dataset {item.uuid}")
         return files
 
     if item_type == ItemType.CAPTURE:
         files = get_capture_files(item, include_deleted=False)
-        logger.info(f"Found {len(files)} files for capture {item.uuid}")
+        log.info(f"Found {len(files)} files for capture {item.uuid}")
         return list(files)
 
-    logger.warning(f"Unknown item type: {item_type}")
+    log.warning(f"Unknown item type: {item_type}")
     return []
 
 
@@ -1339,13 +1335,13 @@ def _send_item_download_error_email(
             context=context,
         )
 
-        logger.info(
+        log.info(
             f"Sent error email for {item_type} {item.uuid} to {user.email}: "
             f"{error_message}"
         )
 
     except (OSError, ValueError) as e:
-        logger.exception(
+        log.exception(
             f"Failed to send error email for {item_type} {item.uuid} "
-            f"to user {user.id}: {e}"
+            f"to user {user.pk}: {e}"
         )

@@ -4,6 +4,7 @@ import datetime
 import os
 from pathlib import Path
 from typing import Any
+from typing import cast
 
 import h5py
 from digital_rf import DigitalRFReader
@@ -245,17 +246,23 @@ def store_processed_data(
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
     # Get the processed data record
-    processed_data = PostProcessedData.objects.filter(
-        capture=capture,
-        processing_type=processing_type,
-    ).first()
+    processed_data = cast(
+        "PostProcessedData",
+        PostProcessedData.objects.filter(
+            capture=capture,
+            processing_type=processing_type,
+        ).first(),
+    )
 
     if not processed_data:
         error_msg = f"No processed data record found for {processing_type}"
         raise ValueError(error_msg)
 
     # Store the file
-    processed_data.set_processed_data_file(curr_file_path, new_filename)
+    processed_data.set_processed_data_file(
+        file_path=curr_file_path,
+        filename=new_filename,
+    )
 
     # Update metadata if provided
     if metadata:

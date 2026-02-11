@@ -8,6 +8,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from django.core.files import File
 from django.db import models
 from django_cog.models import CogError
 
@@ -211,7 +212,7 @@ class PostProcessedData(BaseModel):
     def set_processed_data_file(self, file_path: str, filename: str) -> None:
         """Set the processed data file."""
         with Path(file_path).open("rb") as f:
-            self.data_file.save(filename, f, save=False)
+            self.data_file.save(filename, File(f), save=False)
         self.save(update_fields=["data_file"])
 
     def get_error_info(self) -> dict[str, Any] | None:
