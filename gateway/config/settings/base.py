@@ -428,14 +428,13 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
 ACCOUNT_ALLOW_REGISTRATION: bool = env.bool("DJANGO_ACCOUNT_ALLOW_REGISTRATION", True)
 
 # https://docs.allauth.org/en/latest/account/configuration.html
-ACCOUNT_EMAIL_REQUIRED: bool = True
-ACCOUNT_USERNAME_REQUIRED: bool = False
-# In allauth 65+, ACCOUNT_LOGIN_METHODS dict controls authentication methods,
+# ACCOUNT_EMAIL_REQUIRED and ACCOUNT_USERNAME_REQUIRED are deprecated in v65.5+
+# https://docs.allauth.org/en/dev/release-notes/recent.html#id39
+
+# In allauth 65.4+, ACCOUNT_LOGIN_METHODS controls authentication methods,
 # replacing the now deprecated ACCOUNT_AUTHENTICATION_METHOD
-# Format: {"email": ["password"]} enables password-based email login
-ACCOUNT_LOGIN_METHODS: dict[str, list[str]] = {
-    "email": ["password"],  # enable password login, disable code-based
-}
+# https://docs.allauth.org/en/dev/release-notes/recent.html#id44
+ACCOUNT_LOGIN_METHODS: set[str] = {"email"}
 
 # fields marked with an asterisk (e.g. 'email*') are required.
 ACCOUNT_SIGNUP_FIELDS: list[str] = ["email*", "password1*", "password2*"]
