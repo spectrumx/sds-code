@@ -32,7 +32,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.3.10
+      rev: v2.3.14
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
@@ -46,7 +46,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.14.14
+      rev: v0.15.0
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
