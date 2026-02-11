@@ -33,10 +33,11 @@ check-acceptance:
 clean:
     @rm -rvf \
         .tox .coverage \
-        .pytest_cache .cache dist \
-        .venv .eggs .eggs/ \
+        .pytest_cache .cache dist .ruff_cache \
+        .eggs .eggs/ \
         ./**/*.py.cover \
-        *.egg-info *.egg-info/
+        *.egg-info *.egg-info/ \
+        tests/coverage/ tests/__pycache__/ tests/htmlcov/ tests/.pytest_cache/
 
 # build SDK documentation
 [group('documentation')]
