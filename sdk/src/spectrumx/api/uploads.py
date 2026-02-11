@@ -10,10 +10,10 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING
 from typing import Annotated
 from typing import NoReturn
 
+from anyio import Path as AsyncPath
 from pydantic import BaseModel
 from pydantic import Field
 from tqdm import tqdm
@@ -44,8 +44,6 @@ upload_prog_bar_kwargs = {
     "unit_divisor": 1024,
 }
 
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 MAX_DAYS_FOR_RESUMING_UPLOAD = 30
 
@@ -357,7 +355,8 @@ class UploadWorkload(BaseModel):
         file_model = create_file_instance(root=root, candidate=candidate)
 
         # skip files that have already been successfully uploaded
-        resolved_path = str(candidate.resolve())
+        async_candidate = AsyncPath(candidate)
+        resolved_path = str(await async_candidate.resolve())
         if resolved_path in persisted_uploads:
             persisted = persisted_uploads[resolved_path]
             current_checksum = file_model.compute_sum_blake3()
@@ -396,12 +395,13 @@ class UploadWorkload(BaseModel):
             The list of discovered files ready for upload.
         """
 
-        root = Path(self.local_root).expanduser().resolve()
-        if not root.exists():
-            msg = f"Upload root not found: '{root}'"
+        root = await AsyncPath(self.local_root).expanduser()
+        root_resolved = await root.resolve()
+        if not await root_resolved.exists():
+            msg = f"Upload root not found: '{root_resolved}'"
             raise FileNotFoundError(msg)
-        if not root.is_dir():
-            msg = f"Upload root is not a directory: '{root}'"
+        if not await root_resolved.is_dir():
+            msg = f"Upload root is not a directory: '{root_resolved}'"
             raise NotADirectoryError(msg)
 
         await self._reset_state()
@@ -410,7 +410,7 @@ class UploadWorkload(BaseModel):
         assert self._persistence_manager is not None
         persisted_uploads = await self._persistence_manager.load_persisted_uploads()
 
-        file_candidate_generator: Iterable[Path] = root.rglob("*")
+        file_candidate_generator = root.rglob("*")
         file_candidate_progress = get_prog_bar(
             None,
             desc="Discovering files",
@@ -418,13 +418,13 @@ class UploadWorkload(BaseModel):
             leave=True,
         )
 
-        for candidate in file_candidate_generator:
-            if not candidate.is_file():
+        async for candidate in file_candidate_generator:
+            if not await candidate.is_file():
                 continue
             file_candidate_progress.update(1)
             await self._process_file_candidate(
-                candidate=candidate,
-                root=root,
+                candidate=Path(candidate),  # pyright: ignore[reportArgumentType] # pyrefly: ignore[bad-argument-type]
+                root=Path(root_resolved),  # pyright: ignore[reportArgumentType] # pyrefly: ignore[bad-argument-type]
                 persisted_uploads=persisted_uploads,
                 check_sds_ignore=check_sds_ignore,
             )

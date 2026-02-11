@@ -15,6 +15,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
+from anyio import Path as AnyioPath
 from spectrumx.api.uploads import MAX_DAYS_FOR_RESUMING_UPLOAD
 from spectrumx.api.uploads import PersistedUploadFile
 from spectrumx.api.uploads import SkippedUpload
@@ -1085,19 +1086,19 @@ async def test_discover_files_detects_updated_file_via_checksum(
 @pytest.mark.anyio
 async def test_persistence_full_workflow(tmp_path: Path, client: Client) -> None:
     """Test persistence across multiple discovery and upload cycles."""
-    root = tmp_path / "upload_root"
-    root.mkdir()
+    root = AnyioPath(tmp_path) / "upload_root"
+    await root.mkdir()
     file1 = root / "file1.txt"
-    file1.write_text("content1", encoding="utf-8")
+    await file1.write_text("content1", encoding="utf-8")
 
-    workload = UploadWorkload(client=client, local_root=root, persist_state=True)
+    workload = UploadWorkload(client=client, local_root=Path(root), persist_state=True)
 
     assert workload._persistence_manager is not None, (
         "Persistence manager should be initialized"
     )
     discovered1 = await workload._discover_files()
-    assert len(discovered1) == 1
-    assert len(workload.fq_pending) == 1
+    assert len(discovered1) == 1, "Expected to discover one file"
+    assert len(workload.fq_pending) == 1, "Expected pending buffer to have one file"
 
     file_obj = discovered1[0]
     await workload._mark_completed_result(successful_result=Result(value=file_obj))
@@ -1107,7 +1108,7 @@ async def test_persistence_full_workflow(tmp_path: Path, client: Client) -> None
     lines = persist_path.read_text(encoding="utf-8").strip().split("\n")
     assert len(lines) == 1
 
-    workload2 = UploadWorkload(client=client, local_root=root, persist_state=True)
+    workload2 = UploadWorkload(client=client, local_root=Path(root), persist_state=True)
     discovered2 = await workload2._discover_files()
 
     assert len(discovered2) == 0

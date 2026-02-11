@@ -1,5 +1,6 @@
 [project]
     dependencies = [
+        "anyio[trio]>=4.12.1",
         # pydantic and blake3 have dependencies built with rust (via maturin),
         # so the lowest dependency trees need to be different for the python versions
         "blake3>=1.0.0 ; python_full_version < '3.14'",

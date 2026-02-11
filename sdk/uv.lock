@@ -1186,6 +1186,7 @@ name = "spectrumx"
 version = "0.1.17"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio", extra = ["trio"] },
     { name = "blake3" },
     { name = "loguru" },
     { name = "pydantic" },
@@ -1213,6 +1214,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", extras = ["trio"], specifier = ">=4.12.1" },
     { name = "blake3", marker = "python_full_version < '3.14'", specifier = ">=1.0.0" },
     { name = "blake3", marker = "python_full_version >= '3.14'", specifier = ">=1.0.6" },
     { name = "loguru", specifier = ">=0.6.0" },
