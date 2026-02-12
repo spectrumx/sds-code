@@ -404,6 +404,7 @@ class ListRefreshManager {
 window.APIClient = new APIClient();
 window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
+// NOTE: ListRefreshManager is a class and should be instantiated explicitly.
 window.ListRefreshManager = ListRefreshManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context

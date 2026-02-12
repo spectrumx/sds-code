@@ -3550,6 +3550,9 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
                 "status",
                 "is_public",
                 "shared_with",
+                "previous_version",
+                "version",
+                "owner",
             ]
 
             dataset_data = {
@@ -3569,23 +3572,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             dataset_data["status"] = DatasetStatus.DRAFT.value
             dataset_data["is_public"] = False
 
-            # Create the new dataset within the transaction
-            # Catch IntegrityError in case of race condition (safety net)
-            try:
-                new_dataset = Dataset.objects.create(**dataset_data)
-            except IntegrityError:
-                # If we get an IntegrityError, another request may have created it
-                # Fetch the existing version and return it
-                existing_version = Dataset.objects.filter(
-                    previous_version=locked_dataset,
-                    version=new_version,
-                    owner=request_user,
-                    is_deleted=False,
-                ).first()
-                if existing_version:
-                    return existing_version
-                # Re-raise if we can't find it (unexpected error)
-                raise
+            new_dataset = Dataset.objects.create(**dataset_data)
 
             # Set the relationships on the new dataset
             new_dataset.captures.set(locked_dataset.captures.all())
