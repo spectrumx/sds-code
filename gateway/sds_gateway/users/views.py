@@ -3426,8 +3426,6 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
             # Get all files associated with the dataset
             files_queryset = self._get_dataset_files(dataset)
 
-            print("files_queryset", files_queryset)
-
             # Calculate statistics
             total_files = files_queryset.count()
             captures_count = files_queryset.filter(capture__isnull=False).count()

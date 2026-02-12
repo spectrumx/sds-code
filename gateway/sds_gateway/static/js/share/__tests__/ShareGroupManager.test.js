@@ -223,28 +223,28 @@ describe("ShareGroupManager", () => {
 		let shareGroupManager;
 		let mockAPIClient;
 		let mockSection;
-	
+
 		beforeEach(() => {
 			mockAPIClient = {
 				post: jest.fn(),
 			};
 			window.APIClient = mockAPIClient;
-	
+
 			mockSection = {
 				innerHTML: "",
 				classList: {
 					remove: jest.fn(),
 				},
 			};
-	
+
 			document.getElementById = jest.fn((id) => {
 				if (id === "sharedAssetsSection") return mockSection;
 				return null;
 			});
-	
+
 			shareGroupManager = new ShareGroupManager();
 		});
-	
+
 		test("should filter and sort assets by type, showing first 3 of each", async () => {
 			const sharedAssets = [
 				{ type: "dataset", name: "Dataset C" },
@@ -256,13 +256,13 @@ describe("ShareGroupManager", () => {
 				{ type: "capture", name: "Capture Y" },
 				{ type: "capture", name: "Capture W" },
 			];
-	
+
 			mockAPIClient.post.mockResolvedValue({
 				html: "<div>Mock HTML</div>",
 			});
-	
+
 			await shareGroupManager.displaySharedAssetsInfo(sharedAssets);
-	
+
 			expect(mockAPIClient.post).toHaveBeenCalledWith(
 				"/users/render-html/",
 				{
@@ -293,14 +293,14 @@ describe("ShareGroupManager", () => {
 				true,
 			);
 		});
-	
+
 		test("should handle empty assets list", async () => {
 			mockAPIClient.post.mockResolvedValue({
 				html: "<div>No assets</div>",
 			});
-	
+
 			await shareGroupManager.displaySharedAssetsInfo([]);
-	
+
 			expect(mockAPIClient.post).toHaveBeenCalledWith(
 				"/users/render-html/",
 				{
