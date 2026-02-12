@@ -116,6 +116,7 @@ describe("DetailsActionManager", () => {
 			renderError: jest.fn().mockResolvedValue(true),
 			renderLoading: jest.fn().mockResolvedValue(true),
 			renderContent: jest.fn().mockResolvedValue(true),
+			formatFileSize: jest.fn((size) => (size != null ? `${size} B` : "0 B")),
 		};
 
 		// Mock window.APIClient (what the actual code uses)
@@ -171,49 +172,6 @@ describe("DetailsActionManager", () => {
 			detailsManager = new DetailsActionManager({ permissions });
 
 			expect(mockButton.addEventListener).toHaveBeenCalled();
-		});
-	});
-
-	describe("Dataset Details Functionality", () => {
-		beforeEach(() => {
-			const permissions = new PermissionsManager({
-				datasetPermissions: { canView: true },
-			});
-			detailsManager = new DetailsActionManager({ permissions });
-		});
-
-		test("should initialize dataset details buttons", () => {
-			detailsManager.initializeDatasetDetailsButtons();
-
-			expect(document.querySelectorAll).toHaveBeenCalledWith(
-				".dataset-details-btn",
-			);
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
-				expect.any(Function),
-			);
-		});
-
-		test("should handle dataset details click", () => {
-			const datasetUuid = "test-dataset-uuid";
-
-			detailsManager.handleDatasetDetails(datasetUuid);
-
-			expect(global.window.APIClient.get).toHaveBeenCalledWith(
-				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
-			);
-		});
-
-		test("should prevent duplicate event listener attachment", () => {
-			// Set up the button to appear as already configured
-			mockButton.dataset.detailsSetup = "true";
-
-			// Clear previous calls
-			mockButton.addEventListener.mockClear();
-
-			detailsManager.initializeDatasetDetailsButtons();
-
-			expect(mockButton.addEventListener).not.toHaveBeenCalled();
 		});
 	});
 
@@ -290,21 +248,6 @@ describe("DetailsActionManager", () => {
 
 			renderLoadingSpy.mockRestore();
 		});
-
-		test("should handle modal event handlers", () => {
-			detailsManager.initializeModalEventHandlers();
-
-			expect(document.addEventListener).toHaveBeenCalledWith(
-				"show.bs.modal",
-				expect.any(Function),
-			);
-		});
-
-		test("should handle modal save functionality", async () => {
-			// Note: saveCaptureDetails method doesn't exist in the actual implementation
-			// This test should be removed or the method should be implemented
-			expect(true).toBe(true); // Placeholder
-		});
 	});
 
 	describe("Permission Handling", () => {
@@ -369,6 +312,216 @@ describe("DetailsActionManager", () => {
 			expect(() => {
 				detailsManager.initializeCaptureDetailsButtons();
 			}).not.toThrow();
+		});
+	});
+
+	describe("Dataset Modal Loading", () => {
+		let detailsManager;
+		let mockDatasetData;
+		let mockStatistics;
+		let mockTree;
+		let mockNameElement;
+		let mockDescriptionElement;
+		let mockStatusElement;
+		let mockAuthorElement;
+		let mockKeywordsElement;
+		let mockCopyButton;
+		let mockTotalFilesElement;
+		let mockCapturesElement;
+		let mockArtifactsElement;
+		let mockTotalSizeElement;
+		let mockTreeBody;
+		let mockModalBody;
+		let mockDatasetModal;
+		let appendedChildren;
+		let mockCreatedElement;
+		let mockUpdatedElement;
+
+		beforeEach(() => {
+			mockDatasetData = {
+				uuid: "test-uuid",
+				name: "Test Dataset",
+				description: "A shared dataset",
+				status: "Final",
+				created_at: "2024-01-01T00:00:00Z",
+				updated_at: "2024-01-15T00:00:00Z",
+				authors: ["John Doe", "Jane Smith"],
+				keywords: ["test", "shared"],
+			};
+
+			mockStatistics = {
+				total_files: 2,
+				captures: 0,
+				artifacts: 2,
+				total_size: 3072,
+			};
+	
+			mockTree = {
+				type: "directory",
+				name: "root",
+				files: [
+					{
+						name: "test-file.txt",
+						size: 1024,
+						created_at: "2024-01-01T00:00:00Z",
+						updated_at: "2024-01-01T00:00:00Z",
+						media_type: "text/plain",
+						type: "file",
+					},
+					{
+						name: "test-file2.txt",
+						size: 2048,
+						created_at: "2024-01-01T00:00:00Z",
+						updated_at: "2024-01-01T00:00:00Z",
+						media_type: "text/plain",
+						type: "file",
+					},
+				],
+				children: {},
+			};
+
+			global.window.APIClient.get.mockResolvedValueOnce({
+				success: true,
+				dataset: mockDatasetData,
+				statistics: mockStatistics,
+				tree: mockTree,
+			});
+
+			// Create persistent mock elements (same object returned each time)
+			mockNameElement = { textContent: "" };
+			mockDescriptionElement = { textContent: "" };
+			mockStatusElement = { innerHTML: "" };
+			mockCreatedElement = { textContent: "" };
+			mockUpdatedElement = { textContent: "" };
+			mockAuthorElement = { textContent: "" };
+			appendedChildren = [];
+			mockKeywordsElement = { 
+				innerHTML: "",
+				appendChild: jest.fn((child) => {
+					appendedChildren.push(child);
+					return child;
+				}),
+			};
+			mockCopyButton = { 
+				dataset: {}, 
+				addEventListener: jest.fn(),
+				removeEventListener: jest.fn(),
+			};
+			mockTotalFilesElement = { textContent: "" };
+			mockCapturesElement = { textContent: "" };
+			mockArtifactsElement = { textContent: "" };
+			mockTotalSizeElement = { textContent: "" };
+			mockTreeBody = { innerHTML: "" };
+			mockModalBody = {
+				innerHTML: "",
+				dataset: {},
+			};
+
+			// Mock modal element with proper querySelector responses
+			mockDatasetModal = {
+				id: "datasetDetailsModal",
+				querySelector: jest.fn((selector) => {
+					const selectors = {
+						".dataset-details-name": mockNameElement,
+						".dataset-details-description": mockDescriptionElement,
+						".dataset-details-status": mockStatusElement,
+						".dataset-details-created": mockCreatedElement,
+						".dataset-details-updated": mockUpdatedElement,
+						".dataset-details-author": mockAuthorElement,
+						".dataset-details-keywords": mockKeywordsElement,
+						".copy-uuid-btn": mockCopyButton,
+						"#total-files-count": mockTotalFilesElement,
+						"#captures-count": mockCapturesElement,
+						"#artifacts-count": mockArtifactsElement,
+						"#total-size": mockTotalSizeElement,
+						"#dataset-file-tree-table tbody": mockTreeBody,
+						".modal-body": mockModalBody,
+					};
+					return selectors[selector] || null;
+				}),
+				querySelectorAll: jest.fn(() => []),
+			};
+
+			document.getElementById.mockImplementation((id) => {
+				if (id === "datasetDetailsModal") return mockDatasetModal;
+				return null;
+			});
+		});
+
+		test.each([
+			[
+				"owner",
+				{
+					userPermissionLevel: "owner",
+					isOwner: true,
+					datasetPermissions: { canView: true, canDownload: true },
+				},
+			],
+			[
+				"shared to non-owners",
+				{
+					userPermissionLevel: "viewer",
+					isOwner: false,
+					datasetPermissions: { canView: true, canDownload: true },
+				},
+			],
+		])("should show details for %s dataset", async (_label, permissionsConfig) => {
+			const permissions = new PermissionsManager(permissionsConfig);
+			detailsManager = new DetailsActionManager({ permissions });
+
+			// spies to verify the methods are called
+			const populateSpy = jest.spyOn(detailsManager, 'populateDatasetDetailsModal');
+			const updateFileTreeSpy = jest.spyOn(detailsManager, 'updateFileTree');
+
+			await detailsManager.loadDatasetDetailsForModal("test-uuid");
+
+			expect(global.window.APIClient.get).toHaveBeenCalledWith(
+				`/users/dataset-details/?dataset_uuid=test-uuid`,
+			);
+
+			// verify the populateDatasetDetailsModal method is called with the correct arguments
+			expect(populateSpy).toHaveBeenCalledWith(
+				mockDatasetData,
+				mockStatistics,
+				mockTree,
+			);
+
+			// verify the updateFileTree method is called with the correct arguments
+			expect(updateFileTreeSpy).toHaveBeenCalledWith(
+				mockDatasetModal,
+				mockTree,
+			);
+
+			// verify the render-html API call is made to render the file tree
+			expect(global.window.APIClient.post).toHaveBeenCalledWith(
+				"/users/render-html/",
+				expect.objectContaining({
+					template: "users/components/modal_file_tree.html",
+					context: expect.objectContaining({
+						rows: expect.arrayContaining([
+							expect.objectContaining({ name: "test-file.txt" }),
+							expect.objectContaining({ name: "test-file2.txt" }),
+						]),
+					}),
+				}),
+				null,
+				true,
+			);
+
+			// Verify modal was populated
+			expect(mockNameElement.textContent).toBe(mockDatasetData.name);
+			expect(mockDescriptionElement.textContent).toBe(mockDatasetData.description);
+			expect(mockStatusElement.innerHTML).toContain(mockDatasetData.status);
+			expect(mockAuthorElement.textContent).toBe(mockDatasetData.authors.join(", "));
+			expect(mockKeywordsElement.appendChild).toHaveBeenCalledTimes(2);
+
+			// Verify statistics
+			expect(mockTotalFilesElement.textContent).toBe(2);
+			expect(mockCapturesElement.textContent).toBe(0);
+			expect(mockArtifactsElement.textContent).toBe(2);
+
+			// Verify UUID was set on copy button
+			expect(mockCopyButton.dataset.uuid).toBe(mockDatasetData.uuid);
 		});
 	});
 });

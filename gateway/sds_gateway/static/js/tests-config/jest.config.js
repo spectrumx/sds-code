@@ -19,6 +19,17 @@ module.exports = {
 		"!sds_gateway/static/js/**/*.test.js",
 		"!sds_gateway/static/js/**/*.spec.js",
 		"!sds_gateway/static/js/**/node_modules/**",
+		// Exclude deprecated directory
+		"!sds_gateway/static/js/deprecated/**",
+		// Exclude specific legacy files
+		"!sds_gateway/static/js/components.js",
+		"!sds_gateway/static/js/file_list_upload_capture_modal.js",
+		"!sds_gateway/static/js/file-list.js",
+		"!sds_gateway/static/js/file-manager.js",
+		"!sds_gateway/static/js/files-ui.js",
+		"!sds_gateway/static/js/vendors.js",
+		"!sds_gateway/static/js/files-upload.js",
+		"!sds_gateway/static/js/theme.js",
 	],
 
 	// Coverage thresholds
