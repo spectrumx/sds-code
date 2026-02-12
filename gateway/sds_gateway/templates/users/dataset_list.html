@@ -43,6 +43,7 @@
             {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
         {% endif %}
     {% endif %}
+{% endfor %}
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
@@ -110,6 +111,7 @@
 
 
             // Initialize ListRefreshManager for dataset list
+            // The change in case differentiates the instance from the class.
             window.listRefreshManager = new ListRefreshManager({
                 containerSelector: '#dynamic-table-container',
                 url: '/users/dataset-list/',
