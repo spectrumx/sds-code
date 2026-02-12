@@ -198,10 +198,10 @@ describe("DownloadActionManager", () => {
 			downloadManager.closeCustomModal = jest.fn();
 			downloadManager.showToast = jest.fn();
 		});
-		
+
 		test("should initialize dataset download buttons", () => {
 			downloadManager.initializeDatasetDownloadButtons();
-			
+
 			expect(document.querySelectorAll).toHaveBeenCalledWith(
 				".download-dataset-btn",
 			);
