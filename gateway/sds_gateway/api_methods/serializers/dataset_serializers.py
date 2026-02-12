@@ -163,7 +163,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         ).first()
 
         if permission:
-            return permission.permission_level in ["co-owner", "contributor"]
+            return permission.permission_level in [PermissionLevel.CO_OWNER, PermissionLevel.CONTRIBUTOR]
 
         return False
 
@@ -187,7 +187,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         ).first()
 
         if permission:
-            return permission.permission_level in ["co-owner"]
+            return permission.permission_level == PermissionLevel.CO_OWNER
 
         return False
 
