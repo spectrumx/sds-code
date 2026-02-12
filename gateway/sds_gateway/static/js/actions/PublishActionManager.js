@@ -404,3 +404,11 @@ class PublishActionManager {
 		}
 	}
 }
+
+// Make class available globally
+window.PublishActionManager = PublishActionManager;
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { PublishActionManager };
+}

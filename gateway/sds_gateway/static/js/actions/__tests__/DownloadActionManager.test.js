@@ -135,15 +135,73 @@ describe("DownloadActionManager", () => {
 	});
 
 	describe("Dataset Download Functionality", () => {
-		beforeEach(() => {
-			downloadManager = new DownloadActionManager({
-				permissions: mockPermissions,
-			});
-		});
+		let downloadManager;
+		let mockAPIClient;
+		let mockButton;
+		let clonedConfirmBtn;
 
+		beforeEach(() => {
+			mockAPIClient = {
+				post: jest.fn(),
+			};
+			window.APIClient = mockAPIClient;
+
+			window.DOMUtils = {
+				renderLoading: jest.fn().mockResolvedValue(true),
+				renderContent: jest.fn().mockResolvedValue(true),
+				showAlert: jest.fn(),
+			};
+
+			mockButton = {
+				innerHTML: "Download",
+				disabled: false,
+				addEventListener: jest.fn(),
+				dataset: { downloadSetup: "false" },
+				getAttribute: jest.fn((attr) => {
+					if (attr === "data-dataset-uuid") return "test-dataset-uuid";
+					if (attr === "data-dataset-name") return "Test Dataset";
+					return null;
+				}),
+			};
+
+			document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".download-dataset-btn") return [mockButton];
+				if (selector === ".download-capture-btn") return [mockButton];
+				if (selector === ".download-dataset-btn, .download-capture-btn")
+					return [mockButton];
+				return [];
+			});
+
+			document.getElementById = jest.fn((id) => {
+				if (id === "downloadDatasetName") {
+					return { textContent: "" };
+				}
+				if (id === "confirmDownloadBtn") {
+					return {
+						cloneNode: jest.fn(() => {
+							clonedConfirmBtn = {
+								parentNode: { replaceChild: jest.fn() },
+								onclick: null,
+							};
+							return clonedConfirmBtn;
+						}),
+						parentNode: { replaceChild: jest.fn() },
+					};
+				}
+				return null;
+			});
+
+			downloadManager = new DownloadActionManager({
+				permissions: { canDownload: () => true },
+			});
+			downloadManager.openCustomModal = jest.fn();
+			downloadManager.closeCustomModal = jest.fn();
+			downloadManager.showToast = jest.fn();
+		});
+		
 		test("should initialize dataset download buttons", () => {
 			downloadManager.initializeDatasetDownloadButtons();
-
+			
 			expect(document.querySelectorAll).toHaveBeenCalledWith(
 				".download-dataset-btn",
 			);
@@ -153,18 +211,40 @@ describe("DownloadActionManager", () => {
 			);
 		});
 
-		test("should handle dataset download click with permissions", async () => {
-			const datasetUuid = "test-dataset-uuid";
-			const datasetName = "Test Dataset";
+		test("should successfully request download and show success message", async () => {
+			mockAPIClient.post.mockResolvedValue({
+				success: true,
+				message: "Download request submitted",
+			});
 
-			// Test that the method exists and can be called
-			expect(() => {
-				downloadManager.handleDatasetDownload(
-					datasetUuid,
-					datasetName,
-					mockButton,
-				);
-			}).not.toThrow();
+			await downloadManager.handleDatasetDownload(
+				"test-uuid",
+				"Test Dataset",
+				mockButton,
+			);
+
+			// Simulate confirm button click using the same clone the code assigned onclick to
+			if (clonedConfirmBtn && typeof clonedConfirmBtn.onclick === "function") {
+				await clonedConfirmBtn.onclick();
+			}
+
+			await new Promise((resolve) => setTimeout(resolve, 0));
+
+			expect(mockAPIClient.post).toHaveBeenCalledWith(
+				"/users/download-item/dataset/test-uuid/",
+				{},
+			);
+			expect(window.DOMUtils.renderContent).toHaveBeenCalledWith(
+				mockButton,
+				expect.objectContaining({
+					icon: "check-circle",
+					color: "success",
+				}),
+			);
+			expect(downloadManager.showToast).toHaveBeenCalledWith(
+				expect.stringContaining("Download request submitted"),
+				"success",
+			);
 		});
 
 		test("should prevent duplicate event listener attachment", () => {
@@ -203,7 +283,7 @@ describe("DownloadActionManager", () => {
 			);
 
 			// showToast calls DOMUtils.showAlert, not window.showAlert directly
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
 				"You don't have permission to download this dataset",
 				"warning",
 			);
@@ -212,6 +292,8 @@ describe("DownloadActionManager", () => {
 
 	describe("Capture Download Functionality", () => {
 		beforeEach(() => {
+			if (!window.DOMUtils) window.DOMUtils = {};
+			window.DOMUtils.showAlert = jest.fn();
 			downloadManager = new DownloadActionManager({
 				permissions: mockPermissions,
 			});
@@ -233,14 +315,17 @@ describe("DownloadActionManager", () => {
 			const captureUuid = "test-capture-uuid";
 			const captureName = "Test Capture";
 
-			// Test that the method exists and can be called
-			expect(() => {
+			// Ensure window.DOMUtils is properly set up
+			window.DOMUtils = global.window.DOMUtils;
+
+			// Test that the method exists and can be called without throwing
+			await expect(
 				downloadManager.handleCaptureDownload(
 					captureUuid,
 					captureName,
 					mockButton,
-				);
-			}).not.toThrow();
+				),
+			).resolves.not.toThrow();
 		});
 
 		test("should show permission error for capture download", async () => {
@@ -260,7 +345,7 @@ describe("DownloadActionManager", () => {
 			);
 
 			// showToast calls DOMUtils.showAlert, not window.showAlert directly
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
 				"You don't have permission to download this capture",
 				"warning",
 			);

@@ -69,6 +69,19 @@ const mockWindow = {
 	clearInterval: jest.fn(),
 };
 
+// Make location.href settable without triggering navigation
+Object.defineProperty(mockWindow.location, "href", {
+	get() {
+		return this._href || "http://localhost:8000";
+	},
+	set(value) {
+		this._href = value;
+		// Don't actually navigate - just store the value
+		// Tests can check this value if needed
+	},
+	configurable: true,
+});
+
 // Set up global mocks
 global.document = mockDOM;
 global.window = mockWindow;

@@ -16,37 +16,11 @@ class DetailsActionManager {
 	 * Initialize event listeners
 	 */
 	initializeEventListeners() {
-		// Initialize details buttons for datasets
-		this.initializeDatasetDetailsButtons();
-
 		// Initialize details buttons for captures
 		this.initializeCaptureDetailsButtons();
 
-		// Initialize modal event handlers
-		this.initializeModalEventHandlers();
-	}
-
-	/**
-	 * Initialize dataset details buttons
-	 */
-	initializeDatasetDetailsButtons() {
-		const detailsButtons = document.querySelectorAll(".dataset-details-btn");
-
-		for (const button of detailsButtons) {
-			// Prevent duplicate event listener attachment
-			if (button.dataset.detailsSetup === "true") {
-				continue;
-			}
-			button.dataset.detailsSetup = "true";
-
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-
-				const datasetUuid = button.getAttribute("data-dataset-uuid");
-				this.handleDatasetDetails(datasetUuid);
-			});
-		}
+		// Initialize modal event handlers for datasets
+		this.initializeDatasetModalEventHandlers();
 	}
 
 	/**
@@ -91,7 +65,7 @@ class DetailsActionManager {
 	/**
 	 * Initialize modal event handlers
 	 */
-	initializeModalEventHandlers() {
+	initializeDatasetModalEventHandlers() {
 		// Handle modal show events
 		document.addEventListener("show.bs.modal", (e) => {
 			const modal = e.target;
@@ -99,34 +73,6 @@ class DetailsActionManager {
 				this.handleDatasetDetailsModalShow(modal, e);
 			}
 		});
-	}
-
-	/**
-	 * Handle dataset details
-	 * @param {string} datasetUuid - Dataset UUID
-	 */
-	async handleDatasetDetails(datasetUuid) {
-		try {
-			// Show loading state
-			this.showModalLoading("datasetDetailsModal");
-
-			// Fetch dataset details
-			const datasetData = await window.APIClient.get(
-				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
-			);
-
-			// Populate modal with data
-			this.populateDatasetDetailsModal(datasetData);
-
-			// Show modal
-			this.openModal("datasetDetailsModal");
-		} catch (error) {
-			console.error("Error loading dataset details:", error);
-			this.showModalError(
-				"datasetDetailsModal",
-				"Failed to load dataset details",
-			);
-		}
 	}
 
 	/**
@@ -163,7 +109,7 @@ class DetailsActionManager {
 	 * @param {Object} statistics - Dataset statistics
 	 * @param {Object} tree - File tree data
 	 */
-	populateDatasetDetailsModal(datasetData, statistics, tree) {
+	async populateDatasetDetailsModal(datasetData, statistics, tree) {
 		const modal = document.getElementById("datasetDetailsModal");
 		if (!modal) return;
 
@@ -229,10 +175,7 @@ class DetailsActionManager {
 		}
 
 		// Update file tree (if tree container exists)
-		this.updateFileTree(modal, tree);
-
-		// Update action buttons based on permissions
-		this.updateActionButtons(modal, datasetData);
+		await this.updateFileTree(modal, tree);
 	}
 
 	/**
@@ -652,47 +595,6 @@ class DetailsActionManager {
 	}
 
 	/**
-	 * Update action buttons for dataset
-	 * @param {Element} modal - Modal element
-	 * @param {Object} datasetData - Dataset data
-	 */
-	updateActionButtons(modal, datasetData) {
-		// Share button
-		const shareButton = modal.querySelector("#share-dataset-btn");
-		if (!shareButton) {
-			// Continue to next button
-		} else if (!this.permissions.canShare()) {
-			window.DOMUtils.hide(shareButton, "display-inline-block");
-		} else {
-			window.DOMUtils.show(shareButton, "display-inline-block");
-			shareButton.setAttribute("data-dataset-uuid", datasetData.uuid);
-		}
-
-		// Download button
-		const downloadButton = modal.querySelector("#download-dataset-btn");
-		if (!downloadButton) {
-			// Continue to next button
-		} else if (!this.permissions.canDownload()) {
-			window.DOMUtils.hide(downloadButton, "display-inline-block");
-		} else {
-			window.DOMUtils.show(downloadButton, "display-inline-block");
-			downloadButton.setAttribute("data-dataset-uuid", datasetData.uuid);
-			downloadButton.setAttribute("data-dataset-name", datasetData.name);
-		}
-
-		// Edit button
-		const editButton = modal.querySelector("#edit-dataset-btn");
-		if (!editButton) return;
-
-		if (!this.permissions.canEditMetadata()) {
-			window.DOMUtils.hide(editButton, "display-inline-block");
-		} else {
-			window.DOMUtils.show(editButton, "display-inline-block");
-			editButton.href = `/users/edit-dataset/${datasetData.uuid}/`;
-		}
-	}
-
-	/**
 	 * Update action buttons for capture
 	 * @param {Element} modal - Modal element
 	 * @param {Object} captureData - Capture data
@@ -859,7 +761,7 @@ class DetailsActionManager {
 			const tree = response.tree;
 
 			// Populate modal with data
-			this.populateDatasetDetailsModal(datasetData, statistics, tree);
+			await this.populateDatasetDetailsModal(datasetData, statistics, tree);
 		} catch (error) {
 			console.error("Error loading dataset details:", error);
 			this.showModalError(
@@ -976,46 +878,6 @@ class DetailsActionManager {
 			});
 		} catch (error) {
 			return "Invalid date";
-		}
-	}
-
-	/**
-	 * Initialize details buttons for dynamically loaded content
-	 * @param {Element} container - Container element to search within
-	 */
-	initializeDetailsButtonsForContainer(container) {
-		// Initialize dataset details buttons in the container
-		const datasetDetailsButtons = container.querySelectorAll(
-			".dataset-details-btn",
-		);
-		for (const button of datasetDetailsButtons) {
-			if (!button.dataset.detailsSetup) {
-				button.dataset.detailsSetup = "true";
-				button.addEventListener("click", (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const datasetUuid = button.getAttribute("data-dataset-uuid");
-					this.handleDatasetDetails(datasetUuid);
-				});
-			}
-		}
-
-		// Initialize capture details buttons in the container
-		const captureDetailsButtons = container.querySelectorAll(
-			".capture-details-btn",
-		);
-		for (const button of captureDetailsButtons) {
-			if (!button.dataset.detailsSetup) {
-				button.dataset.detailsSetup = "true";
-				button.addEventListener("click", (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const captureUuid = button.getAttribute("data-capture-uuid");
-					this.handleCaptureDetails(captureUuid);
-				});
-			}
 		}
 	}
 

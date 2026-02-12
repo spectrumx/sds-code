@@ -219,6 +219,100 @@ describe("ShareGroupManager", () => {
 		});
 	});
 
+	describe("Displaying Shared Assets Info", () => {
+		let shareGroupManager;
+		let mockAPIClient;
+		let mockSection;
+	
+		beforeEach(() => {
+			mockAPIClient = {
+				post: jest.fn(),
+			};
+			window.APIClient = mockAPIClient;
+	
+			mockSection = {
+				innerHTML: "",
+				classList: {
+					remove: jest.fn(),
+				},
+			};
+	
+			document.getElementById = jest.fn((id) => {
+				if (id === "sharedAssetsSection") return mockSection;
+				return null;
+			});
+	
+			shareGroupManager = new ShareGroupManager();
+		});
+	
+		test("should filter and sort assets by type, showing first 3 of each", async () => {
+			const sharedAssets = [
+				{ type: "dataset", name: "Dataset C" },
+				{ type: "dataset", name: "Dataset A" },
+				{ type: "dataset", name: "Dataset B" },
+				{ type: "dataset", name: "Dataset D" },
+				{ type: "capture", name: "Capture Z" },
+				{ type: "capture", name: "Capture X" },
+				{ type: "capture", name: "Capture Y" },
+				{ type: "capture", name: "Capture W" },
+			];
+	
+			mockAPIClient.post.mockResolvedValue({
+				html: "<div>Mock HTML</div>",
+			});
+	
+			await shareGroupManager.displaySharedAssetsInfo(sharedAssets);
+	
+			expect(mockAPIClient.post).toHaveBeenCalledWith(
+				"/users/render-html/",
+				{
+					template: "users/components/shared_assets_display.html",
+					context: expect.objectContaining({
+						datasets: [
+							{ type: "dataset", name: "Dataset A" },
+							{ type: "dataset", name: "Dataset B" },
+							{ type: "dataset", name: "Dataset C" },
+						],
+						captures: [
+							{ type: "capture", name: "Capture W" },
+							{ type: "capture", name: "Capture X" },
+							{ type: "capture", name: "Capture Y" },
+						],
+						total_datasets: 4,
+						total_captures: 4,
+						has_more_datasets: true,
+						has_more_captures: true,
+						remaining_datasets: 1,
+						remaining_captures: 1,
+						has_assets: true,
+						show_datasets: true,
+						show_captures: true,
+					}),
+				},
+				null,
+				true,
+			);
+		});
+	
+		test("should handle empty assets list", async () => {
+			mockAPIClient.post.mockResolvedValue({
+				html: "<div>No assets</div>",
+			});
+	
+			await shareGroupManager.displaySharedAssetsInfo([]);
+	
+			expect(mockAPIClient.post).toHaveBeenCalledWith(
+				"/users/render-html/",
+				{
+					template: "users/components/shared_assets_display.html",
+					context: { has_assets: false },
+				},
+				null,
+				true,
+			);
+		});
+	});
+
 	describe("Error Handling", () => {
 		beforeEach(() => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
