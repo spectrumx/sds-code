@@ -4,9 +4,10 @@
  * Configuration constants
  */
 const CONFIG = {
-	DEBOUNCE_DELAY: 300,
+	DEBOUNCE_DELAY: 500,
 	DEFAULT_SORT_BY: "created_at",
 	DEFAULT_SORT_ORDER: "desc",
+	MIN_LOADING_TIME: 500, // Minimum milliseconds to display loading indicator
 	ELEMENT_IDS: {
 		SEARCH_INPUT: "search-input",
 		START_DATE: "start_date",
@@ -88,7 +89,6 @@ class FileListController {
 
 		this.tableManager = new FileListCapturesTableManager({
 			tableId: "captures-table",
-			loadingIndicatorId: "loading-indicator",
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
 			modalHandler: this.modalManager,
@@ -99,7 +99,8 @@ class FileListController {
 			searchButtonId: "search-btn",
 			clearButtonId: "reset-search-btn",
 			searchFormId: "search-form",
-			onSearch: () => this.performSearch(),
+			onSearchStart: () => this.tableManager.showLoading(),
+			onSearch: (query, signal) => this.performSearch(signal),
 			debounceDelay: CONFIG.DEBOUNCE_DELAY,
 		});
 
@@ -183,7 +184,7 @@ class FileListController {
 	/**
 	 * Execute search API call
 	 */
-	async executeSearch(searchParams) {
+	async executeSearch(searchParams, signal) {
 		const apiUrl = `${window.location.pathname.replace(/\/$/, "")}/api/?${searchParams.toString()}`;
 
 		const response = await fetch(apiUrl, {
@@ -192,6 +193,7 @@ class FileListController {
 				Accept: "application/json",
 			},
 			credentials: "same-origin",
+			signal: signal,
 		});
 
 		if (!response.ok) {
@@ -228,15 +230,31 @@ class FileListController {
 	/**
 	 * Main search function - now broken down into smaller methods
 	 */
-	async performSearch() {
+	async performSearch(signal) {
 		try {
+			const startTime = Date.now();
 			this.tableManager.showLoading();
 
 			const searchParams = this.buildSearchParams();
-			const data = await this.executeSearch(searchParams);
+			const data = await this.executeSearch(searchParams, signal);
+
+			// Ensure minimum loading time is displayed
+			const elapsedTime = Date.now() - startTime;
+			if (elapsedTime < CONFIG.MIN_LOADING_TIME) {
+				await new Promise((resolve) =>
+					setTimeout(resolve, CONFIG.MIN_LOADING_TIME - elapsedTime),
+				);
+			}
+
 			this.updateUI(data);
 			this.updateBrowserHistory(searchParams);
 		} catch (error) {
+			// Don't show error if request was aborted (user issued a new search)
+			if (error.name === "AbortError") {
+				console.log("Previous search request was cancelled");
+				return;
+			}
+
 			console.error("Search error:", error);
 			this.tableManager.showError(`Search failed: ${error.message}`);
 		} finally {
@@ -552,6 +570,35 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
+		this.searchButton = document.getElementById("search-btn");
+		this.searchButtonContent = document.getElementById("search-btn-content");
+		this.searchButtonLoading = document.getElementById("search-btn-loading");
+	}
+
+	/**
+	 * Override showLoading to toggle button contents instead of showing separate indicator
+	 */
+	showLoading() {
+		if (this.searchButton) {
+			this.searchButton.disabled = true;
+			if (this.searchButtonContent)
+				this.searchButtonContent.classList.add("d-none");
+			if (this.searchButtonLoading)
+				this.searchButtonLoading.classList.remove("d-none");
+		}
+	}
+
+	/**
+	 * Override hideLoading to restore button contents
+	 */
+	hideLoading() {
+		if (this.searchButton) {
+			this.searchButton.disabled = false;
+			if (this.searchButtonContent)
+				this.searchButtonContent.classList.remove("d-none");
+			if (this.searchButtonLoading)
+				this.searchButtonLoading.classList.add("d-none");
+		}
 	}
 
 	/**
