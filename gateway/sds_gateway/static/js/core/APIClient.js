@@ -261,6 +261,9 @@ class LoadingStateManager {
 	}
 }
 
+/** Separator in list-refresh AJAX response between table HTML and modals HTML */
+const LIST_REFRESH_SEP = "<!-- LIST_REFRESH_SEP -->";
+
 /**
  * DatasetListManager - Handles dataset list table loading and updates
  */
@@ -269,13 +272,18 @@ class ListRefreshManager {
 	 * Initialize dataset list manager
 	 * @param {Object} config - Configuration object
 	 * @param {string} config.containerSelector - Selector for the container element (default: '#dynamic-table-container')
+	 * @param {string} [config.modalsContainerSelector] - Optional selector for modals container; when set, response is expected to contain LIST_REFRESH_SEP
 	 * @param {string} config.url - Base URL for dataset list endpoint (default: '/users/dataset-list/')
 	 */
 	constructor(config = {}) {
 		this.containerSelector = config.containerSelector;
+		this.modalsContainerSelector = config.modalsContainerSelector || null;
 		this.url = config.url;
 		this.itemType = config.itemType;
 		this.container = document.querySelector(this.containerSelector);
+		this.modalsContainer = this.modalsContainerSelector
+			? document.querySelector(this.modalsContainerSelector)
+			: null;
 	}
 
 	/**
@@ -326,19 +334,29 @@ class ListRefreshManager {
 				sort_order: sort_order,
 			});
 
-			// Update container with HTML response
+			// Update container(s) with HTML response
 			if (typeof html === "string") {
-				this.container.innerHTML = html;
+				let tableHtml = html;
+				let modalsHtml = "";
+
+				if (this.modalsContainer && html.includes(LIST_REFRESH_SEP)) {
+					const parts = html.split(LIST_REFRESH_SEP);
+					tableHtml = parts[0];
+					modalsHtml = parts[1] ?? "";
+					this.modalsContainer.innerHTML = modalsHtml;
+				}
+
+				this.container.innerHTML = tableHtml;
 
 				// Re-initialize any necessary event listeners after update
 				this._reinitializeEventListeners();
 
 				// Call success callback if provided
 				if (onSuccess) {
-					onSuccess(html);
+					onSuccess(tableHtml);
 				}
 
-				return html;
+				return tableHtml;
 			}
 			throw new Error("Invalid response format: expected HTML string");
 		} catch (error) {
