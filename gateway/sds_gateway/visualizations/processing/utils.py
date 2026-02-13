@@ -1,5 +1,6 @@
 """Shared utilities for visualization processing."""
 
+import contextlib
 import datetime
 import os
 import tempfile
@@ -191,7 +192,7 @@ def _find_drf_root(directory: Path) -> Path | None:
 
 
 # Max concurrent downloads when reconstructing DRF from storage (cold cache).
-# Tune based on MinIO/server capacity; 8–16 is usually safe.
+# Tune based on MinIO/server capacity; 8-16 is usually safe.
 DRF_DOWNLOAD_MAX_WORKERS = 8
 
 
@@ -210,24 +211,23 @@ def _download_one_drf_file(
             prefix=".drf.",
             suffix=".tmp",
         )
-        os.close(fd)
-        fd = None
+        with contextlib.suppress(OSError):
+            os.close(fd)
+            fd = None
         minio_client.fget_object(
             bucket_name=bucket_name,
             object_name=object_name,
             file_path=temp_path,
         )
-        os.rename(temp_path, file_path)
+        Path(temp_path).rename(file_path)
         temp_path = None
     finally:
         if fd is not None:
-            try:
+            with contextlib.suppress(OSError):
                 os.close(fd)
-            except OSError:
-                pass
-        if temp_path is not None and os.path.exists(temp_path):
+        if temp_path is not None and Path(temp_path).exists():
             try:
-                os.unlink(temp_path)
+                Path(temp_path).unlink()
             except OSError:
                 logger.warning("Could not remove temp file %s", temp_path)
 
@@ -300,11 +300,7 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     # Build list of (file_obj, file_path) that need downloading (skip existing)
     to_download: list[tuple[Any, Path]] = []
     for file_obj in capture_files:
-        rel_dir = (
-            file_obj.directory.lstrip("/")
-            if file_obj.directory
-            else ""
-        )
+        rel_dir = file_obj.directory.lstrip("/") if file_obj.directory else ""
         file_path = (capture_dir / rel_dir / file_obj.name).resolve()
         if not file_path.is_relative_to(cache_dir):
             error_msg = (
@@ -320,7 +316,11 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
     # Download missing files in parallel
     total = len(to_download)
     if to_download:
-        logger.info("Downloading %s DRF files (parallel, max_workers=%s)", total, DRF_DOWNLOAD_MAX_WORKERS)
+        logger.info(
+            "Downloading %s DRF files (parallel, max_workers=%s)",
+            total,
+            DRF_DOWNLOAD_MAX_WORKERS,
+        )
         with ThreadPoolExecutor(max_workers=DRF_DOWNLOAD_MAX_WORKERS) as executor:
             futures = {
                 executor.submit(
@@ -336,10 +336,13 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
                 idx_1, file_obj = futures[future]
                 try:
                     future.result()
-                    logger.debug("Downloaded file %s/%s: %s", idx_1 + 1, total, file_obj.name)
+                    logger.debug(
+                        "Downloaded file %s/%s: %s", idx_1 + 1, total, file_obj.name
+                    )
                 except Exception as e:
                     logger.error("Failed to download %s: %s", file_obj.name, e)
-                    raise SourceDataError(f"Failed to download {file_obj.name}: {e}") from e
+                    msg = f"Failed to download {file_obj.name}: {e}"
+                    raise SourceDataError(msg) from e
 
     # Find the DigitalRF root directory using shared helper
     drf_root = _find_drf_root(capture_dir)

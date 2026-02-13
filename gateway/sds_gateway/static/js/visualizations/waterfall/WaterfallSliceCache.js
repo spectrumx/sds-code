@@ -26,14 +26,13 @@ class WaterfallSliceCache {
 		if (!Number.isFinite(idx) || idx < 0) {
 			return null;
 		}
-		sliceIndex = idx;
-		if (this.knownGaps.has(sliceIndex)) {
+		if (this.knownGaps.has(idx)) {
 			return { _gap: true };
 		}
-		if (this.cache.has(sliceIndex)) {
+		if (this.cache.has(idx)) {
 			// Update access order (move to end = most recently used)
-			this._updateAccessOrder(sliceIndex);
-			return this.cache.get(sliceIndex);
+			this._updateAccessOrder(idx);
+			return this.cache.get(idx);
 		}
 		return null;
 	}
@@ -84,12 +83,11 @@ class WaterfallSliceCache {
 		if (!Number.isFinite(idx) || idx < 0) {
 			return;
 		}
-		sliceIndex = idx;
 
 		// If already cached, just update access order
-		if (this.cache.has(sliceIndex)) {
-			this._updateAccessOrder(sliceIndex);
-			this.cache.set(sliceIndex, sliceData);
+		if (this.cache.has(idx)) {
+			this._updateAccessOrder(idx);
+			this.cache.set(idx, sliceData);
 			return;
 		}
 
@@ -99,8 +97,8 @@ class WaterfallSliceCache {
 		}
 
 		// Add to cache
-		this.cache.set(sliceIndex, sliceData);
-		this.accessOrder.push(sliceIndex);
+		this.cache.set(idx, sliceData);
+		this.accessOrder.push(idx);
 	}
 
 	/**

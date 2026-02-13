@@ -460,7 +460,8 @@ SOCIALACCOUNT_FORMS: dict[str, str] = {
 # -------------------------------------------------------------------------------
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
 # Visualization streaming throttle (waterfall_slices_stream). Override with
-# VIS_STREAM_THROTTLE_RATE (e.g. "300/min", "900/min") in .env for heavier use or local dev.
+# VIS_STREAM_THROTTLE_RATE (e.g. "300/min", "900/min") in .env for heavier
+# use or local dev.
 VIS_STREAM_THROTTLE_RATE: str = env.str("VIS_STREAM_THROTTLE_RATE", "300/min")
 
 REST_FRAMEWORK: dict[str, str | tuple[str, ...] | dict[str, str]] = {
@@ -580,9 +581,10 @@ MAX_WEB_DOWNLOAD_SIZE: int = env.int(
     default=guess_max_web_download_size(),
 )
 
-# Testing override: report a fake large number of slices for waterfall visualizations when set.
-# Useful for UI/scale testing. Set WATERFALL_TEST_TOTAL_SLICES to an integer (e.g. 100000000)
-# and optionally WATERFALL_TEST_MIN_CAPTURE_SLICES to only apply the override for captures
+# Testing override: report a fake large number of slices for waterfall
+# visualizations when set. Useful for UI/scale testing. Set
+# WATERFALL_TEST_TOTAL_SLICES to an integer (e.g. 100000000) and optionally
+# WATERFALL_TEST_MIN_CAPTURE_SLICES to only apply the override for captures
 # with at least that many real slices (default: 1_000_000).
 WATERFALL_TEST_TOTAL_SLICES: int = env.int("WATERFALL_TEST_TOTAL_SLICES", default=0)
 WATERFALL_TEST_MIN_CAPTURE_SLICES: int = env.int(

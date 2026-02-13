@@ -7,7 +7,6 @@ from typing import Any
 from typing import cast
 
 import ijson
-
 from django.db import transaction
 from django.db.models import QuerySet
 from django.http import FileResponse
@@ -19,7 +18,6 @@ from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from loguru import logger as log
-from django.conf import settings
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
@@ -54,6 +52,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.tasks import start_capture_post_processing
+from sds_gateway.api_methods.throttling import VisStreamThrottle
 from sds_gateway.api_methods.utils.asset_access_control import (
     user_has_access_to_capture,
 )
@@ -66,14 +65,15 @@ from sds_gateway.visualizations.models import PostProcessedData
 from sds_gateway.visualizations.models import ProcessingStatus
 from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
 from sds_gateway.visualizations.processing.waterfall import FFT_SIZE
-from sds_gateway.visualizations.processing.waterfall import get_waterfall_power_bounds
 from sds_gateway.visualizations.processing.waterfall import SAMPLES_PER_SLICE
-from sds_gateway.api_methods.throttling import VisStreamThrottle
 from sds_gateway.visualizations.processing.waterfall import compute_slices_on_demand
+from sds_gateway.visualizations.processing.waterfall import get_waterfall_power_bounds
 from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
-MAX_SLICE_BATCH_SIZE = 300  # Max slices per request (larger = fewer calls when fast-forwarding)
+MAX_SLICE_BATCH_SIZE = (
+    300  # Max slices per request (larger = fewer calls when fast-forwarding)
+)
 
 
 def _validate_slice_indices(
@@ -163,9 +163,8 @@ def _extract_waterfall_slice_range(
     if total_slices_from_metadata is not None:
         total_slices = total_slices_from_metadata
         if start_index >= total_slices:
-            raise ValueError(
-                f"start_index ({start_index}) exceeds total slices ({total_slices})"
-            )
+            msg = f"start_index ({start_index}) exceeds total slices ({total_slices})"
+            raise ValueError(msg)
         end_index = min(end_index, total_slices)
     else:
         # One pass to count array length (no list storage)
@@ -178,20 +177,17 @@ def _extract_waterfall_slice_range(
             raise
         total_slices = count
         if start_index >= total_slices:
-            raise ValueError(
-                f"start_index ({start_index}) exceeds total slices ({total_slices})"
-            )
+            msg = f"start_index ({start_index}) exceeds total slices ({total_slices})"
+            raise ValueError(msg)
         end_index = min(end_index, total_slices)
         file_handle.seek(0)
 
     requested_slices: list[Any] = []
-    current = 0
-    for item in ijson.items(file_handle, "item"):
+    for current, item in enumerate(ijson.items(file_handle, "item")):
         if current >= end_index:
             break
         if current >= start_index:
             requested_slices.append(item)
-        current += 1
 
     return requested_slices, total_slices
 
@@ -408,13 +404,18 @@ class CaptureViewSet(viewsets.ViewSet):
 
         if not processed_data:
             hint = ""
-            if capture.capture_type == CaptureType.DigitalRF and processing_type == "waterfall":
-                hint = " For DigitalRF captures, streaming mode may work without preprocessed data; otherwise run post-processing to generate waterfall data."
+            if (
+                capture.capture_type == CaptureType.DigitalRF
+                and processing_type == "waterfall"
+            ):
+                hint = (
+                    " For DigitalRF captures, streaming mode may work without "
+                    "preprocessed data; otherwise run post-processing to generate "
+                    "waterfall data."
+                )
             else:
                 hint = " Run post-processing to generate this data."
-            msg = (
-                f"No completed {processing_type} data found for this capture.{hint}"
-            )
+            msg = f"No completed {processing_type} data found for this capture.{hint}"
             raise Http404(msg)
 
         if not processed_data.data_file:
@@ -529,7 +530,7 @@ class CaptureViewSet(viewsets.ViewSet):
     def _handle_capture_creation_errors(
         self, capture: Capture, error: Exception
     ) -> Response:
-        """Handle errors during capture creation. Transaction auto-rolls back on error."""
+        """Handle capture creation errors. Transaction auto-rolls back on error."""
         if isinstance(error, UnknownIndexError):
             user_msg = f"Unknown index: '{error}'. Try recreating this capture."
             server_msg = (
@@ -1177,9 +1178,7 @@ class CaptureViewSet(viewsets.ViewSet):
         ),
     )
     @action(detail=True, methods=["get"])
-    def waterfall_slices(  # noqa: PLR0911
-        self, request: Request, pk: str | None = None
-    ) -> Response:
+    def waterfall_slices(self, request: Request, pk: str | None = None) -> Response:
         """Get waterfall slices by index range for streaming."""
         # Get query parameters
         processing_type = request.query_params.get("processing_type", "waterfall")
@@ -1297,8 +1296,15 @@ class CaptureViewSet(viewsets.ViewSet):
 
         if not processed_data:
             hint = ""
-            if capture.capture_type == CaptureType.DigitalRF and processing_type == "waterfall":
-                hint = " For DigitalRF captures, streaming mode may work without preprocessed data; otherwise run post-processing to generate waterfall data."
+            if (
+                capture.capture_type == CaptureType.DigitalRF
+                and processing_type == "waterfall"
+            ):
+                hint = (
+                    " For DigitalRF captures, streaming mode may work without "
+                    "preprocessed data; otherwise run post-processing to generate "
+                    "waterfall data."
+                )
             else:
                 hint = " Run post-processing to generate this data."
             return Response(
@@ -1330,9 +1336,9 @@ class CaptureViewSet(viewsets.ViewSet):
                 required=False,
                 default=False,
                 description=(
-                    "If true, compute power_bounds (min/max dB) by sampling DRF data, "
-                    "which may trigger MinIO download and processing. Omit or false for "
-                    "fast metadata-only response."
+                    "If true, compute power_bounds (min/max dB) by sampling DRF "
+                    "data, which may trigger MinIO download and processing. Omit "
+                    "or false for fast metadata-only response."
                 ),
             ),
         ],
@@ -1410,7 +1416,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Bounds are in seconds (from DRF metadata: sample_index / samples_per_second)
+            # Bounds in seconds (DRF metadata: sample_index / samples_per_second)
             duration_seconds = end_bound - start_bound
             total_samples = int(duration_seconds * samples_per_second)
             log.debug(
@@ -1445,9 +1451,7 @@ class CaptureViewSet(viewsets.ViewSet):
             ).lower() in ("true", "1", "yes")
             if include_power_bounds:
                 try:
-                    capture_files = get_capture_files(
-                        capture, include_deleted=False
-                    )
+                    capture_files = get_capture_files(capture, include_deleted=False)
                     if capture_files.exists():
                         dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
                         drf_path = reconstruct_drf_files(

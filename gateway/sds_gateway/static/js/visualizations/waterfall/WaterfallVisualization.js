@@ -159,11 +159,7 @@ class WaterfallVisualization {
 					const now = performance.now();
 					const throttleElapsed =
 						now - this._lastPeriodogramTime >= this._periodogramThrottleMs;
-					if (
-						sliceInCache ||
-						!this.controls?.isPlaying ||
-						throttleElapsed
-					) {
+					if (sliceInCache || !this.controls?.isPlaying || throttleElapsed) {
 						if (!sliceInCache) this._lastPeriodogramTime = now;
 						this.renderPeriodogram();
 					}
@@ -673,10 +669,7 @@ class WaterfallVisualization {
 				try {
 					const metadataData = await metadataResponse.json();
 					const total = metadataData?.metadata?.total_slices;
-					if (
-						typeof total === "number" &&
-						total >= LARGE_CAPTURE_THRESHOLD
-					) {
+					if (typeof total === "number" && total >= LARGE_CAPTURE_THRESHOLD) {
 						const streamingSuccess = await this.tryLoadStreamingMode();
 						if (streamingSuccess) return;
 					}
@@ -1262,9 +1255,7 @@ class WaterfallVisualization {
 			this.currentSliceIndex < endIndex
 		) {
 			const now = performance.now();
-			if (
-				now - this._lastPeriodogramTime >= this._periodogramThrottleMs
-			) {
+			if (now - this._lastPeriodogramTime >= this._periodogramThrottleMs) {
 				this._lastPeriodogramTime = now;
 				this.renderPeriodogram();
 			} else if (!this._pendingPeriodogramRender) {

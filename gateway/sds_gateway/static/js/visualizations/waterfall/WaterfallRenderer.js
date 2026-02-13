@@ -148,12 +148,7 @@ class WaterfallRenderer {
 				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
 			} else if (slice?._gap) {
 				// Known data gap (backend had no data for this range)
-				this.drawGapPlaceholder(
-					sliceIndex,
-					y,
-					sliceHeight,
-					this.canvas.width,
-				);
+				this.drawGapPlaceholder(sliceIndex, y, sliceHeight, this.canvas.width);
 			} else {
 				// Draw loading placeholder for missing slice
 				this.drawLoadingPlaceholder(
