@@ -19,6 +19,7 @@ from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from loguru import logger as log
+from django.conf import settings
 from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework import viewsets
@@ -67,11 +68,12 @@ from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
 from sds_gateway.visualizations.processing.waterfall import FFT_SIZE
 from sds_gateway.visualizations.processing.waterfall import get_waterfall_power_bounds
 from sds_gateway.visualizations.processing.waterfall import SAMPLES_PER_SLICE
+from sds_gateway.api_methods.throttling import VisStreamThrottle
 from sds_gateway.visualizations.processing.waterfall import compute_slices_on_demand
 from sds_gateway.visualizations.serializers import PostProcessedDataSerializer
 
 MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
-MAX_SLICE_BATCH_SIZE = 100  # Maximum number of slices that can be requested at once
+MAX_SLICE_BATCH_SIZE = 300  # Max slices per request (larger = fewer calls when fast-forwarding)
 
 
 def _validate_slice_indices(
@@ -1526,10 +1528,15 @@ class CaptureViewSet(viewsets.ViewSet):
         description=(
             "Compute and return waterfall slices on-demand without preprocessing. "
             "This endpoint computes FFTs in real-time for the requested slice range. "
-            "Maximum batch size is 100 slices per request."
+            f"Maximum batch size is {MAX_SLICE_BATCH_SIZE} slices per request."
         ),
     )
-    @action(detail=True, methods=["get"], url_path="waterfall_slices_stream")
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="waterfall_slices_stream",
+        throttle_classes=[VisStreamThrottle],
+    )
     def waterfall_slices_stream(
         self, request: Request, pk: str | None = None
     ) -> Response:
@@ -1557,7 +1564,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 return validation_result
             start_index, end_index = validation_result
             log.debug(
-                "Waterfall slices stream: capture=%s range=[%s, %s)",
+                "Waterfall slices stream: capture={} range=[{}, {})",
                 pk,
                 start_index,
                 end_index,

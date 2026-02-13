@@ -3,6 +3,8 @@
 import datetime
 import os
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import as_completed
 from pathlib import Path
 from typing import Any
 
@@ -188,6 +190,48 @@ def _find_drf_root(directory: Path) -> Path | None:
     return None
 
 
+# Max concurrent downloads when reconstructing DRF from storage (cold cache).
+# Tune based on MinIO/server capacity; 8–16 is usually safe.
+DRF_DOWNLOAD_MAX_WORKERS = 8
+
+
+def _download_one_drf_file(
+    minio_client: Any,
+    bucket_name: str,
+    object_name: str,
+    file_path: Path,
+) -> None:
+    """Download a single file from MinIO to file_path (via temp then rename)."""
+    fd, temp_path = None, None
+    try:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_path = tempfile.mkstemp(
+            dir=file_path.parent,
+            prefix=".drf.",
+            suffix=".tmp",
+        )
+        os.close(fd)
+        fd = None
+        minio_client.fget_object(
+            bucket_name=bucket_name,
+            object_name=object_name,
+            file_path=temp_path,
+        )
+        os.rename(temp_path, file_path)
+        temp_path = None
+    finally:
+        if fd is not None:
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+        if temp_path is not None and os.path.exists(temp_path):
+            try:
+                os.unlink(temp_path)
+            except OSError:
+                logger.warning("Could not remove temp file %s", temp_path)
+
+
 def get_cached_drf_path(capture_uuid: str) -> Path | None:
     """Check if reconstructed DRF files are already cached.
 
@@ -246,18 +290,16 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
         raise SourceDataError(error_msg)
 
     minio_client = get_minio_client()
+    bucket_name = settings.AWS_STORAGE_BUCKET_NAME
 
     # Use persistent cache directory instead of temp directory
     cache_dir = _get_drf_cache_dir()
     capture_dir = cache_dir / str(capture.uuid)
     capture_dir.mkdir(parents=True, exist_ok=True)
 
-    # Download and place files in the correct structure
-    # Use count() to avoid materializing entire queryset
-    total_files = capture_files.count()
-    for idx, file_obj in enumerate(capture_files):
-        # Build path under capture_dir; file_obj.directory may be absolute
-        # (e.g. /files/user@/...), so use a relative part to stay under cache_dir
+    # Build list of (file_obj, file_path) that need downloading (skip existing)
+    to_download: list[tuple[Any, Path]] = []
+    for file_obj in capture_files:
         rel_dir = (
             file_obj.directory.lstrip("/")
             if file_obj.directory
@@ -271,43 +313,33 @@ def reconstruct_drf_files(capture, capture_files, temp_path: Path) -> Path:
             )
             logger.error(error_msg)
             raise SourceDataError(error_msg)
-        file_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # Skip if file already exists (partial cache recovery)
         if file_path.exists():
             continue
+        to_download.append((file_obj, file_path))
 
-        # Download to a temp file in the same directory, then rename to final path.
-        # This avoids relying on MinIO client's internal .part.minio temp file and
-        # rename, which can fail (e.g. Errno 2) when the client uses a different path.
-        fd, temp_path = None, None
-        try:
-            fd, temp_path = tempfile.mkstemp(
-                dir=file_path.parent,
-                prefix=".drf.",
-                suffix=".tmp",
-            )
-            os.close(fd)
-            fd = None
-            logger.debug(f"Downloading file {idx + 1}/{total_files}: {file_obj.name}")
-            minio_client.fget_object(
-                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-                object_name=file_obj.file.name,
-                file_path=temp_path,
-            )
-            os.rename(temp_path, file_path)
-            temp_path = None
-        finally:
-            if fd is not None:
+    # Download missing files in parallel
+    total = len(to_download)
+    if to_download:
+        logger.info("Downloading %s DRF files (parallel, max_workers=%s)", total, DRF_DOWNLOAD_MAX_WORKERS)
+        with ThreadPoolExecutor(max_workers=DRF_DOWNLOAD_MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(
+                    _download_one_drf_file,
+                    minio_client,
+                    bucket_name,
+                    file_obj.file.name,
+                    file_path,
+                ): (idx, file_obj)
+                for idx, (file_obj, file_path) in enumerate(to_download)
+            }
+            for future in as_completed(futures):
+                idx_1, file_obj = futures[future]
                 try:
-                    os.close(fd)
-                except OSError:
-                    pass
-            if temp_path is not None and os.path.exists(temp_path):
-                try:
-                    os.unlink(temp_path)
-                except OSError:
-                    logger.warning("Could not remove temp file %s", temp_path)
+                    future.result()
+                    logger.debug("Downloaded file %s/%s: %s", idx_1 + 1, total, file_obj.name)
+                except Exception as e:
+                    logger.error("Failed to download %s: %s", file_obj.name, e)
+                    raise SourceDataError(f"Failed to download {file_obj.name}: {e}") from e
 
     # Find the DigitalRF root directory using shared helper
     drf_root = _find_drf_root(capture_dir)

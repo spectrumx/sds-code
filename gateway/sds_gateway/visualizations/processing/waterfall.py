@@ -10,6 +10,8 @@ import numpy as np
 from loguru import logger
 from pydantic import Field
 from pydantic import computed_field
+from django.core.cache import cache
+from django.conf import settings
 
 from sds_gateway.visualizations.errors import SourceDataError
 
@@ -167,6 +169,60 @@ def compute_slices_on_demand(
         f"range [{start_index}, {end_index})"
     )
 
+    # Lightweight caching to avoid recomputing identical ranges in short succession.
+    # Cache key includes drf_path so different captures or cache locations don't collide.
+    cache_key = f"waterfall:{str(drf_path)}:{channel}:{start_index}:{end_index}"
+    cached = None
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+
+    if cached is not None:
+        logger.debug(
+            "Returning cached waterfall slices for channel %s range=[%d, %d)",
+            channel,
+            start_index,
+            end_index,
+        )
+        return cached
+
+    # Acquire a short-lived lock so concurrent identical requests don't all compute.
+    lock_key = cache_key + ":lock"
+    lock_timeout = getattr(settings, "WATERFALL_COMPUTE_LOCK_TIMEOUT", 30)
+    got_lock = False
+    try:
+        # cache.add returns True if key was set (i.e., lock acquired)
+        got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
+    except Exception:
+        got_lock = True  # If cache backend misbehaves, fall back to computing
+
+    if not got_lock:
+        # Wait for the original worker to finish and populate cache (polling).
+        wait_seconds = getattr(settings, "WATERFALL_COMPUTE_WAIT_SECONDS", 30)
+        poll_interval = 0.1
+        waited = 0.0
+        while waited < wait_seconds:
+            time.sleep(poll_interval)
+            waited += poll_interval
+            try:
+                cached = cache.get(cache_key)
+            except Exception:
+                cached = None
+            if cached is not None:
+                logger.debug(
+                    "Observed cached waterfall slices after wait for channel %s range=[%d, %d)",
+                    channel,
+                    start_index,
+                    end_index,
+                )
+                return cached
+        # If we timed out waiting, try to acquire the lock again (best-effort)
+        try:
+            got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
+        except Exception:
+            got_lock = True
+
     # Validate DigitalRF data and get base parameters
     base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
 
@@ -207,13 +263,29 @@ def compute_slices_on_demand(
     else:
         logger.info(f"Computed {len(waterfall_slices)} slices on-demand")
 
-    return {
+    result = {
         "slices": waterfall_slices,
         "total_slices": total_slices,
         "start_index": start_index,
         "end_index": end_index,
         "metadata": _build_metadata(base_params, total_slices, len(waterfall_slices)),
     }
+
+    # Cache the computed result for a short period to avoid repeat work.
+    ttl = getattr(settings, "WATERFALL_COMPUTE_CACHE_TTL", 60)
+    try:
+        cache.set(cache_key, result, ttl)
+    except Exception:
+        logger.debug("Failed to set waterfall cache key %s", cache_key)
+
+    # Release lock if we acquired it
+    try:
+        if got_lock:
+            cache.delete(lock_key)
+    except Exception:
+        pass
+
+    return result
 
 
 def get_waterfall_power_bounds(
@@ -289,6 +361,22 @@ def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
 
     base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
     total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+
+    # Testing override: report an artificially large number of slices when configured
+    try:
+        test_total = getattr(settings, "WATERFALL_TEST_TOTAL_SLICES", 0)
+        min_capture = getattr(settings, "WATERFALL_TEST_MIN_CAPTURE_SLICES", 1000000)
+        if test_total and total_slices >= min_capture:
+            logger.info(
+                "Overriding total_slices %d -> %d for testing (drf_path=%s)",
+                total_slices,
+                test_total,
+                drf_path,
+            )
+            total_slices = int(test_total)
+    except Exception:
+        # If settings can't be read for any reason, ignore and use real total_slices
+        pass
 
     return _build_metadata(base_params, total_slices, 0)
 

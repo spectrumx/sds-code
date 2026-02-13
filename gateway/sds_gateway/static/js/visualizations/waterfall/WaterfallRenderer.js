@@ -146,6 +146,14 @@ class WaterfallRenderer {
 			if (slice?.data) {
 				// Draw the slice
 				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
+			} else if (slice?._gap) {
+				// Known data gap (backend had no data for this range)
+				this.drawGapPlaceholder(
+					sliceIndex,
+					y,
+					sliceHeight,
+					this.canvas.width,
+				);
 			} else {
 				// Draw loading placeholder for missing slice
 				this.drawLoadingPlaceholder(
@@ -217,6 +225,31 @@ class WaterfallRenderer {
 		this.ctx.textAlign = "center";
 		this.ctx.fillText(
 			"Loading...",
+			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+			y + height / 2,
+		);
+	}
+
+	/**
+	 * Draw a placeholder for a known data gap (no data in this range)
+	 * @param {number} sliceIndex - The slice index
+	 * @param {number} y - Y position
+	 * @param {number} height - Slice height
+	 * @param {number} width - Canvas width
+	 */
+	drawGapPlaceholder(sliceIndex, y, height, width) {
+		if (!this.ctx) return;
+
+		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+
+		this.ctx.fillStyle = "rgba(120, 120, 120, 0.25)";
+		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+
+		this.ctx.fillStyle = "rgba(80, 80, 80, 0.5)";
+		this.ctx.font = "12px Arial";
+		this.ctx.textAlign = "center";
+		this.ctx.fillText(
+			"No data",
 			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
 			y + height / 2,
 		);

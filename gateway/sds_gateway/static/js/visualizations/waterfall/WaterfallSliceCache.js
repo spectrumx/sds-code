@@ -12,6 +12,8 @@ class WaterfallSliceCache {
 		this.cache = new Map();
 		// Track access order for LRU eviction (most recently used at end)
 		this.accessOrder = [];
+		// Indices we requested but backend returned no data (data gaps); don't re-request
+		this.knownGaps = new Set();
 	}
 
 	/**
@@ -25,6 +27,9 @@ class WaterfallSliceCache {
 			return null;
 		}
 		sliceIndex = idx;
+		if (this.knownGaps.has(sliceIndex)) {
+			return { _gap: true };
+		}
 		if (this.cache.has(sliceIndex)) {
 			// Update access order (move to end = most recently used)
 			this._updateAccessOrder(sliceIndex);
@@ -61,6 +66,7 @@ class WaterfallSliceCache {
 		const end = Math.max(start, Number.parseInt(endIndex, 10) || start);
 		const missing = [];
 		for (let i = start; i < end; i++) {
+			if (this.knownGaps.has(i)) continue;
 			if (!this.cache.has(i)) {
 				missing.push(i);
 			}
@@ -118,7 +124,24 @@ class WaterfallSliceCache {
 	 */
 	hasSlice(sliceIndex) {
 		const idx = Number.parseInt(sliceIndex, 10);
-		return Number.isFinite(idx) && idx >= 0 && this.cache.has(idx);
+		return (
+			Number.isFinite(idx) &&
+			idx >= 0 &&
+			(this.cache.has(idx) || this.knownGaps.has(idx))
+		);
+	}
+
+	/**
+	 * Mark a range as known gap (backend returned no data); avoids re-requesting.
+	 * @param {number} startIndex - Start (inclusive)
+	 * @param {number} endIndex - End (exclusive)
+	 */
+	markRangeAsGap(startIndex, endIndex) {
+		const start = Math.max(0, Number.parseInt(startIndex, 10) || 0);
+		const end = Math.max(start, Number.parseInt(endIndex, 10) || start);
+		for (let i = start; i < end; i++) {
+			this.knownGaps.add(i);
+		}
 	}
 
 	/**
@@ -135,6 +158,7 @@ class WaterfallSliceCache {
 	clear() {
 		this.cache.clear();
 		this.accessOrder = [];
+		this.knownGaps.clear();
 	}
 
 	/**
@@ -156,6 +180,17 @@ class WaterfallSliceCache {
 
 		for (const sliceIndex of toRemove) {
 			this._removeSlice(sliceIndex);
+		}
+
+		// Evict distant known gaps so we don't grow the set unbounded
+		const toRemoveGaps = [];
+		for (const idx of this.knownGaps) {
+			if (idx < keepStart || idx >= keepEnd) {
+				toRemoveGaps.push(idx);
+			}
+		}
+		for (const idx of toRemoveGaps) {
+			this.knownGaps.delete(idx);
 		}
 	}
 
