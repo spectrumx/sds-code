@@ -820,7 +820,7 @@ class FilterManager {
 }
 
 /**
- * SearchManager - Handles search functionality with debouncing
+ * SearchManager - Handles search functionality with debouncing and request cancellation
  */
 class SearchManager {
 	constructor(config) {
@@ -828,8 +828,10 @@ class SearchManager {
 		this.searchButton = document.getElementById(config.searchButtonId);
 		this.clearButton = document.getElementById("clear-search-btn");
 		this.onSearch = config.onSearch;
-		this.debounceDelay = config.debounceDelay || 300;
+		this.onSearchStart = config.onSearchStart;
+		this.debounceDelay = config.debounceDelay || 500;
 		this.debounceTimer = null;
+		this.abortController = new AbortController();
 
 		this.initializeEventListeners();
 		this.updateClearButtonVisibility();
@@ -845,7 +847,7 @@ class SearchManager {
 			this.searchInput.addEventListener("keypress", (e) => {
 				if (e.key === "Enter") {
 					e.preventDefault();
-					this.performSearch();
+					this.debounceSearch();
 				}
 			});
 		}
@@ -853,7 +855,7 @@ class SearchManager {
 		if (this.searchButton) {
 			this.searchButton.addEventListener("click", (e) => {
 				e.preventDefault();
-				this.performSearch();
+				this.debounceSearch();
 			});
 		}
 
@@ -874,6 +876,11 @@ class SearchManager {
 	}
 
 	debounceSearch() {
+		// Show loading indicator immediately for visual confirmation
+		if (this.onSearchStart) {
+			this.onSearchStart();
+		}
+
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
 		}
@@ -884,10 +891,14 @@ class SearchManager {
 	}
 
 	performSearch() {
+		// Cancel any previous request and create a new abort controller
+		this.abortController.abort();
+		this.abortController = new AbortController();
+
 		const query = this.searchInput?.value || "";
 
 		if (this.onSearch) {
-			this.onSearch(query);
+			this.onSearch(query, this.abortController.signal);
 		}
 	}
 
@@ -897,7 +908,14 @@ class SearchManager {
 			this.updateClearButtonVisibility();
 		}
 
-		this.performSearch();
+		this.debounceSearch();
+	}
+
+	/**
+	 * Get the current abort signal for fetch requests
+	 */
+	getAbortSignal() {
+		return this.abortController.signal;
 	}
 }
 

@@ -283,6 +283,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "django.contrib.messages.context_processors.messages",
                 "sds_gateway.users.context_processors.allauth_settings",
                 "sds_gateway.context_processors.system_notifications",
+                "sds_gateway.context_processors.branding",
             ],
         },
     },
@@ -563,6 +564,47 @@ VISUALIZATIONS_ENABLED: bool = env.bool(
     "VISUALIZATIONS_ENABLED",
     default=True,
 )
+
+# BRANDING
+# ------------------------------------------------------------------------------
+# Custom branding for each SDS site
+SDS_BRANDED_SITE_NAME: str = env.str("SDS_BRANDED_SITE_NAME", default="SpectrumX")
+SDS_FULL_INSTITUTION_NAME: str = env.str(
+    "SDS_FULL_INSTITUTION_NAME", default="NSF SpectrumX"
+)
+SDS_SHORT_INSTITUTION_NAME: str = env.str("SDS_SHORT_INSTITUTION_NAME", default="SDS")
+SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default="sds")
+SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
+
+
+def _get_brand_image_url() -> str | None:
+    """Resolve brand image path to a usable URL.
+
+    Supports:
+    - Complete URLs (http://, https://)
+    - Local static paths (converted to /static/...)
+    - Empty strings (returns None)
+    """
+    image_path: str = env.str("SDS_BRAND_IMAGE_PATH", default="")
+
+    if not image_path:
+        return None
+
+    # If it's already a complete URL, use as-is
+    if image_path.startswith(("http://", "https://")):
+        return image_path
+
+    # If it's a relative path, prepend /static/
+    if not image_path.startswith("/"):
+        image_path = f"/{image_path}"
+
+    if not image_path.startswith("/static/"):
+        image_path = f"/static{image_path}"
+
+    return image_path
+
+
+SDS_BRAND_IMAGE_URL: str | None = _get_brand_image_url()
 
 # File upload limits
 # ------------------------------------------------------------------------------

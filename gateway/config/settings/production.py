@@ -29,6 +29,10 @@ ALLOWED_HOSTS: list[str] = env.list(
     ],
 )
 
+# Add the branded site FQDN to allowed hosts
+if SDS_SITE_FQDN not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(SDS_SITE_FQDN)
+
 # DATABASES
 # ------------------------------------------------------------------------------
 # disable persistent connections for ASGI workers, as instructed by Django docs

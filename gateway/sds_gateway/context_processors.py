@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.http import HttpRequest
 
 
@@ -37,3 +38,15 @@ def system_notifications(_request: HttpRequest) -> dict[str, list[Notification]]
     notifications = [n for n in notifications if n.expires_on > datetime.now(eastern)]
 
     return {"system_notifications": notifications}
+
+
+def branding(_request: HttpRequest) -> dict[str, str | None]:
+    """Return branding settings to templates."""
+    return {
+        "SDS_BRAND_IMAGE_URL": settings.SDS_BRAND_IMAGE_URL,
+        "SDS_BRANDED_SITE_NAME": settings.SDS_BRANDED_SITE_NAME,
+        "SDS_FULL_INSTITUTION_NAME": settings.SDS_FULL_INSTITUTION_NAME,
+        "SDS_PROGRAMMATIC_SITE_NAME": settings.SDS_PROGRAMMATIC_SITE_NAME,
+        "SDS_SHORT_INSTITUTION_NAME": settings.SDS_SHORT_INSTITUTION_NAME,
+        "SDS_SITE_FQDN": settings.SDS_SITE_FQDN,
+    }
