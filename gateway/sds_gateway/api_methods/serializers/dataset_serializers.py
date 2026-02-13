@@ -21,6 +21,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     permission_level = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
     can_advance_version = serializers.SerializerMethodField()
+    next_version = serializers.SerializerMethodField()
 
     def get_authors(self, obj):
         """Return the full authors list using the model's get_authors_display method."""
@@ -186,6 +187,14 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             return permission.permission_level == PermissionLevel.CO_OWNER
 
         return False
+
+    def get_next_version(self, obj):
+        """Get the next version of the dataset."""
+        next_version = None
+        if obj.next_version.exists():
+            next_version_obj = obj.next_version.first()
+            next_version = next_version_obj.version
+        return next_version
 
     class Meta:
         model = Dataset

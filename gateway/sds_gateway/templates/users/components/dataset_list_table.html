@@ -10,7 +10,10 @@ Context:
 }
 {% endcomment %}
 {% load tz %}
-
+{# Wrapper for list refresh; omitted in AJAX response to avoid nested IDs and duplicate count #}
+{% if not ajax_fragment %}
+<div id="dataset-list-ajax-wrapper">
+{% endif %}
 <!-- Results count display -->
 {% if page_obj.object_list %}
     <div class="d-flex justify-content-end mb-3">
@@ -254,4 +257,7 @@ Context:
             {% endif %}
         </ul>
     </nav>
+{% endif %}
+{% if not ajax_fragment %}
+</div>
 {% endif %}

@@ -31,6 +31,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.template.defaultfilters import slugify
 from django.urls import reverse
 from django.utils import timezone
@@ -64,6 +65,7 @@ from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_user_permission_level
+from sds_gateway.api_methods.models import get_shared_users_for_item
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
@@ -2771,13 +2773,11 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         datasets_with_shared_users.extend(
             serialize_datasets_for_user(shared_datasets, request.user)
         )
-
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
         # Check if this is an AJAX request
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             # Return just the table container HTML for AJAX updates
-            from django.template.loader import render_to_string
 
             html = render_to_string(
                 "users/components/dataset_list_table.html",
@@ -2785,6 +2785,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "page_obj": page_obj,
                     "sort_by": sort_by,
                     "sort_order": sort_order,
+                    "ajax_fragment": True,
                 },
                 request=request,
             )
@@ -3482,6 +3483,7 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         dataset_uuid = request.POST.get("dataset_uuid")
+        copy_shared_users = request.POST.get("copy_shared_users", "false").lower() in ("true", "1", "on")
         if not dataset_uuid:
             return JsonResponse({"error": "Dataset UUID is required"}, status=400)
 
@@ -3502,12 +3504,12 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             )
 
         # copy dataset with relations
-        new_dataset = self._copy_dataset_with_relations(dataset, request.user)
+        new_dataset = self._copy_dataset_with_relations(dataset, request.user, copy_shared_users)
 
         return JsonResponse({"success": True, "version": new_dataset.version})
 
     def _copy_dataset_with_relations(
-        self, original_dataset: Dataset, request_user: User
+        self, original_dataset: Dataset, request_user: User, copy_shared_users: bool
     ) -> Dataset:
         """
         Copy a dataset along with all its related files and captures.
@@ -3578,8 +3580,29 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             new_dataset.captures.set(locked_dataset.captures.all())
             new_dataset.files.set(locked_dataset.files.all())
             new_dataset.keywords.set(locked_dataset.keywords.all())
+            if copy_shared_users:
+                self._copy_shared_users(locked_dataset, new_dataset)
 
         return new_dataset
+    
+    def _copy_shared_users(self, original_dataset: Dataset, new_dataset: Dataset) -> None:
+        """
+        Copy the shared users from the original dataset to the new dataset.
+        Args:
+            original_dataset: The original dataset
+            new_dataset: The new dataset
+        """
+        shared_users = get_shared_users_for_item(original_dataset.uuid, ItemType.DATASET)
+        for shared_user in shared_users:
+            UserSharePermission.objects.create(
+                owner=new_dataset.owner,
+                shared_with=shared_user.shared_with,
+                item_type=ItemType.DATASET,
+                item_uuid=new_dataset.uuid,
+                is_enabled=True,
+                is_deleted=False,
+                permission_level=shared_user.permission_level,
+            )
 
 
 user_dataset_versioning_view = DatasetVersioningView.as_view()

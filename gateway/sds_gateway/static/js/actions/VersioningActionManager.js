@@ -20,11 +20,15 @@ class VersioningActionManager {
 	initializeEventListeners() {
 		// Initialize version creation button
 		this.initializeVersionCreationButton();
+		this.initializeCopySharedUsersCheckbox();
 	}
 
 	initializeVersionCreationButton() {
 		const versionCreationButton = document.getElementById(
 			`createVersionBtn-${this.datasetUuid}`,
+		);
+		const copySharedUsersCheckbox = document.getElementById(
+			`copySharedUsers-${this.datasetUuid}`,
 		);
 		if (versionCreationButton) {
 			// Prevent duplicate event listeners
@@ -34,12 +38,12 @@ class VersioningActionManager {
 			
 			versionCreationButton.dataset.versionSetup = "true";
 			versionCreationButton.addEventListener("click", (event) =>
-				this.handleVersionCreation(event, versionCreationButton),
+				this.handleVersionCreation(event, versionCreationButton, copySharedUsersCheckbox),
 			);
 		}
 	}
 
-	handleVersionCreation(event, versionCreationButton) {
+	handleVersionCreation(event, versionCreationButton, copySharedUsersCheckbox) {
 		event.preventDefault();
 		event.stopPropagation();
 
@@ -60,23 +64,30 @@ class VersioningActionManager {
 		// run API call to create a new version of the dataset
 		window.APIClient.post("/users/dataset-versioning/", {
 			dataset_uuid: this.datasetUuid,
+			copy_shared_users: copySharedUsersCheckbox?.checked ?? false,
 		})
 			.then((response) => {
 				if (response.success) {
-					// close modal
+					const modalEl = document.getElementById(this.modalId);
+					const onHidden = () => {
+						modalEl.removeEventListener('hidden.bs.modal', onHidden);
+						window.DOMUtils.showAlert(
+							`Dataset version updated to v${response.version} successfully`,
+							"success",
+						);
+						if (window.listRefreshManager && typeof window.listRefreshManager.loadTable === 'function') {
+							window.listRefreshManager.loadTable();
+						} else {
+							console.warn('listRefreshManager not available, reloading page');
+							window.location.reload();
+						}
+					};
+					if (modalEl) {
+						modalEl.addEventListener('hidden.bs.modal', onHidden);
+					}
 					window.DOMUtils.closeModal(this.modalId);
-					// show success message
-					window.DOMUtils.showAlert(
-						`Dataset version updated to v${response.version} successfully`,
-						"success",
-					);
-					// refresh dataset list
-					if (window.listRefreshManager && typeof window.listRefreshManager.loadTable === 'function') {
-						window.listRefreshManager.loadTable();
-					} else {
-						// Fallback: reload the page if listRefreshManager is not available
-						console.warn('listRefreshManager not available, reloading page');
-						window.location.reload();
+					if (!modalEl) {
+						onHidden();
 					}
 				} else {
 					// show error message and error message from response
@@ -98,6 +109,31 @@ class VersioningActionManager {
 				versionCreationButton.disabled = false;
 				versionCreationButton.dataset.processing = "false";
 			});
+	}
+
+	initializeCopySharedUsersCheckbox() {
+		const copySharedUsersCheckbox = document.getElementById(
+			`copySharedUsers-${this.datasetUuid}`,
+		);
+		if (copySharedUsersCheckbox) {
+			copySharedUsersCheckbox.addEventListener("change", (event) =>
+				this.showCopySharedUsersWarning(event),
+			);
+		}
+	}
+
+	showCopySharedUsersWarning(event) {
+		const copySharedUsersWarning = document.getElementById(
+			`copySharedUsersWarning-${this.datasetUuid}`,
+		);
+
+		if (copySharedUsersWarning) {
+			if (event.target.checked) {
+				copySharedUsersWarning.classList.remove("display-none");
+			} else {
+				copySharedUsersWarning.classList.add("display-none");
+			}
+		}
 	}
 }
 
