@@ -270,7 +270,7 @@ class PageLifecycleManager {
 	 */
 	initializeDatasetModals() {
 		// Pre-initialize all modals on the page with proper config to prevent Bootstrap auto-initialization errors
-		const allModals = document.querySelectorAll('.modal');
+		const allModals = document.querySelectorAll(".modal");
 		for (const modal of allModals) {
 			if (window.bootstrap) {
 				// Dispose any existing instance that might be in a bad state
@@ -280,10 +280,10 @@ class PageLifecycleManager {
 						existingInstance.dispose();
 					} catch (e) {
 						// If disposal fails, the instance is already broken - continue
-						console.warn('Failed to dispose modal instance:', e);
+						console.warn("Failed to dispose modal instance:", e);
 					}
 				}
-				
+
 				// Create a new instance with proper config
 				new bootstrap.Modal(modal, {
 					backdrop: true,
@@ -500,14 +500,18 @@ class PageLifecycleManager {
 		// initializeDatasetModals() so there is no gap.
 
 		// Clear manager references from modal elements so re-init creates fresh managers
-		const datasetModals = document.querySelectorAll(".modal[data-item-type='dataset']");
+		const datasetModals = document.querySelectorAll(
+			".modal[data-item-type='dataset']",
+		);
 		for (const modal of datasetModals) {
 			delete modal.shareActionManager;
 			delete modal.versioningActionManager;
 			delete modal.downloadActionManager;
 			delete modal.detailsActionManager;
 		}
-		const captureModals = document.querySelectorAll(".modal[data-item-type='capture']");
+		const captureModals = document.querySelectorAll(
+			".modal[data-item-type='capture']",
+		);
 		for (const modal of captureModals) {
 			delete modal.shareActionManager;
 			delete modal.downloadActionManager;
