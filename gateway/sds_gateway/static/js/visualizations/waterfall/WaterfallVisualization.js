@@ -53,6 +53,13 @@ class WaterfallVisualization {
 		this._isLoadingPeriodogram = false; // Flag to prevent re-entrant periodogram loads
 		this._loadingPeriodogramSlice = null; // Track which slice is being loaded
 
+		// Throttle/debounce for smooth playback (avoid heavy work every frame)
+		this._lastPeriodogramTime = 0;
+		this._periodogramThrottleMs = 80;
+		this._pendingPeriodogramRender = false;
+		this._prefetchDebounceTimer = null;
+		this._prefetchDebounceMs = 120;
+
 		// Visualization state
 		this.currentSliceIndex = 0;
 		this.waterfallWindowStart = 0;
@@ -135,12 +142,31 @@ class WaterfallVisualization {
 
 				if (windowChanged) {
 					this.renderWaterfall();
-					// Prefetch ahead when window changes
-					this.prefetchAhead();
+					// Debounce prefetch so rapid scroll doesn't fire many requests
+					if (this._prefetchDebounceTimer) {
+						clearTimeout(this._prefetchDebounceTimer);
+					}
+					this._prefetchDebounceTimer = setTimeout(() => {
+						this._prefetchDebounceTimer = null;
+						this.prefetchAhead();
+					}, this._prefetchDebounceMs);
 				}
 
 				if (sliceChanged) {
-					this.renderPeriodogram();
+					// When slice is cached, always update periodogram (sync, smooth). When missing,
+					// throttle loads so we don't trigger a network request every frame.
+					const sliceInCache = this.sliceCache?.getSlice(currentSliceIndex);
+					const now = performance.now();
+					const throttleElapsed =
+						now - this._lastPeriodogramTime >= this._periodogramThrottleMs;
+					if (
+						sliceInCache ||
+						!this.controls?.isPlaying ||
+						throttleElapsed
+					) {
+						if (!sliceInCache) this._lastPeriodogramTime = now;
+						this.renderPeriodogram();
+					}
 					this.updateSliceHighlights();
 				}
 			},
@@ -264,7 +290,15 @@ class WaterfallVisualization {
 		if (this.isStreamingMode) {
 			// Get slice from cache
 			const slice = this.sliceCache.getSlice(this.currentSliceIndex);
-			if (slice) {
+			if (slice?._gap) {
+				// Known data gap - no periodogram to show
+				if (this.periodogramChart.showLoading) {
+					this.periodogramChart.showLoading(false);
+				}
+				// Optionally render empty or "No data" state if periodogram supports it
+				return;
+			}
+			if (slice?.data) {
 				// Parse if needed
 				const parsedSlice = {
 					...slice,
@@ -297,7 +331,7 @@ class WaterfallVisualization {
 					// Only render if we're still on the same slice
 					if (this.currentSliceIndex === targetSliceIndex) {
 						const loadedSlice = this.sliceCache.getSlice(targetSliceIndex);
-						if (loadedSlice) {
+						if (loadedSlice?.data && !loadedSlice._gap) {
 							const parsedSlice = {
 								...loadedSlice,
 								data: this.parseWaterfallData(loadedSlice.data),
@@ -316,7 +350,25 @@ class WaterfallVisualization {
 						return;
 					}
 				} catch (error) {
-					console.error("Failed to load slice for periodogram:", error);
+					// Slice may have been loaded by another request (e.g. waterfall batch)
+					if (this.currentSliceIndex === targetSliceIndex) {
+						const fromCache = this.sliceCache.getSlice(targetSliceIndex);
+						if (fromCache?.data && !fromCache._gap) {
+							const parsed = {
+								...fromCache,
+								data: this.parseWaterfallData(fromCache.data),
+							};
+							this.periodogramChart.renderPeriodogram(parsed);
+						} else if (!fromCache?._gap) {
+							console.warn(
+								"Failed to load slice for periodogram (network/timeout):",
+								error?.message || error,
+							);
+						}
+						if (this.periodogramChart.showLoading) {
+							this.periodogramChart.showLoading(false);
+						}
+					}
 				} finally {
 					this._isLoadingPeriodogram = false;
 					this._loadingPeriodogramSlice = null;
@@ -359,14 +411,31 @@ class WaterfallVisualization {
 
 				this._isLoadingWindow = true;
 
-				// Always wait for missing slices to load before rendering
-				// This ensures seamless display without gray areas
+				// Only pause playback and show full overlay when most of the window is missing
+				// (e.g. big scroll/jump). Small refills (e.g. edge prefetch) load without overlay.
+				const windowSize = endIndex - startIndex;
+				const mostlyMissing = missing.length >= windowSize / 2;
+				const wasPlaying = this.controls?.isPlaying ?? false;
+				if (mostlyMissing) {
+					if (wasPlaying) {
+						this.controls.stopPlayback();
+					}
+					this.showLoading(true);
+				}
+
+				// Wait for missing slices to load before rendering
 				try {
 					await this.loadSliceRange(startIndex, endIndex);
 				} catch (error) {
 					console.error("Failed to load slices for waterfall:", error);
 				} finally {
 					this._isLoadingWindow = false;
+					if (mostlyMissing) {
+						this.showLoading(false);
+						if (wasPlaying) {
+							this.controls.startPlayback();
+						}
+					}
 				}
 
 				// Check if another render was requested while we were loading
@@ -712,14 +781,19 @@ class WaterfallVisualization {
 	 */
 	async tryLoadStreamingMode() {
 		try {
-			// Get metadata from streaming endpoint. Request power_bounds here so we get
-			// scale for streaming mode; omit in initial loadWaterfallData for speed.
+			// Get metadata from streaming endpoint. Do not request power_bounds here:
+			// that triggers DRF reconstruction and MinIO downloads and can timeout
+			// (NetworkError). Scale will come from setScaleFromPostProcessedMetadata
+			// or calculatePowerBoundsFromSamples after we load slices.
 			const metadataUrl = get_waterfall_metadata_stream_endpoint(
 				this.captureUuid,
-				true, // include_power_bounds for scale (min/max dB)
+				false, // include_power_bounds = false for fast probe
 			);
 			const metadataResponse = await fetch(metadataUrl, {
+				method: "GET",
+				credentials: "same-origin",
 				headers: {
+					"Content-Type": "application/json",
 					"X-CSRFToken": this.getCSRFToken(),
 				},
 			});
@@ -751,37 +825,59 @@ class WaterfallVisualization {
 				this.sliceLoader.setStreamingMode(true);
 			}
 
-			// Scale: same as master (min/max over data + 5%). Prefer stored preprocessed bounds, then backend sample.
-			await this.setScaleFromPostProcessedMetadata();
-			if (this.scaleMin === null || this.scaleMax === null) {
-				const streamBounds = metadata.power_bounds;
-				if (
-					typeof streamBounds?.min === "number" &&
-					typeof streamBounds?.max === "number" &&
-					streamBounds.min < streamBounds.max
-				) {
-					this.scaleMin = streamBounds.min;
-					this.scaleMax = streamBounds.max;
-				}
-			}
-
-			// Load initial visible window
+			// Load initial visible window first so we can show it ASAP
 			const initialStart = 0;
 			const initialEnd = Math.min(WATERFALL_WINDOW_SIZE, this.totalSlices);
 
 			await this.loadSliceRange(initialStart, initialEnd);
 
+			// Scale from the loaded window so the range isn't way too big (avoids full-capture 76 to -4 when first screen is e.g. 71-31)
+			this.calculatePowerBoundsFromLoadedSlices(initialStart, initialEnd);
+			const needFallbackScale =
+				this.scaleMin === null ||
+				this.scaleMax === null ||
+				(this.scaleMin === DEFAULT_SCALE_MIN &&
+					this.scaleMax === DEFAULT_SCALE_MAX);
+			if (needFallbackScale) {
+				await this.setScaleFromPostProcessedMetadata();
+			}
+			const stillNeedFallback =
+				this.scaleMin === null ||
+				this.scaleMax === null ||
+				(this.scaleMin === DEFAULT_SCALE_MIN &&
+					this.scaleMax === DEFAULT_SCALE_MAX);
+			if (stillNeedFallback) {
+				const boundsUrl = get_waterfall_metadata_stream_endpoint(
+					this.captureUuid,
+					true, // include_power_bounds
+				);
+				try {
+					const boundsResponse = await fetch(boundsUrl, {
+						method: "GET",
+						credentials: "same-origin",
+						headers: {
+							"Content-Type": "application/json",
+							"X-CSRFToken": this.getCSRFToken(),
+						},
+					});
+					if (boundsResponse.ok) {
+						const boundsData = await boundsResponse.json();
+						const streamBounds = boundsData?.metadata?.power_bounds;
+						if (
+							typeof streamBounds?.min === "number" &&
+							typeof streamBounds?.max === "number" &&
+							streamBounds.min < streamBounds.max
+						) {
+							this.scaleMin = streamBounds.min;
+							this.scaleMax = streamBounds.max;
+						}
+					}
+				} catch (_) {
+					// Fall through to calculatePowerBoundsFromSamples
+				}
+			}
 			if (this.scaleMin === null || this.scaleMax === null) {
 				await this.calculatePowerBoundsFromSamples();
-			}
-
-			// Prefetch additional data for smooth scrolling
-			const prefetchEnd = Math.min(
-				initialEnd + PREFETCH_DISTANCE,
-				this.totalSlices,
-			);
-			if (prefetchEnd > initialEnd) {
-				await this.loadSliceRange(initialEnd, prefetchEnd);
 			}
 
 			this.isLoading = false;
@@ -793,11 +889,30 @@ class WaterfallVisualization {
 			this.updateColorLegend();
 
 			this.render();
-			this.prefetchAhead();
+
+			// Prefetch in background so scrolling is smooth (don't block initial display)
+			const prefetchEnd = Math.min(
+				initialEnd + PREFETCH_DISTANCE,
+				this.totalSlices,
+			);
+			if (prefetchEnd > initialEnd) {
+				this.loadSliceRange(initialEnd, prefetchEnd)
+					.then(() => this.prefetchAhead())
+					.catch(() => {});
+			} else {
+				this.prefetchAhead();
+			}
 
 			return true;
 		} catch (error) {
-			console.warn("Streaming mode failed, will try preprocessed:", error);
+			const reason =
+				error?.message ||
+				(error?.name && error?.name !== "Error" ? error.name : String(error));
+			console.warn(
+				"Streaming mode failed, will try preprocessed:",
+				reason,
+				error,
+			);
 			return false;
 		}
 	}
@@ -1119,17 +1234,20 @@ class WaterfallVisualization {
 			return;
 		}
 
-		// Check if loaded slices are in the current visible window
 		const currentStart = this.waterfallWindowStart;
 		const currentEnd = Math.min(
 			currentStart + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
 			this.totalSlices,
 		);
 
-		// If loaded slices overlap with visible window, re-render
-		// Use requestAnimationFrame to batch renders and avoid flickering
+		// Only re-render when the visible window is fully filled (no missing slices).
+		// This avoids blinking when multiple batches complete in quick succession.
 		if (startIndex < currentEnd && endIndex > currentStart) {
-			if (!this._pendingRender) {
+			const stillMissing = this.sliceCache.getMissingSlices(
+				currentStart,
+				currentEnd,
+			);
+			if (stillMissing.length === 0 && !this._pendingRender) {
 				this._pendingRender = true;
 				requestAnimationFrame(() => {
 					this._pendingRender = false;
@@ -1138,12 +1256,25 @@ class WaterfallVisualization {
 			}
 		}
 
-		// If loaded slice is the current slice, update periodogram
+		// If loaded slice is the current slice, update periodogram (throttle rapid callbacks)
 		if (
 			this.currentSliceIndex >= startIndex &&
 			this.currentSliceIndex < endIndex
 		) {
-			this.renderPeriodogram();
+			const now = performance.now();
+			if (
+				now - this._lastPeriodogramTime >= this._periodogramThrottleMs
+			) {
+				this._lastPeriodogramTime = now;
+				this.renderPeriodogram();
+			} else if (!this._pendingPeriodogramRender) {
+				this._pendingPeriodogramRender = true;
+				requestAnimationFrame(() => {
+					this._pendingPeriodogramRender = false;
+					this._lastPeriodogramTime = performance.now();
+					this.renderPeriodogram();
+				});
+			}
 		}
 	}
 
@@ -1576,6 +1707,12 @@ class WaterfallVisualization {
 	destroy() {
 		// Stop polling
 		this.stopStatusPolling();
+
+		if (this._prefetchDebounceTimer) {
+			clearTimeout(this._prefetchDebounceTimer);
+			this._prefetchDebounceTimer = null;
+		}
+		this._pendingPeriodogramRender = false;
 
 		// Cleanup loader
 		if (this.sliceLoader) {
