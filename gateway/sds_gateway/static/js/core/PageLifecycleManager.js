@@ -320,17 +320,12 @@ class PageLifecycleManager {
 			}
 
 			if (window.VersioningActionManager) {
-				// Check if manager already exists to prevent duplicate initialization
-				if (!modal.versioningActionManager) {
-					const versioningManager = new window.VersioningActionManager({
-						datasetUuid: itemUuid,
-						permissions: this.permissions,
-					});
-					this.managers.push(versioningManager);
-
-					// Store reference on modal
-					modal.versioningActionManager = versioningManager;
-				}
+				const versioningManager = new window.VersioningActionManager({
+					datasetUuid: itemUuid,
+					permissions: this.permissions,
+				});
+				this.managers.push(versioningManager);
+				modal.versioningActionManager = versioningManager;
 			}
 
 			if (window.DownloadActionManager) {
@@ -499,20 +494,23 @@ class PageLifecycleManager {
 			}
 		}
 
-		// Dispose all Bootstrap modal instances to prevent bad state
-		if (window.bootstrap && bootstrap.Modal) {
-			const allModals = document.querySelectorAll('.modal');
-			for (const modal of allModals) {
-				const instance = bootstrap.Modal.getInstance(modal);
-				if (instance) {
-					try {
-						instance.dispose();
-					} catch (error) {
-						// If disposal fails, the instance is already broken - continue
-						console.warn('Failed to dispose modal during cleanup:', error);
-					}
-				}
-			}
+		// Do not dispose Bootstrap modals here. Disposing all modals before initialize()
+		// runs creates a gap where getOrCreateInstance can return a disposed instance
+		// (_config undefined). Modals are disposed and re-created per-element in
+		// initializeDatasetModals() so there is no gap.
+
+		// Clear manager references from modal elements so re-init creates fresh managers
+		const datasetModals = document.querySelectorAll(".modal[data-item-type='dataset']");
+		for (const modal of datasetModals) {
+			delete modal.shareActionManager;
+			delete modal.versioningActionManager;
+			delete modal.downloadActionManager;
+			delete modal.detailsActionManager;
+		}
+		const captureModals = document.querySelectorAll(".modal[data-item-type='capture']");
+		for (const modal of captureModals) {
+			delete modal.shareActionManager;
+			delete modal.downloadActionManager;
 		}
 
 		// Clear manager references
