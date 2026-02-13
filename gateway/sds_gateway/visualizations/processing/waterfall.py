@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from django.conf import settings
+from django.core.cache import cache
 from loguru import logger
 from pydantic import Field
 from pydantic import computed_field
-from django.core.cache import cache
-from django.conf import settings
 
 from sds_gateway.visualizations.errors import SourceDataError
 
@@ -144,7 +144,7 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | N
     }
 
 
-def compute_slices_on_demand(
+def compute_slices_on_demand(  # noqa: C901, PLR0912, PLR0915
     drf_path: Path,
     channel: str,
     start_index: int,
@@ -170,12 +170,13 @@ def compute_slices_on_demand(
     )
 
     # Lightweight caching to avoid recomputing identical ranges in short succession.
-    # Cache key includes drf_path so different captures or cache locations don't collide.
-    cache_key = f"waterfall:{str(drf_path)}:{channel}:{start_index}:{end_index}"
+    # Cache key includes drf_path so different captures or cache locations
+    # don't collide.
+    cache_key = f"waterfall:{drf_path!s}:{channel}:{start_index}:{end_index}"
     cached = None
     try:
         cached = cache.get(cache_key)
-    except Exception:
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
         cached = None
 
     if cached is not None:
@@ -194,7 +195,7 @@ def compute_slices_on_demand(
     try:
         # cache.add returns True if key was set (i.e., lock acquired)
         got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
-    except Exception:
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
         got_lock = True  # If cache backend misbehaves, fall back to computing
 
     if not got_lock:
@@ -207,11 +208,12 @@ def compute_slices_on_demand(
             waited += poll_interval
             try:
                 cached = cache.get(cache_key)
-            except Exception:
+            except Exception:  # noqa: BLE001 - cache backends can raise various
                 cached = None
             if cached is not None:
                 logger.debug(
-                    "Observed cached waterfall slices after wait for channel %s range=[%d, %d)",
+                    "Observed cached waterfall slices after wait for channel %s "
+                    "range=[%d, %d)",
                     channel,
                     start_index,
                     end_index,
@@ -220,7 +222,7 @@ def compute_slices_on_demand(
         # If we timed out waiting, try to acquire the lock again (best-effort)
         try:
             got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
-        except Exception:
+        except Exception:  # noqa: BLE001 - cache backends can raise various
             got_lock = True
 
     # Validate DigitalRF data and get base parameters
@@ -275,15 +277,15 @@ def compute_slices_on_demand(
     ttl = getattr(settings, "WATERFALL_COMPUTE_CACHE_TTL", 60)
     try:
         cache.set(cache_key, result, ttl)
-    except Exception:
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
         logger.debug("Failed to set waterfall cache key %s", cache_key)
 
     # Release lock if we acquired it
     try:
         if got_lock:
             cache.delete(lock_key)
-    except Exception:
-        pass
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to release waterfall lock: %s", e)
 
     return result
 
@@ -374,9 +376,8 @@ def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
                 drf_path,
             )
             total_slices = int(test_total)
-    except Exception:
-        # If settings can't be read for any reason, ignore and use real total_slices
-        pass
+    except Exception as e:  # noqa: BLE001 - settings may be unavailable
+        logger.debug("WATERFALL_TEST_* settings unavailable: %s", e)
 
     return _build_metadata(base_params, total_slices, 0)
 
@@ -464,7 +465,8 @@ def convert_drf_to_waterfall_json(
         global_min = min(global_min, slice_min)
         global_max = max(global_max, slice_max)
 
-    # Apply 5% margin so stored scale matches master (calculatePowerBounds uses same margin)
+    # Apply 5% margin so stored scale matches master
+    # (calculatePowerBounds uses same margin)
     margin_frac = 0.05
     if global_min != float("inf") and global_max != float("-inf"):
         span = global_max - global_min

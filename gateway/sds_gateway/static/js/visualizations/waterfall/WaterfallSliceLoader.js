@@ -154,7 +154,10 @@ class WaterfallSliceLoader {
 		// boundaries so concurrent 1-slice requests (periodogram, etc.) share one API call.
 		let fetchStart = startIndex;
 		let fetchEnd = endIndex;
-		if (this.useStreamingEndpoint && fetchEnd - fetchStart < MIN_STREAMING_BATCH) {
+		if (
+			this.useStreamingEndpoint &&
+			fetchEnd - fetchStart < MIN_STREAMING_BATCH
+		) {
 			fetchStart =
 				Math.floor(startIndex / MIN_STREAMING_BATCH) * MIN_STREAMING_BATCH;
 			fetchEnd = fetchStart + MIN_STREAMING_BATCH;
@@ -207,11 +210,8 @@ class WaterfallSliceLoader {
 			// Notify callback. When slices.length === 0 we pass the requested range (fetchStart, fetchEnd)
 			// so the visible-window overlap check in onSlicesLoaded succeeds and the UI re-renders with "No data".
 			const callbackEnd =
-				slices.length > 0
-					? actualStartIndex + slices.length
-					: fetchEnd;
-			const callbackStart =
-				slices.length > 0 ? actualStartIndex : fetchStart;
+				slices.length > 0 ? actualStartIndex + slices.length : fetchEnd;
+			const callbackStart = slices.length > 0 ? actualStartIndex : fetchStart;
 			if (this.onSliceLoaded) {
 				this.onSliceLoaded(slices, callbackStart, callbackEnd);
 			}
@@ -282,14 +282,11 @@ class WaterfallSliceLoader {
 					errorData.error || `HTTP ${response.status}: ${response.statusText}`;
 
 				// Retry on 429 (rate limit) using Retry-After or backoff
-				if (
-					response.status === 429 &&
-					retryCount < this.maxRetries
-				) {
+				if (response.status === 429 && retryCount < this.maxRetries) {
 					const retryAfterHeader = response.headers.get("Retry-After");
 					const waitSeconds = retryAfterHeader
-						? Math.min(parseInt(retryAfterHeader, 10) || 60, 60)
-						: this.retryDelay * 2 ** retryCount / 1000;
+						? Math.min(Number.parseInt(retryAfterHeader, 10) || 60, 60)
+						: (this.retryDelay * 2 ** retryCount) / 1000;
 					await this._sleep(waitSeconds * 1000);
 					return this._fetchSlicesWithRetry(
 						startIndex,
