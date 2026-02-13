@@ -2777,9 +2777,8 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         # Check if this is an AJAX request
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-            # Return just the table container HTML for AJAX updates
-
-            html = render_to_string(
+            # Return table and modals so the client can update both after list refresh
+            table_html = render_to_string(
                 "users/components/dataset_list_table.html",
                 {
                     "page_obj": page_obj,
@@ -2789,7 +2788,14 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 },
                 request=request,
             )
-            return HttpResponse(html)
+            modals_html = render_to_string(
+                "users/components/dataset_list_modals.html",
+                {"page_obj": page_obj},
+                request=request,
+            )
+            # Separator used by ListRefreshManager to split table vs modals
+            list_refresh_sep = "<!-- LIST_REFRESH_SEP -->"
+            return HttpResponse(table_html + list_refresh_sep + modals_html)
 
         return render(
             request,

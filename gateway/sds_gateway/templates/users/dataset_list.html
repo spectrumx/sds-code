@@ -32,9 +32,10 @@
         </div>
     </div>
 </div>
-<!-- Modals to reveal on click -->
-{% for dataset in page_obj %}
-{% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+<!-- Modals to reveal on click; container is replaced on AJAX list refresh -->
+<div id="dataset-modals-container">
+    {% for dataset in page_obj %}
+    {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
     {% include "users/partials/web_download_modal.html" with dataset=dataset %}
     {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
@@ -44,7 +45,8 @@
             {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
         {% endif %}
     {% endif %}
-{% endfor %}
+    {% endfor %}
+</div>
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
@@ -115,6 +117,7 @@
             // The change in case differentiates the instance from the class.
             window.listRefreshManager = new ListRefreshManager({
                 containerSelector: '#dataset-list-ajax-wrapper',
+                modalsContainerSelector: '#dataset-modals-container',
                 url: '/users/dataset-list/',
                 itemType: 'dataset'
             });
