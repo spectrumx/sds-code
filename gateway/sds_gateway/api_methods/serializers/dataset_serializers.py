@@ -160,7 +160,10 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         ).first()
 
         if permission:
-            return permission.permission_level in [PermissionLevel.CO_OWNER, PermissionLevel.CONTRIBUTOR]
+            return permission.permission_level in [
+                PermissionLevel.CO_OWNER,
+                PermissionLevel.CONTRIBUTOR,
+            ]
 
         return False
 

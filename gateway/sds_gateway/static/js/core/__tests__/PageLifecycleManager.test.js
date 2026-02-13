@@ -274,7 +274,9 @@ describe("PageLifecycleManager", () => {
 			});
 
 			// Mock action manager classes
-			global.window.ShareActionManager = jest.fn().mockImplementation(() => ({}));
+			global.window.ShareActionManager = jest
+				.fn()
+				.mockImplementation(() => ({}));
 			global.window.VersioningActionManager = jest
 				.fn()
 				.mockImplementation(() => ({}));

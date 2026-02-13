@@ -31,8 +31,8 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.template.loader import render_to_string
 from django.template.defaultfilters import slugify
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -64,8 +64,8 @@ from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import ShareGroup
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import get_shared_users_for_item
+from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
@@ -3489,7 +3489,11 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
         dataset_uuid = request.POST.get("dataset_uuid")
-        copy_shared_users = request.POST.get("copy_shared_users", "false").lower() in ("true", "1", "on")
+        copy_shared_users = request.POST.get("copy_shared_users", "false").lower() in (
+            "true",
+            "1",
+            "on",
+        )
         if not dataset_uuid:
             return JsonResponse({"error": "Dataset UUID is required"}, status=400)
 
@@ -3510,7 +3514,9 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
             )
 
         # copy dataset with relations
-        new_dataset = self._copy_dataset_with_relations(dataset, request.user, copy_shared_users)
+        new_dataset = self._copy_dataset_with_relations(
+            dataset, request.user, copy_shared_users
+        )
 
         return JsonResponse({"success": True, "version": new_dataset.version})
 
@@ -3590,15 +3596,19 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
                 self._copy_shared_users(locked_dataset, new_dataset)
 
         return new_dataset
-    
-    def _copy_shared_users(self, original_dataset: Dataset, new_dataset: Dataset) -> None:
+
+    def _copy_shared_users(
+        self, original_dataset: Dataset, new_dataset: Dataset
+    ) -> None:
         """
         Copy the shared users from the original dataset to the new dataset.
         Args:
             original_dataset: The original dataset
             new_dataset: The new dataset
         """
-        shared_users = get_shared_users_for_item(original_dataset.uuid, ItemType.DATASET)
+        shared_users = get_shared_users_for_item(
+            original_dataset.uuid, ItemType.DATASET
+        )
         for shared_user in shared_users:
             UserSharePermission.objects.create(
                 owner=new_dataset.owner,

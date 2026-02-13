@@ -1204,9 +1204,7 @@ describe("DOMUtils", () => {
 				const existingInstance = {
 					dispose: jest.fn(),
 				};
-				global.bootstrap.Dropdown.getInstance = jest.fn(
-					() => existingInstance,
-				);
+				global.bootstrap.Dropdown.getInstance = jest.fn(() => existingInstance);
 
 				domUtils.initializeListDropdowns();
 

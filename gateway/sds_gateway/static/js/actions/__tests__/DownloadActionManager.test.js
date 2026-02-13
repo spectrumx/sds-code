@@ -178,7 +178,9 @@ describe("DownloadActionManager", () => {
 			);
 
 			// Verify DOMUtils methods are called
-			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith("downloadModal");
+			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(
+				"downloadModal",
+			);
 		});
 
 		test("should prevent duplicate event listener attachment", () => {
