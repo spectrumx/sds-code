@@ -105,7 +105,7 @@ h1 {
 }
 
 hr {
-	border-top: 1px solid #e9ecef;
+	border-top: 1px solid #495057;
 }
 
 .navbar-brand .vr {
@@ -1184,12 +1184,16 @@ input[type="number"].form-control-sm {
 /* Brand banner section with non-blurred background */
 .brand-banner {
 	width: 100%;
-	height: 16vw;
+	height: 20vw;
 	/*
 		anchoring the height to the viewport width helps maintaining a
 		consistent aspect ratio across devices with an element of 100% width.
 	*/
-	background-image: var(--brand-image, none);
+	background-image: linear-gradient(
+			to bottom,
+			var(--bs-body-bg) 0%,
+			transparent 15%
+		), var(--brand-image, none);
 	background-size: cover;
 	background-position: center 25%;
 	background-repeat: no-repeat;

@@ -54,6 +54,7 @@
 	 * --bs-gray-100 through --bs-gray-900
 	 * --bs-white, --bs-black
 	 * Reference Bootstrap's variables instead of redefining them.
+	 * https://getbootstrap.com/docs/5.3/customize/color/#colors
 	 */
 
 	/* Custom extensions to Bootstrap variables */
