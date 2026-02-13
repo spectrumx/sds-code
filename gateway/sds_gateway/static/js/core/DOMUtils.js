@@ -125,6 +125,167 @@ class DOMUtils {
 	}
 
 	/**
+	 * Show modal loading state
+	 * @param {string} modalId - Modal ID
+	 */
+	async showModalLoading(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody) {
+			// Store original content before showing loading
+			if (!modalBody.dataset.originalContent) {
+				modalBody.dataset.originalContent = modalBody.innerHTML;
+			}
+
+			await this.renderLoading(modalBody, "Loading modal...", {
+				format: "modal",
+			});
+		}
+	}
+
+	/**
+	 * Clear modal loading state and restore original content
+	 * @param {string} modalId - Modal ID
+	 */
+	clearModalLoading(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody?.dataset.originalContent) {
+			// Restore original content
+			modalBody.innerHTML = modalBody.dataset.originalContent;
+			// Clean up the stored content
+			delete modalBody.dataset.originalContent;
+		}
+	}
+
+	/**
+	 * Show modal error
+	 * @param {string} modalId - Modal ID
+	 * @param {string} message - Error message
+	 */
+	async showModalError(modalId, message) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const modalBody = modal.querySelector(".modal-body");
+		if (modalBody) {
+			await this.renderError(modalBody, message, {
+				format: "alert",
+				alert_type: "danger",
+				icon: "exclamation-triangle",
+			});
+		}
+
+		// Show modal even with error
+		this.openModal(modalId);
+	}
+
+	/**
+	 * Open modal
+	 * @param {string} modalId - Modal ID
+	 */
+	openModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		// Check if modal instance already exists
+		let bootstrapModal = bootstrap.Modal.getInstance(modal);
+
+		// If instance exists but is in a bad state (no _config), dispose and recreate
+		if (
+			bootstrapModal &&
+			(!bootstrapModal._config || !bootstrapModal._config.backdrop)
+		) {
+			try {
+				bootstrapModal.dispose();
+				bootstrapModal = null;
+			} catch (e) {
+				// If disposal fails, force remove the instance
+				bootstrapModal = null;
+			}
+		}
+
+		// If no instance exists, create one with default config
+		if (!bootstrapModal) {
+			bootstrapModal = new bootstrap.Modal(modal, {
+				backdrop: true,
+				keyboard: true,
+				focus: true,
+			});
+		}
+
+		bootstrapModal.show();
+	}
+
+	/**
+	 * Close modal
+	 * @param {string} modalId - Modal ID
+	 */
+	closeModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (!modal) return;
+
+		const bootstrapModal = bootstrap.Modal.getInstance(modal);
+		if (!bootstrapModal) return;
+
+		bootstrapModal.hide();
+	}
+
+	/**
+	 * Refresh list
+	 * @param {string} itemType - Item type (dataset, file, capture)
+	 */
+	initializeListDropdowns() {
+		for (const toggle of document.querySelectorAll(".btn-icon-dropdown")) {
+			// Dispose existing dropdown if any
+			const existing = bootstrap.Dropdown.getInstance(toggle);
+			if (existing) {
+				existing.dispose();
+			}
+
+			// Create new dropdown instance
+			new bootstrap.Dropdown(toggle, {
+				container: "body",
+				boundary: "viewport",
+				popperConfig: {
+					modifiers: [
+						{
+							name: "preventOverflow",
+							options: {
+								boundary: "viewport",
+							},
+						},
+					],
+				},
+			});
+
+			// Manually move dropdown to body when shown
+			toggle.addEventListener("show.bs.dropdown", () => {
+				const dropdownMenu = toggle.nextElementSibling;
+				if (dropdownMenu?.classList.contains("dropdown-menu")) {
+					document.body.appendChild(dropdownMenu);
+				}
+			});
+		}
+
+		// Prevent row click when clicking on dropdown elements
+		document.addEventListener("click", (event) => {
+			if (
+				event.target.closest(".dropdown") ||
+				event.target.closest(".btn-icon-dropdown") ||
+				event.target.closest(".dropdown-toggle") ||
+				event.target.closest(".dropdown-menu")
+			) {
+				event.stopPropagation();
+			}
+		});
+	}
+
+	/**
 	 * Render error using Django template
 	 * @param {Element|string} container - Container element or selector
 	 * @param {string} message - Error message

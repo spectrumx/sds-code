@@ -35,7 +35,7 @@ window.ShareActionManager = class ShareActionManager {
 	 */
 	setupModalEventHandlers() {
 		// Find the specific modal for this item
-		let modal = document.getElementById(`share-modal-${this.itemUuid}`);
+		let modal = document.getElementById(`shareModal-${this.itemUuid}`);
 		if (!modal) {
 			// Try alternative modal IDs
 			const alternativeModalIds = [
@@ -247,10 +247,17 @@ window.ShareActionManager = class ShareActionManager {
 				// Close modal
 				this.closeModal();
 
-				// Reload the page to ensure everything is consistent
-				setTimeout(() => {
+				// Refresh dataset list
+				if (
+					window.listRefreshManager &&
+					typeof window.listRefreshManager.loadTable === "function"
+				) {
+					window.listRefreshManager.loadTable();
+				} else {
+					// Fallback: reload the page if listRefreshManager is not available
+					console.warn("listRefreshManager not available, reloading page");
 					window.location.reload();
-				}, 2000);
+				}
 			} else {
 				// Show error message
 				const errorMessage =
@@ -643,7 +650,7 @@ window.ShareActionManager = class ShareActionManager {
 		);
 		const saveBtn = document.getElementById(`share-item-btn-${itemUuid}`);
 		const modalDivider = document.querySelector(
-			`#share-modal-${itemUuid} .modal-divider`,
+			`#shareModal-${itemUuid} .modal-divider`,
 		);
 
 		if (
@@ -660,7 +667,7 @@ window.ShareActionManager = class ShareActionManager {
 			this.pendingRemovals.clear();
 
 			// Reset all dropdown buttons to their original state
-			const modal = document.getElementById(`share-modal-${itemUuid}`);
+			const modal = document.getElementById(`shareModal-${itemUuid}`);
 			if (modal) {
 				for (const button of modal.querySelectorAll(".btn-icon-dropdown")) {
 					button.innerHTML =
@@ -738,7 +745,7 @@ window.ShareActionManager = class ShareActionManager {
 	 */
 	setupRemoveUserButtons() {
 		// Find the specific modal for this item
-		const modal = document.getElementById(`share-modal-${this.itemUuid}`);
+		const modal = document.getElementById(`shareModal-${this.itemUuid}`);
 		if (!modal) {
 			console.error(`Modal not found for ${this.itemType}: ${this.itemUuid}`);
 			return;
@@ -988,7 +995,7 @@ window.ShareActionManager = class ShareActionManager {
 	 * Close modal
 	 */
 	closeModal() {
-		const modal = document.getElementById(`share-modal-${this.itemUuid}`);
+		const modal = document.getElementById(`shareModal-${this.itemUuid}`);
 		const bootstrapModal = bootstrap.Modal.getInstance(modal);
 		if (bootstrapModal) {
 			bootstrapModal.hide();

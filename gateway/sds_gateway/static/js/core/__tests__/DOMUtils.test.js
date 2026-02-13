@@ -882,4 +882,382 @@ describe("DOMUtils", () => {
 			);
 		});
 	});
+
+	describe("Modal Management Methods", () => {
+		let mockModal;
+		let mockModalBody;
+		let mockBootstrapModal;
+
+		beforeEach(() => {
+			// Create mock modal body
+			mockModalBody = {
+				innerHTML: "<div>Original content</div>",
+				dataset: {},
+				querySelector: jest.fn(),
+			};
+
+			// Create mock modal
+			mockModal = {
+				id: "test-modal",
+				querySelector: jest.fn((selector) => {
+					if (selector === ".modal-body") return mockModalBody;
+					return null;
+				}),
+			};
+
+			// Create mock Bootstrap Modal instance
+			mockBootstrapModal = {
+				show: jest.fn(),
+				hide: jest.fn(),
+				dispose: jest.fn(),
+				_config: {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				},
+			};
+
+			// Mock Bootstrap Modal
+			global.bootstrap = {
+				Modal: jest.fn().mockImplementation(() => mockBootstrapModal),
+			};
+			global.bootstrap.Modal.getInstance = jest.fn(() => null);
+			window.bootstrap = global.bootstrap;
+
+			// Mock document.getElementById for modal
+			global.document.getElementById = jest.fn((id) => {
+				if (id === "test-modal") return mockModal;
+				if (id === "toast-container") return mockToastContainer;
+				if (id === "test-container") return mockContainer;
+				return null;
+			});
+		});
+
+		describe("showModalLoading()", () => {
+			test("should store original content and render loading", async () => {
+				mockAPIClient.post.mockResolvedValue({
+					html: '<div class="spinner">Loading...</div>',
+				});
+
+				await domUtils.showModalLoading("test-modal");
+
+				expect(mockModalBody.dataset.originalContent).toBe(
+					"<div>Original content</div>",
+				);
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/loading.html",
+						context: expect.objectContaining({
+							text: "Loading modal...",
+							format: "modal",
+						}),
+					},
+					null,
+					true,
+				);
+			});
+
+			test("should not overwrite existing original content", async () => {
+				mockModalBody.dataset.originalContent = "<div>Existing content</div>";
+				mockAPIClient.post.mockResolvedValue({
+					html: '<div class="spinner">Loading...</div>',
+				});
+
+				await domUtils.showModalLoading("test-modal");
+
+				expect(mockModalBody.dataset.originalContent).toBe(
+					"<div>Existing content</div>",
+				);
+			});
+
+			test("should handle missing modal gracefully", async () => {
+				document.getElementById = jest.fn(() => null);
+
+				await domUtils.showModalLoading("nonexistent-modal");
+
+				expect(mockAPIClient.post).not.toHaveBeenCalled();
+			});
+
+			test("should handle missing modal body gracefully", async () => {
+				mockModal.querySelector = jest.fn(() => null);
+
+				await domUtils.showModalLoading("test-modal");
+
+				expect(mockAPIClient.post).not.toHaveBeenCalled();
+			});
+		});
+
+		describe("clearModalLoading()", () => {
+			test("should restore original content", () => {
+				mockModalBody.dataset.originalContent = "<div>Original content</div>";
+
+				domUtils.clearModalLoading("test-modal");
+
+				expect(mockModalBody.innerHTML).toBe("<div>Original content</div>");
+				expect(mockModalBody.dataset.originalContent).toBeUndefined();
+			});
+
+			test("should handle missing original content gracefully", () => {
+				delete mockModalBody.dataset.originalContent;
+
+				domUtils.clearModalLoading("test-modal");
+
+				expect(mockModalBody.innerHTML).toBe("<div>Original content</div>");
+			});
+
+			test("should handle missing modal gracefully", () => {
+				document.getElementById = jest.fn(() => null);
+
+				expect(() => {
+					domUtils.clearModalLoading("nonexistent-modal");
+				}).not.toThrow();
+			});
+		});
+
+		describe("showModalError()", () => {
+			test("should render error and open modal", async () => {
+				mockAPIClient.post.mockResolvedValue({
+					html: '<div class="alert alert-danger">Error message</div>',
+				});
+				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
+
+				await domUtils.showModalError("test-modal", "Test error");
+
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/error.html",
+						context: expect.objectContaining({
+							message: "Test error",
+							format: "alert",
+							alert_type: "danger",
+							icon: "exclamation-triangle",
+						}),
+					},
+					null,
+					true,
+				);
+				expect(mockBootstrapModal.show).toHaveBeenCalled();
+			});
+
+			test("should handle missing modal gracefully", async () => {
+				document.getElementById = jest.fn(() => null);
+
+				await domUtils.showModalError("nonexistent-modal", "Test error");
+
+				expect(mockAPIClient.post).not.toHaveBeenCalled();
+			});
+		});
+
+		describe("openModal()", () => {
+			test("should create new modal instance when none exists", () => {
+				global.bootstrap.Modal.getInstance = jest.fn(() => null);
+
+				domUtils.openModal("test-modal");
+
+				expect(global.bootstrap.Modal).toHaveBeenCalledWith(mockModal, {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				});
+				expect(mockBootstrapModal.show).toHaveBeenCalled();
+			});
+
+			test("should reuse existing valid modal instance", () => {
+				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
+
+				domUtils.openModal("test-modal");
+
+				expect(global.bootstrap.Modal).not.toHaveBeenCalled();
+				expect(mockBootstrapModal.show).toHaveBeenCalled();
+			});
+
+			test("should dispose and recreate modal instance in bad state", () => {
+				const badInstance = {
+					show: jest.fn(),
+					dispose: jest.fn(),
+					// Missing _config or _config.backdrop
+				};
+				global.bootstrap.Modal.getInstance = jest.fn(() => badInstance);
+
+				domUtils.openModal("test-modal");
+
+				expect(badInstance.dispose).toHaveBeenCalled();
+				expect(global.bootstrap.Modal).toHaveBeenCalledWith(mockModal, {
+					backdrop: true,
+					keyboard: true,
+					focus: true,
+				});
+				expect(mockBootstrapModal.show).toHaveBeenCalled();
+			});
+
+			test("should handle disposal failure gracefully", () => {
+				const badInstance = {
+					show: jest.fn(),
+					dispose: jest.fn(() => {
+						throw new Error("Disposal failed");
+					}),
+				};
+				global.bootstrap.Modal.getInstance = jest.fn(() => badInstance);
+				console.warn = jest.fn();
+
+				domUtils.openModal("test-modal");
+
+				expect(global.bootstrap.Modal).toHaveBeenCalled();
+				expect(mockBootstrapModal.show).toHaveBeenCalled();
+			});
+
+			test("should handle missing modal gracefully", () => {
+				document.getElementById = jest.fn(() => null);
+
+				expect(() => {
+					domUtils.openModal("nonexistent-modal");
+				}).not.toThrow();
+			});
+		});
+
+		describe("closeModal()", () => {
+			test("should get instance and call hide", () => {
+				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
+
+				domUtils.closeModal("test-modal");
+
+				expect(global.bootstrap.Modal.getInstance).toHaveBeenCalledWith(
+					mockModal,
+				);
+				expect(mockBootstrapModal.hide).toHaveBeenCalled();
+			});
+
+			test("should handle missing instance gracefully", () => {
+				global.bootstrap.Modal.getInstance = jest.fn(() => null);
+
+				expect(() => {
+					domUtils.closeModal("test-modal");
+				}).not.toThrow();
+			});
+
+			test("should handle missing modal gracefully", () => {
+				document.getElementById = jest.fn(() => null);
+
+				expect(() => {
+					domUtils.closeModal("nonexistent-modal");
+				}).not.toThrow();
+			});
+		});
+
+		describe("initializeListDropdowns()", () => {
+			let mockToggle;
+			let mockDropdownMenu;
+
+			beforeEach(() => {
+				mockDropdownMenu = {
+					classList: {
+						contains: jest.fn(() => true),
+					},
+				};
+
+				mockToggle = {
+					nextElementSibling: mockDropdownMenu,
+					dataset: {},
+					addEventListener: jest.fn(),
+				};
+
+				global.document.querySelectorAll = jest.fn((selector) => {
+					if (selector === ".btn-icon-dropdown") return [mockToggle];
+					return [];
+				});
+
+				global.document.body = {
+					appendChild: jest.fn(),
+				};
+
+				global.bootstrap.Dropdown = jest.fn().mockImplementation(() => ({
+					dispose: jest.fn(),
+				}));
+				global.bootstrap.Dropdown.getInstance = jest.fn(() => null);
+			});
+
+			test("should initialize dropdowns for all toggle buttons", () => {
+				domUtils.initializeListDropdowns();
+
+				expect(document.querySelectorAll).toHaveBeenCalledWith(
+					".btn-icon-dropdown",
+				);
+				expect(global.bootstrap.Dropdown).toHaveBeenCalledWith(mockToggle, {
+					container: "body",
+					boundary: "viewport",
+					popperConfig: {
+						modifiers: [
+							{
+								name: "preventOverflow",
+								options: {
+									boundary: "viewport",
+								},
+							},
+						],
+					},
+				});
+			});
+
+			test("should dispose existing dropdown instances", () => {
+				const existingInstance = {
+					dispose: jest.fn(),
+				};
+				global.bootstrap.Dropdown.getInstance = jest.fn(() => existingInstance);
+
+				domUtils.initializeListDropdowns();
+
+				expect(existingInstance.dispose).toHaveBeenCalled();
+			});
+
+			test("should move dropdown menu to body on show", () => {
+				domUtils.initializeListDropdowns();
+
+				// Simulate show.bs.dropdown event
+				const showHandler = mockToggle.addEventListener.mock.calls.find(
+					(call) => call[0] === "show.bs.dropdown",
+				)?.[1];
+
+				if (showHandler) {
+					showHandler();
+					expect(document.body.appendChild).toHaveBeenCalledWith(
+						mockDropdownMenu,
+					);
+				}
+			});
+
+			test("should prevent row click when clicking dropdown elements", () => {
+				const mockEvent = {
+					target: {
+						closest: jest.fn((selector) => {
+							if (selector === ".dropdown") return { classList: {} };
+							return null;
+						}),
+					},
+					stopPropagation: jest.fn(),
+				};
+
+				domUtils.initializeListDropdowns();
+
+				// Simulate click event
+				const clickHandler = document.addEventListener.mock.calls.find(
+					(call) => call[0] === "click",
+				)?.[1];
+
+				if (clickHandler) {
+					clickHandler(mockEvent);
+					expect(mockEvent.stopPropagation).toHaveBeenCalled();
+				}
+			});
+
+			test("should handle missing dropdown menu gracefully", () => {
+				mockToggle.nextElementSibling = null;
+
+				expect(() => {
+					domUtils.initializeListDropdowns();
+				}).not.toThrow();
+			});
+		});
+	});
 });

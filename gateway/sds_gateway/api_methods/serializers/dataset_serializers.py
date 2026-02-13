@@ -20,6 +20,8 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     owner_email = serializers.SerializerMethodField()
     permission_level = serializers.SerializerMethodField()
     can_edit = serializers.SerializerMethodField()
+    can_advance_version = serializers.SerializerMethodField()
+    next_version = serializers.SerializerMethodField()
 
     def get_authors(self, obj):
         """Return the full authors list using the model's get_authors_display method."""
@@ -158,9 +160,44 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         ).first()
 
         if permission:
-            return permission.permission_level in ["co-owner", "contributor"]
+            return permission.permission_level in [
+                PermissionLevel.CO_OWNER,
+                PermissionLevel.CONTRIBUTOR,
+            ]
 
         return False
+
+    def get_can_advance_version(self, obj):
+        """Check if the current user can advance the version of the dataset."""
+        request = self.context.get("request")
+        if not request or not hasattr(request, "user"):
+            return False
+
+        # Check if user is the owner
+        if obj.owner == request.user:
+            return True
+
+        # Check for shared permissions that allow advancing the version
+        permission = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.DATASET,
+            item_uuid=obj.uuid,
+            is_enabled=True,
+            is_deleted=False,
+        ).first()
+
+        if permission:
+            return permission.permission_level == PermissionLevel.CO_OWNER
+
+        return False
+
+    def get_next_version(self, obj):
+        """Get the next version of the dataset."""
+        next_version = None
+        if obj.next_version.exists():
+            next_version_obj = obj.next_version.first()
+            next_version = next_version_obj.version
+        return next_version
 
     class Meta:
         model = Dataset

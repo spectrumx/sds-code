@@ -1,0 +1,17 @@
+{% comment %}
+Dataset list modals fragment for AJAX list refresh.
+Renders the same modal set as dataset_list.html for the current page_obj.
+Context: page_obj (paginated dataset list)
+{% endcomment %}
+{% for dataset in page_obj %}
+    {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+    {% include "users/partials/web_download_modal.html" with dataset=dataset %}
+    {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
+    {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
+    {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}
+        {% include "users/partials/dataset_version_control.html" with dataset=dataset %}
+        {% if not dataset.dataset.status == 'final' or not dataset.is_public %}
+            {% include "users/partials/publish_dataset_modal.html" with dataset=dataset %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
