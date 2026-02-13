@@ -5,6 +5,7 @@
 
 import {
 	BATCH_SIZE,
+	MIN_STREAMING_BATCH,
 	get_waterfall_slices_endpoint,
 	get_waterfall_slices_stream_endpoint,
 } from "./constants.js";
@@ -21,9 +22,10 @@ class WaterfallSliceLoader {
 		// Request tracking
 		this.pendingRequests = new Map(); // Map of request key -> Promise
 
-		// Retry configuration
-		this.maxRetries = 3;
+		// Retry configuration (network/429 can be transient)
+		this.maxRetries = 5;
 		this.retryDelay = 1000; // 1 second
+		this.fetchTimeoutMs = 120000; // 2 min for slow streaming responses
 
 		// Debounce configuration
 		this.debounceDelay = 100; // 100ms debounce
@@ -148,9 +150,19 @@ class WaterfallSliceLoader {
 	 * @returns {Promise<Array>} Promise resolving to loaded slices
 	 */
 	async _loadBatch(startIndex, endIndex, processingType) {
+		// When using streaming endpoint, align small batches to MIN_STREAMING_BATCH
+		// boundaries so concurrent 1-slice requests (periodogram, etc.) share one API call.
+		let fetchStart = startIndex;
+		let fetchEnd = endIndex;
+		if (this.useStreamingEndpoint && fetchEnd - fetchStart < MIN_STREAMING_BATCH) {
+			fetchStart =
+				Math.floor(startIndex / MIN_STREAMING_BATCH) * MIN_STREAMING_BATCH;
+			fetchEnd = fetchStart + MIN_STREAMING_BATCH;
+		}
+
 		const streamingMode = this.useStreamingEndpoint ? "stream" : "rest";
 		const captureId = this.captureUuid || "no-capture";
-		const requestKey = `${captureId}:${processingType}:${streamingMode}:${startIndex}-${endIndex}`;
+		const requestKey = `${captureId}:${processingType}:${streamingMode}:${fetchStart}-${fetchEnd}`;
 
 		// Check if request is already pending
 		if (this.pendingRequests.has(requestKey)) {
@@ -159,8 +171,8 @@ class WaterfallSliceLoader {
 
 		// Create new request
 		const requestPromise = this._fetchSlicesWithRetry(
-			startIndex,
-			endIndex,
+			fetchStart,
+			fetchEnd,
 			processingType,
 		);
 
@@ -187,13 +199,21 @@ class WaterfallSliceLoader {
 				this.cache.setSlice(sliceIndex, slice);
 			}
 
-			// Notify callback
+			// When backend returns 0 slices for this range (data gaps), mark range so we don't re-request
+			if (slices.length === 0) {
+				this.cache.markRangeAsGap(fetchStart, fetchEnd);
+			}
+
+			// Notify callback. When slices.length === 0 we pass the requested range (fetchStart, fetchEnd)
+			// so the visible-window overlap check in onSlicesLoaded succeeds and the UI re-renders with "No data".
+			const callbackEnd =
+				slices.length > 0
+					? actualStartIndex + slices.length
+					: fetchEnd;
+			const callbackStart =
+				slices.length > 0 ? actualStartIndex : fetchStart;
 			if (this.onSliceLoaded) {
-				this.onSliceLoaded(
-					slices,
-					actualStartIndex,
-					actualStartIndex + slices.length,
-				);
+				this.onSliceLoaded(slices, callbackStart, callbackEnd);
 			}
 
 			return slices;
@@ -236,29 +256,63 @@ class WaterfallSliceLoader {
 						processingType,
 					);
 
-			const response = await fetch(url, {
-				method: "GET",
-				credentials: "same-origin",
-				headers: {
-					"Content-Type": "application/json",
-					"X-CSRFToken": this._getCSRFToken(),
-				},
-			});
+			const controller = new AbortController();
+			const timeoutId = setTimeout(
+				() => controller.abort(),
+				this.fetchTimeoutMs,
+			);
+			let response;
+			try {
+				response = await fetch(url, {
+					method: "GET",
+					credentials: "same-origin",
+					headers: {
+						"Content-Type": "application/json",
+						"X-CSRFToken": this._getCSRFToken(),
+					},
+					signal: controller.signal,
+				});
+			} finally {
+				clearTimeout(timeoutId);
+			}
 
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({}));
-				throw new Error(
-					errorData.error || `HTTP ${response.status}: ${response.statusText}`,
-				);
+				const errMsg =
+					errorData.error || `HTTP ${response.status}: ${response.statusText}`;
+
+				// Retry on 429 (rate limit) using Retry-After or backoff
+				if (
+					response.status === 429 &&
+					retryCount < this.maxRetries
+				) {
+					const retryAfterHeader = response.headers.get("Retry-After");
+					const waitSeconds = retryAfterHeader
+						? Math.min(parseInt(retryAfterHeader, 10) || 60, 60)
+						: this.retryDelay * 2 ** retryCount / 1000;
+					await this._sleep(waitSeconds * 1000);
+					return this._fetchSlicesWithRetry(
+						startIndex,
+						endIndex,
+						processingType,
+						retryCount + 1,
+					);
+				}
+
+				throw new Error(errMsg);
 			}
 
 			return await response.json();
 		} catch (error) {
-			// Retry on network errors or 5xx errors
+			// Retry on network errors (timeout, connection reset, abort) or 5xx errors
+			const isRetryableNetwork =
+				error?.name === "AbortError" ||
+				error?.message?.includes("Failed to fetch") ||
+				error?.message?.includes("NetworkError") ||
+				error?.message?.includes("when attempting to fetch");
 			if (
 				retryCount < this.maxRetries &&
-				(error.message.includes("Failed to fetch") ||
-					error.message.includes("HTTP 5"))
+				(isRetryableNetwork || error?.message?.includes("HTTP 5"))
 			) {
 				// Exponential backoff
 				const delay = this.retryDelay * 2 ** retryCount;

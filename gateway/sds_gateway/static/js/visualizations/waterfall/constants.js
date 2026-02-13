@@ -26,14 +26,13 @@ export const WATERFALL_BOTTOM_MARGIN = 5;
 export const WATERFALL_WINDOW_SIZE = 100;
 
 // Above this many slices we prefer streaming (on-demand) over preprocessed
-export const LARGE_CAPTURE_THRESHOLD = 50_000;
+export const LARGE_CAPTURE_THRESHOLD = 55_000;
 
 // Cache and loading constants
 export const CACHE_SIZE = 800; // Maximum cached slices for seamless navigation
-// Default slices to request per API call.
-// The backend may override this value by defining `window.MAX_SLICE_BATCH_SIZE`
-// to keep it in sync with the backend MAX_SLICE_BATCH_SIZE setting.
-const DEFAULT_BATCH_SIZE = 100;
+// Default slices to request per API call (match backend MAX_SLICE_BATCH_SIZE).
+// Larger batches = fewer requests when fast-forwarding; backend may override via window.MAX_SLICE_BATCH_SIZE.
+const DEFAULT_BATCH_SIZE = 300;
 export const BATCH_SIZE =
 	typeof window !== "undefined" &&
 	typeof window.MAX_SLICE_BATCH_SIZE === "number"
@@ -45,6 +44,9 @@ export const BATCH_SIZE =
 // PREFETCH_DISTANCE: Once triggered, load this many slices ahead/behind
 export const PREFETCH_TRIGGER = 2 * WATERFALL_WINDOW_SIZE; // 200 slices
 export const PREFETCH_DISTANCE = 6 * WATERFALL_WINDOW_SIZE; // 600 slices - loads 700 total on init
+
+// Minimum slices per request when using streaming endpoint (avoids 1-slice requests that burn throttle)
+export const MIN_STREAMING_BATCH = 20;
 
 // API endpoints
 export const get_create_waterfall_endpoint = (capture_uuid) => {
