@@ -194,9 +194,12 @@ class DOMUtils {
 
 		// Check if modal instance already exists
 		let bootstrapModal = bootstrap.Modal.getInstance(modal);
-		
+
 		// If instance exists but is in a bad state (no _config), dispose and recreate
-		if (bootstrapModal && (!bootstrapModal._config || !bootstrapModal._config.backdrop)) {
+		if (
+			bootstrapModal &&
+			(!bootstrapModal._config || !bootstrapModal._config.backdrop)
+		) {
 			try {
 				bootstrapModal.dispose();
 				bootstrapModal = null;
@@ -205,7 +208,7 @@ class DOMUtils {
 				bootstrapModal = null;
 			}
 		}
-		
+
 		// If no instance exists, create one with default config
 		if (!bootstrapModal) {
 			bootstrapModal = new bootstrap.Modal(modal, {
@@ -214,7 +217,7 @@ class DOMUtils {
 				focus: true,
 			});
 		}
-		
+
 		bootstrapModal.show();
 	}
 

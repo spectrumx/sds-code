@@ -248,11 +248,14 @@ window.ShareActionManager = class ShareActionManager {
 				this.closeModal();
 
 				// Refresh dataset list
-				if (window.listRefreshManager && typeof window.listRefreshManager.loadTable === 'function') {
+				if (
+					window.listRefreshManager &&
+					typeof window.listRefreshManager.loadTable === "function"
+				) {
 					window.listRefreshManager.loadTable();
 				} else {
 					// Fallback: reload the page if listRefreshManager is not available
-					console.warn('listRefreshManager not available, reloading page');
+					console.warn("listRefreshManager not available, reloading page");
 					window.location.reload();
 				}
 			} else {

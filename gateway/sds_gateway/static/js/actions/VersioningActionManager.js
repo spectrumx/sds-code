@@ -35,10 +35,14 @@ class VersioningActionManager {
 			if (versionCreationButton.dataset.versionSetup === "true") {
 				return;
 			}
-			
+
 			versionCreationButton.dataset.versionSetup = "true";
 			versionCreationButton.addEventListener("click", (event) =>
-				this.handleVersionCreation(event, versionCreationButton, copySharedUsersCheckbox),
+				this.handleVersionCreation(
+					event,
+					versionCreationButton,
+					copySharedUsersCheckbox,
+				),
 			);
 		}
 	}
@@ -70,20 +74,23 @@ class VersioningActionManager {
 				if (response.success) {
 					const modalEl = document.getElementById(this.modalId);
 					const onHidden = () => {
-						modalEl.removeEventListener('hidden.bs.modal', onHidden);
+						modalEl.removeEventListener("hidden.bs.modal", onHidden);
 						window.DOMUtils.showAlert(
 							`Dataset version updated to v${response.version} successfully`,
 							"success",
 						);
-						if (window.listRefreshManager && typeof window.listRefreshManager.loadTable === 'function') {
+						if (
+							window.listRefreshManager &&
+							typeof window.listRefreshManager.loadTable === "function"
+						) {
 							window.listRefreshManager.loadTable();
 						} else {
-							console.warn('listRefreshManager not available, reloading page');
+							console.warn("listRefreshManager not available, reloading page");
 							window.location.reload();
 						}
 					};
 					if (modalEl) {
-						modalEl.addEventListener('hidden.bs.modal', onHidden);
+						modalEl.addEventListener("hidden.bs.modal", onHidden);
 					}
 					window.DOMUtils.closeModal(this.modalId);
 					if (!modalEl) {
