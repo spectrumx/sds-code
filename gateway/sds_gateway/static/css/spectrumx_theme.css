@@ -1,6 +1,12 @@
 /* SpectrumX Theme - Unique styles only */
 /* Remove conflicting body, header, and gradient bar styles that are already defined in other files */
 
+/* Homepage-specific styles */
+.home-institution-highlight {
+	color: var(--home-institution-color);
+	font-style: italic;
+}
+
 .logo {
 	height: 40px;
 }
@@ -19,10 +25,20 @@
 	color: #212529;
 	font-weight: 300;
 	padding: 0.5rem 1rem;
+	transition: color 0.2s ease;
+}
+
+.navbar-nav .nav-link:hover {
+	color: #1a4a8a;
 }
 
 .navbar-nav .nav-link.active {
 	color: #1a4a8a;
+}
+
+#navbarUserDropdown {
+	font-family: monospace;
+	/* email addresses and usernames read better in monospace */
 }
 
 .btn-primary,
@@ -98,7 +114,8 @@ hr {
 }
 
 .site-footer {
-	background-color: #212529; /* A common dark color */
+	background-color: #212529;
+	/* A common dark color */
 }
 
 .footer-text {
@@ -300,12 +317,14 @@ textarea:focus-visible {
 
 .file-browser .bi {
 	margin-right: 8px;
-	color: #565656; /* Darker gray for higher contrast */
+	color: #565656;
+	/* Darker gray for higher contrast */
 }
 
 .file-browser .bi-folder-fill,
 .file-browser .bi-folder2-open {
-	color: #005a9c; /* Darker blue for higher contrast */
+	color: #005a9c;
+	/* Darker blue for higher contrast */
 }
 
 .file-browser span {
@@ -450,18 +469,22 @@ textarea:focus-visible {
 .table-fixed-layout td:nth-child(1) {
 	width: 5%;
 }
+
 .table-fixed-layout th:nth-child(2),
 .table-fixed-layout td:nth-child(2) {
 	width: 45%;
 }
+
 .table-fixed-layout th:nth-child(3),
 .table-fixed-layout td:nth-child(3) {
 	width: 25%;
 }
+
 .table-fixed-layout th:nth-child(4),
 .table-fixed-layout td:nth-child(4) {
 	width: 15%;
 }
+
 .table-fixed-layout th:nth-child(5),
 .table-fixed-layout td:nth-child(5) {
 	width: 10%;
@@ -1113,11 +1136,13 @@ input[type="number"].form-control-sm {
 	border-radius: 0;
 	border-left: none;
 	color: #dc3545;
-	display: none; /* Hide by default */
+	display: none;
+	/* Hide by default */
 }
 
 .modal-body .input-group .cancel-btn.show {
-	display: flex; /* Show when .show class is added */
+	display: flex;
+	/* Show when .show class is added */
 }
 
 .modal-body .input-group .cancel-btn:hover {
@@ -1127,15 +1152,19 @@ input[type="number"].form-control-sm {
 }
 
 .modal-body .input-group .save-btn {
-	border-radius: 0 4px 4px 0; /* Default state */
+	border-radius: 0 4px 4px 0;
+	/* Default state */
 	border-left: none;
 	color: #005a9c;
-	display: none; /* Hide by default */
+	display: none;
+	/* Hide by default */
 }
 
 .modal-body .input-group .save-btn.show {
-	display: flex; /* Show when .show class is added */
-	border-radius: 0 4px 4px 0; /* When it's the last visible button */
+	display: flex;
+	/* Show when .show class is added */
+	border-radius: 0 4px 4px 0;
+	/* When it's the last visible button */
 }
 
 .modal-body .input-group .edit-btn:hover {
@@ -1147,4 +1176,65 @@ input[type="number"].form-control-sm {
 	width: 1rem;
 	height: 1rem;
 	border-width: 0.15em;
+}
+
+/* Brand Image Styling */
+/* ========================================== */
+
+/* Brand banner section with non-blurred background */
+.brand-banner {
+	width: 100%;
+	height: 16vw;
+	/*
+		anchoring the height to the viewport width helps maintaining a
+		consistent aspect ratio across devices with an element of 100% width.
+	*/
+	background-image: var(--brand-image, none);
+	background-size: cover;
+	background-position: center 25%;
+	background-repeat: no-repeat;
+	border-radius: 0.5rem;
+}
+
+/* Navbar with brand image background */
+.navbar.navbar-branded {
+	position: relative;
+	background-size: cover;
+	background-position: top center;
+	background-attachment: scroll;
+	overflow: hidden;
+	background-image: var(--navbar-bg-image, none);
+}
+
+.navbar.navbar-branded::before {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background-image: var(--navbar-bg-image, none);
+	background-size: cover;
+	background-position: center;
+	background-attachment: scroll;
+	filter: blur(8px);
+	opacity: 0.15;
+	z-index: 0;
+}
+
+.navbar.navbar-branded::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(255, 255, 255, 0.92);
+	backdrop-filter: blur(1px);
+	z-index: 1;
+}
+
+.navbar.navbar-branded .container {
+	position: relative;
+	z-index: 2;
 }

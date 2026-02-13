@@ -3,13 +3,15 @@
 {% load static i18n %}
 
 {% block title %}
-    About - SDS Gateway
+    About · {{ SDS_BRANDED_SITE_NAME }} · SDS
 {% endblock title %}
 {% block content %}
 {% endblock content %}
 {% block body %}
     <main class="container mt-4">
-        <div class="p-5 mb-4 bg-light rounded-3">
+        <div id="descriptionSection"
+             class="p-5 mb-4 bg-light rounded-3 description-hero"
+             {% if SDS_BRAND_IMAGE_URL %}style="--description-bg-image: url('{{ SDS_BRAND_IMAGE_URL }}')"{% endif %}>
             <div class="container-fluid py-5">
                 <h1 class="display-5 fw-bold">About the SpectrumX Data System</h1>
                 <p class="col-md-8 fs-4">

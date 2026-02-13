@@ -7,7 +7,7 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>SpectrumX - SpectrumX Data System</title>
+        <title>{{ SDS_BRANDED_SITE_NAME }} SDS</title>
         <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -59,10 +59,11 @@
         <!-- Page wrapper for sticky footer -->
         <div class="page-wrapper">
             <header class="site-header">
-                <nav class="navbar navbar-expand-xl navbar-light bg-white"
+                <nav class="navbar navbar-expand-xl navbar-light bg-white {% if SDS_BRAND_IMAGE_URL %}navbar-branded{% endif %}"
                      id="navigation"
                      role="navigation"
-                     aria-label="Main navigation">
+                     aria-label="Main navigation"
+                     {% if SDS_BRAND_IMAGE_URL %}style="--navbar-bg-image: url('{{ SDS_BRAND_IMAGE_URL }}')"{% endif %}>
                     <div class="container">
                         <a class="navbar-brand d-flex align-items-center"
                            href="{% url 'home' %}">
@@ -70,7 +71,10 @@
                                  alt="NSF and SpectrumX Logo"
                                  class="logo" />
                             <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
-                            <span class="system-name d-none d-md-inline">SpectrumX Data System</span>
+                            <span class="system-name d-none d-md-inline"
+                                  title="SpectrumX Data System • {{ SDS_FULL_INSTITUTION_NAME }}"
+                                  data-bs-toggle="tooltip"
+                                  data-bs-placement="bottom">SDS <span aria-hidden="true">•</span> <i>{{ SDS_BRANDED_SITE_NAME }}</i></span>
                         </a>
                         <button class="navbar-toggler"
                                 type="button"
@@ -86,24 +90,25 @@
                                 <li class="nav-item">
                                     <a class="nav-link" href="{% url 'home' %}">Home</a>
                                 </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">Datasets</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'users:files' %}">Files</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'users:file_list' %}?page=1">Captures</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'users:view_api_key' %}">API Key</a>
-                                </li>
-                                {% if not request.user.is_authenticated %}
-                                    <li class="nav-item">
-                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                {% if request.user.is_authenticated %}
+                                    <li class="nav-item d-none d-xl-flex align-items-center">
+                                        <span class="vr mx-2"></span>
                                     </li>
-                                {% else %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">Datasets</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:file_list' %}?page=1">Captures</a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:files' %}">Files</a>
+                                    </li>
+                                    <li class="nav-item d-none d-xl-flex align-items-center">
+                                        <span class="vr mx-2"></span>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:view_api_key' %}">API Key</a>
+                                    </li>
                                     <li class="nav-item dropdown">
                                         <button class="nav-link dropdown-toggle"
                                                 id="navbarUserDropdown"
@@ -135,6 +140,11 @@
                                                 </a>
                                             </li>
                                         </ul>
+                                    </li>
+                                {% else %}
+                                    <li class="nav-item">
+                                        {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
+                                        <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
                                     </li>
                                 {% endif %}
                             </ul>
@@ -170,9 +180,11 @@
                     <div class="row">
                         <div class="col-md-8 mx-auto">
                             <p class="footer-text">
-                                NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700 operated under cooperative agreement by the University of Notre Dame.
+                                NSF SpectrumX is an NSF Spectrum Innovation Center funded via Award 2132700
+                                <br />
+                                operated under cooperative agreement by the University of Notre Dame.
                             </p>
-                            <p class="copyright-text mb-0 mt-4">©2025 SpectrumX | All Rights Reserved</p>
+                            <p class="copyright-text mb-0 mt-4">© SpectrumX | All Rights Reserved</p>
                         </div>
                     </div>
                 </div>

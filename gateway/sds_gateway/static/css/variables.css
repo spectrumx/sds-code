@@ -45,6 +45,9 @@
 	/* SpectrumX Form Colors */
 	--spectrumx-form-select-focus-color: #86b7fe;
 
+	/* Homepage Colors */
+	--home-institution-color: #0d2e46;
+
 	/* Note: Bootstrap 5 already provides these variables:
 	 * --bs-primary, --bs-secondary, --bs-success, --bs-danger,
 	 * --bs-warning, --bs-info, --bs-light, --bs-dark

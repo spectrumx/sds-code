@@ -4,7 +4,7 @@
 {% load socialaccount %}
 
 {% block title %}
-    SDS Gateway
+    {{ SDS_BRANDED_SITE_NAME }} · SDS Gateway
 {% endblock title %}
 {% block head %}
     <meta name="csrf-token" content="{{ csrf_token }}" />
@@ -12,139 +12,148 @@
 {% block content %}
 {% endblock content %}
 {% block body %}
-    <main class="container mt-4">
-        <div class="row" id="descriptionSection">
-            <div class="col-md-12 p-5 mb-4 bg-light rounded-3">
-                <div class="container-fluid py-5 text-center">
-                    <h1 class="display-5 fw-bold">SpectrumX Data System</h1>
-                    <p class="fs-5">
-                        The SpectrumX Data System (SDS) is a key component of <a href="https://www.spectrumx.org/project/spectrum-awareness-for-coexistence/"
+    <main>
+        <div id="descriptionSection" class="w-100 p-0">
+            <div class="description-hero pt-5 pb-3 pl-2 pr-2 mb-4 bg-transparent rounded-3">
+                <div class="container row">
+                    <div class="col-lg-6 offset-lg-3 text-center">
+                        <h1 class="h2 fw-bold">
+                            SpectrumX Data System <span class="text-muted mx-2">·</span> <span class="home-institution-highlight">{{ SDS_FULL_INSTITUTION_NAME }}</span>
+                        </h1>
+                        <p class="fs-5">
+                            The SpectrumX Data System (SDS) is a key component of <a href="https://www.spectrumx.org/project/spectrum-awareness-for-coexistence/"
     target="_blank"
     rel="noopener noreferrer"
     class="external-link">SpectrumX Flagship Project 1: Spectrum Awareness for Coexistence</a> in support of SpectrumX's vision to be a trusted resource in the spectrum ecosystem. SpectrumX aims to provide objective, long-term, and innovative policy and technical contributions through collaborative, inclusive, and integrative education and research activities.
-                    </p>
+                        </p>
+                    </div>
                 </div>
             </div>
+            {% if SDS_BRAND_IMAGE_URL %}
+                <div class="brand-banner mb-4"
+                     style="--brand-image: url('{{ SDS_BRAND_IMAGE_URL }}')"></div>
+            {% endif %}
         </div>
-        <div class="row mb-3" id="latestDatasetsSection">
-            <div class="col-md-12">
-                {% if latest_datasets %}
-                    <div class="card">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <h2 class="card-title h4 mb-0">Latest Public Datasets</h2>
-                                <a href="{% url 'users:search_datasets' %}"
-                                   class="btn btn-outline-primary btn-sm">
-                                    View and search more public datasets <i class="bi bi-arrow-right ms-1"></i>
-                                </a>
-                            </div>
-                            <!-- Card grid for datasets -->
-                            <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
-                                {% for dataset in latest_datasets %}
-                                    <div class="col">
-                                        <div class="card h-100 shadow-sm">
-                                            <div class="card-body d-flex flex-column">
-                                                <h5 class="card-title">
-                                                    <a href="#"
-                                                       class="dataset-name-link text-decoration-none"
-                                                       data-bs-toggle="modal"
-                                                       data-bs-target="#datasetDetailsModal"
-                                                       data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</a>
-                                                    {% if dataset.is_public %}<i class="bi bi-globe ms-1 text-primary" title="Public"></i>{% endif %}
-                                                </h5>
-                                                <div class="mb-2">
-                                                    <small class="text-muted">
-                                                        {% if dataset.dataset.created_at %}
-                                                            <i class="bi bi-calendar3 me-1"></i>{{ dataset.dataset.created_at|date:"Y-m-d" }}
-                                                        {% endif %}
-                                                    </small>
-                                                </div>
-                                                {% if dataset.authors %}
-                                                    <p class="card-text flex-grow-1">
+        <div class="container mt-4">
+            <div class="row mb-3" id="latestDatasetsSection">
+                <div class="col-md-12">
+                    {% if latest_datasets %}
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h2 class="card-title h4 mb-0">Latest Public Datasets</h2>
+                                    <a href="{% url 'users:search_datasets' %}"
+                                       class="btn btn-outline-primary btn-sm">
+                                        View and search more public datasets <i class="bi bi-arrow-right ms-1"></i>
+                                    </a>
+                                </div>
+                                <!-- Card grid for datasets -->
+                                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-3">
+                                    {% for dataset in latest_datasets %}
+                                        <div class="col">
+                                            <div class="card h-100 shadow-sm">
+                                                <div class="card-body d-flex flex-column">
+                                                    <h5 class="card-title">
+                                                        <a href="#"
+                                                           class="dataset-name-link text-decoration-none"
+                                                           data-bs-toggle="modal"
+                                                           data-bs-target="#datasetDetailsModal"
+                                                           data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</a>
+                                                        {% if dataset.is_public %}<i class="bi bi-globe ms-1 text-primary" title="Public"></i>{% endif %}
+                                                    </h5>
+                                                    <div class="mb-2">
                                                         <small class="text-muted">
-                                                            <i class="bi bi-person me-1"></i>
-                                                            {% for author in dataset.authors|slice:":2" %}
-                                                                {% if author.name %}
-                                                                    {{ author.name }}
-                                                                {% else %}
-                                                                    {{ author }}
-                                                                {% endif %}
-                                                                {% if not forloop.last %},{% endif %}
-                                                            {% endfor %}
-                                                            {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
+                                                            {% if dataset.dataset.created_at %}
+                                                                <i class="bi bi-calendar3 me-1"></i>{{ dataset.dataset.created_at|date:"Y-m-d" }}
+                                                            {% endif %}
                                                         </small>
-                                                    </p>
-                                                {% endif %}
-                                                {% if dataset.keywords %}
-                                                    <div class="mt-auto">
-                                                        {% for keyword in dataset.keywords|slice:":3" %}
-                                                            <span class="badge bg-secondary me-1 mb-1">{{ keyword }}</span>
-                                                        {% endfor %}
-                                                        {% if dataset.keywords|length > 3 %}
-                                                            <span class="badge bg-light text-dark me-1 mb-1">+{{ dataset.keywords|length|add:"-3" }}</span>
-                                                        {% endif %}
                                                     </div>
-                                                {% endif %}
+                                                    {% if dataset.authors %}
+                                                        <p class="card-text flex-grow-1">
+                                                            <small class="text-muted">
+                                                                <i class="bi bi-person me-1"></i>
+                                                                {% for author in dataset.authors|slice:":2" %}
+                                                                    {% if author.name %}
+                                                                        {{ author.name }}
+                                                                    {% else %}
+                                                                        {{ author }}
+                                                                    {% endif %}
+                                                                    {% if not forloop.last %},{% endif %}
+                                                                {% endfor %}
+                                                                {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
+                                                            </small>
+                                                        </p>
+                                                    {% endif %}
+                                                    {% if dataset.keywords %}
+                                                        <div class="mt-auto">
+                                                            {% for keyword in dataset.keywords|slice:":3" %}
+                                                                <span class="badge bg-secondary me-1 mb-1">{{ keyword }}</span>
+                                                            {% endfor %}
+                                                            {% if dataset.keywords|length > 3 %}
+                                                                <span class="badge bg-light text-dark me-1 mb-1">+{{ dataset.keywords|length|add:"-3" }}</span>
+                                                            {% endif %}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                {% endfor %}
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
-                    </div>
-                {% else %}
-                    <div class="card w-100">
-                        <div class="card-body d-flex flex-column">
-                            <div class="alert alert-info" role="alert">
+                    {% else %}
+                        <div class="card w-100">
+                            <div class="card-body d-flex flex-column text-center alert-info"
+                                 role="alert">
                                 <h2 class="card-title h4 mb-3">No published datasets available</h2>
                                 <p class="card-text">There are no published datasets available at this time. Please check back later.</p>
                             </div>
                         </div>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body text-center">
-                        <i class="bi bi-code-slash text-success mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">SpectrumX SDK in PyPI</h2>
-                        <p class="card-text mb-0">
-                            <a href="https://pypi.org/project/spectrumx/"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               class="external-link">Python SDK for programmatic access</a>
-                        </p>
-                    </div>
+                    {% endif %}
                 </div>
             </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body text-center">
-                        <i class="bi bi-book text-warning mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">SDK Documentation</h2>
-                        <p class="card-text mb-0">
-                            <!-- NOTE: this points outside the Django application, so we're
+            <div class="row">
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-code-slash text-success mb-3 fs-1" aria-hidden="true"></i>
+                            <h2 class="card-title h5">SpectrumX SDK in PyPI</h2>
+                            <p class="card-text mb-0">
+                                <a href="https://pypi.org/project/spectrumx/"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="external-link">Python SDK for programmatic access</a>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-book text-warning mb-3 fs-1" aria-hidden="true"></i>
+                            <h2 class="card-title h5">SDK Documentation</h2>
+                            <p class="card-text mb-0">
+                                <!-- NOTE: this points outside the Django application, so we're
                             using the full URL for it to work in other Gateway deployments -->
-                            {# djlint:off D018 #}
-                            <a href="https://sds.crc.nd.edu/sdk/" class="capture-link external-link">Python SDK reference, examples, and FAQ</a>
-                            {# djlint:on D018 #}
-                        </p>
+                                {# djlint:off D018 #}
+                                <a href="https://sds.crc.nd.edu/sdk/" class="capture-link external-link">Python SDK reference, examples, and FAQ</a>
+                                {# djlint:on D018 #}
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-md-4 mb-4">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body text-center">
-                        <i class="bi bi-globe text-primary mb-3 fs-1" aria-hidden="true"></i>
-                        <h2 class="card-title h5">SpectrumX Website</h2>
-                        <p class="card-text mb-0">
-                            <a href="https://www.spectrumx.org/"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               class="external-link">Learn more about NSF SpectrumX</a>
-                        </p>
+                <div class="col-md-4 mb-4">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body text-center">
+                            <i class="bi bi-globe text-primary mb-3 fs-1" aria-hidden="true"></i>
+                            <h2 class="card-title h5">SpectrumX Website</h2>
+                            <p class="card-text mb-0">
+                                <a href="https://www.spectrumx.org/"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="external-link">Learn more about NSF SpectrumX</a>
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>

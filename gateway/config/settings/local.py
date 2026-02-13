@@ -34,6 +34,10 @@ ALLOWED_HOSTS: list[str] = env.list(
     ],
 )
 
+# Add the branded site FQDN to allowed hosts
+if SDS_SITE_FQDN not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(SDS_SITE_FQDN)
+
 # CACHES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/4.2/ref/settings/#caches
