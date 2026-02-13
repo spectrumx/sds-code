@@ -3418,6 +3418,8 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         try:
             dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
 
+            is_shared = dataset.owner != request.user
+
             # Get dataset information
             dataset_data = DatasetGetSerializer(dataset).data
 
@@ -3430,11 +3432,17 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
             artifacts_count = files_queryset.filter(capture__isnull=True).count()
             total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
 
-            # Use the same base directory logic as GroupCapturesView
-            base_dir = sanitize_path_rel_to_user(
-                unsafe_path="/",
-                request=request,
-            )
+            # If the dataset is shared, use the owner's email as the base directory
+            # Otherwise, use sanitize_path_rel_to_user
+            base_dir = None
+            if is_shared:
+                base_dir = Path(f"/files/{dataset.owner.email}/")
+            else:
+                base_dir = sanitize_path_rel_to_user(
+                    unsafe_path="/",
+                    request=request,
+                )
+
             tree_data = self._get_directory_tree(files_queryset, str(base_dir))
 
             response_data = {
