@@ -10,6 +10,9 @@ opensearch/data/*
 !data/.gitkeep
 !opensearch/data/.gitkeep
 
+# DRF reconstruction cache (default: cache/drf, not web-served)
+cache/
+
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

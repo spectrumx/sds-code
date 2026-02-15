@@ -33,6 +33,9 @@ from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_captur
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import _normalize_top_level_dir
 from sds_gateway.users.models import UserAPIKey
+from sds_gateway.visualizations.models import PostProcessedData
+from sds_gateway.visualizations.models import ProcessingStatus
+from sds_gateway.visualizations.models import ProcessingType
 
 # Test constants
 TEST_USER_PASSWORD = "testpass123"  # noqa: S105
@@ -1751,6 +1754,366 @@ class CaptureTestCases(APITestCase):
             f"Expected {TOTAL_TEST_CAPTURES} captures (excluding disabled shared), "
             f"got {data['count']}"
         )
+
+    def test_waterfall_slices_requires_authentication(self) -> None:
+        """Test that waterfall_slices endpoint requires authentication."""
+        # Create a test capture
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+
+        # Create unauthenticated client
+        unauthenticated_client = APIClient()
+
+        # Test without authentication
+        response = unauthenticated_client.get(url, {"start_index": 0, "end_index": 10})
+        assert response.status_code in [
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        ]
+
+    def test_waterfall_slices_success(self) -> None:
+        """Test successful retrieval of waterfall slices."""
+        # Create a test capture
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        # Create sample waterfall data (10 slices)
+        waterfall_data = [
+            {
+                "data": "dGVzdGRhdGE=",  # base64 encoded test data
+                "data_type": "float32",
+                "timestamp": f"2025-01-01T00:00:{i:02d}Z",
+                "min_frequency": 1_990_000_000.0,
+                "max_frequency": 2_010_000_000.0,
+                "num_samples": 1024,
+                "sample_rate": 2_000_000,
+                "center_frequency": 2_000_000_000.0,
+                "custom_fields": {
+                    "channel_name": "test-channel",
+                    "start_sample": i * 1024,
+                    "num_samples": 1024,
+                    "fft_size": 1024,
+                    "scan_time": 0.000512,
+                    "slice_index": i,
+                },
+            }
+            for i in range(10)
+        ]
+
+        # Create JSON file content
+        json_content = json.dumps(waterfall_data).encode()
+
+        # Create PostProcessedData with the JSON file
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_status=ProcessingStatus.Completed.value,
+            metadata={
+                "center_frequency": 2_000_000_000.0,
+                "sample_rate": 2_000_000,
+                "total_slices": 10,
+            },
+        )
+        processed_data.data_file.save(
+            "waterfall_test.json",
+            SimpleUploadedFile(
+                "waterfall_test.json",
+                json_content,
+                content_type="application/json",
+            ),
+        )
+        processed_data.save()
+
+        # Test getting slices 0-5
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(
+            url,
+            {"start_index": 0, "end_index": 5, "processing_type": "waterfall"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "slices" in data
+        assert len(data["slices"]) == 5  # noqa: PLR2004
+        assert data["total_slices"] == 10  # noqa: PLR2004
+        assert data["start_index"] == 0
+        assert data["end_index"] == 5  # noqa: PLR2004
+        assert "metadata" in data
+        assert data["metadata"]["total_slices"] == 10  # noqa: PLR2004
+
+        # Verify slice indices
+        for i, slice_data in enumerate(data["slices"]):
+            assert slice_data["custom_fields"]["slice_index"] == i
+
+    def test_waterfall_slices_missing_parameters(self) -> None:
+        """Test waterfall_slices endpoint with missing parameters."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+
+        # Test missing start_index
+        response = self.client.get(url, {"end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "start_index" in response.json()["error"].lower()
+
+        # Test missing end_index
+        response = self.client.get(url, {"start_index": 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "end_index" in response.json()["error"].lower()
+
+    def test_waterfall_slices_invalid_indices(self) -> None:
+        """Test waterfall_slices endpoint with invalid indices."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        # Create waterfall data
+        waterfall_data = [
+            {"data": "dGVzdA==", "custom_fields": {"slice_index": i}} for i in range(5)
+        ]
+        json_content = json.dumps(waterfall_data).encode()
+
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_status=ProcessingStatus.Completed.value,
+        )
+        processed_data.data_file.save(
+            "waterfall_test.json",
+            SimpleUploadedFile(
+                "waterfall_test.json", json_content, content_type="application/json"
+            ),
+        )
+        processed_data.save()
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+
+        # Test negative start_index
+        response = self.client.get(url, {"start_index": -1, "end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # Test end_index <= start_index
+        response = self.client.get(url, {"start_index": 3, "end_index": 3})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        response = self.client.get(url, {"start_index": 3, "end_index": 2})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # Test start_index exceeds total slices
+        response = self.client.get(url, {"start_index": 10, "end_index": 15})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        # Test non-integer indices
+        response = self.client.get(url, {"start_index": "abc", "end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_waterfall_slices_no_processed_data(self) -> None:
+        """Test waterfall_slices endpoint when no processed data exists."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "no completed" in response.json()["error"].lower()
+
+    def test_waterfall_slices_no_data_file(self) -> None:
+        """Test waterfall_slices endpoint when data_file is missing."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_status=ProcessingStatus.Completed.value,
+            # No data_file
+        )
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert "data file not found" in response.json()["error"].lower()
+
+    def test_waterfall_slices_end_index_clamping(self) -> None:
+        """Test that end_index is clamped to total_slices."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        # Create 5 slices
+        waterfall_data = [
+            {"data": "dGVzdA==", "custom_fields": {"slice_index": i}} for i in range(5)
+        ]
+        json_content = json.dumps(waterfall_data).encode()
+
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_status=ProcessingStatus.Completed.value,
+        )
+        processed_data.data_file.save(
+            "waterfall_test.json",
+            SimpleUploadedFile(
+                "waterfall_test.json", json_content, content_type="application/json"
+            ),
+        )
+        processed_data.save()
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+
+        # Request slices 2-10 (end_index exceeds total)
+        response = self.client.get(url, {"start_index": 2, "end_index": 10})
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["end_index"] == 5  # noqa: PLR2004  # Clamped to total_slices
+        assert len(data["slices"]) == 3  # noqa: PLR2004  # Only slices 2, 3, 4
+
+    def test_waterfall_slices_custom_processing_type(self) -> None:
+        """Test waterfall_slices with custom processing_type."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+
+        waterfall_data = [
+            {"data": "dGVzdA==", "custom_fields": {"slice_index": i}} for i in range(3)
+        ]
+        json_content = json.dumps(waterfall_data).encode()
+
+        processed_data = PostProcessedData.objects.create(
+            capture=capture,
+            processing_type="custom_type",
+            processing_status=ProcessingStatus.Completed.value,
+        )
+        processed_data.data_file.save(
+            "custom_test.json",
+            SimpleUploadedFile(
+                "custom_test.json", json_content, content_type="application/json"
+            ),
+        )
+        processed_data.save()
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(
+            url,
+            {"start_index": 0, "end_index": 2, "processing_type": "custom_type"},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert len(data["slices"]) == 2  # noqa: PLR2004
+
+    def test_waterfall_slices_other_user_capture(self) -> None:
+        """Test that users cannot access waterfall slices for other users' captures."""
+        # Create another user
+        other_user = User.objects.create(
+            email="otheruser@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+
+        # Create capture owned by other user
+        other_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-other",
+            owner=other_user,
+            top_level_dir="other-dir",
+        )
+
+        # Create waterfall data for other user's capture
+        waterfall_data = [
+            {"data": "dGVzdA==", "custom_fields": {"slice_index": i}} for i in range(5)
+        ]
+        json_content = json.dumps(waterfall_data).encode()
+
+        processed_data = PostProcessedData.objects.create(
+            capture=other_capture,
+            processing_type=ProcessingType.Waterfall.value,
+            processing_status=ProcessingStatus.Completed.value,
+        )
+        processed_data.data_file.save(
+            "waterfall_test.json",
+            SimpleUploadedFile(
+                "waterfall_test.json", json_content, content_type="application/json"
+            ),
+        )
+        processed_data.save()
+
+        url = reverse(
+            "api:captures-waterfall-slices",
+            kwargs={"pk": other_capture.uuid},
+        )
+
+        # Try to access other user's capture - should fail
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
 
 
 class OpenSearchErrorTestCases(APITestCase):

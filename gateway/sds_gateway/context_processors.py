@@ -5,7 +5,15 @@ from datetime import datetime
 from typing import Literal
 from zoneinfo import ZoneInfo
 
+from django.conf import settings
 from django.http import HttpRequest
+
+
+def app_settings(_request: HttpRequest) -> dict[str, bool]:
+    """Expose application-wide settings in templates."""
+    return {
+        "VISUALIZATIONS_ENABLED": settings.VISUALIZATIONS_ENABLED,
+    }
 
 
 @dataclass

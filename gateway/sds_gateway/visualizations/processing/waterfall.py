@@ -7,6 +7,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+from django.conf import settings
+from django.core.cache import cache
 from loguru import logger
 from pydantic import Field
 from pydantic import computed_field
@@ -85,22 +87,34 @@ def validate_waterfall_data(
 
 
 def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | None:
-    """Process a single waterfall slice."""
+    """Process a single waterfall slice.
+
+    Args:
+        params: WaterfallSliceParams with slice index and other parameters
+
+    Returns:
+        Dictionary with slice data and metadata, or None if slice cannot be processed
+        (e.g., due to data gaps or invalid sample range)
+    """
     # Use computed properties for slice calculations
     if params.slice_num_samples <= 0:
         return None
 
     # Read the data with error handling for sample count mismatches
+    # OSError covers file I/O errors and missing data blocks
     try:
         data_array = params.reader.read_vector(
             params.slice_start_sample, params.slice_num_samples, params.channel, 0
         )
     except OSError:
+        # Data gap or missing file - return None to indicate slice unavailable
         return None
 
     # Perform FFT processing
     fft_data = np.fft.fft(data_array, n=params.fft_size)
-    power_spectrum = np.abs(fft_data) ** 2
+    # Shift so DC is centered (required for correct frequency display)
+    fft_data_shifted = np.fft.fftshift(fft_data)
+    power_spectrum = np.abs(fft_data_shifted) ** 2
 
     # Convert to dB
     power_spectrum_db = 10 * np.log10(power_spectrum + 1e-12)
@@ -127,6 +141,261 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | N
             "scan_time": params.slice_num_samples / params.sample_rate,
             "slice_index": params.slice_idx,
         },
+    }
+
+
+def compute_slices_on_demand(  # noqa: C901, PLR0912, PLR0915
+    drf_path: Path,
+    channel: str,
+    start_index: int,
+    end_index: int,
+) -> dict[str, Any]:
+    """Compute waterfall slices on-demand without full preprocessing.
+
+    This function computes FFT slices for a specific range, enabling
+    true streaming without pre-computing all slices upfront.
+
+    Args:
+        drf_path: Path to DigitalRF data directory
+        channel: Channel name to process
+        start_index: Starting slice index (inclusive)
+        end_index: Ending slice index (exclusive)
+
+    Returns:
+        dict with 'slices', 'total_slices', 'start_index', 'end_index', 'metadata'
+    """
+    logger.info(
+        f"Computing slices on-demand for channel {channel}: "
+        f"range [{start_index}, {end_index})"
+    )
+
+    # Lightweight caching to avoid recomputing identical ranges in short succession.
+    # Cache key includes drf_path so different captures or cache locations
+    # don't collide.
+    cache_key = f"waterfall:{drf_path!s}:{channel}:{start_index}:{end_index}"
+    cached = None
+    try:
+        cached = cache.get(cache_key)
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
+        cached = None
+
+    if cached is not None:
+        logger.debug(
+            "Returning cached waterfall slices for channel %s range=[%d, %d)",
+            channel,
+            start_index,
+            end_index,
+        )
+        return cached
+
+    # Acquire a short-lived lock so concurrent identical requests don't all compute.
+    lock_key = cache_key + ":lock"
+    lock_timeout = getattr(settings, "WATERFALL_COMPUTE_LOCK_TIMEOUT", 30)
+    got_lock = False
+    try:
+        # cache.add returns True if key was set (i.e., lock acquired)
+        got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
+        got_lock = True  # If cache backend misbehaves, fall back to computing
+
+    if not got_lock:
+        # Wait for the original worker to finish and populate cache (polling).
+        wait_seconds = getattr(settings, "WATERFALL_COMPUTE_WAIT_SECONDS", 30)
+        poll_interval = 0.1
+        waited = 0.0
+        while waited < wait_seconds:
+            time.sleep(poll_interval)
+            waited += poll_interval
+            try:
+                cached = cache.get(cache_key)
+            except Exception:  # noqa: BLE001 - cache backends can raise various
+                cached = None
+            if cached is not None:
+                logger.debug(
+                    "Observed cached waterfall slices after wait for channel %s "
+                    "range=[%d, %d)",
+                    channel,
+                    start_index,
+                    end_index,
+                )
+                return cached
+        # If we timed out waiting, try to acquire the lock again (best-effort)
+        try:
+            got_lock = cache.add(lock_key, "1", timeout=lock_timeout)
+        except Exception:  # noqa: BLE001 - cache backends can raise various
+            got_lock = True
+
+    # Validate DigitalRF data and get base parameters
+    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
+
+    # Calculate total slices available
+    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+
+    # Validate and clamp indices
+    start_index = max(start_index, 0)
+    if start_index >= total_slices:
+        return {
+            "slices": [],
+            "total_slices": total_slices,
+            "start_index": start_index,
+            "end_index": start_index,
+            "metadata": _build_metadata(base_params, total_slices, 0),
+        }
+
+    end_index = min(end_index, total_slices)
+
+    # Process only the requested slice range
+    waterfall_slices = []
+    failed_slices = 0
+    for slice_idx in range(start_index, end_index):
+        # Use shallow copy since we're only updating slice_idx (an integer)
+        # The reader object is excluded from serialization, so no need for deep copy
+        slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
+        waterfall_file = _process_waterfall_slice(slice_params)
+        if waterfall_file:
+            waterfall_slices.append(waterfall_file)
+        else:
+            failed_slices += 1
+
+    if failed_slices > 0:
+        logger.warning(
+            f"Computed {len(waterfall_slices)} slices on-demand, "
+            f"{failed_slices} slices failed (likely data gaps)"
+        )
+    else:
+        logger.info(f"Computed {len(waterfall_slices)} slices on-demand")
+
+    result = {
+        "slices": waterfall_slices,
+        "total_slices": total_slices,
+        "start_index": start_index,
+        "end_index": end_index,
+        "metadata": _build_metadata(base_params, total_slices, len(waterfall_slices)),
+    }
+
+    # Cache the computed result for a short period to avoid repeat work.
+    ttl = getattr(settings, "WATERFALL_COMPUTE_CACHE_TTL", 60)
+    try:
+        cache.set(cache_key, result, ttl)
+    except Exception:  # noqa: BLE001 - cache backends can raise various errors
+        logger.debug("Failed to set waterfall cache key %s", cache_key)
+
+    # Release lock if we acquired it
+    try:
+        if got_lock:
+            cache.delete(lock_key)
+    except Exception as e:  # noqa: BLE001
+        logger.debug("Failed to release waterfall lock: %s", e)
+
+    return result
+
+
+def get_waterfall_power_bounds(
+    drf_path: Path, channel: str, margin_fraction: float = 0.05
+) -> dict[str, float] | None:
+    """Compute power bounds from sample slices for color scale.
+
+    Samples slices spread across the capture (same idea as master's full-data min/max).
+    Uses 5% margin by default to match master's calculatePowerBounds().
+
+    Args:
+        drf_path: Path to DigitalRF data directory
+        channel: Channel name to process
+        margin_fraction: Fraction of range to add as margin (default 0.05 = 5%)
+
+    Returns:
+        {"min": float, "max": float} or None if no valid data
+    """
+    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
+    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+    if total_slices == 0:
+        return None
+
+    # Sample slices spread across capture (better approximation of full range)
+    n_samples = min(7, total_slices)
+    indices = [
+        (total_slices - 1) * i // (n_samples - 1) if n_samples > 1 else 0
+        for i in range(n_samples)
+    ]
+    indices = [i for i in indices if i < total_slices]
+    if not indices:
+        return None
+
+    global_min = float("inf")
+    global_max = float("-inf")
+    for slice_idx in indices:
+        slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
+        slice_data = _process_waterfall_slice(slice_params)
+        if slice_data is None:
+            continue
+        try:
+            data_bytes = base64.b64decode(slice_data["data"])
+            power_db = np.frombuffer(data_bytes, dtype=np.float32)
+            finite = power_db[np.isfinite(power_db)]
+            if finite.size > 0:
+                global_min = min(global_min, float(np.min(finite)))
+                global_max = max(global_max, float(np.max(finite)))
+        except (ValueError, TypeError) as e:
+            logger.debug("Skipping slice %s for power bounds: %s", slice_idx, e)
+            continue
+
+    if global_min == float("inf") or global_max == float("-inf"):
+        return None
+    span = global_max - global_min
+    margin = span * margin_fraction
+    return {"min": global_min - margin, "max": global_max + margin}
+
+
+def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
+    """Get waterfall metadata without processing any slices.
+
+    This enables fast initial load by returning metadata immediately
+    so the frontend knows total_slices and frequency bounds.
+
+    Args:
+        drf_path: Path to DigitalRF data directory
+        channel: Channel name to process
+
+    Returns:
+        dict with metadata including total_slices, frequencies, sample_rate, etc.
+    """
+    logger.info(f"Getting waterfall metadata for channel {channel}")
+
+    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
+    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+
+    # Testing override: report an artificially large number of slices when configured
+    try:
+        test_total = getattr(settings, "WATERFALL_TEST_TOTAL_SLICES", 0)
+        min_capture = getattr(settings, "WATERFALL_TEST_MIN_CAPTURE_SLICES", 1000000)
+        if test_total and total_slices >= min_capture:
+            logger.info(
+                "Overriding total_slices %d -> %d for testing (drf_path=%s)",
+                total_slices,
+                test_total,
+                drf_path,
+            )
+            total_slices = int(test_total)
+    except Exception as e:  # noqa: BLE001 - settings may be unavailable
+        logger.debug("WATERFALL_TEST_* settings unavailable: %s", e)
+
+    return _build_metadata(base_params, total_slices, 0)
+
+
+def _build_metadata(
+    params: WaterfallSliceParams, total_slices: int, slices_processed: int
+) -> dict[str, Any]:
+    """Build metadata dict from waterfall parameters."""
+    return {
+        "center_frequency": params.center_freq,
+        "sample_rate": params.sample_rate,
+        "min_frequency": params.min_frequency,
+        "max_frequency": params.max_frequency,
+        "total_slices": total_slices,
+        "slices_processed": slices_processed,
+        "fft_size": params.fft_size,
+        "samples_per_slice": SAMPLES_PER_SLICE,
+        "channel": params.channel,
     }
 
 
@@ -159,12 +428,8 @@ def convert_drf_to_waterfall_json(
 
     for slice_idx in range(slices_to_process):
         # Create slice-specific parameters by updating the base params
-        slice_params = base_params.model_copy(
-            update={
-                "slice_idx": slice_idx,
-            },
-            deep=True,
-        )
+        # Use shallow copy since we're only updating slice_idx (an integer)
+        slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
         waterfall_file = _process_waterfall_slice(slice_params)
         if waterfall_file:
             waterfall_data.append(waterfall_file)
@@ -185,11 +450,46 @@ def convert_drf_to_waterfall_json(
         msg = "No valid waterfall slices found"
         raise SourceDataError(msg)
 
+    # Calculate power bounds from all slices for consistent color scaling
+    global_min = float("inf")
+    global_max = float("-inf")
+
+    for slice_data in waterfall_data:
+        # Decode the base64 data to calculate bounds
+        data_bytes = base64.b64decode(slice_data["data"])
+        power_spectrum_db = np.frombuffer(data_bytes, dtype=np.float32)
+
+        slice_min = float(np.min(power_spectrum_db))
+        slice_max = float(np.max(power_spectrum_db))
+
+        global_min = min(global_min, slice_min)
+        global_max = max(global_max, slice_max)
+
+    # Apply 5% margin so stored scale matches master
+    # (calculatePowerBounds uses same margin)
+    margin_frac = 0.05
+    if global_min != float("inf") and global_max != float("-inf"):
+        span = global_max - global_min
+        margin = span * margin_frac
+        power_scale_min = global_min - margin
+        power_scale_max = global_max + margin
+    else:
+        power_scale_min = None
+        power_scale_max = None
+
     # Log final summary
-    logger.info(
-        f"Waterfall processing complete: {len(waterfall_data)} slices processed, "
-        f"{skipped_slices} slices skipped due to data issues"
-    )
+    if power_scale_min is not None and power_scale_max is not None:
+        logger.info(
+            f"Waterfall processing complete: {len(waterfall_data)} slices processed, "
+            f"{skipped_slices} slices skipped due to data issues. "
+            f"Power bounds: [{power_scale_min:.2f}, {power_scale_max:.2f}] dB"
+        )
+    else:
+        logger.warning(
+            f"Waterfall processing complete: {len(waterfall_data)} slices processed, "
+            f"{skipped_slices} slices skipped due to data issues. "
+            "Power bounds could not be calculated."
+        )
 
     metadata = {
         "center_frequency": base_params.center_freq,
@@ -203,6 +503,8 @@ def convert_drf_to_waterfall_json(
         "samples_per_slice": SAMPLES_PER_SLICE,
         "channel": channel,
     }
+    if power_scale_min is not None and power_scale_max is not None:
+        metadata["power_bounds"] = {"min": power_scale_min, "max": power_scale_max}
 
     return {
         "json_data": waterfall_data,
