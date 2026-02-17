@@ -58,10 +58,14 @@
                     {% for cap in captures %}
                         <tr class="capture-row" data-capture-uuid="{{ cap.uuid }}">
                             <td class="capture-select-column" headers="select-header">
-                                <input type="checkbox"
-                                       class="capture-select-checkbox form-check-input"
-                                       data-capture-uuid="{{ cap.uuid }}"
-                                       aria-label="Select capture {{ cap.name|default:cap.uuid }}" />
+                                {% if cap.is_owner %}
+                                    <input type="checkbox"
+                                           class="capture-select-checkbox form-check-input"
+                                           data-capture-uuid="{{ cap.uuid }}"
+                                           aria-label="Select capture {{ cap.name|default:cap.uuid }}" />
+                                {% else %}
+                                    <span class="text-muted" aria-hidden="true">—</span>
+                                {% endif %}
                             </td>
                             <td headers="name-header">
                                 <a href="#"

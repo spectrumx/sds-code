@@ -829,18 +829,19 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				</span>`
 			: "";
 
-		// Check if owner (for conditional actions)
-		const isOwner = capture.is_owner !== false; // Default to true if not specified
+		// Check if owner (for conditional actions and selection — only owned captures are selectable)
+		const isOwner = capture.is_owner === true;
 
 		const checked = this.selectedCaptureIds.has(capture.uuid) ? " checked" : "";
-		return `
-			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}" data-capture-uuid="${safeData.uuid}">
-				<td class="capture-select-column" headers="select-header">
-					<input type="checkbox"
+		const selectCell = isOwner
+			? `<input type="checkbox"
 						   class="capture-select-checkbox form-check-input"
 						   data-capture-uuid="${safeData.uuid}"
-						   aria-label="Select capture ${nameDisplay}"${checked}>
-				</td>
+						   aria-label="Select capture ${nameDisplay}"${checked}>`
+			: '<span class="text-muted" aria-hidden="true">—</span>';
+		return `
+			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}" data-capture-uuid="${safeData.uuid}">
+				<td class="capture-select-column" headers="select-header">${selectCell}</td>
 				<td headers="name-header">
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"
