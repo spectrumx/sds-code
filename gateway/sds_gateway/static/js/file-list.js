@@ -117,6 +117,53 @@ class FileListController {
 		this.initializeAccordions();
 		this.initializeFrequencyHandling();
 		this.initializeItemsPerPageHandler();
+		this.initializeAddToDatasetButton();
+	}
+
+	/**
+	 * Selection mode: one button to enter; when on, show Cancel and Add
+	 */
+	initializeAddToDatasetButton() {
+		const mainBtn = document.getElementById("add-captures-to-dataset-btn");
+		const table = document.getElementById("captures-table");
+		const modeButtonsWrap = document.getElementById(
+			"add-to-dataset-mode-buttons",
+		);
+		const cancelBtn = document.getElementById("add-to-dataset-cancel-btn");
+		const addBtn = document.getElementById("add-to-dataset-add-btn");
+		if (!mainBtn || !table) return;
+
+		const enterSelectionMode = () => {
+			table.classList.add("selection-mode-active");
+			mainBtn.classList.add("d-none");
+			mainBtn.setAttribute("aria-pressed", "true");
+			if (modeButtonsWrap) modeButtonsWrap.classList.remove("d-none");
+		};
+
+		const exitSelectionMode = () => {
+			table.classList.remove("selection-mode-active");
+			mainBtn.classList.remove("d-none");
+			mainBtn.setAttribute("aria-pressed", "false");
+			if (modeButtonsWrap) modeButtonsWrap.classList.add("d-none");
+		};
+
+		mainBtn.addEventListener("click", enterSelectionMode);
+
+		if (cancelBtn) {
+			cancelBtn.addEventListener("click", exitSelectionMode);
+		}
+
+		if (addBtn) {
+			addBtn.addEventListener("click", () => {
+				const modal = document.getElementById("quickAddToDatasetModal");
+				if (modal) {
+					const ids = Array.from(this.tableManager?.selectedCaptureIds ?? []);
+					modal.dataset.captureUuids = JSON.stringify(ids);
+					const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
+					bsModal.show();
+				}
+			});
+		}
 	}
 
 	/**
@@ -552,6 +599,64 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
+		this.selectedCaptureIds = new Set();
+		this.setupSelectionCheckboxHandler();
+		this.setupRowClickSelection();
+	}
+
+	/**
+	 * Delegated handler for selection checkboxes: keep selectedCaptureIds in sync
+	 */
+	setupSelectionCheckboxHandler() {
+		document.addEventListener("change", (e) => {
+			if (!e.target.matches(".capture-select-checkbox")) return;
+			const uuid = e.target.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			if (e.target.checked) {
+				this.selectedCaptureIds.add(uuid);
+			} else {
+				this.selectedCaptureIds.delete(uuid);
+			}
+		});
+	}
+
+	/**
+	 * When selection mode is active, clicking a row toggles its selection (instead of opening the modal).
+	 * Uses capture phase so we run before the row's click handler.
+	 */
+	setupRowClickSelection() {
+		const table = document.getElementById(this.tableId);
+		if (!table) return;
+
+		table.addEventListener(
+			"click",
+			(e) => {
+				if (!table.classList.contains("selection-mode-active")) return;
+				if (
+					e.target.closest(
+						"button, a, [data-bs-toggle='dropdown'], .capture-select-checkbox",
+					)
+				)
+					return;
+				const row = e.target.closest("tr");
+				if (!row) return;
+				const checkbox = row.querySelector(".capture-select-checkbox");
+				if (!checkbox) return;
+				const uuid = checkbox.getAttribute("data-capture-uuid");
+				if (!uuid) return;
+
+				if (this.selectedCaptureIds.has(uuid)) {
+					this.selectedCaptureIds.delete(uuid);
+					checkbox.checked = false;
+				} else {
+					this.selectedCaptureIds.add(uuid);
+					checkbox.checked = true;
+				}
+				e.preventDefault();
+				e.stopPropagation();
+			},
+			true,
+		);
 	}
 
 	/**
@@ -608,7 +713,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
 				<tr>
-					<td colspan="5" class="text-center text-muted py-4">
+					<td colspan="6" class="text-center text-muted py-4">
 						<em>No captures found matching your search criteria.</em>
 					</td>
 				</tr>
@@ -727,8 +832,15 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		// Check if owner (for conditional actions)
 		const isOwner = capture.is_owner !== false; // Default to true if not specified
 
+		const checked = this.selectedCaptureIds.has(capture.uuid) ? " checked" : "";
 		return `
-			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
+			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}" data-capture-uuid="${safeData.uuid}">
+				<td class="capture-select-column" headers="select-header">
+					<input type="checkbox"
+						   class="capture-select-checkbox form-check-input"
+						   data-capture-uuid="${safeData.uuid}"
+						   aria-label="Select capture ${nameDisplay}"${checked}>
+				</td>
 				<td headers="name-header">
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"

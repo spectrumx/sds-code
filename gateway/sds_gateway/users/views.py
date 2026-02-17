@@ -1901,6 +1901,9 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
             )
 
 
+quick_add_capture_to_dataset_view = QuickAddCapturesToDatasetView.as_view()
+
+
 class GroupCapturesView(
     Auth0LoginRequiredMixin, FormSearchMixin, FileTreeMixin, TemplateView
 ):
@@ -3171,6 +3174,45 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
+    """Return JSON list of datasets the user can add captures to (quick-add modal)."""
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        user = cast("User", request.user)
+        owned = (
+            user.datasets.filter(is_deleted=False, is_public=False)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        shared_perms = UserSharePermission.objects.filter(
+            shared_with=user,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+            is_enabled=True,
+            permission_level__in=[
+                PermissionLevel.CO_OWNER,
+                PermissionLevel.CONTRIBUTOR,
+            ],
+        )
+        shared_uuids = [p.item_uuid for p in shared_perms]
+        shared = (
+            Dataset.objects.filter(
+                uuid__in=shared_uuids, is_deleted=False, is_public=False
+            )
+            .exclude(owner=user)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        datasets = [
+            {"uuid": str(d["uuid"]), "name": (d["name"] or "Unnamed")}
+            for d in list(owned) + list(shared)
+        ]
+        return JsonResponse({"datasets": datasets})
+
+
+user_datasets_for_quick_add_view = UserDatasetsForQuickAddView.as_view()
 
 
 class HomePageView(TemplateView):

@@ -376,11 +376,36 @@
                 </div>
                 <!-- Captures Table -->
                 {% include "users/partials/captures_page_table.html" %}
+                <!-- Add captures to dataset: one button when mode off, Cancel + Add when mode on -->
+                <div id="add-to-dataset-actions"
+                     class="mt-3 d-flex justify-content-end gap-2 align-items-center">
+                    <button type="button"
+                            class="btn btn-primary"
+                            id="add-captures-to-dataset-btn"
+                            aria-pressed="false"
+                            aria-label="Turn on selection mode to add captures to a dataset">
+                        <i class="fas fa-folder-plus me-2"></i>Add capture(s) to dataset
+                    </button>
+                    <span id="add-to-dataset-mode-buttons" class="d-none">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                id="add-to-dataset-cancel-btn"
+                                aria-label="Cancel and exit selection mode">Cancel</button>
+                        <button type="button"
+                                class="btn btn-primary"
+                                id="add-to-dataset-add-btn"
+                                aria-label="Add selected captures to a dataset">
+                            <i class="fas fa-plus me-2"></i>Add
+                        </button>
+                    </span>
+                </div>
             </main>
         </div>
     </div>
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
+    <!-- Quick Add to Dataset Modal (single or multiple captures) -->
+    {% include "users/partials/quick_add_to_dataset_modal.html" %}
     <!-- Visualization Selection Modal -->
     {% if VISUALIZATIONS_ENABLED %}
         {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
@@ -395,6 +420,7 @@
     <!-- Page-specific components -->
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
+    <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <!-- Upload Capture Modal JavaScript -->
     <!-- Load the WASM library for BLAKE3 hashing -->
@@ -514,9 +540,14 @@
                 permissions: permissionsManager
             });
 
-            // Initialize visualization modal
-            if (window.VisualizationModal) {
+            // Initialize visualization modal only when the modal is in the DOM (VISUALIZATIONS_ENABLED)
+            if (window.VisualizationModal && document.getElementById("visualization-modal")) {
                 new window.VisualizationModal();
+            }
+
+            // Initialize quick add to dataset modal (used by "Add capture(s) to dataset" flow)
+            if (window.QuickAddToDatasetManager && document.getElementById("quickAddToDatasetModal")) {
+                new window.QuickAddToDatasetManager();
             }
 
             window.currentDownloadManager = downloadManager;
