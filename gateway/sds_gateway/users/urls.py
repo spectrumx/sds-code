@@ -11,12 +11,14 @@ from .views import UploadCaptureView
 from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
+from .views import quick_add_capture_to_dataset_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
 from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
+from .views import user_datasets_for_quick_add_view
 from .views import user_detail_view
 from .views import user_download_item_view
 from .views import user_file_detail_view
@@ -46,6 +48,16 @@ urlpatterns = [
     path("files/<uuid:uuid>/content/", FileContentView.as_view(), name="file_content"),
     path("files/<uuid:uuid>/h5info/", FileH5InfoView.as_view(), name="file_h5info"),
     path("dataset-list/", user_dataset_list_view, name="dataset_list"),
+    path(
+        "datasets-for-quick-add/",
+        user_datasets_for_quick_add_view,
+        name="datasets_for_quick_add",
+    ),
+    path(
+        "quick-add-capture-to-dataset/",
+        quick_add_capture_to_dataset_view,
+        name="quick_add_capture_to_dataset",
+    ),
     path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
     path(

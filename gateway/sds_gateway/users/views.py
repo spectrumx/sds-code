@@ -22,6 +22,7 @@ from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
+from django.db.utils import OperationalError
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -1694,6 +1695,215 @@ class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
 keyword_autocomplete_api_view = KeywordAutocompleteAPIView.as_view()
 
 
+class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
+    """
+    Quick-add view: add a single capture (and all its channels if multi-channel)
+    owned by the user to a dataset the user can modify.
+    Expects POST with JSON body:
+    {"dataset_uuid": "<uuid>", "capture_uuid": "<uuid>"}
+    Returns error if capture_uuid or dataset_uuid is missing/invalid.
+    Returns error if user does not have permission to add captures to the dataset.
+    On success returns added/skipped UUIDs and errors (skipped = already in dataset).
+    """
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        data, error = self._parse_json(request)
+        if error:
+            return error
+        assert data is not None  # type narrowing: success path only
+
+        # Validate both UUIDs before any ORM access
+        dataset_uuid, capture_uuid, err = self._validate_quick_add_uuids(data)
+        if err:
+            return err
+        assert dataset_uuid is not None
+        assert capture_uuid is not None
+
+        # Fetch capture: must be owned by user and not deleted
+        capture = Capture.objects.filter(
+            uuid=capture_uuid,
+            owner=request.user,
+            is_deleted=False,
+        ).first()
+        if not capture:
+            return JsonResponse(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Dataset: must exist, not deleted, private (cannot change public datasets)
+        dataset = Dataset.objects.filter(
+            uuid=dataset_uuid,
+            is_deleted=False,
+            is_public=False,
+        ).first()
+        if not dataset:
+            return JsonResponse(
+                {"error": "Dataset not found or cannot be modified"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        # User must have add permission (owner, co-owner, or contributor; not viewer)
+        if not UserSharePermission.user_can_add_assets(
+            cast("User", request.user), dataset.uuid, ItemType.DATASET
+        ):
+            return JsonResponse(
+                {"error": "You do not have permission to edit this dataset."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        report = self._add_capture_to_dataset_with_report(
+            capture=capture,
+            dataset=dataset,
+            user=cast("User", request.user),
+        )
+        return JsonResponse(
+            {
+                "success": True,
+                "added": [str(u) for u in report["added"]],
+                "skipped": [str(u) for u in report["skipped"]],
+                "errors": report["errors"],
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _validate_quick_add_uuids(
+        self, data: dict[str, Any]
+    ) -> tuple[UUID | None, UUID | None, JsonResponse | None]:
+        """
+        Validate dataset_uuid and capture_uuid from request data.
+        Returns (dataset_uuid, capture_uuid, None) on success,
+        (None, None, error_response) on validation failure.
+        """
+        dataset_uuid, err = self._validate_uuid(data.get("dataset_uuid"))
+        if err:
+            return None, None, err
+        capture_uuid, err = self._validate_uuid(data.get("capture_uuid"))
+        if err:
+            return None, None, err
+        return dataset_uuid, capture_uuid, None
+
+    def _add_capture_to_dataset_with_report(
+        self,
+        capture: "Capture",
+        dataset: "Dataset",
+        user: "User",
+    ) -> dict[str, Any]:
+        """
+        Add a single capture (and its multi-channel siblings if applicable) to a
+        dataset. Skips captures already in the dataset. Internal use only.
+
+        Returns a dict with keys: "added" (list of UUIDs), "skipped" (list of
+        UUIDs), "errors" (list of str).
+        """
+        added: list[UUID] = []
+        skipped: list[UUID] = []
+        errors: list[str] = []
+
+        if capture.is_multi_channel:
+            candidates = list(
+                Capture.objects.filter(
+                    top_level_dir=capture.top_level_dir,
+                    owner=user,
+                    is_deleted=False,
+                )
+            )
+        else:
+            candidates = [capture]
+
+        existing_pks = set(
+            dataset.captures.filter(pk__in=[c.pk for c in candidates]).values_list(
+                "pk", flat=True
+            )
+        )
+
+        for c in candidates:
+            if c.pk in existing_pks:
+                skipped.append(c.uuid)
+                continue
+            try:
+                dataset.captures.add(c)
+                added.append(c.uuid)
+            except OperationalError as e:
+                errors.append(f"{c.uuid}: {e}")
+            except IntegrityError as e:
+                errors.append(f"{c.uuid}: {e}")
+            except Exception as e:  # noqa: BLE001 - catch-all for unexpected errors
+                errors.append(f"{c.uuid}: {e}")
+
+        return {"added": added, "skipped": skipped, "errors": errors}
+
+    def _parse_json(
+        self, request: HttpRequest
+    ) -> tuple[dict[str, Any] | None, JsonResponse | None]:
+        """
+        Parse request body as JSON and require it to be an object.
+        Returns (data, None) on success, (None, error_response) on error.
+        Caller should: data, err = self._parse_json(request); if err: return err
+        """
+        if not request.content_type or "application/json" not in request.content_type:
+            return None, JsonResponse(
+                {"error": "Content-Type must be application/json"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not request.body:
+            return None, JsonResponse(
+                {"error": "Invalid JSON body"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return None, JsonResponse(
+                {"error": "Invalid JSON body"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(data, dict):
+            return None, JsonResponse(
+                {"error": "Request body must be a JSON object"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return data, None
+
+    def _validate_uuid(self, value: Any) -> tuple[UUID | None, JsonResponse | None]:
+        """
+        Validate capture_uuid or dataset_uuid from request data.
+        Returns (uuid, None) on success,
+        (None, error_response) on validation failure.
+        """
+        if value is None:
+            return None, JsonResponse(
+                {"error": "uuid is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not isinstance(value, str):
+            return None, JsonResponse(
+                {"error": "uuid must be a string"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        s = value.strip()
+        if not s:
+            return None, JsonResponse(
+                {"error": "uuid cannot be empty"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        max_length = 64
+        if len(s) > max_length:
+            return None, JsonResponse(
+                {"error": "Invalid uuid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            return UUID(s), None
+        except ValueError:
+            return None, JsonResponse(
+                {"error": "Invalid uuid"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+quick_add_capture_to_dataset_view = QuickAddCapturesToDatasetView.as_view()
+
+
 class GroupCapturesView(
     Auth0LoginRequiredMixin, FormSearchMixin, FileTreeMixin, TemplateView
 ):
@@ -2964,6 +3174,45 @@ def _apply_sorting(
 
 
 user_dataset_list_view = ListDatasetsView.as_view()
+
+
+class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
+    """Return JSON list of datasets the user can add captures to (quick-add modal)."""
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        user = cast("User", request.user)
+        owned = (
+            user.datasets.filter(is_deleted=False, is_public=False)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        shared_perms = UserSharePermission.objects.filter(
+            shared_with=user,
+            item_type=ItemType.DATASET,
+            is_deleted=False,
+            is_enabled=True,
+            permission_level__in=[
+                PermissionLevel.CO_OWNER,
+                PermissionLevel.CONTRIBUTOR,
+            ],
+        )
+        shared_uuids = [p.item_uuid for p in shared_perms]
+        shared = (
+            Dataset.objects.filter(
+                uuid__in=shared_uuids, is_deleted=False, is_public=False
+            )
+            .exclude(owner=user)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        datasets = [
+            {"uuid": str(d["uuid"]), "name": (d["name"] or "Unnamed")}
+            for d in list(owned) + list(shared)
+        ]
+        return JsonResponse({"datasets": datasets})
+
+
+user_datasets_for_quick_add_view = UserDatasetsForQuickAddView.as_view()
 
 
 class HomePageView(TemplateView):

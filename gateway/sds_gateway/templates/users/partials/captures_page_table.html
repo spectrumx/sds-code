@@ -16,13 +16,18 @@
         </span>
     </div>
     <div class="table-responsive">
-        <table class="table table-striped table-hover table-sm captures-table-fixed"
+        <table id="captures-table"
+               class="table table-striped table-hover table-sm captures-table-fixed"
                aria-labelledby="search-results-heading">
             <caption id="search-results-heading" class="visually-hidden">
                 Search results for captures showing name, channel, creation date, type, author, center frequency, sample rate, and actions
             </caption>
             <thead>
                 <tr>
+                    <th scope="col"
+                        class="capture-select-column"
+                        id="select-header"
+                        aria-label="Select">Select</th>
                     <th scope="col" id="name-header" class="w-25">Name</th>
                     <th scope="col"
                         id="top-level-dir-header"
@@ -51,7 +56,17 @@
             <tbody>
                 {% if captures %}
                     {% for cap in captures %}
-                        <tr class="capture-row">
+                        <tr class="capture-row" data-capture-uuid="{{ cap.uuid }}">
+                            <td class="capture-select-column" headers="select-header">
+                                {% if cap.is_owner %}
+                                    <input type="checkbox"
+                                           class="capture-select-checkbox form-check-input"
+                                           data-capture-uuid="{{ cap.uuid }}"
+                                           aria-label="Select capture {{ cap.name|default:cap.uuid }}" />
+                                {% else %}
+                                    <span class="text-muted" aria-hidden="true">—</span>
+                                {% endif %}
+                            </td>
                             <td headers="name-header">
                                 <a href="#"
                                    class="capture-link"
@@ -155,7 +170,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="5" class="text-center text-muted py-4">
+                    <td colspan="6" class="text-center text-muted py-4">
                         <em>No captures found matching your search criteria.</em>
                     </td>
                 </tr>
