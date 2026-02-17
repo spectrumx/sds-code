@@ -574,3 +574,14 @@ body {
 .progress-bar-width-0 {
 	width: 0%;
 }
+
+/* Selection column: hidden by default, shown when selection mode is active */
+#captures-table .capture-select-column {
+	display: none;
+	width: 2.5rem;
+	vertical-align: middle;
+}
+
+#captures-table.selection-mode-active .capture-select-column {
+	display: table-cell;
+}

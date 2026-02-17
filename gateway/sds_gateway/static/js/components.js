@@ -270,7 +270,12 @@ class TableManager {
 		const rows = this.tbody?.querySelectorAll('tr[data-clickable="true"]');
 		for (const row of rows || []) {
 			row.addEventListener("click", (e) => {
-				if (e.target.closest("button, a")) return; // Don't trigger on buttons/links
+				if (
+					e.target.closest(
+						"button, a, .capture-select-checkbox, .capture-select-column",
+					)
+				)
+					return; // Don't trigger on buttons/links/selection
 				this.onRowClick(row);
 			});
 		}
