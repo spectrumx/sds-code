@@ -2,11 +2,6 @@
 /* Remove conflicting body, header, and gradient bar styles that are already defined in other files */
 
 /* Homepage-specific styles */
-.home-institution-highlight {
-	color: var(--home-institution-color);
-	font-style: italic;
-}
-
 .logo {
 	height: 40px;
 }
