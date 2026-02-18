@@ -378,35 +378,6 @@ textarea.form-control-plaintext {
 	margin-bottom: 1rem;
 }
 
-/* About Section */
-.about-section {
-	padding: 4rem 0;
-	background: var(--light-gray);
-}
-
-.about-section .hero-content {
-	padding-top: 2rem;
-}
-
-.about-section h3 {
-	color: var(--secondary-color);
-	font-size: 1rem;
-	text-transform: uppercase;
-	margin-bottom: 1rem;
-}
-
-.about-section h2 {
-	font-size: 2rem;
-	margin-bottom: 1.5rem;
-}
-
-.centered-signin .hero-content {
-	display: flex;
-	justify-content: center;
-	align-items: center;
-	text-align: center;
-}
-
 /* Custom Table */
 .custom-table {
 	width: 100%;
