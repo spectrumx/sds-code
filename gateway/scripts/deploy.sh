@@ -141,10 +141,16 @@ function generate_secrets() {
     just generate-secrets "${env_type}" ${force_flag}
 }
 
-function build_stack() {
+function build_app() {
+    local service_name
+    service_name="$1"
     log_header "Building stack"
-    log_msg "Pulling images and building stack..."
-    just build
+    if [[ -n "${service_name}" ]]; then
+        log_msg "Pulling images and building only service: ${service_name}"
+    else
+        log_msg "Pulling images and building all services"
+    fi
+    just build "${service_name}"
 }
 
 function first_start() {
@@ -463,7 +469,7 @@ function main() {
 
     setup_prod_hostnames "${SCRIPT_DIR}" "${args[env_type]}"
 
-    build_stack
+    build_app "${container_name}"
     first_start
 
     setup_database "${container_name}" "${args[env_type]}"

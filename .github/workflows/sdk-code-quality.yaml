@@ -43,7 +43,7 @@ jobs:
                   node-version: 24
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@v7
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Install pre-commit
@@ -83,7 +83,7 @@ jobs:
             - uses: actions/checkout@v4
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@v7
 
             - name: Install Python
               working-directory: ./sdk
@@ -122,7 +122,7 @@ jobs:
                   npm install -g rust-just
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@v7
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Run all tests

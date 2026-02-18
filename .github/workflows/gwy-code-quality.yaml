@@ -48,7 +48,7 @@ jobs:
               uses: actions-rust-lang/setup-rust-toolchain@v1
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v5
+              uses: astral-sh/setup-uv@v7
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Install Python
@@ -77,34 +77,6 @@ jobs:
               # matches the one installed with uv, which is the most recent
               # stable python version that meets project requirements.
               run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit run --all-files
-
-    # Run static analysis with pyright
-    # DISABLED due to many false-positives in Django code
-    # gwy-pyright:
-    #     env:
-    #         UV_LINK_MODE: copy
-    #     runs-on: ubuntu-latest
-    #     steps:
-    #         - uses: actions/checkout@v4
-
-    #         - name: Install uv
-    #           uses: astral-sh/setup-uv@v5
-
-    #         - name: Install system dependencies
-    #           run: |
-    #               sudo apt-get update
-    #               sudo apt-get install -y python3-dev libpq-dev
-
-    #         - name: Install packages
-    #           working-directory: ./gateway
-    #           run: uv sync -p ${{ env.PYTHON_VERSION }} --frozen --extra local
-
-    #         - uses: jakebailey/pyright-action@v2
-    #           # https://github.com/jakebailey/pyright-action#options
-    #           with:
-    #               pylance-version: latest-release
-    #               working-directory: ./gateway
-    #               python-path: ./.venv/bin/python
 
     # Run Django tests
     gwy-django-tests:
