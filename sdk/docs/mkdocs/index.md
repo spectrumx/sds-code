@@ -43,7 +43,6 @@ operations on SDS entities are to be eventually supported by this system.
 ## See Next
 
 + [Getting Started](getting-started.md)
-+ [Common Workflows](common-workflows.md)
 + [FAQ](faq.md)
 + [Terminology](terminology.md)
 + [Changelog](changelog.md)
