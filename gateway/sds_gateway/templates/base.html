@@ -77,7 +77,7 @@
                                 {% comment %}
                                     <!-- disabled until a future PR -->
                                     {% if SDS_BRAND_IMAGE_URL %}
-                                        <img src="{{ SDS_BRAND_IMAGE_URL }}" alt="{{ SDS_BRANDED_SITE_NAME }} Logo" class="logo brand-logo me-3 mb-1" style="height: 2em; width: auto;" />
+                                        <img src="{{ SDS_BRAND_IMAGE_URL|urlencode }}" alt="{{ SDS_BRANDED_SITE_NAME }} Logo" class="logo brand-logo me-3 mb-1" style="height: 2em; width: auto;" />
                                     {% endif %}
                                 {% endcomment %}
                                 <span class="system-name d-none d-md-inline"

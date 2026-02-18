@@ -578,30 +578,42 @@ SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 
 
 def _get_brand_image_url() -> str | None:
-    """Resolve brand image path to a usable URL.
+    """Resolve brand image path from static files only.
 
-    Supports:
-    - Complete URLs (http://, https://)
-    - Local static paths (converted to /static/...)
-    - Empty strings (returns None)
+    Only supports local static paths for security (prevents open redirects).
+    External URLs are rejected to prevent compromised env vars from redirecting
+    users to malicious sites.
+
+    Returns:
+        Path to brand image under /static/ prefix, or None if not configured.
+    Raises:
+        ValueError: If path attempts to escape static directory or is external URL.
     """
-    image_path: str = env.str("SDS_BRAND_IMAGE_PATH", default="")
+    image_path: str = env.str("SDS_BRAND_IMAGE_PATH", default="").strip()
 
     if not image_path:
         return None
 
-    # If it's already a complete URL, use as-is
-    if image_path.startswith(("http://", "https://")):
-        return image_path
+    if image_path.startswith(("http://", "https://", "//")):
+        msg = (
+            "SDS_BRAND_IMAGE_PATH must be a local path, not an external URL. "
+            f"Received: {image_path}"
+        )
+        raise ValueError(msg)
 
-    # If it's a relative path, prepend /static/
-    if not image_path.startswith("/"):
-        image_path = f"/{image_path}"
+    path = Path(image_path).as_posix()
+    path = path.lstrip("/")
+    path = path.removeprefix("static/")
+    static_path = Path("/static") / path
 
-    if not image_path.startswith("/static/"):
-        image_path = f"/static{image_path}"
+    # prevent path traversal
+    static_dir_resolved = (APPS_DIR / "static").resolve()
+    full_path_resolved = (APPS_DIR / "static" / path).resolve()
+    if not full_path_resolved.is_relative_to(static_dir_resolved):
+        msg = f"SDS_BRAND_IMAGE_PATH attempts to escape static directory: {image_path}"
+        raise ValueError(msg)
 
-    return image_path
+    return str(static_path)
 
 
 SDS_BRAND_IMAGE_URL: str | None = _get_brand_image_url()
