@@ -70,10 +70,24 @@
                                  alt="NSF and SpectrumX Logo"
                                  class="logo" />
                             <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
-                            <span class="system-name d-none d-md-inline"
-                                  title="SpectrumX Data System • {{ SDS_FULL_INSTITUTION_NAME }}"
-                                  data-bs-toggle="tooltip"
-                                  data-bs-placement="bottom">SDS <span aria-hidden="true">•</span> <i>{{ SDS_BRANDED_SITE_NAME }}</i></span>
+                            <div class="d-flex align-items-end system-name-wrapper"
+                                 data-bs-toggle="tooltip"
+                                 data-bs-placement="bottom"
+                                 title="SpectrumX Data System • {{ SDS_FULL_INSTITUTION_NAME }}">
+                                {% comment %}
+                                    <!-- disabled until a future PR -->
+                                    {% if SDS_BRAND_IMAGE_URL %}
+                                        <img src="{{ SDS_BRAND_IMAGE_URL }}" alt="{{ SDS_BRANDED_SITE_NAME }} Logo" class="logo brand-logo me-3 mb-1" style="height: 2em; width: auto;" />
+                                    {% endif %}
+                                {% endcomment %}
+                                <span class="system-name d-none d-md-inline"
+                                      data-bs-toggle="tooltip"
+                                      data-bs-placement="bottom">
+                                    SDS
+                                    <span aria-hidden="true">•</span>
+                                    <i>{{ SDS_BRANDED_SITE_NAME }}</i>
+                                </span>
+                            </div>
                         </a>
                         <button class="navbar-toggler"
                                 type="button"
