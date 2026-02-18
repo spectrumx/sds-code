@@ -471,14 +471,14 @@
                         const startDate = new Date(this.value);
                         const currentEndDate = endDateInput.value;
 
-                        // Only set end date if it's not already set or if it's not greater than start date
+                        // only set end date if it's not already set or if it's earlier than start date
                         if (!currentEndDate) {
                             startDate.setDate(startDate.getDate() + 1);
                             const nextDay = startDate.toISOString().split('T')[0];
                             endDateInput.value = nextDay;
                         } else {
                             const endDate = new Date(currentEndDate);
-                            if (endDate <= startDate) {
+                            if (endDate < startDate) {
                                 startDate.setDate(startDate.getDate() + 1);
                                 const nextDay = startDate.toISOString().split('T')[0];
                                 endDateInput.value = nextDay;
