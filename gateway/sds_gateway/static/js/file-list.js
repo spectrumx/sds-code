@@ -713,32 +713,10 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			),
 		};
 
-		// Handle composite vs single capture display
 		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
 
 		if (capture.is_multi_channel) {
-			// For composite captures, show all channels
-			if (capture.channels && Array.isArray(capture.channels)) {
-				channelDisplay = capture.channels
-					.map((ch) => ComponentUtils.escapeHtml(ch.channel || ch))
-					.join(", ");
-			}
-			// Use capture_type_display if available, otherwise fall back to captureType
 			typeDisplay = capture.capture_type_display || safeData.captureType;
-		}
-
-		// Handle author display with proper fallback
-		if (capture.owner) {
-			if (typeof capture.owner === "string") {
-				// Handle string format (email or name)
-				authorDisplay = ComponentUtils.escapeHtml(capture.owner);
-			} else if (capture.owner.name) {
-				// Handle object format with name
-				authorDisplay = ComponentUtils.escapeHtml(capture.owner.name);
-			} else if (capture.owner.email) {
-				// Handle object format with email fallback
-				authorDisplay = ComponentUtils.escapeHtml(capture.owner.email);
-			}
 		}
 
 		// Display name with fallback to "Unnamed Capture"
