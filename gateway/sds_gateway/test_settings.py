@@ -73,7 +73,7 @@ class TestGetBrandImageUrl:
             return_value="/static/images/logo.png",
         ):
             result = _get_brand_image_url()
-            assert result == "/static/static/images/logo.png"
+            assert result == "/static/images/logo.png"
 
     def test_path_traversal_parent_raises_error(self, tmp_path) -> None:
         with patch("config.settings.base.APPS_DIR", tmp_path):
