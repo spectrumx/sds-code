@@ -82,7 +82,9 @@
                                     </span>
                                 {% endif %}
                             </td>
-                            <td headers="top-level-dir-header">{{ cap.top_level_dir|default:"-" }}</td>
+                            <td headers="top-level-dir-header"
+                                class="text-truncate"
+                                title="{{ cap.top_level_dir|default:'' }}">{{ cap.top_level_dir|default:"-" }}</td>
                             <td headers="type-header">{{ cap.capture_type_display }}</td>
                             <td headers="created-header" class="text-nowrap">
                                 {% if cap.capture.created_at %}

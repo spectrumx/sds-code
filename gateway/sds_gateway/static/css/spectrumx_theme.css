@@ -717,6 +717,7 @@ th.sortable:hover .sort-icon {
 /* Captures table layout optimization */
 .captures-table-fixed {
 	width: 100%;
+	table-layout: fixed;
 }
 
 /* Allow natural text fitting like datasets table */
