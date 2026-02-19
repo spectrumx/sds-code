@@ -12,7 +12,9 @@
     <link rel="stylesheet"
           href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
     <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
-    <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
+    {% if VISUALIZATIONS_ENABLED %}
+        <link rel="stylesheet" href="{% static 'css/visualization_modal.css' %}" />
+    {% endif %}
     <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
     <style>
         .clear-search-hidden {
@@ -369,7 +371,9 @@
     <!-- Page-specific components -->
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
-    <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    {% if VISUALIZATIONS_ENABLED %}
+        <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    {% endif %}
     <!-- Upload Capture Modal JavaScript -->
     <!-- Load the WASM library for BLAKE3 hashing -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
