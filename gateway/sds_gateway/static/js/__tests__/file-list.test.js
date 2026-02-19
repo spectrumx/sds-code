@@ -751,5 +751,34 @@ describe("FileListCapturesTableManager", () => {
 			expect(html).toContain("test-uuid");
 			expect(html).toContain("Multi Channel");
 		});
+
+		test("should not throw ReferenceError for authorDisplay or channelDisplay", () => {
+			// Regression: these variables were previously assigned without declaration,
+			// causing "assignment to undeclared variable" errors in strict-mode browsers.
+			const capture = {
+				uuid: "abc-123",
+				name: "Regression Capture",
+				capture_type: "drf",
+				top_level_dir: "/data",
+				channel: "2",
+				owner: "user@example.com",
+			};
+
+			expect(() => tableManager.renderRow(capture, 0)).not.toThrow();
+		});
+
+		test("should not throw for multi-channel captures that previously triggered undeclared channelDisplay", () => {
+			const capture = {
+				uuid: "abc-456",
+				name: "Multi Regression",
+				capture_type: "drf",
+				is_multi_channel: true,
+				channels: [{ channel: "A" }, { channel: "B" }],
+				top_level_dir: "/data",
+				owner: "user@example.com",
+			};
+
+			expect(() => tableManager.renderRow(capture, 0)).not.toThrow();
+		});
 	});
 });
