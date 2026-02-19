@@ -45,6 +45,17 @@ def pytest_runtest_setup(item) -> None:
 # ==== fixtures
 
 
+@pytest.fixture(autouse=True)
+def isolate_xdg_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Redirect XDG_STATE_HOME to a per-test tmpdir.
+
+    Prevents persistence files from accumulating across pytest sessions when
+    pytest recycles its directory numbers (pytest-0, -1, -2, then back to -0),
+    which would cause the same local_root hash to reuse stale upload records.
+    """
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+
+
 @pytest.fixture
 def anyio_backend():
     return "asyncio"

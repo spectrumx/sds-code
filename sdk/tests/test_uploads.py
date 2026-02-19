@@ -1091,6 +1091,9 @@ async def test_persistence_full_workflow(tmp_path: Path, client: Client) -> None
     file1 = root / "file1.txt"
     await file1.write_text("content1", encoding="utf-8")
 
+    file_exists = await file1.exists()
+    assert file_exists, "Test setup failed: file1 was not created successfully"
+
     workload = UploadWorkload(client=client, local_root=Path(root), persist_state=True)
 
     assert workload._persistence_manager is not None, (
