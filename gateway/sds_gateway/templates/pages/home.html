@@ -170,6 +170,7 @@
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <!-- Keyword chip input component -->
     <script src="{% static 'js/search/KeywordChipInput.js' %}"></script>
+    {# djlint:off #}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize DetailsActionManager for dataset details modal
@@ -177,12 +178,7 @@
             if (typeof DetailsActionManager !== 'undefined' && typeof PermissionsManager !== 'undefined') {
                 const permissions = new PermissionsManager({
                     userPermissionLevel: window.PermissionLevels.VIEWER,
-                    currentUserId: {
-                        {
-                            request.user.id |
-                                default: "null"
-                        }
-                    },
+                    currentUserId: {{ request.user.id|default:"null" }},
                     isOwner: false,
                     datasetPermissions: {
                         canEditMetadata: false,
@@ -200,5 +196,6 @@
                 });
             }
         });
-    </script>
+</script>
+    {# djlint:on #}
 {% endblock javascript %}
