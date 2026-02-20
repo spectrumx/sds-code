@@ -274,7 +274,18 @@ class DownloadActionManager {
 			}
 		};
 
-		window.DOMUtils.openModal(modalId);
+		// Initialize temporal slider from button data attributes (clears or builds slider)
+		const durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
+		const fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
+		if (typeof window.initCaptureDownloadSlider === "function") {
+			window.initCaptureDownloadSlider(
+				Number.isNaN(durationMs) ? 0 : durationMs,
+				Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
+			);
+		}
+
+		// Show the modal
+		window.showWebDownloadModal(captureUuid, captureName);
 	}
 
 	/**
