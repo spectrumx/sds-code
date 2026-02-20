@@ -9,6 +9,8 @@ from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
+from sds_gateway.api_methods.helpers.temporal_filtering import get_capture_bounds
+from sds_gateway.api_methods.helpers.temporal_filtering import get_file_cadence
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
@@ -70,6 +72,8 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     files = serializers.SerializerMethodField()
     center_frequency_ghz = serializers.SerializerMethodField()
     sample_rate_mhz = serializers.SerializerMethodField()
+    length_of_capture_ms = serializers.SerializerMethodField()
+    file_cadence_ms = serializers.SerializerMethodField()
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
@@ -94,11 +98,28 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_center_frequency_ghz(self, capture: Capture) -> float | None:
         """Get the center frequency in GHz from the capture model property."""
         return capture.center_frequency_ghz
-
-    @extend_schema_field(serializers.FloatField)
+    
+    @extend_schema_field(serializers.FloatField(allow_null=True))
     def get_sample_rate_mhz(self, capture: Capture) -> float | None:
-        """Get the sample rate in MHz from the capture model property."""
+        """Get the sample rate in MHz from the capture model property. None if not indexed in OpenSearch."""
         return capture.sample_rate_mhz
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_length_of_capture_ms(self, capture: Capture) -> int | None:
+        """Get the length of the capture in milliseconds. OpenSearch bounds are in seconds."""
+        try:
+            start_time, end_time = get_capture_bounds(capture.capture_type, str(capture.uuid))
+            return (end_time - start_time) * 1000
+        except (ValueError, IndexError, KeyError):
+            return None
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_file_cadence_ms(self, capture: Capture) -> int | None:
+        """Get the file cadence in milliseconds. None if not indexed in OpenSearch."""
+        try:
+            return get_file_cadence(capture.capture_type, capture)
+        except (ValueError, IndexError, KeyError):
+            return None
 
     @extend_schema_field(serializers.IntegerField)
     def get_files_count(self, capture: Capture) -> int:
@@ -304,6 +325,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
     files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
+    length_of_capture_ms = serializers.SerializerMethodField()
+    file_cadence_ms = serializers.SerializerMethodField()
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
@@ -349,6 +372,33 @@ class CompositeCaptureSerializer(serializers.Serializer):
         if created_at:
             return created_at.strftime("%m/%d/%Y %I:%M:%S %p")
         return ""
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_length_of_capture_ms(self, obj: dict[str, Any]) -> int | None:
+        """Use first channel's bounds for composite capture duration."""
+        channels = obj.get("channels") or []
+        if not channels:
+            return None
+        try:
+            capture = Capture.objects.get(uuid=channels[0]["uuid"])
+            start_time, end_time = get_capture_bounds(
+                capture.capture_type, str(capture.uuid)
+            )
+            return (end_time - start_time) * 1000
+        except (ValueError, IndexError, KeyError):
+            return None
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_file_cadence_ms(self, obj: dict[str, Any]) -> int | None:
+        """Use first channel's file cadence for composite capture."""
+        channels = obj.get("channels") or []
+        if not channels:
+            return None
+        try:
+            capture = Capture.objects.get(uuid=channels[0]["uuid"])
+            return get_file_cadence(capture.capture_type, capture)
+        except (ValueError, IndexError, KeyError):
+            return None
 
 
 def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
