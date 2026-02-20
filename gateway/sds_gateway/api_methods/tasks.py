@@ -26,6 +26,7 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.disk_utils import DISK_SPACE_BUFFER
 from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
@@ -676,15 +677,26 @@ def _process_item_files(
     item_type: ItemType,
     item_uuid: UUID,
     temp_zip: TemporaryZipFile,
+    start_time: int | None = None,
+    end_time: int | None = None,
 ) -> tuple[Mapping[str, UUID | int | str] | None, str | None, int | None, int | None]:  # pyright: ignore[reportMissingTypeArgument]
     """
     Process files for an item and create a zip file.
+
+    Args:
+        user: The user requesting the files
+        item: The item object (Dataset or Capture)
+        item_type: Type of item (dataset or capture)
+        item_uuid: UUID of the item to download
+        temp_zip: The temporary zip file to create
+        start_time: Optional start time for temporal filtering
+        end_time: Optional end time for temporal filtering
 
     Returns:
         tuple: (error_response, zip_file_path, total_size, files_processed)
         If error_response is not None, the other values are None
     """
-    files = _get_item_files(user, item, item_type)
+    files = _get_item_files(user, item, item_type, start_time, end_time)
     if not files:
         log.warning(f"No files found for {item_type} {item_uuid}")
         error_message = f"No files found in {item_type}"
@@ -979,7 +991,11 @@ def _handle_timeout_exception(
     time_limit=30 * 60, soft_time_limit=25 * 60
 )  # 30 min hard limit, 25 min soft limit
 def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
-    item_uuid: UUID, user_id: str, item_type: str | ItemType
+    item_uuid: UUID,
+    user_id: str,
+    item_type: str | ItemType,
+    start_time: int | None = None,
+    end_time: int | None = None,
 ) -> Mapping[str, UUID | str | int]:
     """
     Unified Celery task to create a zip file of item files and send it via email.
@@ -990,6 +1006,8 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
         item_uuid: UUID of the item to process
         user_id: ID of the user requesting the download
         item_type: Type of item (dataset or capture)
+        start_time: Optional start time for temporal filtering
+        end_time: Optional end time for temporal filtering
     Returns:
         dict: Task result with status and details
     """
@@ -1053,6 +1071,8 @@ def send_item_files_email(  # noqa: C901, PLR0911, PLR0912, PLR0915
                 item_type=item_type_enum,
                 item_uuid=item_uuid,
                 temp_zip=temp_zip,
+                start_time=start_time,
+                end_time=end_time,
             )
         )
         if error_response:
@@ -1251,7 +1271,13 @@ def _validate_item_download_request(
     return None, user, item
 
 
-def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
+def _get_item_files(
+    user: User,
+    item: Any,
+    item_type: ItemType,
+    start_time: int | None = None,
+    end_time: int | None = None,
+) -> list[File]:
     """
     Get all files for an item based on its type.
 
@@ -1259,14 +1285,16 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
         user: The user requesting the files
         item: The item object (Dataset or Capture)
         item_type: Type of item (dataset or capture)
-
+        start_time: Optional start time for temporal filtering
+        end_time: Optional end time for temporal filtering
     Returns:
         List of files associated with the item
     """
-    from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
+    from sds_gateway.api_methods.helpers.temporal_filtering import get_capture_files_with_temporal_filter
     from sds_gateway.api_methods.utils.relationship_utils import (
         get_dataset_files_including_captures,
     )
+    from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
     if item_type == ItemType.DATASET:
         files_queryset = get_dataset_files_including_captures(
@@ -1277,8 +1305,28 @@ def _get_item_files(user: User, item: Any, item_type: ItemType) -> list[File]:
         return files
 
     if item_type == ItemType.CAPTURE:
-        files = get_capture_files(item, include_deleted=False)
-        log.info(f"Found {len(files)} files for capture {item.uuid}")
+        capture_type = item.capture_type
+        # temporal filtering is only supported for DigitalRF captures
+        if capture_type is CaptureType.DigitalRF:
+            files = get_capture_files_with_temporal_filter(
+                capture_type=capture_type,
+                capture=item,
+                start_time=start_time,
+                end_time=end_time,
+            )
+        else:
+            if start_time is not None or end_time is not None:
+                logger.warning(
+                    "Temporal filtering is only supported for DigitalRF captures, "
+                    "ignoring start_time and end_time"
+                )
+
+            files = get_capture_files(
+                capture=item,
+                include_deleted=False,
+            )
+
+        logger.info(f"Found {len(files)} files for capture {item.uuid}")
         return list(files)
 
     log.warning(f"Unknown item type: {item_type}")

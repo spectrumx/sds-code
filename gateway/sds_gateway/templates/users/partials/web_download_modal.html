@@ -26,6 +26,15 @@
                         This will create a zip file containing all artifacts (files not linked to captures) and capture files in this dataset.
                         You will receive an email with a download link when the file is ready.
                     </p>
+                    {% if item_type == "capture" %}
+                    <div class="mt-4">
+                        <label for="temporalFilterSlider">Filter capture files to download within a subset of time:</label>
+                        <div id="temporalFilterSlider" class="mt-3 mb-3"></div>
+                        <p class="text-muted small mb-0" id="temporalFilterRangeLabel">0:00:00 - 0:00:00</p>
+                        <input type="hidden" id="startTime" name="start_time" value="0">
+                        <input type="hidden" id="endTime" name="end_time" value="">
+                    </div>
+                    {% endif %}
                     <div class="mt-4 d-flex justify-content-end gap-2">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-success" id="confirmWebDownloadBtn">
@@ -38,9 +47,22 @@
     </div>
 </div>
 <script>
+    function msToHms(ms) {
+        var n = Number(ms);
+        if (!Number.isFinite(n) || n < 0) return '0:00:00';
+        const totalSec = Math.floor(n / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        return [h, m, s].map(function(v) { return String(v).padStart(2, '0'); }).join(':');
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const webDownloadModal = document.getElementById('webDownloadModal');
         const confirmWebDownloadBtn = document.getElementById('confirmWebDownloadBtn');
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
+        if (!webDownloadModal || !confirmWebDownloadBtn) return;
 
         // Handle download confirmation
         confirmWebDownloadBtn.addEventListener('click', function() {
@@ -48,75 +70,132 @@
             const datasetName = this.dataset.datasetName;
 
             if (datasetUuid) {
-                // Show loading state
                 this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
                 this.disabled = true;
 
-                // Make the download request
-                fetch(`/users/download-item/dataset/${datasetUuid}/`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        }
-                    })
-                    .then(response => {
-                        // Check if response is JSON
-                        const contentType = response.headers.get("content-type");
-                        if (contentType?.includes("application/json")) {
+                var url = '/users/download-item/dataset/' + datasetUuid + '/';
+                var headers = {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                };
+                var body = null;
+                if (startTimeInput && endTimeInput) {
+                    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                    body = new URLSearchParams({
+                        start_time: startTimeInput.value,
+                        end_time: endTimeInput.value
+                    });
+                } else {
+                    headers['Content-Type'] = 'application/json';
+                }
+
+                fetch(url, { method: 'POST', headers: headers, body: body })
+                    .then(function(response) {
+                        var contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
                             return response.json();
                         }
-                        // If not JSON, throw an error with the response text
-                        return response.text().then((text) => {
-                            throw new Error(`Server returned non-JSON response: ${text}`);
+                        return response.text().then(function(text) {
+                            throw new Error('Server returned non-JSON response: ' + text);
                         });
                     })
-                    .then(data => {
+                    .then(function(data) {
                         if (data.success === true) {
-                            // Show success message
                             showAlert(data.message || 'Download request submitted successfully! You will receive an email when ready.', 'success');
-
-                            // Close the modal
-                            const modal = bootstrap.Modal.getInstance(webDownloadModal);
-                            modal.hide();
+                            var modal = bootstrap.Modal.getInstance(webDownloadModal);
+                            if (modal) modal.hide();
                         } else {
                             showAlert('Error requesting download: ' + (data.message || 'Unknown error'), 'error');
                         }
                     })
-                    .catch(error => {
+                    .catch(function(error) {
                         console.error('Download error:', error);
                         showAlert(error.message || 'An error occurred while processing your request.', 'error');
                     })
-                    .finally(() => {
-                        // Reset button state
-                        this.innerHTML = '<i class="bi bi-download"></i> Yes, Download Dataset';
-                        this.disabled = false;
+                    .finally(function() {
+                        confirmWebDownloadBtn.innerHTML = '<i class="bi bi-download"></i> Yes, Download Dataset';
+                        confirmWebDownloadBtn.disabled = false;
                     });
             }
         });
 
-        // Reset modal state when hidden
         webDownloadModal.addEventListener('hidden.bs.modal', function() {
-            // Clear dataset info from download button
             confirmWebDownloadBtn.dataset.datasetUuid = '';
             confirmWebDownloadBtn.dataset.datasetName = '';
-            document.getElementById('webDownloadDatasetName').textContent = '';
+            var nameEl = document.getElementById('webDownloadDatasetName');
+            if (nameEl) nameEl.textContent = '';
         });
     });
 
-    // Function to show web download modal
+    /**
+     * Initialize or update the capture download temporal slider. Call before
+     * showing the modal when opening for a capture with known bounds.
+     * @param {number} durationMs - Total capture duration in milliseconds
+     * @param {number} fileCadenceMs - File cadence in milliseconds (step)
+     */
+    function initCaptureDownloadSlider(durationMs, fileCadenceMs) {
+        var sliderEl = document.getElementById('temporalFilterSlider');
+        var rangeLabel = document.getElementById('temporalFilterRangeLabel');
+        var startTimeInput = document.getElementById('startTime');
+        var endTimeInput = document.getElementById('endTime');
+        if (!sliderEl || typeof noUiSlider === 'undefined') return;
+        durationMs = Number(durationMs);
+        if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
+        fileCadenceMs = Number(fileCadenceMs);
+        if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
+        if (sliderEl.noUiSlider) {
+            sliderEl.noUiSlider.destroy();
+        }
+        if (rangeLabel) rangeLabel.textContent = '—';
+        if (startTimeInput) startTimeInput.value = '';
+        if (endTimeInput) endTimeInput.value = '';
+        if (durationMs <= 0) return;
+        noUiSlider.create(sliderEl, {
+            start: [0, durationMs],
+            connect: true,
+            step: fileCadenceMs,
+            range: { min: 0, max: durationMs },
+            format: {
+                to: function(value) {
+                    return msToHms(value);
+                },
+                from: function(value) {
+                    var n = Number(value);
+                    if (!Number.isNaN(n)) return n;
+                    return 0;
+                }
+            }
+        });
+        sliderEl.noUiSlider.on('update', function(values) {
+            var startMs = Number(values[0]);
+            var endMs = Number(values[1]);
+            if (rangeLabel) {
+                rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
+            }
+            if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
+            if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
+        });
+        if (rangeLabel) {
+            rangeLabel.textContent = '0:00:00 - ' + msToHms(durationMs);
+        }
+        if (startTimeInput) startTimeInput.value = '0';
+        if (endTimeInput) endTimeInput.value = String(durationMs);
+    }
+    window.initCaptureDownloadSlider = initCaptureDownloadSlider;
+
+    // Function to show web download modal (used for both dataset and capture download)
     function showWebDownloadModal(datasetUuid, datasetName) {
-        // Set the dataset name in the modal
-        document.getElementById('webDownloadDatasetName').textContent = datasetName;
-
-        // Store dataset info in the download button
-        const confirmBtn = document.getElementById('confirmWebDownloadBtn');
-        confirmBtn.dataset.datasetUuid = datasetUuid;
-        confirmBtn.dataset.datasetName = datasetName;
-
-        // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('webDownloadModal'));
-        modal.show();
+        var nameEl = document.getElementById('webDownloadDatasetName');
+        var confirmBtn = document.getElementById('confirmWebDownloadBtn');
+        var modalEl = document.getElementById('webDownloadModal');
+        if (nameEl) nameEl.textContent = datasetName || '';
+        if (confirmBtn) {
+            confirmBtn.dataset.datasetUuid = datasetUuid || '';
+            confirmBtn.dataset.datasetName = datasetName || '';
+        }
+        if (modalEl && window.bootstrap) {
+            var modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
     }
 
     // Make the function globally available

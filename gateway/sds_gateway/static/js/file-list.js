@@ -711,6 +711,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			centerFrequencyGhz: ComponentUtils.escapeHtml(
 				capture.center_frequency_ghz || "",
 			),
+			lengthOfCaptureMs: capture.length_of_capture_ms ?? 0,
+			fileCadenceMs: capture.file_cadence_ms ?? 1000,
 		};
 
 		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
@@ -835,7 +837,9 @@ class FileListCapturesTableManager extends CapturesTableManager {
 								<button class="dropdown-item download-capture-btn"
 										type="button"
 										data-capture-uuid="${safeData.uuid}"
-										data-capture-name="${safeData.name}">
+										data-capture-name="${safeData.name}"
+										data-length-of-capture-ms="${safeData.lengthOfCaptureMs}"
+										data-file-cadence-ms="${safeData.fileCadenceMs}">
 									Download
 								</button>
 							</li>
