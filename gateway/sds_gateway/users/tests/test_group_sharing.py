@@ -361,6 +361,56 @@ class TestShareGroupListView:
         assert permission.is_enabled is False
         assert share_group not in permission.share_groups.all()
 
+    def test_cannot_remove_owner_from_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+    ) -> None:
+        """Test that the group owner cannot be removed from the group."""
+        group = ShareGroup.objects.create(name="Owner Test Group", owner=owner)
+        group.members.add(owner, group_member)
+
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+        data = {
+            "action": "remove_members",
+            "group_uuid": str(group.uuid),
+            "user_emails": owner.email,
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        # The removal is blocked; the owner should still be a member
+        assert owner in group.members.all()
+        assert result["errors"]
+
+    def test_cannot_remove_last_member_from_group(
+        self,
+        client: Client,
+        owner: User,
+        group_member: User,
+        share_group: ShareGroup,
+    ) -> None:
+        """Test that the last member of a group cannot be removed."""
+        # share_group fixture has only group_member as a member (owner not added)
+        assert share_group.members.count() == 1
+
+        client.force_login(owner)
+        url = reverse("users:share_group_list")
+        data = {
+            "action": "remove_members",
+            "group_uuid": str(share_group.uuid),
+            "user_emails": group_member.email,
+        }
+
+        response = client.post(url, data)
+        assert response.status_code == status.HTTP_200_OK
+        result = response.json()
+        assert group_member in share_group.members.all()
+        assert result["errors"]
+
     def test_delete_share_group(
         self,
         client: Client,

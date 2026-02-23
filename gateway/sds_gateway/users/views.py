@@ -3809,15 +3809,25 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             try:
                 user = User.objects.get(email=email)
 
-                if share_group.members.filter(id=user.id).exists():
-                    share_group.members.remove(user)
-
-                    # Update share permissions for this user
-                    self._update_user_share_permissions_on_removal(user, share_group)
-
-                    removed_users.append(email)
-                else:
+                if not share_group.members.filter(id=user.id).exists():
                     errors.append(f"User {email} is not a member of this group")
+                    continue
+
+                if user == share_group.owner:
+                    errors.append(
+                        f"User {email} is the owner of this group and cannot be removed"
+                    )
+                    continue
+
+                if share_group.members.count() <= 1:
+                    errors.append(
+                        f"Cannot remove {email}: they are the last member of this group"
+                    )
+                    continue
+
+                share_group.members.remove(user)
+                self._update_user_share_permissions_on_removal(user, share_group)
+                removed_users.append(email)
 
             except User.DoesNotExist:
                 errors.append(f"User with email {email} not found")
