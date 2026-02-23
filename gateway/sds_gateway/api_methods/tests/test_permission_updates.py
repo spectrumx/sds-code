@@ -238,6 +238,85 @@ class PermissionUpdateTestCase(TestCase):
         data = response.json()
         assert "not found" in data["error"]
 
+    def test_individual_share_preserved_after_group_revocation(self):
+        """
+        Individual shares must survive a group-access revocation.
+
+        Scenario:
+          1. The owner (U2) grants U1 and U2 personal (non-group) access to X.
+          2. The owner also shares X with group G (which contains U1 and U2).
+             Both users' existing permissions gain G in share_groups.
+          3. The owner revokes group G's access to X.
+          4. U1 and U2 must still have access through their individual shares.
+          5. The owner must still have access via dataset ownership.
+        """
+        # Step 1 - individual shares (no groups yet)
+        perm_user1 = UserSharePermission.objects.create(
+            owner=self.owner,
+            shared_with=self.user1,
+            item_type=ItemType.DATASET,
+            item_uuid=self.dataset.uuid,
+            permission_level=PermissionLevel.VIEWER,
+            is_enabled=True,
+        )
+        perm_user2 = UserSharePermission.objects.create(
+            owner=self.owner,
+            shared_with=self.user2,
+            item_type=ItemType.DATASET,
+            item_uuid=self.dataset.uuid,
+            permission_level=PermissionLevel.VIEWER,
+            is_enabled=True,
+        )
+        assert perm_user1.share_groups.count() == 0
+        assert perm_user2.share_groups.count() == 0
+
+        # Step 2 - share X with group G (self.group has user1 and user2 as members)
+        self.client.force_login(self.owner)
+        add_response = self.client.post(
+            reverse(
+                "users:share_item",
+                kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
+            ),
+            data={"user-search": f"group:{self.group.uuid}"},
+        )
+        assert add_response.status_code == status.HTTP_200_OK
+
+        perm_user1.refresh_from_db()
+        perm_user2.refresh_from_db()
+        assert self.group in perm_user1.share_groups.all()
+        assert self.group in perm_user2.share_groups.all()
+
+        # Step 3 - revoke group G's access
+        remove_response = self.client.post(
+            reverse(
+                "users:share_item",
+                kwargs={"item_type": "dataset", "item_uuid": self.dataset.uuid},
+            ),
+            data={"remove_users": json.dumps([f"group:{self.group.uuid}"])},
+        )
+        assert remove_response.status_code == status.HTTP_200_OK
+
+        # Step 4 - user1 and user2 keep access via their individual shares
+        perm_user1.refresh_from_db()
+        perm_user2.refresh_from_db()
+        assert perm_user1.is_enabled, (
+            "user1's individual share must survive group revocation"
+        )
+        assert perm_user2.is_enabled, (
+            "user2's individual share must survive group revocation"
+        )
+        assert UserSharePermission.user_can_view(
+            self.user1, self.dataset.uuid, ItemType.DATASET
+        )
+        assert UserSharePermission.user_can_view(
+            self.user2, self.dataset.uuid, ItemType.DATASET
+        )
+
+        # Step 5 - owner retains access via dataset ownership
+        assert UserSharePermission.user_can_view(
+            self.owner, self.dataset.uuid, ItemType.DATASET
+        )
+
     def test_update_group_permission_unauthorized(self):
         """Test that users cannot update group permissions they don't own."""
         # Create group owned by user1

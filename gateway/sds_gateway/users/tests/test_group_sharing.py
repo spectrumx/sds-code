@@ -260,7 +260,7 @@ class TestShareGroupListView:
     @pytest.fixture
     def share_group(self, owner: User, group_member: User) -> ShareGroup:
         group = ShareGroup.objects.create(name="Test Group", owner=owner)
-        group.members.add(group_member)
+        group.members.add(owner, group_member)
         return group
 
     def test_create_share_group(self, client: Client, owner: User) -> None:
@@ -386,29 +386,32 @@ class TestShareGroupListView:
         assert owner in group.members.all()
         assert result["errors"]
 
-    def test_cannot_remove_last_member_from_group(
+    def test_cannot_remove_non_member_from_group(
         self,
         client: Client,
         owner: User,
-        group_member: User,
         share_group: ShareGroup,
     ) -> None:
-        """Test that the last member of a group cannot be removed."""
-        # share_group fixture has only group_member as a member (owner not added)
-        assert share_group.members.count() == 1
+        """Test that removing a user who is not in the group produces an error."""
+        non_member = User.objects.create_user(
+            email="nonmember@example.com",
+            password=TEST_PASSWORD,
+            name="Non Member",
+            is_approved=True,
+        )
 
         client.force_login(owner)
         url = reverse("users:share_group_list")
         data = {
             "action": "remove_members",
             "group_uuid": str(share_group.uuid),
-            "user_emails": group_member.email,
+            "user_emails": non_member.email,
         }
 
         response = client.post(url, data)
         assert response.status_code == status.HTTP_200_OK
         result = response.json()
-        assert group_member in share_group.members.all()
+        assert non_member not in share_group.members.all()
         assert result["errors"]
 
     def test_delete_share_group(
@@ -1131,21 +1134,12 @@ class TestMultipleAccessPaths:
         group1: ShareGroup,
     ) -> None:
         """
-        Test that asset is not accessible to individual when group
-        is removed from permission.
-        """
-        # Share dataset both individually and through group
-        # Individual share
-        UserSharePermission.objects.create(
-            owner=owner,
-            shared_with=group_member,
-            item_type=ItemType.DATASET,
-            item_uuid=dataset.uuid,
-            is_enabled=True,
-            message="Individual share",
-        )
+        Test that asset is not accessible when a group-only share is revoked.
 
-        # Group share
+        A permission created solely via a group share (is_individual_share=False)
+        must be disabled when the group is removed from it.
+        """
+        # Group-only share — no prior individual share
         update_or_create_user_group_share_permissions(
             request_user=owner,
             group=group1,
