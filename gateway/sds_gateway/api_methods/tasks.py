@@ -20,13 +20,13 @@ from loguru import logger as log
 from redis import Redis
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.disk_utils import DISK_SPACE_BUFFER
 from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
@@ -1290,11 +1290,13 @@ def _get_item_files(
     Returns:
         List of files associated with the item
     """
-    from sds_gateway.api_methods.helpers.temporal_filtering import get_capture_files_with_temporal_filter
+    from sds_gateway.api_methods.helpers.temporal_filtering import (
+        get_capture_files_with_temporal_filter,
+    )
+    from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
     from sds_gateway.api_methods.utils.relationship_utils import (
         get_dataset_files_including_captures,
     )
-    from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
     if item_type == ItemType.DATASET:
         files_queryset = get_dataset_files_including_captures(
@@ -1316,7 +1318,7 @@ def _get_item_files(
             )
         else:
             if start_time is not None or end_time is not None:
-                logger.warning(
+                log.warning(
                     "Temporal filtering is only supported for DigitalRF captures, "
                     "ignoring start_time and end_time"
                 )
@@ -1326,7 +1328,7 @@ def _get_item_files(
                 include_deleted=False,
             )
 
-        logger.info(f"Found {len(files)} files for capture {item.uuid}")
+        log.info(f"Found {len(files)} files for capture {item.uuid}")
         return list(files)
 
     log.warning(f"Unknown item type: {item_type}")
