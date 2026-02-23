@@ -526,13 +526,17 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             )
 
             if existing_permission:
-                if existing_permission.is_enabled:
+                if (
+                    existing_permission.is_enabled
+                    and existing_permission.is_individual_share
+                ):
                     return (
                         None,
                         f"{item_type.capitalize()} is already shared with {email}",
                     )
-                # Re-enable the existing disabled permission and update permission level
+                # Re-enable and mark as explicitly individually shared
                 existing_permission.is_enabled = True
+                existing_permission.is_individual_share = True
                 existing_permission.message = message
                 existing_permission.permission_level = permission_level
                 existing_permission.save()
@@ -547,6 +551,7 @@ class ShareItemView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 message=message,
                 permission_level=permission_level,
                 is_enabled=True,
+                is_individual_share=True,
             )
         except User.DoesNotExist:
             return None, f"User with email {email} not found or not approved"
@@ -3816,12 +3821,6 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 if user == share_group.owner:
                     errors.append(
                         f"User {email} is the owner of this group and cannot be removed"
-                    )
-                    continue
-
-                if share_group.members.count() <= 1:
-                    errors.append(
-                        f"Cannot remove {email}: they are the last member of this group"
                     )
                     continue
 

@@ -920,6 +920,11 @@ class UserSharePermission(BaseModel):
     # Whether this share permission is currently active
     is_enabled = models.BooleanField(default=True)
 
+    # Whether this permission was explicitly granted to the user individually,
+    # as opposed to being created solely via a group share. When True, revocation
+    # of every group still keeps the permission active.
+    is_individual_share = models.BooleanField(default=True)
+
     class Meta:
         unique_together = ["owner", "shared_with", "item_type", "item_uuid"]
         indexes = [
@@ -965,13 +970,8 @@ class UserSharePermission(BaseModel):
         return self.share_groups.filter(is_deleted=False).exists()
 
     def update_enabled_status(self) -> None:
-        """Update enabled status based on group access."""
-        if self.share_groups.exists():
-            # User has access through groups, keep enabled
-            self.is_enabled = True
-        else:
-            # No group access, disable
-            self.is_enabled = False
+        """Update enabled status based on individual and group access."""
+        self.is_enabled = self.is_individual_share or self.share_groups.exists()
         self.save()
 
     @classmethod

@@ -149,6 +149,7 @@ def update_or_create_user_group_share_permissions(
             message=message,
             permission_level=permission_level,
             is_enabled=True,
+            is_individual_share=False,
         )
         permission.share_groups.add(group)
     else:
@@ -156,6 +157,8 @@ def update_or_create_user_group_share_permissions(
         existing_individual.message = message
         existing_individual.permission_level = permission_level
         existing_individual.share_groups.add(group)
+        # is_individual_share is intentionally NOT changed here: if the user was
+        # already individually shared, that status must be preserved.
         existing_individual.save()
 
 
