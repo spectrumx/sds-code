@@ -278,9 +278,10 @@ class TestShareGroupListView:
         result = response.json()
         assert result["success"] is True
 
-        # Verify group was created
+        # Verify group was created and owner is a member
         group = ShareGroup.objects.get(name="New Test Group", owner=owner)
         assert group.is_deleted is False
+        assert owner in group.members.all()
 
     def test_add_member_to_group(
         self,

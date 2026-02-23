@@ -3628,6 +3628,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         try:
             share_group = ShareGroup.objects.create(name=name, owner=request.user)
+            share_group.members.add(request.user)
 
             return JsonResponse(
                 {
@@ -3637,7 +3638,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         "uuid": str(share_group.uuid),
                         "name": share_group.name,
                         "created_at": share_group.created_at.isoformat(),
-                        "member_count": 0,
+                        "member_count": 1,
                     },
                 }
             )
