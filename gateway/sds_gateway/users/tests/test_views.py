@@ -4,6 +4,7 @@ import json
 import uuid
 from http import HTTPStatus
 from typing import TYPE_CHECKING
+from typing import cast
 
 import pytest
 from django.conf import settings
@@ -680,3 +681,277 @@ class TestDatasetDetailsView:
         response = client.get(url, {"dataset_uuid": str(dataset.uuid)})
 
         assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_draft_public_dataset_denied_unauthenticated(
+        self, client: Client, owner: User
+    ) -> None:
+        """Draft datasets cannot be public, but test that draft is denied."""
+        dataset = DatasetFactory(
+            owner=owner,
+            status=DatasetStatus.DRAFT,
+            is_public=False,
+        )
+
+        url = reverse("users:dataset_details")
+        response = client.get(url, {"dataset_uuid": str(dataset.uuid)})
+
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_private_dataset_accessible_to_owner(
+        self, client: Client, owner: User
+    ) -> None:
+        """Owner can access their private datasets."""
+        dataset = DatasetFactory(
+            owner=owner,
+            status=DatasetStatus.FINAL,
+            is_public=False,
+        )
+
+        client.force_login(owner)
+        url = reverse("users:dataset_details")
+        response = client.get(url, {"dataset_uuid": str(dataset.uuid)})
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert payload["dataset"]["uuid"] == str(dataset.uuid)
+
+
+class TestRenderHTMLFragmentView:
+    """Tests for RenderHTMLFragmentView - security and access control."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def user(self) -> User:
+        return cast("User", UserFactory(is_approved=True))
+
+    def test_render_fragment_without_authentication(self, client: Client) -> None:
+        """Unauthenticated users can render HTML fragments."""
+        url = reverse("users:render_html")
+        data = {
+            "template": "users/components/modal_file_tree.html",
+            "context": {"rows": []},
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+
+    def test_render_fragment_with_authentication(
+        self, client: Client, user: User
+    ) -> None:
+        """Authenticated users can also render HTML fragments."""
+        client.force_login(user)
+        url = reverse("users:render_html")
+        data = {
+            "template": "users/components/modal_file_tree.html",
+            "context": {"rows": []},
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+
+    def test_rejects_templates_outside_components_directory(
+        self, client: Client
+    ) -> None:
+        """Only templates in users/components/ are allowed."""
+        url = reverse("users:render_html")
+
+        # Try various path traversal attempts
+        malicious_paths = [
+            "users/user_detail.html",  # Outside components/
+            "../base.html",  # Path traversal
+            "../../config/settings/base.py",  # Try to access Python files
+            "/etc/passwd",  # Absolute path
+            "users/components/../user_detail.html",  # Path normalization attack
+        ]
+
+        for template_path in malicious_paths:
+            data = {
+                "template": template_path,
+                "context": {},
+            }
+
+            response = client.post(
+                url,
+                data=json.dumps(data),
+                content_type="application/json",
+            )
+
+            assert response.status_code == HTTPStatus.BAD_REQUEST, (
+                f"Template {template_path} should be rejected"
+            )
+            payload = response.json()
+            assert "error" in payload
+
+    def test_requires_valid_json(self, client: Client) -> None:
+        """Request must contain valid JSON."""
+        url = reverse("users:render_html")
+
+        response = client.post(
+            url,
+            data="invalid json{",
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        payload = response.json()
+        assert "error" in payload
+        assert "JSON" in payload["error"]
+
+    def test_requires_template_parameter(self, client: Client) -> None:
+        """Template parameter is required."""
+        url = reverse("users:render_html")
+        data = {
+            "context": {"rows": []},
+            # Missing "template" key
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.BAD_REQUEST
+        payload = response.json()
+        assert "error" in payload
+        assert "required" in payload["error"].lower()
+
+    def test_handles_nonexistent_template_gracefully(self, client: Client) -> None:
+        """Non-existent templates return 500 error."""
+        url = reverse("users:render_html")
+        data = {
+            "template": "users/components/nonexistent_template.html",
+            "context": {},
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+        payload = response.json()
+        assert "error" in payload
+
+    def test_renders_with_empty_context(self, client: Client) -> None:
+        """Templates can be rendered with empty context."""
+        url = reverse("users:render_html")
+        data = {
+            "template": "users/components/modal_file_tree.html",
+            "context": {},
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+
+    def test_context_data_is_properly_escaped(self, client: Client) -> None:
+        """Context data with HTML/JS is properly escaped."""
+        url = reverse("users:render_html")
+
+        # Attempt XSS through context data
+        malicious_data = "<script>alert('XSS')</script>"
+        data = {
+            "template": "users/components/modal_file_tree.html",
+            "context": {
+                "rows": [
+                    {
+                        "name": malicious_data,
+                        "type": "File",
+                        "size": "1 MB",
+                        "created_at": "2024-01-01",
+                        "icon": "bi-file",
+                        "icon_color": "text-primary",
+                        "indent_level": 0,
+                        "indent_range": [],
+                        "has_chevron": False,
+                    }
+                ]
+            },
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        html = payload["html"]
+
+        # Verify HTML is escaped (Django's default behavior)
+        assert "&lt;script&gt;" in html or malicious_data not in html
+        # Make sure raw script tag is NOT present
+        assert "<script>alert" not in html
+
+    def test_multiple_rows_in_file_tree(self, client: Client) -> None:
+        """Can render multiple file tree rows."""
+        url = reverse("users:render_html")
+        data = {
+            "template": "users/components/modal_file_tree.html",
+            "context": {
+                "rows": [
+                    {
+                        "name": "file1.txt",
+                        "type": "File",
+                        "size": "1 MB",
+                        "created_at": "2024-01-01",
+                        "icon": "bi-file",
+                        "icon_color": "text-primary",
+                        "indent_level": 0,
+                        "indent_range": [],
+                        "has_chevron": False,
+                    },
+                    {
+                        "name": "file2.txt",
+                        "type": "File",
+                        "size": "2 MB",
+                        "created_at": "2024-01-02",
+                        "icon": "bi-file",
+                        "icon_color": "text-success",
+                        "indent_level": 1,
+                        "indent_range": [0],
+                        "has_chevron": False,
+                    },
+                ]
+            },
+        }
+
+        response = client.post(
+            url,
+            data=json.dumps(data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        html = payload["html"]
+
+        # Both files should appear in rendered HTML
+        assert "file1.txt" in html
+        assert "file2.txt" in html

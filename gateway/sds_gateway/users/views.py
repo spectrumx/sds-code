@@ -150,6 +150,18 @@ def validate_uuid(uuid_string: str) -> bool:
         return True
 
 
+def _is_safe_template_path(template_name: str) -> bool:
+    """Check if the template path is safe (within users/components/)."""
+    normalized_path = Path(template_name).resolve()
+    base_dir = Path("users/components").resolve()
+    try:
+        normalized_path.relative_to(base_dir)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
     slug_field = "id"
@@ -166,8 +178,9 @@ class UserUpdateView(Auth0LoginRequiredMixin, SuccessMessageMixin, UpdateView): 
 
     def get_success_url(self):
         # for mypy to know that the user is authenticated
-        assert self.request.user.is_authenticated
-        return self.request.user.get_absolute_url()
+        user = cast("User", self.request.user)
+        assert user.is_authenticated
+        return user.get_absolute_url()
 
     def get_object(self, queryset=None) -> AbstractBaseUser | AnonymousUser:
         return self.request.user
@@ -3374,7 +3387,7 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
 user_download_item_view = DownloadItemView.as_view()
 
 
-class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
+class DatasetDetailsView(FileTreeMixin, View):
     """View to handle dataset details modal requests."""
 
     def _get_dataset_files(self, dataset: Dataset) -> QuerySet[File]:
@@ -3414,14 +3427,20 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
         except ValueError:
             return JsonResponse({"error": "Invalid dataset UUID"}, status=400)
 
-        # Check if user has access to the dataset
-        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
-            return JsonResponse(
-                {"error": "Dataset not found or access denied"}, status=404
-            )
-
         try:
             dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+            has_public_access = (
+                dataset.is_public and dataset.status == DatasetStatus.FINAL
+            )
+            has_user_access = request.user.is_authenticated and user_has_access_to_item(
+                request.user, dataset_uuid, ItemType.DATASET
+            )
+
+            if not (has_public_access or has_user_access):
+                return JsonResponse(
+                    {"error": "Dataset not found or access denied"}, status=404
+                )
 
             # Get dataset information
             dataset_data = DatasetGetSerializer(dataset).data
@@ -3465,8 +3484,31 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 user_dataset_details_view = DatasetDetailsView.as_view()
 
 
-class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
-    """Generic view to render any HTML fragment from a Django template."""
+# Auth0LoginRequiredMixin is not used because this view might be called from the home
+# page where users may not be authenticated, but we still want to allow rendering of
+# public components.
+#
+# SECURITY MODEL:
+# - Only templates in users/components/ directory are allowed (enforced by prefix check)
+# - Context data is provided by the client, not pulled from the database
+# - All data is rendered through Django templates with automatic HTML escaping
+# - CSRF protection is still enforced by Django middleware
+# - No sensitive server-side data is exposed - only client-provided data is rendered
+# - Calling views (e.g., DatasetDetailsView) are responsible for authorization checks
+# - Rate limiting should be configured at the infrastructure level
+class RenderHTMLFragmentView(View):
+    """Generic view to render any HTML fragment from a Django template.
+
+    This endpoint allows rendering of component templates with client-provided context.
+    It's designed to support both authenticated and unauthenticated users for rendering
+    public UI components (e.g., file trees for public datasets).
+
+    Security:
+    - Restricted to users/components/ templates only
+    - Context is client-provided (no database queries)
+    - Django's automatic HTML escaping prevents XSS
+    - Authorization must be handled by calling views
+    """
 
     def post(self, request: HttpRequest) -> JsonResponse:
         """
@@ -3497,7 +3539,8 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             return JsonResponse({"error": "Template name is required"}, status=400)
 
         # Security: Only allow templates from users/components/ directory
-        if not template_name.startswith("users/components/"):
+        # Resolves path traversal attempts like "../"
+        if not _is_safe_template_path(template_name):
             log.warning(f"Invalid template path: {template_name}")
             return JsonResponse(
                 {"error": "Cannot render component."},
@@ -3553,10 +3596,14 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         self, request: HttpRequest, group_uuid: str, search_query: str
     ) -> HttpResponse:
         """Search users for a specific group."""
-        try:
-            group = request.user.owned_share_groups.get(
-                uuid=group_uuid, is_deleted=False
+        user = cast("User", request.user)
+        if not hasattr(user, "owned_share_groups"):
+            return JsonResponse(
+                {"error": "User does not have owned share groups"}, status=400
             )
+        shared_groups = cast("QuerySet[ShareGroup]", user.owned_share_groups)
+        try:
+            group = shared_groups.get(uuid=group_uuid, is_deleted=False)
             users_in_group = group.members.values_list("id", flat=True)
 
             return self.search_users(
