@@ -100,27 +100,38 @@
                         </button>
                         <div class="collapse navbar-collapse" id="navbarNav">
                             <ul class="navbar-nav ms-auto">
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{% url 'home' %}">Home</a>
-                                </li>
                                 {% if request.user.is_authenticated %}
+                                    {% comment %}
+                                        <li class="nav-item d-none d-xl-flex align-items-center">
+                                            <span class="vr mx-2"></span>
+                                        </li>
+                                    {% endcomment %}
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">
+                                            <i class="bi bi-database-fill"></i>
+                                            Datasets
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:capture_list' %}?page=1">
+                                            <i class="bi bi-broadcast-pin"></i>
+                                            Captures
+                                        </a>
+                                    </li>
+                                    <li class="nav-item">
+                                        <a class="nav-link" href="{% url 'users:files' %}">
+                                            <i class="bi bi-folder2-open"></i>
+                                            Files
+                                        </a>
+                                    </li>
                                     <li class="nav-item d-none d-xl-flex align-items-center">
                                         <span class="vr mx-2"></span>
                                     </li>
                                     <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:dataset_list' %}?page=1">Datasets</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:file_list' %}?page=1">Captures</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:files' %}">Files</a>
-                                    </li>
-                                    <li class="nav-item d-none d-xl-flex align-items-center">
-                                        <span class="vr mx-2"></span>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" href="{% url 'users:view_api_key' %}">API Key</a>
+                                        <a class="nav-link" href="{% url 'users:view_api_key' %}">
+                                            <i class="bi bi-key"></i>
+                                            API Key
+                                        </a>
                                     </li>
                                     <li class="nav-item dropdown">
                                         <button class="nav-link dropdown-toggle"
