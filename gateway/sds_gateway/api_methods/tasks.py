@@ -573,7 +573,7 @@ def notify_shared_users(
     if item_type == "dataset":
         item_url = f"{settings.SITE_URL}/users/dataset-list/"
     elif item_type == "capture":
-        item_url = f"{settings.SITE_URL}/users/file-list/"
+        item_url = f"{settings.SITE_URL}/users/capture-list/"
     else:
         item_url = settings.SITE_URL
 

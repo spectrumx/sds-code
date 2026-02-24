@@ -1095,7 +1095,7 @@ class UserSearchHandler {
 			if (this.itemType === "dataset") {
 				refreshUrl = `/users/dataset-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
 			} else if (this.itemType === "capture") {
-				refreshUrl = `/users/file-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
+				refreshUrl = `/users/capture-list/?page=${currentPage}&sort_by=${sortBy}&sort_order=${sortOrder}`;
 			} else {
 				console.error(`Unknown item type: ${this.itemType}`);
 				return;

@@ -116,7 +116,7 @@
                 redirectUrl = "{% url 'users:dataset_list' %}";
                 alertKey = "datasetDownloadAlert";
             } else if (filename.startsWith("capture_")) {
-                redirectUrl = "{% url 'users:file_list' %}";
+                redirectUrl = "{% url 'users:capture_list' %}";
                 alertKey = "captureDownloadAlert";
             } else {
                 // Default to dataset list if we can't determine the type

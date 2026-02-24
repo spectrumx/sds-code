@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.generic import RedirectView
 
 from .api.views import GetAPIKeyView
 from .views import CheckFileExistsView
@@ -37,8 +38,26 @@ urlpatterns = [
     path("view-api-key/", user_api_key_view, name="view_api_key"),
     path("new-api-key/", new_api_key_view, name="new_api_key"),
     path("files/", FilesView.as_view(), name="files"),
-    path("file-list/", ListCapturesView.as_view(), name="file_list"),
-    path("file-list/api/", user_captures_api_view, name="captures_api"),
+    path("capture-list/", ListCapturesView.as_view(), name="capture_list"),
+    path("capture-list/api/", user_captures_api_view, name="capture_list_api"),
+    path(
+        "file-list/",
+        RedirectView.as_view(
+            pattern_name="users:capture_list",
+            permanent=True,
+            query_string=True,
+        ),
+        name="file_list_legacy",
+    ),
+    path(
+        "file-list/api/",
+        RedirectView.as_view(
+            pattern_name="users:capture_list_api",
+            permanent=True,
+            query_string=True,
+        ),
+        name="file_list_api_legacy",
+    ),
     path("file-detail/<uuid:uuid>/", user_file_detail_view, name="file_detail"),
     path(
         "files/<uuid:uuid>/download/", FileDownloadView.as_view(), name="file_download"

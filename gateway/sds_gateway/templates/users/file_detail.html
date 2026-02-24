@@ -8,7 +8,7 @@
 {% endblock title %}
 {% block content %}
     <div>
-        <a href="{% url 'users:file_list' %}?page={{ returning_page|default:1 }}"
+        <a href="{% url 'users:capture_list' %}?page={{ returning_page|default:1 }}"
            class="btn btn-primary mt-3">Back to File List</a>
         <h2>
             File <code>{{ file.name }}</code>

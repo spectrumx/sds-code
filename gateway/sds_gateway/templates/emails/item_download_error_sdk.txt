@@ -15,7 +15,7 @@ Or visit: https://pypi.org/project/spectrumx/
 
 SDK DOWNLOAD INSTRUCTIONS:
 
-Visit: {{ site_url }}/users/{% if item_type == 'dataset' %}dataset-list{% else %}file-list{% endif %}/
+Visit: {{ site_url }}/users/{% if item_type == 'dataset' %}dataset-list{% else %}capture-list{% endif %}/
 
 REQUEST INFORMATION:
 {{ item_type|title }}: {{ item_name }}
