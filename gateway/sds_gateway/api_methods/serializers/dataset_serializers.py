@@ -7,11 +7,15 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 
+READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
+
 
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     authors = serializers.SerializerMethodField()
     keywords = serializers.SerializerMethodField()
-    created_at = serializers.DateTimeField(format="%m/%d/%Y %H:%M:%S", read_only=True)
+    created_at = serializers.DateTimeField(
+        format=READABLE_ISO_DATE_TIME, read_only=True
+    )
     is_shared_with_me = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
@@ -165,3 +169,80 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     class Meta:
         model = Dataset
         fields = "__all__"
+
+
+class DatasetPublicSerializer(serializers.ModelSerializer[Dataset]):
+    """
+    Serializer for public dataset access (unauthenticated or public datasets).
+
+    This serializer uses an explicit allowlist of fields to avoid exposing
+    sensitive internal metadata like shared_with user IDs or owner information.
+    """
+
+    authors = serializers.SerializerMethodField()
+    keywords = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(
+        format=READABLE_ISO_DATE_TIME, read_only=True
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+    owner_name = serializers.SerializerMethodField()
+
+    def get_authors(self, obj):
+        """Return the full authors list using the model's get_authors_display method."""
+        return obj.get_authors_display()
+
+    def get_keywords(self, obj):
+        """Return a list of keyword names for the dataset."""
+        return [kw.name for kw in obj.keywords.filter(is_deleted=False)]
+
+    def get_owner_name(self, obj):
+        """Get the owner's display name."""
+        return obj.owner.name if obj.owner else "Owner"
+
+    class Meta:
+        model = Dataset
+        fields = [
+            "uuid",
+            "name",
+            "status",
+            "status_display",
+            "abstract",
+            "description",
+            "doi",
+            "authors",
+            "license",
+            "keywords",
+            "institutions",
+            "release_date",
+            "repository",
+            "version",
+            "website",
+            "provenance",
+            "citation",
+            "other",
+            "created_at",
+            "is_public",
+            "owner_name",
+        ]
+
+
+def get_dataset_serializer(dataset: Dataset, *, has_user_access: bool) -> dict:  # pyright: ignore[reportMissingTypeArgument]
+    """
+    Get serialized dataset data using the appropriate serializer.
+
+    Args:
+        dataset: The dataset to serialize
+        has_user_access: Whether the requesting user has authenticated access
+
+    Returns:
+        Serialized dataset data as a dictionary
+
+    Notes:
+        - Uses DatasetGetSerializer for authenticated users with access
+          (includes sharing info, permissions, etc.)
+        - Uses DatasetPublicSerializer for unauthenticated/public-only access
+          (excludes sensitive fields like shared_with user IDs)
+    """
+    if has_user_access:
+        return DatasetGetSerializer(dataset).data
+    return DatasetPublicSerializer(dataset).data
