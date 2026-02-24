@@ -638,3 +638,45 @@ class TestPublishDatasetView:
         final_dataset.refresh_from_db()
         assert final_dataset.status == DatasetStatus.FINAL
         assert final_dataset.is_public is True
+
+
+class TestDatasetDetailsView:
+    """Tests for DatasetDetailsView access control."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def owner(self) -> User:
+        return UserFactory(is_approved=True)
+
+    def test_public_dataset_accessible_unauthenticated(
+        self, client: Client, owner: User
+    ) -> None:
+        dataset = DatasetFactory(
+            owner=owner,
+            status=DatasetStatus.FINAL,
+            is_public=True,
+        )
+
+        url = reverse("users:dataset_details")
+        response = client.get(url, {"dataset_uuid": str(dataset.uuid)})
+
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert payload["dataset"]["uuid"] == str(dataset.uuid)
+
+    def test_private_dataset_denied_unauthenticated(
+        self, client: Client, owner: User
+    ) -> None:
+        dataset = DatasetFactory(
+            owner=owner,
+            status=DatasetStatus.FINAL,
+            is_public=False,
+        )
+
+        url = reverse("users:dataset_details")
+        response = client.get(url, {"dataset_uuid": str(dataset.uuid)})
+
+        assert response.status_code == HTTPStatus.NOT_FOUND

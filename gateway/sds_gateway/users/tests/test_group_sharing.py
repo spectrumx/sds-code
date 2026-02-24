@@ -1329,7 +1329,7 @@ class TestGroupSharingUI:
         )
 
         client.force_login(owner)
-        url = reverse("users:file_list")
+        url = reverse("users:capture_list")
 
         response = client.get(url)
 
