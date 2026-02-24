@@ -59,6 +59,14 @@ DEFAULT_FROM_EMAIL: str = "noreply@spectrumx.local"
 # http://whitenoise.evans.io/en/latest/django.html#using-whitenoise-in-development
 INSTALLED_APPS: list[str] = ["whitenoise.runserver_nostatic", *INSTALLED_APPS]
 
+# TEMPLATES
+# ------------------------------------------------------------------------------
+# https://docs.djangoproject.com/en/latest/topics/templates/#module-django.template.backends.django
+# 'debug': a boolean that turns on/off template debug mode.
+#   If it is True, the fancy error page will display a detailed report for any exception
+#   raised during template rendering. This report contains the relevant snippet of the
+#   template with the appropriate line highlighted.
+TEMPLATES[0]["OPTIONS"]["debug"] = True
 
 # DJANGO-DEBUG-TOOLBAR
 # ------------------------------------------------------------------------------
@@ -76,6 +84,7 @@ DEBUG_TOOLBAR_CONFIG: dict[str, Any] = {
     ],
     "SHOW_TEMPLATE_CONTEXT": True,
 }
+
 # https://django-debug-toolbar.readthedocs.io/en/latest/installation.html#internal-ips
 INTERNAL_IPS: list[str] = ["127.0.0.1", "10.0.2.2"]
 if env("USE_DOCKER") == "yes":

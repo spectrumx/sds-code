@@ -179,7 +179,7 @@ logs-once *args:
 [group('service')]
 down *args:
     @echo "Stopping sds-gateway"
-    {{ docker_compose }} down {{ args }}
+    {{ docker_compose }} down --remove-orphans {{ args }}
 
 # runs the pre-commit hooks with dev dependencies
 [group('development')]
@@ -259,6 +259,8 @@ up *args:
     echo "Starting sds-gateway in detached mode"
     echo "Environment: '{{ env }}'"
     echo "Compose file: '{{ compose_file }}'"
+    echo "Tip: call \`just build\` before \`just up\` to prevent "
+    echo "    Docker from trying to pull a locally built image from the registry"
     {{ docker_compose }} up --detach --remove-orphans {{ args }}
 
     # this watcher is not working as intended today, and
