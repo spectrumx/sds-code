@@ -68,6 +68,9 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
+from sds_gateway.api_methods.serializers.dataset_serializers import (
+    get_dataset_serializer,
+)
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
@@ -3443,7 +3446,9 @@ class DatasetDetailsView(FileTreeMixin, View):
                 )
 
             # Get dataset information
-            dataset_data = DatasetGetSerializer(dataset).data
+            dataset_data = get_dataset_serializer(
+                dataset, has_user_access=has_user_access
+            )
 
             # Get all files associated with the dataset
             files_queryset = self._get_dataset_files(dataset)
@@ -3555,9 +3560,12 @@ class RenderHTMLFragmentView(View):
             )
 
             return JsonResponse({"html": html})
-        except Exception as e:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             log.exception(f"Error rendering template {data.get('template', 'unknown')}")
-            return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse(
+                {"error": "Failed to render component.", "code": "RENDER_ERROR"},
+                status=500,
+            )
 
 
 render_html_fragment_view = RenderHTMLFragmentView.as_view()
