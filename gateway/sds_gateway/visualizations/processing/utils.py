@@ -11,6 +11,7 @@ from digital_rf import DigitalRFReader
 from django.conf import settings
 from loguru import logger
 from pydantic import BaseModel
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import computed_field
 from pydantic import field_validator
@@ -23,6 +24,10 @@ from sds_gateway.visualizations.errors import SourceDataError
 
 class DigitalRFParams(BaseModel):
     """Base parameters for processing DigitalRF data with validation."""
+
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,  # allow DigitalRFReader type
+    )
 
     reader: Any = Field(exclude=True)  # Exclude from serialization
     channel: str = Field(min_length=1, description="Channel name")
@@ -80,9 +85,6 @@ class DigitalRFParams(BaseModel):
     def total_samples(self) -> int:
         """Calculate total number of samples."""
         return self.end_sample - self.start_sample
-
-    class Config:
-        arbitrary_types_allowed = True  # Allow DigitalRFReader type
 
 
 def validate_digitalrf_data(
