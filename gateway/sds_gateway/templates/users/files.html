@@ -35,187 +35,188 @@
         </div>
     </div>
     <!-- Main Container -->
-    <div class="content-wrapper"></div>
-    <div class="main-content-area">
-        <div class="container mt-4">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="page-title">Files</h1>
-                <div class="dropdown">
-                    <button class="btn btn-primary dropdown-toggle"
-                            type="button"
-                            id="newButton"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false">
-                        <i class="bi bi-plus-lg"></i> New
-                    </button>
-                    <ul class="new-menu dropdown-menu" aria-labelledby="newButton">
-                        <li>
-                            <a class="dropdown-item"
-                               href="#"
-                               data-bs-toggle="modal"
-                               data-bs-target="#uploadCaptureModal">
-                                <i class="bi bi-broadcast-pin"></i> Capture
-                                <span class="text-body-secondary fst-italic">Digital-RF or RadioHound</span>
-                            </a>
-                        </li>
-                        <li>
-                            <a class="dropdown-item"
-                               href="#"
-                               data-bs-toggle="modal"
-                               data-bs-target="#uploadFileModal">
-                                <i class="material-icons file-icon">description</i> Other Files
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-            </div>
-            <hr />
-            <!-- Files Container -->
-            <div class="files-container"
-                 data-current-dir="{{ current_dir }}"
-                 data-user-email="{{ user_email }}">
-                <nav aria-label="File location breadcrumb">
-                    <ol class="breadcrumb">
-                        <li class="breadcrumb-item">
-                            <a href="{% url 'users:files' %}">Home</a>
-                        </li>
-                        {% for part in breadcrumb_parts %}
-                            <li class="breadcrumb-item">
-                                <a href="{% url 'users:files' %}?dir={{ part.path|urlencode }}">{{ part.name }}</a>
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="page-title">Files</h1>
+                    <div class="dropdown">
+                        <button class="btn btn-primary dropdown-toggle"
+                                type="button"
+                                id="newButton"
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false">
+                            <i class="bi bi-plus-lg"></i> New
+                        </button>
+                        <ul class="new-menu dropdown-menu" aria-labelledby="newButton">
+                            <li>
+                                <a class="dropdown-item"
+                                   href="#"
+                                   data-bs-toggle="modal"
+                                   data-bs-target="#uploadCaptureModal">
+                                    <i class="bi bi-broadcast-pin"></i> Capture
+                                    <span class="text-body-secondary fst-italic">Digital-RF or RadioHound</span>
+                                </a>
                             </li>
-                        {% endfor %}
-                    </ol>
-                </nav>
-                <!-- Files Grid -->
-                <div class="files-grid">
-                    <div class="file-card header">
-                        <div class="file-card-content">
-                            <div class="file-name">Name</div>
-                            <div class="file-meta">Modified</div>
-                            <div class="file-shared">Shared by</div>
-                            <div class="file-actions text-center">Actions</div>
-                        </div>
+                            <li>
+                                <a class="dropdown-item"
+                                   href="#"
+                                   data-bs-toggle="modal"
+                                   data-bs-target="#uploadFileModal">
+                                    <i class="material-icons file-icon">description</i> Other Files
+                                </a>
+                            </li>
+                        </ul>
                     </div>
-                    {% for item in items %}
-                        <div class="file-card"
-                             data-type="{{ item.type }}"
-                             data-path="{{ item.path }}"
-                             data-uuid="{{ item.uuid|default:'' }}"
-                             data-is-capture="{{ item.is_capture|yesno:'true,false' }}"
-                             data-is-shared="{{ item.is_shared|yesno:'true,false' }}"
-                             data-capture-uuid="{{ item.capture_uuid|default:'' }}"
-                             data-description="{{ item.description|default:'' }}"
-                             {% if item.type == 'file' and item.is_h5_file %}data-h5-file="true"{% endif %}>
+                </div>
+                <hr />
+                <!-- Files Container -->
+                <div class="files-container"
+                     data-current-dir="{{ current_dir }}"
+                     data-user-email="{{ user_email }}">
+                    <nav aria-label="File location breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="{% url 'users:files' %}">Home</a>
+                            </li>
+                            {% for part in breadcrumb_parts %}
+                                <li class="breadcrumb-item">
+                                    <a href="{% url 'users:files' %}?dir={{ part.path|urlencode }}">{{ part.name }}</a>
+                                </li>
+                            {% endfor %}
+                        </ol>
+                    </nav>
+                    <!-- Files Grid -->
+                    <div class="files-grid">
+                        <div class="file-card header">
                             <div class="file-card-content">
-                                {% if item.type == "directory" %}
-                                    <i class="bi bi-folder folder-icon"></i>
-                                {% else %}
-                                    <i class="material-icons file-icon">description</i>
-                                {% endif %}
-                                <div class="file-name">
-                                    <span class="file-name-text">{{ item.name }}</span>
-                                    {% if item.is_shared and item.type == 'directory' %}
-                                        <span class="align-middle" data-bs-toggle="tooltip" title="Shared with you">
-                                            <i class="bi bi-people-fill text-success"></i>
-                                        </span>
-                                    {% endif %}
-                                </div>
-                                <div class="file-meta">
-                                    {% if item.modified_at %}
-                                        {{ item.modified_at }}
+                                <div class="file-name">Name</div>
+                                <div class="file-meta">Modified</div>
+                                <div class="file-shared">Shared by</div>
+                                <div class="file-actions text-center">Actions</div>
+                            </div>
+                        </div>
+                        {% for item in items %}
+                            <div class="file-card"
+                                 data-type="{{ item.type }}"
+                                 data-path="{{ item.path }}"
+                                 data-uuid="{{ item.uuid|default:'' }}"
+                                 data-is-capture="{{ item.is_capture|yesno:'true,false' }}"
+                                 data-is-shared="{{ item.is_shared|yesno:'true,false' }}"
+                                 data-capture-uuid="{{ item.capture_uuid|default:'' }}"
+                                 data-description="{{ item.description|default:'' }}"
+                                 {% if item.type == 'file' and item.is_h5_file %}data-h5-file="true"{% endif %}>
+                                <div class="file-card-content">
+                                    {% if item.type == "directory" %}
+                                        <i class="bi bi-folder folder-icon"></i>
                                     {% else %}
-                                        N/A
+                                        <i class="material-icons file-icon">description</i>
                                     {% endif %}
-                                </div>
-                                <div class="file-shared">
-                                    {% if item.shared_by %}{{ item.shared_by }}{% endif %}
-                                </div>
-                                <div class="file-actions">
-                                    {% if item.type == 'file' and item.is_h5_file %}
-                                        <!-- No actions for H5 files -->
-                                    {% else %}
-                                        <!-- Show actions for captures and individual files -->
-                                        <div class="dropdown">
-                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
-                                                    type="button"
-                                                    data-bs-toggle="dropdown"
-                                                    data-bs-popper="static"
-                                                    aria-expanded="false"
-                                                    aria-label="Actions for {{ item.name }}">
-                                                <i class="bi bi-three-dots-vertical"></i>
-                                            </button>
-                                            <ul class="dropdown-menu">
-                                                {% if item.is_capture %}
-                                                    <!-- Capture actions -->
-                                                    {% if item.is_owner %}
+                                    <div class="file-name">
+                                        <span class="file-name-text">{{ item.name }}</span>
+                                        {% if item.is_shared and item.type == 'directory' %}
+                                            <span class="align-middle" data-bs-toggle="tooltip" title="Shared with you">
+                                                <i class="bi bi-people-fill text-success"></i>
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="file-meta">
+                                        {% if item.modified_at %}
+                                            {{ item.modified_at }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </div>
+                                    <div class="file-shared">
+                                        {% if item.shared_by %}{{ item.shared_by }}{% endif %}
+                                    </div>
+                                    <div class="file-actions">
+                                        {% if item.type == 'file' and item.is_h5_file %}
+                                            <!-- No actions for H5 files -->
+                                        {% else %}
+                                            <!-- Show actions for captures and individual files -->
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
+                                                        type="button"
+                                                        data-bs-toggle="dropdown"
+                                                        data-bs-popper="static"
+                                                        aria-expanded="false"
+                                                        aria-label="Actions for {{ item.name }}">
+                                                    <i class="bi bi-three-dots-vertical"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    {% if item.is_capture %}
+                                                        <!-- Capture actions -->
+                                                        {% if item.is_owner %}
+                                                            <li>
+                                                                <button class="dropdown-item capture-details-btn"
+                                                                        type="button"
+                                                                        data-uuid="{{ item.uuid }}"
+                                                                        data-name="{{ item.name|default:'' }}"
+                                                                        data-channel="{{ item.capture_uuid }}"
+                                                                        data-scan-group=""
+                                                                        data-capture-type=""
+                                                                        data-top-level-dir=""
+                                                                        data-owner="{{ request.user.email }}"
+                                                                        data-origin=""
+                                                                        data-created-at=""
+                                                                        data-updated-at=""
+                                                                        data-is-public="false"
+                                                                        data-center-frequency-ghz=""
+                                                                        data-is-multi-channel="false"
+                                                                        data-channels="">
+                                                                    <i class="bi bi-pencil me-2"></i>Edit
+                                                                </button>
+                                                            </li>
+                                                            <li>
+                                                                <button class="dropdown-item"
+                                                                        type="button"
+                                                                        data-bs-toggle="modal"
+                                                                        data-bs-target="#share-modal-{{ item.uuid }}">
+                                                                    <i class="bi bi-share me-2"></i>Share
+                                                                </button>
+                                                            </li>
+                                                        {% endif %}
                                                         <li>
-                                                            <button class="dropdown-item capture-details-btn"
+                                                            <button class="dropdown-item download-capture-btn"
                                                                     type="button"
-                                                                    data-uuid="{{ item.uuid }}"
-                                                                    data-name="{{ item.name|default:'' }}"
-                                                                    data-channel="{{ item.capture_uuid }}"
-                                                                    data-scan-group=""
-                                                                    data-capture-type=""
-                                                                    data-top-level-dir=""
-                                                                    data-owner="{{ request.user.email }}"
-                                                                    data-origin=""
-                                                                    data-created-at=""
-                                                                    data-updated-at=""
-                                                                    data-is-public="false"
-                                                                    data-center-frequency-ghz=""
-                                                                    data-is-multi-channel="false"
-                                                                    data-channels="">
-                                                                <i class="bi bi-pencil me-2"></i>Edit
+                                                                    data-capture-uuid="{{ item.uuid }}"
+                                                                    data-capture-name="{{ item.name }}">
+                                                                <i class="bi bi-download me-2"></i>Download
                                                             </button>
                                                         </li>
+                                                    {% elif item.type == 'file' %}
+                                                        <!-- Individual file actions -->
                                                         <li>
-                                                            <button class="dropdown-item"
+                                                            <a class="dropdown-item"
+                                                               href="{% url 'users:file_download' uuid=item.uuid %}">
+                                                                <i class="bi bi-download me-2"></i>Download
+                                                            </a>
+                                                        </li>
+                                                    {% elif item.type == 'directory' and item.capture_uuid %}
+                                                        <!-- Nested directory within capture actions -->
+                                                        <li>
+                                                            <button class="dropdown-item download-capture-btn"
                                                                     type="button"
-                                                                    data-bs-toggle="modal"
-                                                                    data-bs-target="#share-modal-{{ item.uuid }}">
-                                                                <i class="bi bi-share me-2"></i>Share
+                                                                    data-capture-uuid="{{ item.capture_uuid }}"
+                                                                    data-capture-name="{{ item.name }}">
+                                                                <i class="bi bi-download me-2"></i>Download
                                                             </button>
                                                         </li>
                                                     {% endif %}
-                                                    <li>
-                                                        <button class="dropdown-item download-capture-btn"
-                                                                type="button"
-                                                                data-capture-uuid="{{ item.uuid }}"
-                                                                data-capture-name="{{ item.name }}">
-                                                            <i class="bi bi-download me-2"></i>Download
-                                                        </button>
-                                                    </li>
-                                                {% elif item.type == 'file' %}
-                                                    <!-- Individual file actions -->
-                                                    <li>
-                                                        <a class="dropdown-item"
-                                                           href="{% url 'users:file_download' uuid=item.uuid %}">
-                                                            <i class="bi bi-download me-2"></i>Download
-                                                        </a>
-                                                    </li>
-                                                {% elif item.type == 'directory' and item.capture_uuid %}
-                                                    <!-- Nested directory within capture actions -->
-                                                    <li>
-                                                        <button class="dropdown-item download-capture-btn"
-                                                                type="button"
-                                                                data-capture-uuid="{{ item.capture_uuid }}"
-                                                                data-capture-name="{{ item.name }}">
-                                                            <i class="bi bi-download me-2"></i>Download
-                                                        </button>
-                                                    </li>
-                                                {% endif %}
-                                            </ul>
-                                        </div>
-                                    {% endif %}
+                                                </ul>
+                                            </div>
+                                        {% endif %}
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    {% empty %}
-                        <div class="no-files">
-                            <i class="material-icons empty-folder-icon">folder_open</i>
-                            <p>This folder is empty</p>
-                        </div>
-                    {% endfor %}
+                        {% empty %}
+                            <div class="no-files">
+                                <i class="material-icons empty-folder-icon">folder_open</i>
+                                <p>This folder is empty</p>
+                            </div>
+                        {% endfor %}
+                    </div>
                 </div>
             </div>
         </div>
