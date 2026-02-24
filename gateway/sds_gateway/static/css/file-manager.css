@@ -34,12 +34,6 @@
 	--z-index-sticky: 10;
 }
 
-/* Base Styles */
-/* Apply Google Sans font only to file manager content */
-.files-page-container {
-	font-family: var(--font-family);
-}
-
 /* Accessibility */
 /* Focus styles for keyboard navigation */
 .file-card:focus-visible,
@@ -70,8 +64,10 @@
 	display: flex;
 	flex-direction: column;
 	height: auto;
-	min-height: 200px; /* Minimum height to prevent empty state from looking too small */
-	max-height: calc(100vh - 250px); /* Maximum height based on viewport */
+	min-height: 200px;
+	/* Minimum height to prevent empty state from looking too small */
+	max-height: calc(100vh - 250px);
+	/* Maximum height based on viewport */
 	overflow: auto;
 }
 
@@ -84,8 +80,10 @@
 	border: 1px solid var(--color-border);
 	border-radius: 8px;
 	margin: 0 16px;
-	height: auto; /* Let it grow based on content */
-	min-height: 100px; /* Minimum height for empty state */
+	height: auto;
+	/* Let it grow based on content */
+	min-height: 100px;
+	/* Minimum height for empty state */
 }
 
 /* Individual file card */
@@ -163,13 +161,15 @@
 .file-card:hover .file-name,
 .file-card:hover .folder-icon,
 .file-card:hover .file-icon {
-	color: #005a9c; /* SpectrumX blue */
+	color: #005a9c;
+	/* SpectrumX blue */
 }
 
 /* No hover effects for H5 files */
 .file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-name,
 .file-card[data-type="file"]:not([data-h5-file="true"]):hover .file-icon {
-	color: #005a9c; /* SpectrumX blue */
+	color: #005a9c;
+	/* SpectrumX blue */
 }
 
 /* Directory hover should also use the same blue */
@@ -182,13 +182,16 @@
 	color: var(--color-text-secondary);
 	white-space: nowrap;
 	flex-shrink: 0;
-	min-width: 150px; /* Increased width for modified date */
-	text-align: center; /* Center align the modified date */
+	min-width: 150px;
+	/* Increased width for modified date */
+	text-align: center;
+	/* Center align the modified date */
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	position: relative;
-	padding-right: 24px; /* reserve space for right-aligned shared icon */
+	padding-right: 24px;
+	/* reserve space for right-aligned shared icon */
 }
 
 /* Keep the shared-with icon from shifting the centered date */
@@ -198,9 +201,12 @@
 	color: var(--color-text-secondary);
 	white-space: nowrap;
 	flex-shrink: 0;
-	min-width: 120px; /* Fixed width for shared by column */
-	text-align: center; /* Center align shared by */
-	margin-left: 0; /* Remove offset that pushes content */
+	min-width: 120px;
+	/* Fixed width for shared by column */
+	text-align: center;
+	/* Center align shared by */
+	margin-left: 0;
+	/* Remove offset that pushes content */
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -210,8 +216,10 @@
 	font-size: 0.8125rem;
 	white-space: nowrap;
 	flex-shrink: 0;
-	min-width: 80px; /* Fixed width for actions column */
-	text-align: center; /* Center align actions */
+	min-width: 80px;
+	/* Fixed width for actions column */
+	text-align: center;
+	/* Center align actions */
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -268,7 +276,8 @@
 	font-size: 0.875rem;
 	height: var(--breadcrumb-height);
 	font-family: var(--font-family);
-	font-weight: 400; /* Add normal font weight */
+	font-weight: 400;
+	/* Add normal font weight */
 }
 
 .breadcrumb-item {
@@ -281,7 +290,8 @@
 	padding: 0 4px;
 	border-radius: 4px;
 	font-family: var(--font-family);
-	font-weight: 400; /* Add normal font weight */
+	font-weight: 400;
+	/* Add normal font weight */
 }
 
 .breadcrumb-item:hover {
@@ -293,7 +303,8 @@
 	text-decoration: none;
 	padding: 0 4px;
 	font-family: var(--font-family);
-	font-weight: 400; /* Add normal font weight */
+	font-weight: 400;
+	/* Add normal font weight */
 }
 
 .breadcrumb-item:hover a {
@@ -383,7 +394,8 @@
 	list-style: none;
 	padding: 0;
 	margin: 0;
-	max-height: var(--file-list-max-height); /* taller list for large folder previews */
+	max-height: var(--file-list-max-height);
+	/* taller list for large folder previews */
 	overflow-y: auto;
 	border: 1px solid #dee2e6;
 	border-radius: 4px;
@@ -771,9 +783,11 @@
 
 /* Actions Bar (scoped) */
 .files-actions-bar {
-	margin: 24px 16px; /* Keep the margin */
+	margin: 24px 16px;
+	/* Keep the margin */
 	display: flex;
-	justify-content: flex-start; /* Align to the left */
+	justify-content: flex-start;
+	/* Align to the left */
 	align-items: center;
 }
 
@@ -793,8 +807,10 @@
 	align-items: center;
 	gap: 8px;
 	transition: var(--transition-default);
-	min-width: 100px; /* Give the button a minimum width */
-	justify-content: center; /* Center the button content */
+	min-width: 100px;
+	/* Give the button a minimum width */
+	justify-content: center;
+	/* Center the button content */
 }
 
 .new-button:hover {
@@ -860,6 +876,7 @@
 	.files-actions-bar {
 		margin: 16px 8px;
 	}
+
 	.files-grid {
 		margin: 0 8px;
 	}
@@ -869,6 +886,7 @@
 		padding: 8px 12px;
 		gap: 8px;
 	}
+
 	.file-name {
 		padding-right: 0;
 	}
@@ -878,6 +896,7 @@
 	.file-shared {
 		display: none;
 	}
+
 	.file-card.header .file-meta,
 	.file-card.header .file-shared {
 		display: none;
@@ -887,9 +906,11 @@
 	.upload-zone {
 		padding: 1rem;
 	}
+
 	.upload-zone-icon {
 		font-size: 2.4rem;
 	}
+
 	.selected-files-list {
 		max-height: 220px;
 	}
@@ -900,6 +921,7 @@
 		height: auto;
 		row-gap: 4px;
 	}
+
 	.breadcrumb-item {
 		height: auto;
 	}
@@ -911,9 +933,11 @@
 	.modal-footer {
 		padding: 12px 16px;
 	}
+
 	.modal-body {
 		padding: 16px;
 	}
+
 	.modal-dialog {
 		margin: 0.5rem;
 	}
