@@ -76,7 +76,6 @@ def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[in
     search_props = source["search_props"]
     start_time = search_props["start_time"]
     end_time = search_props["end_time"]
-    print(f"start_time: {start_time}, end_time: {end_time}")
     return start_time, end_time
 
 
@@ -100,12 +99,15 @@ def get_file_cadence(capture_type: CaptureType, capture: Capture) -> int:
 
     data_files = get_data_files(capture_type, capture)
     count = data_files.count()
+
+    # the first file represents the beginning of the capture
+    # exclude it from the count to get the correct file cadence
+    # the count - 1 gives us the number of "spaces" between the files
+    count -= 1
     if count == 0:
         return 0
     duration_sec = end_time - start_time
-    print(f"duration_sec: {duration_sec}")
     duration_ms = duration_sec * 1000
-    print(f"duration_ms: {duration_ms}")
     return max(1, int(duration_ms / count))
 
 

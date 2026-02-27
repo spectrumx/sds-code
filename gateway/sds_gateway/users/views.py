@@ -3284,12 +3284,11 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
             A JSON response containing the download status
         """
         # optional start and end times for temporal filtering
-        start_time = request.POST.get("start_time", None)
-        end_time = request.POST.get("end_time", None)
-
-        if start_time:
+        start_time = request.POST.get("start_time") or None
+        end_time = request.POST.get("end_time") or None
+        if start_time is not None:
             start_time = int(start_time)
-        if end_time:
+        if end_time is not None:
             end_time = int(end_time)
 
         # Validate item type

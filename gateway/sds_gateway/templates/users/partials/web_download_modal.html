@@ -28,10 +28,15 @@
                     </p>
                     {% if item_type == "capture" %}
                         <div class="mt-4 px-4">
-                            <label for="temporalFilterSlider">Filter capture files to download within a subset of time:</label>
+                            <label for="temporalFilterSlider">Filter capture <strong>RF data files</strong> to download within a subset of time:</label>
                             <div id="temporalFilterSlider" class="mt-3 mb-3"></div>
-                            <p class="text-muted small mb-0" id="temporalFilterRangeLabel">0:00:00.000 - 0:00:00.000</p>
-                            <p class="text-muted small mb-0" id="totalFilesLabel">0 files</p>
+                            <div class="bg-light rounded px-3 py-2 mt-2 border-start border-3 border-primary">
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Range:</span> <span id="temporalFilterRangeLabel">0:00:00.000 - 0:00:00.000</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Files in selection:</span> <span id="totalFilesLabel">0 files</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Number of metadata files to include in download:</span> <span id="metadataFilesLabel">0 files</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Total download size (including metadata files):</span> <span id="totalSizeLabel">0 bytes</span></p>
+                                <p class="small mb-0 fw-medium"><span class="text-muted">Time (UTC):</span> <span id="dateTimeLabel">—</span></p>
+                            </div>
                             <input type="hidden" id="startTime" name="start_time" value="0" />
                             <input type="hidden" id="endTime" name="end_time" value="" />
                         </div>
@@ -60,6 +65,32 @@
             return String(v).padStart(2, '0');
         }).join(':');
         return hms + '.' + decimalMs.toString().padStart(3, '0');
+    }
+
+    function formatBytes(bytes) {
+        var n = Number(bytes);
+        if (!Number.isFinite(n) || n < 0) return '0 bytes';
+        if (n === 0) return '0 bytes';
+        var units = ['bytes', 'KB', 'MB', 'GB'];
+        var i = 0;
+        while (n >= 1024 && i < units.length - 1) {
+            n /= 1024;
+            i++;
+        }
+        return (i === 0 ? n : n.toFixed(2)) + ' ' + units[i];
+    }
+
+    function formatUtcRange(startEpochSec, startMs, endMs) {
+        if (!Number.isFinite(startEpochSec)) return '—';
+        var startDate = new Date(startEpochSec * 1000 + startMs);
+        var endDate = new Date(startEpochSec * 1000 + endMs);
+        function pad2(x) { return String(x).padStart(2, '0'); }
+        function fmt(d) {
+            var h = d.getUTCHours(), m = d.getUTCMinutes(), s = d.getUTCSeconds();
+            var mo = d.getUTCMonth() + 1, day = d.getUTCDate(), y = d.getUTCFullYear();
+            return pad2(h) + ':' + pad2(m) + ':' + pad2(s) + ' ' + pad2(mo) + '/' + pad2(day) + '/' + y;
+        }
+        return fmt(startDate) + ' - ' + fmt(endDate) + ' (UTC)';
     }
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -134,64 +165,6 @@
             if (nameEl) nameEl.textContent = '';
         });
     });
-
-    /**
-     * Initialize or update the capture download temporal slider. Call before
-     * showing the modal when opening for a capture with known bounds.
-     * @param {number} durationMs - Total capture duration in milliseconds
-     * @param {number} fileCadenceMs - File cadence in milliseconds (step)
-     */
-    function initCaptureDownloadSlider(durationMs, fileCadenceMs) {
-        var sliderEl = document.getElementById('temporalFilterSlider');
-        var rangeLabel = document.getElementById('temporalFilterRangeLabel');
-        var totalFilesLabel = document.getElementById('totalFilesLabel');
-        var startTimeInput = document.getElementById('startTime');
-        var endTimeInput = document.getElementById('endTime');
-        if (!sliderEl || typeof noUiSlider === 'undefined') return;
-        durationMs = Number(durationMs);
-        if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
-        fileCadenceMs = Number(fileCadenceMs);
-        if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
-        if (sliderEl.noUiSlider) {
-            sliderEl.noUiSlider.destroy();
-        }
-        if (rangeLabel) rangeLabel.textContent = '—';
-        if (startTimeInput) startTimeInput.value = '';
-        if (endTimeInput) endTimeInput.value = '';
-        if (durationMs <= 0) return;
-        noUiSlider.create(sliderEl, {
-            start: [0, durationMs],
-            connect: true,
-            step: fileCadenceMs,
-            range: {
-                min: 0,
-                max: durationMs
-            },
-        });
-        sliderEl.noUiSlider.on('update', function(values) {
-            var startMs = Number(values[0]);
-            var endMs = Number(values[1]);
-            var totalFiles = (endMs - startMs) / fileCadenceMs;
-            if (rangeLabel) {
-                rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
-            }
-            if (totalFilesLabel) {
-                totalFilesLabel.textContent = totalFiles.toFixed(0) + ' files';
-            }
-            if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
-            if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
-        });
-        if (rangeLabel) {
-            rangeLabel.textContent = '0:00:00.000 - ' + msToHms(durationMs);
-        }
-        if (totalFilesLabel) {
-            totalFiles = durationMs / fileCadenceMs;
-            totalFilesLabel.textContent = totalFiles.toFixed(0) + ' files';
-        }
-        if (startTimeInput) startTimeInput.value = '0';
-        if (endTimeInput) endTimeInput.value = String(durationMs);
-    }
-    window.initCaptureDownloadSlider = initCaptureDownloadSlider;
 
     // Function to show web download modal (used for both dataset and capture download)
     function showWebDownloadModal(datasetUuid, datasetName) {
