@@ -105,9 +105,12 @@ class WaterfallRenderer {
 
 	/**
 	 * Render the waterfall plot
+	 * @param {Array} waterfallData - Array of slice data (may be sparse in streaming mode)
+	 * @param {number} totalSlices - Total number of slices
+	 * @param {number} startIndex - Starting index of the data array (for streaming mode)
 	 */
-	renderWaterfall(waterfallData, totalSlices) {
-		if (!this.ctx || !this.canvas || waterfallData.length === 0) return;
+	renderWaterfall(waterfallData, totalSlices, startIndex = 0) {
+		if (!this.ctx || !this.canvas) return;
 
 		// Store total slices for overlay updates
 		this.totalSlices = totalSlices;
@@ -122,19 +125,38 @@ class WaterfallRenderer {
 		const sliceHeight = plotHeight / maxVisibleSlices;
 
 		// Calculate which slices to display
-		const startSliceIndex = this.waterfallWindowStart;
+		const windowStart = this.waterfallWindowStart;
 
 		// Draw waterfall slices from bottom to top
 		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
-			const sliceIndex = startSliceIndex + i;
+			const sliceIndex = windowStart + i;
 			if (sliceIndex >= totalSlices) break;
 
-			const slice = waterfallData[sliceIndex];
-			if (slice?.data) {
-				// Calculate Y position
-				const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+			// Index into waterfallData using startIndex so we support both window-aligned
+			// arrays (startIndex === windowStart) and full arrays (startIndex === 0)
+			const dataIndex = sliceIndex - startIndex;
+			const slice =
+				dataIndex >= 0 && dataIndex < waterfallData.length
+					? waterfallData[dataIndex]
+					: null;
 
+			// Calculate Y position
+			const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+
+			if (slice?.data) {
+				// Draw the slice
 				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
+			} else if (slice?._gap) {
+				// Known data gap (backend had no data for this range)
+				this.drawGapPlaceholder(sliceIndex, y, sliceHeight, this.canvas.width);
+			} else {
+				// Draw loading placeholder for missing slice
+				this.drawLoadingPlaceholder(
+					sliceIndex,
+					y,
+					sliceHeight,
+					this.canvas.width,
+				);
 			}
 		}
 
@@ -174,6 +196,58 @@ class WaterfallRenderer {
 				height,
 			);
 		}
+	}
+
+	/**
+	 * Draw a loading placeholder for a missing slice
+	 * @param {number} sliceIndex - The slice index
+	 * @param {number} y - Y position
+	 * @param {number} height - Slice height
+	 * @param {number} width - Canvas width
+	 */
+	drawLoadingPlaceholder(sliceIndex, y, height, width) {
+		if (!this.ctx) return;
+
+		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+
+		// Draw a subtle loading pattern (diagonal stripes)
+		this.ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
+		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+
+		// Draw loading text
+		this.ctx.fillStyle = "rgba(100, 100, 100, 0.6)";
+		this.ctx.font = "12px Arial";
+		this.ctx.textAlign = "center";
+		this.ctx.fillText(
+			"Loading...",
+			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+			y + height / 2,
+		);
+	}
+
+	/**
+	 * Draw a placeholder for a known data gap (no data in this range)
+	 * @param {number} sliceIndex - The slice index
+	 * @param {number} y - Y position
+	 * @param {number} height - Slice height
+	 * @param {number} width - Canvas width
+	 */
+	drawGapPlaceholder(sliceIndex, y, height, width) {
+		if (!this.ctx) return;
+
+		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+
+		this.ctx.fillStyle = "rgba(120, 120, 120, 0.25)";
+		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+
+		this.ctx.fillStyle = "rgba(80, 80, 80, 0.5)";
+		this.ctx.font = "12px Arial";
+		this.ctx.textAlign = "center";
+		this.ctx.fillText(
+			"No data",
+			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+			y + height / 2,
+		);
 	}
 
 	/**

@@ -15,6 +15,7 @@ class WaterfallControls {
 		this.totalSlices = 0;
 		this.waterfallWindowStart = 0;
 		this.hoveredSliceIndex = null;
+		this.isLoading = false; // Loading state for scroll buttons
 
 		// Constants
 		this.WATERFALL_WINDOW_SIZE = WATERFALL_WINDOW_SIZE;
@@ -244,16 +245,27 @@ class WaterfallControls {
 			scrollIndicatorBelow.classList.toggle("visible", canScrollDown);
 		}
 
-		// Update button states
+		// Update button states (also respect loading state)
 		if (scrollUpBtn) {
-			scrollUpBtn.disabled = !canScrollUp;
-			scrollUpBtn.classList.toggle("disabled", !canScrollUp);
+			const shouldDisable = !canScrollUp || this.isLoading;
+			scrollUpBtn.disabled = shouldDisable;
+			scrollUpBtn.classList.toggle("disabled", shouldDisable);
 		}
 
 		if (scrollDownBtn) {
-			scrollDownBtn.disabled = !canScrollDown;
-			scrollDownBtn.classList.toggle("disabled", !canScrollDown);
+			const shouldDisable = !canScrollDown || this.isLoading;
+			scrollDownBtn.disabled = shouldDisable;
+			scrollDownBtn.classList.toggle("disabled", shouldDisable);
 		}
+	}
+
+	/**
+	 * Set loading state for scroll buttons
+	 * @param {boolean} isLoading - Whether data is currently loading
+	 */
+	setLoading(isLoading) {
+		this.isLoading = isLoading;
+		this.updateScrollIndicators();
 	}
 
 	/**
@@ -430,6 +442,8 @@ class WaterfallControls {
 	}
 
 	handleScrollUp() {
+		if (this.isLoading) return;
+
 		// Move the window up to show more recent slices
 		const newWindowStart = Math.min(
 			this.totalSlices - this.WATERFALL_WINDOW_SIZE,
@@ -459,6 +473,8 @@ class WaterfallControls {
 	}
 
 	handleScrollDown() {
+		if (this.isLoading) return;
+
 		// Move the window down to show older slices
 		const newWindowStart = Math.max(
 			0,
