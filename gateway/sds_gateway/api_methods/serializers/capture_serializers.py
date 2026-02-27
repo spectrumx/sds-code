@@ -11,6 +11,7 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.helpers.temporal_filtering import get_capture_bounds
 from sds_gateway.api_methods.helpers.temporal_filtering import get_file_cadence
+from sds_gateway.api_methods.helpers.temporal_filtering import get_data_files
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
@@ -74,7 +75,9 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     sample_rate_mhz = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
-    files_count = serializers.SerializerMethodField()
+    capture_start_epoch_sec = serializers.SerializerMethodField()
+    data_files_count = serializers.SerializerMethodField()
+    per_data_file_size = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
@@ -121,10 +124,25 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         except (ValueError, IndexError, KeyError):
             return None
 
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_capture_start_epoch_sec(self, capture: Capture) -> int | None:
+        """Get the capture start time as Unix epoch seconds. None if not indexed in OpenSearch."""
+        try:
+            start_time, _ = get_capture_bounds(capture.capture_type, str(capture.uuid))
+            return start_time
+        except (ValueError, IndexError, KeyError):
+            return None
+
     @extend_schema_field(serializers.IntegerField)
-    def get_files_count(self, capture: Capture) -> int:
+    def get_data_files_count(self, capture: Capture) -> int:
         """Get the count of files associated with this capture."""
-        return get_capture_files(capture, include_deleted=False).count()
+        return get_data_files(capture.capture_type, capture).count()
+    
+    @extend_schema_field(serializers.FloatField)
+    def get_per_data_file_size(self, capture: Capture) -> float:
+        """Get the size of each data file in the capture."""
+        data_file_sizes = get_data_files(capture.capture_type, capture).aggregate(total_size=Sum("size"))
+        return data_file_sizes["total_size"] / self.get_data_files_count(capture)
 
     @extend_schema_field(serializers.IntegerField)
     def get_total_file_size(self, capture: Capture) -> int:
@@ -322,11 +340,12 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     # Computed fields
     files = serializers.SerializerMethodField()
-    files_count = serializers.SerializerMethodField()
+    data_files_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
+    capture_start_epoch_sec = serializers.SerializerMethodField()
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
@@ -344,13 +363,13 @@ class CompositeCaptureSerializer(serializers.Serializer):
         return cast("ReturnList[File]", all_files)
 
     @extend_schema_field(serializers.IntegerField)
-    def get_files_count(self, obj: dict[str, Any]) -> int:
+    def get_data_files_count(self, obj: dict[str, Any]) -> int:
         """Get the total count of files across all channels."""
         total_count = 0
         for channel_data in obj["channels"]:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
-            total_count += get_capture_files(capture, include_deleted=False).count()
+            total_count += get_data_files(capture.capture_type, capture).count()
         return total_count
 
     @extend_schema_field(serializers.IntegerField)
@@ -397,6 +416,21 @@ class CompositeCaptureSerializer(serializers.Serializer):
         try:
             capture = Capture.objects.get(uuid=channels[0]["uuid"])
             return get_file_cadence(capture.capture_type, capture)
+        except (ValueError, IndexError, KeyError):
+            return None
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_capture_start_epoch_sec(self, obj: dict[str, Any]) -> int | None:
+        """Use first channel's start time for composite capture."""
+        channels = obj.get("channels") or []
+        if not channels:
+            return None
+        try:
+            capture = Capture.objects.get(uuid=channels[0]["uuid"])
+            start_time, _ = get_capture_bounds(
+                capture.capture_type, str(capture.uuid)
+            )
+            return start_time
         except (ValueError, IndexError, KeyError):
             return None
 

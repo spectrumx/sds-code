@@ -941,7 +941,6 @@ def _send_download_email(
         getattr(item, "name", str(item)) or f"{item_type.capitalize()} {item.uuid}"
     )
     subject = f"Your {item_type} '{item_display_name}' is ready for download"
-
     context = {
         "item_type": item_type,
         "item_name": item_display_name,
@@ -1309,7 +1308,7 @@ def _get_item_files(
     if item_type == ItemType.CAPTURE:
         capture_type = item.capture_type
         # temporal filtering is only supported for DigitalRF captures
-        if capture_type is CaptureType.DigitalRF:
+        if capture_type == CaptureType.DigitalRF:
             files = get_capture_files_with_temporal_filter(
                 capture_type=capture_type,
                 capture=item,
