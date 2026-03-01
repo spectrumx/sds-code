@@ -31,7 +31,7 @@
         </div>
     </div>
     <!-- Modals to reveal on click -->
-    {% include "users/partials/web_download_modal.html" %}
+    {% include "users/partials/web_download_modal.html" with item_type="dataset" %}
     {% include "users/partials/dataset_details_modal.html" %}
     {% if page_obj %}
         {% for dataset in page_obj %}

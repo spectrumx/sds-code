@@ -89,6 +89,127 @@ class DownloadActionManager {
 		}
 	}
 
+	    /**
+     * Initialize or update the capture download temporal slider. Call before
+     * showing the modal when opening for a capture with known bounds.
+     * @param {number} durationMs - Total capture duration in milliseconds
+     * @param {number} fileCadenceMs - File cadence in milliseconds (step)
+     * @param {Object} opts - Optional: { perDataFileSize, totalSize, dataFilesCount, totalFilesCount, captureStartEpochSec }
+     */
+	initializeCaptureDownloadSlider(durationMs, fileCadenceMs, opts) {
+		opts = opts || {};
+		var sliderEl = document.getElementById('temporalFilterSlider');
+		var rangeLabel = document.getElementById('temporalFilterRangeLabel');
+		var totalFilesLabel = document.getElementById('totalFilesLabel');
+		var metadataFilesLabel = document.getElementById('metadataFilesLabel');
+		var totalSizeLabel = document.getElementById('totalSizeLabel');
+		var dateTimeLabel = document.getElementById('dateTimeLabel');
+		var startTimeInput = document.getElementById('startTime');
+		var endTimeInput = document.getElementById('endTime');
+		var startTimeEntry = document.getElementById('startTimeEntry');
+		var endTimeEntry = document.getElementById('endTimeEntry');
+		var rangeHintEl = document.getElementById('temporalRangeHint');
+		var webDownloadModal = document.getElementById('webDownloadModal');
+		if (!sliderEl || typeof noUiSlider === 'undefined') return;
+		durationMs = Number(durationMs);
+		if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
+		fileCadenceMs = Number(fileCadenceMs);
+		if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
+		var perDataFileSize = Number(opts.perDataFileSize) || 0;
+		var totalSize = Number(opts.totalSize) || 0;
+		var dataFilesCount = Number(opts.dataFilesCount) || 0;
+		var totalFilesCount = Number(opts.totalFilesCount) || 0;
+		var dataFilesTotalSize = perDataFileSize * dataFilesCount;
+		var metadataFilesTotalSize = totalSize - dataFilesTotalSize;
+		var metadataFilesCount = totalFilesCount - dataFilesCount;
+		var captureStartEpochSec = Number(opts.captureStartEpochSec);
+		if (webDownloadModal) webDownloadModal.dataset.durationMs = String(Math.round(durationMs));
+		if (rangeHintEl) rangeHintEl.textContent = '0 – ' + Math.round(durationMs) + ' ms';
+		if (sliderEl.noUiSlider) {
+			sliderEl.noUiSlider.destroy();
+		}
+		if (rangeLabel) rangeLabel.textContent = '—';
+		if (totalFilesLabel) totalFilesLabel.textContent = '0 files';
+		if (totalSizeLabel) totalSizeLabel.textContent = formatBytes(totalSize);
+		if (dateTimeLabel) dateTimeLabel.textContent = '—';
+		if (startTimeInput) startTimeInput.value = '';
+		if (endTimeInput) endTimeInput.value = '';
+		if (startTimeEntry) startTimeEntry.value = '';
+		if (endTimeEntry) endTimeEntry.value = '';
+		if (durationMs <= 0) return;
+		noUiSlider.create(sliderEl, {
+			start: [0, durationMs],
+			connect: true,
+			step: fileCadenceMs,
+			range: { min: 0, max: durationMs },
+		});
+		sliderEl.noUiSlider.on('update', function(values) {
+			var startMs = Number(values[0]);
+			var endMs = Number(values[1]);
+			// the + 1 is to include the first file in the selection
+			// as file cadence is the time between files, not the time of the file
+			var filesInSelection = Math.round((endMs - startMs) / fileCadenceMs) + 1;
+			if (rangeLabel) {
+				rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
+			}
+			if (totalFilesLabel) {
+				totalFilesLabel.textContent = dataFilesCount > 0
+					? filesInSelection + ' of ' + dataFilesCount + ' files'
+					: filesInSelection + ' files';
+			}
+			if (totalSizeLabel) {
+				totalSizeLabel.textContent = formatBytes(
+					(perDataFileSize * filesInSelection) + metadataFilesTotalSize
+				);
+			}
+			if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
+				dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, startMs, endMs);
+			}
+			if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
+			if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
+			if (startTimeEntry) startTimeEntry.value = String(Math.round(startMs));
+			if (endTimeEntry) endTimeEntry.value = String(Math.round(endMs));
+		});
+		if (rangeLabel) {
+			rangeLabel.textContent = '0:00:00.000 - ' + msToHms(durationMs);
+		}
+		if (totalFilesLabel) {
+			totalFilesLabel.textContent = dataFilesCount > 0
+				? dataFilesCount + ' files'
+				: '0 files';
+		}
+		if (metadataFilesLabel) {
+			metadataFilesLabel.textContent = metadataFilesCount > 0
+				? metadataFilesCount + ' files'
+				: '0 files';
+		}
+		if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
+			dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, 0, durationMs);
+		}
+		var startVal = '0';
+		var endVal = String(durationMs);
+		if (startTimeInput) startTimeInput.value = startVal;
+		if (endTimeInput) endTimeInput.value = endVal;
+		if (startTimeEntry) startTimeEntry.value = startVal;
+		if (endTimeEntry) endTimeEntry.value = endVal;
+
+		function syncSliderFromEntries() {
+			if (!sliderEl.noUiSlider || !startTimeEntry || !endTimeEntry) return;
+			var s = startTimeEntry.value.trim();
+			var e = endTimeEntry.value.trim();
+			var startMs = s === '' ? 0 : parseInt(s, 10);
+			var endMs = e === '' ? durationMs : parseInt(e, 10);
+			if (!Number.isFinite(startMs)) startMs = 0;
+			if (!Number.isFinite(endMs)) endMs = durationMs;
+			startMs = Math.max(0, Math.min(startMs, durationMs));
+			endMs = Math.max(0, Math.min(endMs, durationMs));
+			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			sliderEl.noUiSlider.set([startMs, endMs]);
+		}
+		if (startTimeEntry) startTimeEntry.addEventListener('change', syncSliderFromEntries);
+		if (endTimeEntry) endTimeEntry.addEventListener('change', syncSliderFromEntries);
+	}
+
 	/**
 	 * Handle dataset download
 	 * @param {string} datasetUuid - Dataset UUID
@@ -235,8 +356,28 @@ class DownloadActionManager {
 			modal.addEventListener("hidden.bs.modal", restoreFetch);
 		}
 
+		// Initialize temporal slider from button data attributes (clears or builds slider)
+		const durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
+		const fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
+		const perDataFileSize = parseFloat(button.getAttribute("data-per-data-file-size"), 10);
+		const totalSize = parseInt(button.getAttribute("data-total-size"), 10);
+		const dataFilesCount = parseInt(button.getAttribute("data-data-files-count"), 10);
+		const totalFilesCount = parseInt(button.getAttribute("data-total-files-count"), 10);
+		const captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
+		this.initializeCaptureDownloadSlider(
+			Number.isNaN(durationMs) ? 0 : durationMs,
+			Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
+			{
+				perDataFileSize: Number.isNaN(perDataFileSize) ? 0 : perDataFileSize,
+				totalSize: Number.isNaN(totalSize) ? 0 : totalSize,
+				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
+				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
+				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
+			},
+		);
+
 		// Show the modal
-		window.showWebDownloadModal(captureUuid, captureName);
+		this.openCustomModal("webDownloadModal");
 	}
 
 	/**

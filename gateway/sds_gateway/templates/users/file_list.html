@@ -358,6 +358,8 @@
     </div>
     <!-- Capture Details Modal -->
     {% include "users/partials/capture_modal.html" %}
+    <!-- Web Download Modal -->
+    {% include "users/partials/web_download_modal.html" with item_type="capture" capture=capture_obj %}
     <!-- Visualization Selection Modal -->
     {% if VISUALIZATIONS_ENABLED %}
         {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}

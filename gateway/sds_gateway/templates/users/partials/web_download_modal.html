@@ -26,6 +26,32 @@
                         This will create a zip file containing all artifacts (files not linked to captures) and capture files in this dataset.
                         You will receive an email with a download link when the file is ready.
                     </p>
+                    {% if item_type == "capture" %}
+                        <div class="mt-4 px-4">
+                            <label for="temporalFilterSlider">Filter capture RF data files to download within a subset of time:</label>
+                            <div id="temporalFilterSlider" class="mt-3 mb-3"></div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="startTimeEntry">Start (ms from capture start)</label>
+                                    <input type="number" id="startTimeEntry" class="form-control" min="0" step="1" placeholder="0" />
+                                </div>
+                                <div class="col-6">
+                                    <label for="endTimeEntry">End (ms from capture start)</label>
+                                    <input type="number" id="endTimeEntry" class="form-control" min="0" step="1" placeholder="0" />
+                                </div>
+                            </div>
+                            <p class="small text-muted mt-1 mb-0">Valid range: <span id="temporalRangeHint">0 – — ms</span> (same values as the slider above)</p>
+                            <div class="bg-light rounded px-3 py-2 mt-2 border-start border-3 border-primary">
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Range:</span> <span id="temporalFilterRangeLabel">0:00:00.000 - 0:00:00.000</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Files in selection:</span> <span id="totalFilesLabel">0 files</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Number of metadata files to include in download:</span> <span id="metadataFilesLabel">0 files</span></p>
+                                <p class="small mb-1 fw-medium"><span class="text-muted">Total download size (including metadata files):</span> <span id="totalSizeLabel">0 bytes</span></p>
+                                <p class="small mb-0 fw-medium"><span class="text-muted">Time (UTC):</span> <span id="dateTimeLabel">—</span></p>
+                            </div>
+                            <input type="hidden" id="startTime" name="start_time" value="0" />
+                            <input type="hidden" id="endTime" name="end_time" value="" />
+                        </div>
+                    {% endif %}
                     <div class="mt-4 d-flex justify-content-end gap-2">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="button" class="btn btn-success" id="confirmWebDownloadBtn">
@@ -38,9 +64,52 @@
     </div>
 </div>
 <script>
+    function msToHms(ms) {
+        var n = Number(ms);
+        if (!Number.isFinite(n) || n < 0) return '0:00:00.000';
+        const totalSec = Math.floor(n / 1000);
+        const h = Math.floor(totalSec / 3600);
+        const m = Math.floor((totalSec % 3600) / 60);
+        const s = totalSec % 60;
+        const decimalMs = n % 1000;
+        const hms = [h, m, s].map(function(v) {
+            return String(v).padStart(2, '0');
+        }).join(':');
+        return hms + '.' + decimalMs.toString().padStart(3, '0');
+    }
+
+    function formatBytes(bytes) {
+        var n = Number(bytes);
+        if (!Number.isFinite(n) || n < 0) return '0 bytes';
+        if (n === 0) return '0 bytes';
+        var units = ['bytes', 'KB', 'MB', 'GB'];
+        var i = 0;
+        while (n >= 1024 && i < units.length - 1) {
+            n /= 1024;
+            i++;
+        }
+        return (i === 0 ? n : n.toFixed(2)) + ' ' + units[i];
+    }
+
+    function formatUtcRange(startEpochSec, startMs, endMs) {
+        if (!Number.isFinite(startEpochSec)) return '—';
+        var startDate = new Date(startEpochSec * 1000 + startMs);
+        var endDate = new Date(startEpochSec * 1000 + endMs);
+        function pad2(x) { return String(x).padStart(2, '0'); }
+        function fmt(d) {
+            var h = d.getUTCHours(), m = d.getUTCMinutes(), s = d.getUTCSeconds();
+            var mo = d.getUTCMonth() + 1, day = d.getUTCDate(), y = d.getUTCFullYear();
+            return pad2(h) + ':' + pad2(m) + ':' + pad2(s) + ' ' + pad2(mo) + '/' + pad2(day) + '/' + y;
+        }
+        return fmt(startDate) + ' - ' + fmt(endDate) + ' (UTC)';
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const webDownloadModal = document.getElementById('webDownloadModal');
         const confirmWebDownloadBtn = document.getElementById('confirmWebDownloadBtn');
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
+        if (!webDownloadModal || !confirmWebDownloadBtn) return;
 
         // Handle download confirmation
         confirmWebDownloadBtn.addEventListener('click', function() {
@@ -48,75 +117,103 @@
             const datasetName = this.dataset.datasetName;
 
             if (datasetUuid) {
-                // Show loading state
+                var startVal = startTimeInput ? startTimeInput.value : '';
+                var endVal = endTimeInput ? endTimeInput.value : '';
+                var startEntry = document.getElementById('startTimeEntry');
+                var endEntry = document.getElementById('endTimeEntry');
+                var modalEl = document.getElementById('webDownloadModal');
+                if (startEntry && endEntry && modalEl && modalEl.dataset.durationMs) {
+                    var entryStart = startEntry.value.trim();
+                    var entryEnd = endEntry.value.trim();
+                    if (entryStart !== '' || entryEnd !== '') {
+                        var durationMs = parseInt(modalEl.dataset.durationMs, 10);
+                        var startMs = entryStart === '' ? 0 : parseInt(entryStart, 10);
+                        var endMs = entryEnd === '' ? durationMs : parseInt(entryEnd, 10);
+                        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs > durationMs || startMs >= endMs) {
+                            showAlert('Please enter valid start/end times (0 ≤ start < end ≤ ' + durationMs + ' ms).', 'error');
+                            return;
+                        }
+                        startVal = String(startMs);
+                        endVal = String(endMs);
+                        startTimeInput.value = startVal;
+                        endTimeInput.value = endVal;
+                    }
+                }
+
                 this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
                 this.disabled = true;
 
-                // Make the download request
-                fetch(`/users/download-item/dataset/${datasetUuid}/`, {
+                var url = '/users/download-item/dataset/' + datasetUuid + '/';
+                var headers = {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                };
+                var body = null;
+                if (startTimeInput && endTimeInput) {
+                    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+                    body = new URLSearchParams({
+                        start_time: startTimeInput.value,
+                        end_time: endTimeInput.value
+                    });
+                } else {
+                    headers['Content-Type'] = 'application/json';
+                }
+
+                fetch(url, {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
-                        }
+                        headers: headers,
+                        body: body
                     })
-                    .then(response => {
-                        // Check if response is JSON
-                        const contentType = response.headers.get("content-type");
-                        if (contentType?.includes("application/json")) {
+                    .then(function(response) {
+                        var contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
                             return response.json();
                         }
-                        // If not JSON, throw an error with the response text
-                        return response.text().then((text) => {
-                            throw new Error(`Server returned non-JSON response: ${text}`);
+                        return response.text().then(function(text) {
+                            throw new Error('Server returned non-JSON response: ' + text);
                         });
                     })
-                    .then(data => {
+                    .then(function(data) {
                         if (data.success === true) {
-                            // Show success message
                             showAlert(data.message || 'Download request submitted successfully! You will receive an email when ready.', 'success');
-
-                            // Close the modal
-                            const modal = bootstrap.Modal.getInstance(webDownloadModal);
-                            modal.hide();
+                            var modal = bootstrap.Modal.getInstance(webDownloadModal);
+                            if (modal) modal.hide();
                         } else {
                             showAlert('Error requesting download: ' + (data.message || 'Unknown error'), 'error');
                         }
                     })
-                    .catch(error => {
+                    .catch(function(error) {
                         console.error('Download error:', error);
                         showAlert(error.message || 'An error occurred while processing your request.', 'error');
                     })
-                    .finally(() => {
-                        // Reset button state
-                        this.innerHTML = '<i class="bi bi-download"></i> Yes, Download Dataset';
-                        this.disabled = false;
+                    .finally(function() {
+                        confirmWebDownloadBtn.innerHTML = '<i class="bi bi-download"></i> Yes, Download Dataset';
+                        confirmWebDownloadBtn.disabled = false;
                     });
             }
         });
 
-        // Reset modal state when hidden
         webDownloadModal.addEventListener('hidden.bs.modal', function() {
-            // Clear dataset info from download button
             confirmWebDownloadBtn.dataset.datasetUuid = '';
             confirmWebDownloadBtn.dataset.datasetName = '';
-            document.getElementById('webDownloadDatasetName').textContent = '';
+            var nameEl = document.getElementById('webDownloadDatasetName');
+            if (nameEl) nameEl.textContent = '';
         });
     });
 
-    // Function to show web download modal
+    // Function to show web download modal (used for both dataset and capture download)
     function showWebDownloadModal(datasetUuid, datasetName) {
-        // Set the dataset name in the modal
-        document.getElementById('webDownloadDatasetName').textContent = datasetName;
-
-        // Store dataset info in the download button
-        const confirmBtn = document.getElementById('confirmWebDownloadBtn');
-        confirmBtn.dataset.datasetUuid = datasetUuid;
-        confirmBtn.dataset.datasetName = datasetName;
-
-        // Show the modal
-        const modal = new bootstrap.Modal(document.getElementById('webDownloadModal'));
-        modal.show();
+        var nameEl = document.getElementById('webDownloadDatasetName');
+        var confirmBtn = document.getElementById('confirmWebDownloadBtn');
+        var modalEl = document.getElementById('webDownloadModal');
+        if (nameEl) nameEl.textContent = datasetName || '';
+        if (confirmBtn) {
+            confirmBtn.dataset.datasetUuid = datasetUuid || '';
+            confirmBtn.dataset.datasetName = datasetName || '';
+        }
+        if (modalEl && window.bootstrap) {
+            var modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
     }
 
     // Make the function globally available
