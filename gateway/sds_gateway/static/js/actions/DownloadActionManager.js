@@ -106,6 +106,10 @@ class DownloadActionManager {
 		var dateTimeLabel = document.getElementById('dateTimeLabel');
 		var startTimeInput = document.getElementById('startTime');
 		var endTimeInput = document.getElementById('endTime');
+		var startTimeEntry = document.getElementById('startTimeEntry');
+		var endTimeEntry = document.getElementById('endTimeEntry');
+		var rangeHintEl = document.getElementById('temporalRangeHint');
+		var webDownloadModal = document.getElementById('webDownloadModal');
 		if (!sliderEl || typeof noUiSlider === 'undefined') return;
 		durationMs = Number(durationMs);
 		if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
@@ -119,6 +123,8 @@ class DownloadActionManager {
 		var metadataFilesTotalSize = totalSize - dataFilesTotalSize;
 		var metadataFilesCount = totalFilesCount - dataFilesCount;
 		var captureStartEpochSec = Number(opts.captureStartEpochSec);
+		if (webDownloadModal) webDownloadModal.dataset.durationMs = String(Math.round(durationMs));
+		if (rangeHintEl) rangeHintEl.textContent = '0 – ' + Math.round(durationMs) + ' ms';
 		if (sliderEl.noUiSlider) {
 			sliderEl.noUiSlider.destroy();
 		}
@@ -128,6 +134,8 @@ class DownloadActionManager {
 		if (dateTimeLabel) dateTimeLabel.textContent = '—';
 		if (startTimeInput) startTimeInput.value = '';
 		if (endTimeInput) endTimeInput.value = '';
+		if (startTimeEntry) startTimeEntry.value = '';
+		if (endTimeEntry) endTimeEntry.value = '';
 		if (durationMs <= 0) return;
 		noUiSlider.create(sliderEl, {
 			start: [0, durationMs],
@@ -159,6 +167,8 @@ class DownloadActionManager {
 			}
 			if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
 			if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
+			if (startTimeEntry) startTimeEntry.value = String(Math.round(startMs));
+			if (endTimeEntry) endTimeEntry.value = String(Math.round(endMs));
 		});
 		if (rangeLabel) {
 			rangeLabel.textContent = '0:00:00.000 - ' + msToHms(durationMs);
@@ -176,8 +186,28 @@ class DownloadActionManager {
 		if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
 			dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, 0, durationMs);
 		}
-		if (startTimeInput) startTimeInput.value = '0';
-		if (endTimeInput) endTimeInput.value = String(durationMs);
+		var startVal = '0';
+		var endVal = String(durationMs);
+		if (startTimeInput) startTimeInput.value = startVal;
+		if (endTimeInput) endTimeInput.value = endVal;
+		if (startTimeEntry) startTimeEntry.value = startVal;
+		if (endTimeEntry) endTimeEntry.value = endVal;
+
+		function syncSliderFromEntries() {
+			if (!sliderEl.noUiSlider || !startTimeEntry || !endTimeEntry) return;
+			var s = startTimeEntry.value.trim();
+			var e = endTimeEntry.value.trim();
+			var startMs = s === '' ? 0 : parseInt(s, 10);
+			var endMs = e === '' ? durationMs : parseInt(e, 10);
+			if (!Number.isFinite(startMs)) startMs = 0;
+			if (!Number.isFinite(endMs)) endMs = durationMs;
+			startMs = Math.max(0, Math.min(startMs, durationMs));
+			endMs = Math.max(0, Math.min(endMs, durationMs));
+			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			sliderEl.noUiSlider.set([startMs, endMs]);
+		}
+		if (startTimeEntry) startTimeEntry.addEventListener('change', syncSliderFromEntries);
+		if (endTimeEntry) endTimeEntry.addEventListener('change', syncSliderFromEntries);
 	}
 
 	/**

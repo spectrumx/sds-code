@@ -28,8 +28,19 @@
                     </p>
                     {% if item_type == "capture" %}
                         <div class="mt-4 px-4">
-                            <label for="temporalFilterSlider">Filter capture <strong>RF data files</strong> to download within a subset of time:</label>
+                            <label for="temporalFilterSlider">Filter capture RF data files to download within a subset of time:</label>
                             <div id="temporalFilterSlider" class="mt-3 mb-3"></div>
+                            <div class="row">
+                                <div class="col-6">
+                                    <label for="startTimeEntry">Start (ms from capture start)</label>
+                                    <input type="number" id="startTimeEntry" class="form-control" min="0" step="1" placeholder="0" />
+                                </div>
+                                <div class="col-6">
+                                    <label for="endTimeEntry">End (ms from capture start)</label>
+                                    <input type="number" id="endTimeEntry" class="form-control" min="0" step="1" placeholder="0" />
+                                </div>
+                            </div>
+                            <p class="small text-muted mt-1 mb-0">Valid range: <span id="temporalRangeHint">0 – — ms</span> (same values as the slider above)</p>
                             <div class="bg-light rounded px-3 py-2 mt-2 border-start border-3 border-primary">
                                 <p class="small mb-1 fw-medium"><span class="text-muted">Range:</span> <span id="temporalFilterRangeLabel">0:00:00.000 - 0:00:00.000</span></p>
                                 <p class="small mb-1 fw-medium"><span class="text-muted">Files in selection:</span> <span id="totalFilesLabel">0 files</span></p>
@@ -106,6 +117,29 @@
             const datasetName = this.dataset.datasetName;
 
             if (datasetUuid) {
+                var startVal = startTimeInput ? startTimeInput.value : '';
+                var endVal = endTimeInput ? endTimeInput.value : '';
+                var startEntry = document.getElementById('startTimeEntry');
+                var endEntry = document.getElementById('endTimeEntry');
+                var modalEl = document.getElementById('webDownloadModal');
+                if (startEntry && endEntry && modalEl && modalEl.dataset.durationMs) {
+                    var entryStart = startEntry.value.trim();
+                    var entryEnd = endEntry.value.trim();
+                    if (entryStart !== '' || entryEnd !== '') {
+                        var durationMs = parseInt(modalEl.dataset.durationMs, 10);
+                        var startMs = entryStart === '' ? 0 : parseInt(entryStart, 10);
+                        var endMs = entryEnd === '' ? durationMs : parseInt(entryEnd, 10);
+                        if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs > durationMs || startMs >= endMs) {
+                            showAlert('Please enter valid start/end times (0 ≤ start < end ≤ ' + durationMs + ' ms).', 'error');
+                            return;
+                        }
+                        startVal = String(startMs);
+                        endVal = String(endMs);
+                        startTimeInput.value = startVal;
+                        endTimeInput.value = endVal;
+                    }
+                }
+
                 this.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
                 this.disabled = true;
 
