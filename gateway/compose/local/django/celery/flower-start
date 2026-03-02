@@ -10,10 +10,15 @@ done
 
 echo 'Starting flower'
 
+# Build flower command with optional auth
+flower_args="-A config.celery_app -b \"${CELERY_BROKER_URL}\" flower"
+if [ -n "${CELERY_FLOWER_USER:-}" ] && [ -n "${CELERY_FLOWER_PASSWORD:-}" ]; then
+    flower_args="${flower_args} --basic_auth=\"${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}\""
+fi
+
 # for cli options, run:
 # uvx watchfiles --help
 exec uv run watchfiles \
     'celery.__main__.main' \
     --filter 'python' \
-    --args "-A config.celery_app -b \"${CELERY_BROKER_URL}\" flower \
-    --basic_auth=\"${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}\""
+    --args "${flower_args}"

@@ -8,10 +8,14 @@ until timeout 10 uv run celery -A config.celery_app inspect ping; do
     >&2 echo "$(date +%Y-%m-%d\ %H:%M:%S) - Celery workers are unavailable - sleeping"
 done
 
-echo 'Starting flower'
-
-exec uv run celery \
-    -A config.celery_app \
-    -b "${CELERY_BROKER_URL}" \
-    flower \
-    --basic_auth="${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}"
+if [[ -n "${CELERY_FLOWER_USER:-}" && -n "${CELERY_FLOWER_PASSWORD:-}" ]]; then
+    echo 'Starting flower'
+    exec uv run celery \
+        -A config.celery_app \
+        -b "${CELERY_BROKER_URL}" \
+        flower \
+        --basic_auth="${CELERY_FLOWER_USER}:${CELERY_FLOWER_PASSWORD}"
+else
+    echo 'No Flower auth credentials provided. Provide credentials for a production environment.'
+    exit 1
+fi
