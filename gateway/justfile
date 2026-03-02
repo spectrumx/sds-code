@@ -297,5 +297,5 @@ watch *args:
         echo "The 'watch' command is only available in the 'local' environment"
         exit 1
     fi
-    echo "Watching for file changes..."
-    {{ docker_compose }} watch {{ args }}
+    echo "Watching for file changes (run `just up` to start)..."
+    {{ docker_compose }} watch --no-up {{ args }}
