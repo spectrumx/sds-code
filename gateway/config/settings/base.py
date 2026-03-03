@@ -259,6 +259,12 @@ MEDIA_ROOT: str = str(APPS_DIR / "media")
 # https://docs.djangoproject.com/en/4.2/ref/settings/#media-url
 MEDIA_URL: str = "/media/"
 
+# DRF reconstruction cache (must be outside MEDIA_ROOT so it is not web-served)
+DRF_CACHE_DIR: str = env.str(
+    "DRF_CACHE_DIR",
+    default=str(BASE_DIR / "cache" / "drf"),
+)
+
 # TEMPLATES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/4.2/ref/settings/#templates
@@ -282,6 +288,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "django.template.context_processors.tz",
                 "django.contrib.messages.context_processors.messages",
                 "sds_gateway.users.context_processors.allauth_settings",
+                "sds_gateway.context_processors.app_settings",
                 "sds_gateway.context_processors.system_notifications",
                 "sds_gateway.context_processors.branding",
             ],
@@ -473,7 +480,12 @@ SOCIALACCOUNT_FORMS: dict[str, str] = {
 # django-rest-framework
 # -------------------------------------------------------------------------------
 # django-rest-framework - https://www.django-rest-framework.org/api-guide/settings/
-REST_FRAMEWORK: dict[str, str | tuple[str, ...]] = {
+# Visualization streaming throttle (waterfall_slices_stream). Override with
+# VIS_STREAM_THROTTLE_RATE (e.g. "300/min", "900/min") in .env for heavier
+# use or local dev.
+VIS_STREAM_THROTTLE_RATE: str = env.str("VIS_STREAM_THROTTLE_RATE", "300/min")
+
+REST_FRAMEWORK: dict[str, str | tuple[str, ...] | dict[str, str]] = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.BasicAuthentication",
         "rest_framework.authentication.TokenAuthentication",
@@ -482,6 +494,9 @@ REST_FRAMEWORK: dict[str, str | tuple[str, ...]] = {
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_THROTTLE_RATES": {
+        "vis_stream": VIS_STREAM_THROTTLE_RATE,
+    },
 }
 
 # django-cors-headers - https://github.com/adamchainz/django-cors-headers#setup
@@ -638,4 +653,14 @@ DATA_UPLOAD_MAX_MEMORY_SIZE: int = env.int(
 MAX_WEB_DOWNLOAD_SIZE: int = env.int(
     "MAX_WEB_DOWNLOAD_SIZE",
     default=guess_max_web_download_size(),
+)
+
+# Testing override: report a fake large number of slices for waterfall
+# visualizations when set. Useful for UI/scale testing. Set
+# WATERFALL_TEST_TOTAL_SLICES to an integer (e.g. 100000000) and optionally
+# WATERFALL_TEST_MIN_CAPTURE_SLICES to only apply the override for captures
+# with at least that many real slices (default: 1_000_000).
+WATERFALL_TEST_TOTAL_SLICES: int = env.int("WATERFALL_TEST_TOTAL_SLICES", default=0)
+WATERFALL_TEST_MIN_CAPTURE_SLICES: int = env.int(
+    "WATERFALL_TEST_MIN_CAPTURE_SLICES", default=1000000
 )
