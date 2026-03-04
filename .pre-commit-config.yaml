@@ -33,7 +33,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.4.4
+      rev: v2.4.5
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
@@ -81,7 +81,7 @@ repos:
 
     # linter for markdown files - see .markdownlint.yaml to configure rules
     - repo: https://github.com/igorshubovych/markdownlint-cli
-      rev: "v0.47.0"
+      rev: "v0.48.0"
       hooks:
           - id: markdownlint
             args: ["-f"]
