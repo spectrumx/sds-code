@@ -46,32 +46,24 @@ jobs:
               uses: astral-sh/setup-uv@v7
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
-            - name: Install pre-commit
-              working-directory: ./sdk
-              run: uv tool install -p ${{ env.PYTHON_VERSION }} pre-commit
-
-            - name: Cache pre-commit hooks
-              id: cache-pre-commit
+            - name: Cache prek hooks
+              id: cache-prek
               uses: actions/cache@v4
               # https://github.com/actions/cache/blob/main/examples.md#python---pip
               with:
-                  key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-                  path: ~/.cache/pre-commit/
-
-            - name: Install Python
-              working-directory: ./sdk
-              run: uv python install ${{ env.PYTHON_VERSION }}
+                  key: prek-${{ hashFiles('.pre-commit-config.yaml') }}
+                  path: ~/.cache/prek/
 
             - name: Install hooks
               working-directory: ./sdk
-              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit install --install-hooks
+              run: uv run --dev prek install --install-hooks
 
-            - name: Run pre-commit
+            - name: Run prek
               working-directory: ./sdk
               # make sure default_language_version in .pre-commit-config.yaml
               # matches the one installed with uv, which is the most recent
               # stable python version that meets project requirements.
-              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit run --all-files
+              run: uv run --dev prek run --all-files
 
     # Run static analysis with pyright
     #   - Install the pylance extension for VS Code to have these warnings in the editor

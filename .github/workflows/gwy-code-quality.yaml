@@ -28,7 +28,6 @@ on:
 env:
     DOCKER_BUILDKIT: 1
     COMPOSE_DOCKER_CLI_BUILD: 1
-    PYTHON_VERSION: "3.13" # pre-commit and pyright don't seem to work well with 3.14 yet
 
 jobs:
     # Run pre-commit checks on all files using the project's python version
@@ -51,32 +50,24 @@ jobs:
               uses: astral-sh/setup-uv@v7
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
-            - name: Install Python
-              working-directory: ./gateway
-              run: uv python install ${{ env.PYTHON_VERSION }}
-
-            - name: Install pre-commit
-              working-directory: ./gateway
-              run: uv tool install -p ${{ env.PYTHON_VERSION }} pre-commit
-
-            - name: Cache pre-commit hooks
-              id: cache-pre-commit
+            - name: Cache prek hooks
+              id: cache-prek
               uses: actions/cache@v4
               # https://github.com/actions/cache/blob/main/examples.md#python---pip
               with:
-                  key: pre-commit-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}
-                  path: ~/.cache/pre-commit/
+                  key: prek-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}
+                  path: ~/.cache/prek/
 
             - name: Install hooks
               working-directory: ./gateway
-              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit install --install-hooks
+              run: uv run --extra local prek install --install-hooks
 
-            - name: Run pre-commit
+            - name: Run prek
               working-directory: ./gateway
               # make sure default_language_version in .pre-commit-config.yaml
               # matches the one installed with uv, which is the most recent
               # stable python version that meets project requirements.
-              run: uv run -p ${{ env.PYTHON_VERSION }} pre-commit run --all-files
+              run: uv run --extra local prek run --all-files
 
     # Run Django tests
     gwy-django-tests:
