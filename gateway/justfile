@@ -24,6 +24,10 @@ alias hooks := pre-commit
 alias run := up
 alias upgrade := update
 
+# show available recipes
+default:
+    @just --list
+
 # pulls and rebuild the compose services with optional args
 [group('setup')]
 build *args:

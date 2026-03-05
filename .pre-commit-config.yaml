@@ -27,6 +27,14 @@ repos:
     #   hooks:
     #       - id: identity
 
+    # Gitleaks is a tool for detecting secrets like passwords, API keys, and tokens in
+    # git repos, files, and whatever else you wanna throw at it via stdin.
+    - repo: https://github.com/gitleaks/gitleaks
+      rev: v8.30.0
+      hooks:
+          - id: gitleaks
+            name: "gitleaks for secrets detection"
+
     # Biome is a (much) faster alternative to prettier. The following hook ids are available:
     #   biome-ci        Check formatting, check if imports are organized, and lints
     #   biome-check     Format, organize imports, lint, and apply safe fixes to the committed files
@@ -47,7 +55,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.4
+      rev: v0.15.5
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude

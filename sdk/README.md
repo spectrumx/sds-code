@@ -59,10 +59,12 @@ just --list
 
 ```bash
 Available recipes:
+    default                                         # show available recipes
+
     [development]
     dev-setup                                       # installs the development environment with pre-commit hooks and synced deps [alias: install]
     gact *args                                      # runs GitHub Actions locally
-    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues
+    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues [alias: hooks]
     pyrefly *args                                   # runs the Pyrefly type checker
     pyright *args                                   # runs Pyright checks locally
     update                                          # updates development dependencies and pre-commit hooks
@@ -81,7 +83,7 @@ Available recipes:
     [qa]
     check-acceptance                                # checks the built package acceptance tests
     gact *args                                      # runs GitHub Actions locally
-    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues
+    pre-commit                                      # runs pre-commit checks locally, incl. deptry for dependency issues [alias: hooks]
     pyrefly *args                                   # runs the Pyrefly type checker
     pyright *args                                   # runs Pyright checks locally
     serve-coverage                                  # serves the HTML coverage report at http://localhost:1313 [alias: serve]

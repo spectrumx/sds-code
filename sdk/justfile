@@ -11,6 +11,10 @@ alias hooks := pre-commit
 alias install := dev-setup
 alias serve := serve-coverage
 
+# show available recipes
+default:
+    @just --list
+
 # builds the package and runs smoke tests on the built artifact
 [group('packaging')]
 build *args:

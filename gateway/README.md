@@ -133,10 +133,12 @@ just --list
 
 ```bash
 Available recipes:
+    default                         # show available recipes
+
     [development]
     dev-setup                       # sets up the development environment
     gact *args                      # runs GitHub Actions locally
-    pre-commit                      # runs the pre-commit hooks with dev dependencies
+    pre-commit                      # runs the pre-commit hooks with dev dependencies [alias: hooks]
     update                          # upgrades pre-commit hooks and gateway dependencies to their latest compatible versions [alias: upgrade]
     watch *args                     # watch file changes when in local env mode
 
