@@ -20,6 +20,7 @@ git_root := gwy_root + "/.."
 uv_cmd := docker_compose + " run '" + app_container + "' uv"
 uv_runner := uv_cmd + " run"
 
+alias hooks := pre-commit
 alias run := up
 alias upgrade := update
 
@@ -131,7 +132,7 @@ dev-setup:
 
     # install pre-commit hooks
     echo "Installing pre-commit hooks..."
-    uv run pre-commit install
+    uv run prek install -f
 
     echo -e "\n\e[32m✓ Development environment setup complete\e[0m"
     echo -e "\nFor recommended VS Code extensions, see ../sds-code.code-workspace"
@@ -184,8 +185,8 @@ down *args:
 # runs the pre-commit hooks with dev dependencies
 [group('development')]
 pre-commit:
-    uv run pre-commit install
-    uv run --dev pre-commit run --all-files
+    uv run prek install -f
+    uv run --dev prek run --all-files
 
 # rebuilds then restarts services and shows logs
 [group('service')]
@@ -275,7 +276,7 @@ up *args:
 update:
     # these run on the host machine, so uv_runner is not used
     @echo "Upgrading pre-commit hooks"
-    uv run pre-commit autoupdate
+    uv run prek autoupdate
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
     @echo "Upgrading node dependencies"

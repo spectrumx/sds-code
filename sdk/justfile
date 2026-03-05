@@ -7,6 +7,7 @@ test_marker_integration := "integration"
 sdk_root := justfile_directory()
 git_root := sdk_root + "/.."
 
+alias hooks := pre-commit
 alias install := dev-setup
 alias serve := serve-coverage
 
@@ -81,15 +82,15 @@ gact *args:
 [group('development')]
 dev-setup:
     uv sync --dev --frozen
-    uv run pre-commit install --install-hooks
+    uv run prek install --install-hooks
 
 # runs pre-commit checks locally, incl. deptry for dependency issues
 [group('development')]
 [group('qa')]
 pre-commit:
     uv run deptry .
-    uv run pre-commit install --install-hooks
-    uv run --dev pre-commit run --all-files
+    uv run prek install --install-hooks
+    uv run --dev prek run --all-files
 
 # runs Pyright checks locally
 [group('development')]
@@ -226,4 +227,4 @@ publish:
 [group('development')]
 update:
     uv sync --upgrade --dev
-    uv run pre-commit autoupdate
+    uv run prek autoupdate
