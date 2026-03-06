@@ -49,35 +49,32 @@ function formatUtcRange(startEpochSec, startMs, endMs) {
 	return fmt(startDate) + " - " + fmt(endDate) + " (UTC)";
 }
 
-/** Format ms from capture start as datetime-local value (local time). */
-function msToDatetimeLocal(captureStartEpochSec, ms) {
+/** Format ms from capture start as UTC string for display (Y-m-d H:i:s). */
+function msToUtcString(captureStartEpochSec, ms) {
 	if (!Number.isFinite(captureStartEpochSec) || !Number.isFinite(ms)) return "";
 	const d = new Date(captureStartEpochSec * 1000 + ms);
 	const pad2 = (x) => String(x).padStart(2, "0");
-	const pad3 = (x) => String(x).padStart(3, "0");
 	return (
-		d.getFullYear() +
+		d.getUTCFullYear() +
 		"-" +
-		pad2(d.getMonth() + 1) +
+		pad2(d.getUTCMonth() + 1) +
 		"-" +
-		pad2(d.getDate()) +
-		"T" +
-		pad2(d.getHours()) +
+		pad2(d.getUTCDate()) +
+		" " +
+		pad2(d.getUTCHours()) +
 		":" +
-		pad2(d.getMinutes()) +
+		pad2(d.getUTCMinutes()) +
 		":" +
-		pad2(d.getSeconds()) +
-		"." +
-		pad3(d.getMilliseconds())
+		pad2(d.getUTCSeconds())
 	);
 }
 
-/** Parse datetime-local value to ms from capture start (UTC epoch sec). */
-function datetimeLocalToMs(captureStartEpochSec, valueStr) {
-	if (!Number.isFinite(captureStartEpochSec) || !valueStr || !valueStr.trim()) return NaN;
-	const d = new Date(valueStr.trim());
-	if (Number.isNaN(d.getTime())) return NaN;
-	return d.getTime() - captureStartEpochSec * 1000;
+/** Parse UTC date string (Y-m-d H:i:s or Y-m-d H:i) to epoch ms. */
+function parseUtcStringToEpochMs(str) {
+	if (!str || !str.trim()) return NaN;
+	const s = str.trim();
+	const d = new Date(s.endsWith("Z") ? s : s.replace(" ", "T") + "Z");
+	return Number.isFinite(d.getTime()) ? d.getTime() : NaN;
 }
 
 class DownloadActionManager {
@@ -411,6 +408,33 @@ class DownloadActionManager {
 			endDateTimeEntry.disabled = !hasEpoch;
 		}
 		if (durationMs <= 0) return;
+		var fpStart = null, fpEnd = null;
+		var epochStart = captureStartEpochSec * 1000;
+		var epochEnd = epochStart + durationMs;
+		if (hasEpoch && typeof flatpickr !== 'undefined' && startDateTimeEntry && endDateTimeEntry) {
+			var fpOpts = {
+				enableTime: true,
+				enableSeconds: true,
+				utc: true,
+				dateFormat: 'Y-m-d H:i:S',
+				time_24hr: true,
+				minDate: epochStart,
+				maxDate: epochEnd,
+				allowInput: true,
+				static: true,
+				appendTo: webDownloadModal || undefined,
+			};
+			flatpickr(startDateTimeEntry, Object.assign({}, fpOpts, {
+				onChange: function() { syncFromDateTimeEntries(); }
+			}));
+			flatpickr(endDateTimeEntry, Object.assign({}, fpOpts, {
+				onChange: function() { syncFromDateTimeEntries(); }
+			}));
+			fpStart = startDateTimeEntry._flatpickr;
+			fpEnd = endDateTimeEntry._flatpickr;
+			startDateTimeEntry.disabled = false;
+			endDateTimeEntry.disabled = false;
+		}
 		noUiSlider.create(sliderEl, {
 			start: [0, durationMs],
 			connect: true,
@@ -444,8 +468,10 @@ class DownloadActionManager {
 			if (startTimeEntry) startTimeEntry.value = String(Math.round(startMs));
 			if (endTimeEntry) endTimeEntry.value = String(Math.round(endMs));
 			if (hasEpoch) {
-				if (startDateTimeEntry) startDateTimeEntry.value = msToDatetimeLocal(captureStartEpochSec, startMs);
-				if (endDateTimeEntry) endDateTimeEntry.value = msToDatetimeLocal(captureStartEpochSec, endMs);
+				if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart + startMs);
+				else if (startDateTimeEntry) startDateTimeEntry.value = msToUtcString(captureStartEpochSec, startMs);
+				if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochStart + endMs);
+				else if (endDateTimeEntry) endDateTimeEntry.value = msToUtcString(captureStartEpochSec, endMs);
 			}
 		});
 		if (rangeLabel) {
@@ -471,10 +497,11 @@ class DownloadActionManager {
 		if (startTimeEntry) startTimeEntry.value = startVal;
 		if (endTimeEntry) endTimeEntry.value = endVal;
 		if (hasEpoch && startDateTimeEntry && endDateTimeEntry) {
-			startDateTimeEntry.value = msToDatetimeLocal(captureStartEpochSec, 0);
-			endDateTimeEntry.value = msToDatetimeLocal(captureStartEpochSec, durationMs);
-			startDateTimeEntry.disabled = false;
-			endDateTimeEntry.disabled = false;
+			if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart);
+			else startDateTimeEntry.value = msToUtcString(captureStartEpochSec, 0);
+			if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochEnd);
+			else endDateTimeEntry.value = msToUtcString(captureStartEpochSec, durationMs);
+			if (!fpStart) { startDateTimeEntry.disabled = false; endDateTimeEntry.disabled = false; }
 		}
 
 		function syncSliderFromEntries() {
@@ -492,18 +519,28 @@ class DownloadActionManager {
 		}
 		function syncFromDateTimeEntries() {
 			if (!hasEpoch || !sliderEl.noUiSlider || !startDateTimeEntry || !endDateTimeEntry) return;
-			var startMs = datetimeLocalToMs(captureStartEpochSec, startDateTimeEntry.value);
-			var endMs = datetimeLocalToMs(captureStartEpochSec, endDateTimeEntry.value);
+			var startMs, endMs;
+			if (startDateTimeEntry._flatpickr && endDateTimeEntry._flatpickr) {
+				var dStart = startDateTimeEntry._flatpickr.selectedDates[0];
+				var dEnd = endDateTimeEntry._flatpickr.selectedDates[0];
+				startMs = dStart ? dStart.getTime() - epochStart : 0;
+				endMs = dEnd ? dEnd.getTime() - epochStart : durationMs;
+			} else {
+				startMs = parseUtcStringToEpochMs(startDateTimeEntry.value) - epochStart;
+				endMs = parseUtcStringToEpochMs(endDateTimeEntry.value) - epochStart;
+			}
 			if (Number.isNaN(startMs) || Number.isNaN(endMs)) return;
 			startMs = Math.max(0, Math.min(startMs, durationMs));
 			endMs = Math.max(0, Math.min(endMs, durationMs));
 			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			var cur = sliderEl.noUiSlider.get();
+			if (Math.round(Number(cur[0])) === Math.round(startMs) && Math.round(Number(cur[1])) === Math.round(endMs)) return;
 			sliderEl.noUiSlider.set([startMs, endMs]);
 		}
 		if (startTimeEntry) startTimeEntry.addEventListener('change', syncSliderFromEntries);
 		if (endTimeEntry) endTimeEntry.addEventListener('change', syncSliderFromEntries);
-		if (startDateTimeEntry) startDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
-		if (endDateTimeEntry) endDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
+		if (startDateTimeEntry && !startDateTimeEntry._flatpickr) startDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
+		if (endDateTimeEntry && !endDateTimeEntry._flatpickr) endDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
 	}
 
 	/**
@@ -653,7 +690,6 @@ class DownloadActionManager {
 		const dataFilesTotalSizeRaw = button.getAttribute("data-data-files-total-size");
 		const dataFilesTotalSize = dataFilesTotalSizeRaw !== null && dataFilesTotalSizeRaw !== '' ? parseInt(dataFilesTotalSizeRaw, 10) : NaN;
 		const captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
-		const captureUuid = button.getAttribute("data-capture-uuid") || undefined;
 		this.initializeCaptureDownloadSlider(
 			Number.isNaN(durationMs) ? 0 : durationMs,
 			Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
@@ -663,7 +699,7 @@ class DownloadActionManager {
 				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
 				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
 				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize) ? undefined : dataFilesTotalSize,
-				captureUuid: captureUuid,
+				captureUuid: captureUuid || undefined,
 				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
 			},
 		);

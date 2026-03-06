@@ -4,7 +4,7 @@
      tabindex="-1"
      aria-labelledby="webDownloadModalLabel-{{ item.uuid }}"
      aria-hidden="true">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title" id="webDownloadModalLabel-{{ item.uuid }}">
@@ -55,11 +55,11 @@
                             <div class="row">
                                 <div class="col-6">
                                     <label for="startDateTimeEntry">Start (date/time UTC)</label>
-                                    <input type="datetime-local" id="startDateTimeEntry" class="form-control" step="0.001" />
+                                    <input type="text" id="startDateTimeEntry" class="form-control" placeholder="YYYY-MM-DD HH:mm:ss" />
                                 </div>
                                 <div class="col-6">
                                     <label for="endDateTimeEntry">End (date/time UTC)</label>
-                                    <input type="datetime-local" id="endDateTimeEntry" class="form-control" step="0.001" />
+                                    <input type="text" id="endDateTimeEntry" class="form-control" placeholder="YYYY-MM-DD HH:mm:ss" />
                                 </div>
                             </div>
                             <p class="small text-muted mt-1 mb-0">Valid range: <span id="temporalRangeHint">0 – — ms</span> (same values as the slider above)</p>
