@@ -21,6 +21,8 @@
               href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
         <link rel="stylesheet"
               href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
         {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
@@ -44,6 +46,7 @@
             <script src="{% static 'js/core/PermissionsManager.js' %}"></script>
             <script src="{% static 'js/core/DOMUtils.js' %}"></script>
             <script src="{% static 'js/core/PageLifecycleManager.js' %}"></script>
+            <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
         {% endblock javascript %}
     </head>
     {# djlint:off H021 #}
