@@ -1,0 +1,153 @@
+/**
+ * Versioning Action Manager
+ * Handles version creation and managing dataset versions
+ */
+class VersioningActionManager {
+	/**
+	 * Initialize versioning action manager
+	 * @param {Object} config - Configuration object
+	 */
+	constructor(config) {
+		this.permissions = config.permissions;
+		this.datasetUuid = config.datasetUuid;
+		this.initializeEventListeners();
+		this.modalId = `versioningModal-${this.datasetUuid}`;
+	}
+
+	/**
+	 * Initialize event listeners
+	 */
+	initializeEventListeners() {
+		// Initialize version creation button
+		this.initializeVersionCreationButton();
+		this.initializeCopySharedUsersCheckbox();
+	}
+
+	initializeVersionCreationButton() {
+		const versionCreationButton = document.getElementById(
+			`createVersionBtn-${this.datasetUuid}`,
+		);
+		const copySharedUsersCheckbox = document.getElementById(
+			`copySharedUsers-${this.datasetUuid}`,
+		);
+		if (versionCreationButton) {
+			// Prevent duplicate event listeners
+			if (versionCreationButton.dataset.versionSetup === "true") {
+				return;
+			}
+
+			versionCreationButton.dataset.versionSetup = "true";
+			versionCreationButton.addEventListener("click", (event) =>
+				this.handleVersionCreation(
+					event,
+					versionCreationButton,
+					copySharedUsersCheckbox,
+				),
+			);
+		}
+	}
+
+	handleVersionCreation(event, versionCreationButton, copySharedUsersCheckbox) {
+		event.preventDefault();
+		event.stopPropagation();
+
+		// Prevent double-submission
+		if (versionCreationButton.dataset.processing === "true") {
+			return;
+		}
+
+		// Mark as processing
+		versionCreationButton.dataset.processing = "true";
+
+		// show loading state
+		window.DOMUtils.showModalLoading(this.modalId);
+
+		// disable button
+		versionCreationButton.disabled = true;
+
+		// run API call to create a new version of the dataset
+		window.APIClient.post("/users/dataset-versioning/", {
+			dataset_uuid: this.datasetUuid,
+			copy_shared_users: copySharedUsersCheckbox?.checked ?? false,
+		})
+			.then((response) => {
+				if (response.success) {
+					const modalEl = document.getElementById(this.modalId);
+					const onHidden = () => {
+						modalEl.removeEventListener("hidden.bs.modal", onHidden);
+						window.DOMUtils.showAlert(
+							`Dataset version updated to v${response.version} successfully`,
+							"success",
+						);
+						if (
+							window.listRefreshManager &&
+							typeof window.listRefreshManager.loadTable === "function"
+						) {
+							window.listRefreshManager.loadTable();
+						} else {
+							console.warn("listRefreshManager not available, reloading page");
+							window.location.reload();
+						}
+					};
+					if (modalEl) {
+						modalEl.addEventListener("hidden.bs.modal", onHidden);
+					}
+					window.DOMUtils.closeModal(this.modalId);
+					if (!modalEl) {
+						onHidden();
+					}
+				} else {
+					// show error message and error message from response
+					window.DOMUtils.showAlert(
+						response.error || "Failed to create dataset version",
+						"error",
+					);
+				}
+			})
+			.catch((error) => {
+				// show error message and error message from error
+				window.DOMUtils.showAlert(
+					error.message || "Failed to create dataset version",
+					"error",
+				);
+			})
+			.finally(() => {
+				// Re-enable button and clear processing flag
+				versionCreationButton.disabled = false;
+				versionCreationButton.dataset.processing = "false";
+			});
+	}
+
+	initializeCopySharedUsersCheckbox() {
+		const copySharedUsersCheckbox = document.getElementById(
+			`copySharedUsers-${this.datasetUuid}`,
+		);
+		if (copySharedUsersCheckbox) {
+			copySharedUsersCheckbox.addEventListener("change", (event) =>
+				this.showCopySharedUsersWarning(event),
+			);
+		}
+	}
+
+	showCopySharedUsersWarning(event) {
+		const copySharedUsersWarning = document.getElementById(
+			`copySharedUsersWarning-${this.datasetUuid}`,
+		);
+
+		if (copySharedUsersWarning) {
+			if (event.target.checked) {
+				copySharedUsersWarning.classList.remove("display-none");
+			} else {
+				copySharedUsersWarning.classList.add("display-none");
+			}
+		}
+	}
+}
+
+// Make class available globally
+window.VersioningActionManager = VersioningActionManager;
+
+// Export for ES6 modules (Jest testing) - only if in module context
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { VersioningActionManager };
+}

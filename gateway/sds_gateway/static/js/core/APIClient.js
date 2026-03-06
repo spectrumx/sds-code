@@ -261,174 +261,158 @@ class LoadingStateManager {
 	}
 }
 
+/** Separator in list-refresh AJAX response between table HTML and modals HTML */
+const LIST_REFRESH_SEP = "<!-- LIST_REFRESH_SEP -->";
+
 /**
- * List Refresh Manager
- * Handles refreshing list pages and extracting data from HTML responses
+ * DatasetListManager - Handles dataset list table loading and updates
  */
 class ListRefreshManager {
 	/**
-	 * Refresh a list page and extract data
-	 * @param {string} url - URL to fetch
-	 * @param {Object} options - Options for data extraction
-	 * @returns {Promise<Object>} Refreshed data and HTML
+	 * Initialize dataset list manager
+	 * @param {Object} config - Configuration object
+	 * @param {string} config.containerSelector - Selector for the container element (default: '#dynamic-table-container')
+	 * @param {string} [config.modalsContainerSelector] - Optional selector for modals container; when set, response is expected to contain LIST_REFRESH_SEP
+	 * @param {string} config.url - Base URL for dataset list endpoint (default: '/users/dataset-list/')
 	 */
-	async refreshList(url, options = {}) {
-		const {
-			extractData = true,
-			updateTable = true,
-			updateModals = true,
-			modalSelector = ".modal[data-item-uuid][data-item-type]",
-			tableSelector = ".table-and-pagination",
-			mainSelector = "main",
-		} = options;
-
-		// Fetch fresh HTML
-		const html = await window.APIClient.get(url);
-
-		const result = { html };
-
-		// Extract data if requested
-		if (extractData) {
-			result.data = this.extractDataFromHTML(html, {
-				modalSelector,
-				extractSharedUsers: true,
-			});
-		}
-
-		// Update table if requested
-		if (updateTable) {
-			this.updateTableContent(html, {
-				tableSelector,
-				mainSelector,
-			});
-		}
-
-		return result;
+	constructor(config = {}) {
+		this.containerSelector = config.containerSelector;
+		this.modalsContainerSelector = config.modalsContainerSelector || null;
+		this.url = config.url;
+		this.itemType = config.itemType;
+		this.container = document.querySelector(this.containerSelector);
+		this.modalsContainer = this.modalsContainerSelector
+			? document.querySelector(this.modalsContainerSelector)
+			: null;
 	}
 
 	/**
-	 * Extract data from HTML response
-	 * @param {string} html - HTML response
-	 * @param {Object} options - Extraction options
-	 * @returns {Object} Extracted data
+	 * Load dataset list table via AJAX GET request
+	 * @param {Object} params - Query parameters
+	 * @param {number} params.page - Page number (default: 1)
+	 * @param {string} params.sort_by - Sort field: 'name' | 'created_at' | 'updated_at' | 'authors' (default: 'created_at')
+	 * @param {string} params.sort_order - Sort order: 'asc' | 'desc' (default: 'desc')
+	 * @param {Object} options - Additional options
+	 * @param {boolean} options.showLoading - Show loading state (default: true)
+	 * @param {Function} options.onSuccess - Callback on success
+	 * @param {Function} options.onError - Callback on error
+	 * @returns {Promise<string>} HTML content of the table
 	 */
-	extractDataFromHTML(html, options = {}) {
-		const {
-			modalSelector = ".modal[data-item-uuid][data-item-type]",
-			extractSharedUsers = true,
-		} = options;
+	async loadTable(params = {}, options = {}) {
+		const { page = 1, sort_by = "created_at", sort_order = "desc" } = params;
 
-		const tempDiv = document.createElement("div");
-		tempDiv.innerHTML = html;
+		const { showLoading = true, onSuccess = null, onError = null } = options;
 
-		// Find all modals in the fresh HTML
-		const modals = tempDiv.querySelectorAll(modalSelector);
-		const items = [];
-
-		for (const modal of modals) {
-			const itemUuid = modal.getAttribute("data-item-uuid");
-			const itemType = modal.getAttribute("data-item-type");
-
-			const item = {
-				uuid: itemUuid,
-				item_type: itemType,
-			};
-
-			// Extract shared users if requested
-			if (extractSharedUsers) {
-				const sharedUsers = this.extractSharedUsersFromModal(modal, itemUuid);
-				item.shared_users = sharedUsers;
-				item.owner = {
-					name: sharedUsers.find((u) => u.isOwner)?.name || "Owner",
-					email: sharedUsers.find((u) => u.isOwner)?.email || null,
-				};
-				item.owner_email = sharedUsers.find((u) => u.isOwner)?.email || "";
+		// Validate container exists
+		if (!this.container) {
+			const error = new Error(`Container not found: ${this.containerSelector}`);
+			console.error(error.message);
+			if (onError) {
+				onError(error);
 			}
-
-			items.push(item);
+			throw error;
 		}
 
-		return { results: items };
-	}
+		// Show loading state if requested
+		if (showLoading) {
+			await window.DOMUtils?.renderLoading(
+				this.container,
+				"Loading datasets...",
+				{ format: "spinner", size: "sm" },
+			).catch(() => {
+				// Fallback if DOMUtils is not available
+				this.container.innerHTML =
+					'<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+			});
+		}
 
-	/**
-	 * Extract shared users from a modal element
-	 * @param {Element} modal - Modal element
-	 * @param {string} itemUuid - Item UUID
-	 * @returns {Array} Array of shared users
-	 */
-	extractSharedUsersFromModal(modal, itemUuid) {
-		const usersWithAccessSection = modal.querySelector(
-			`#users-with-access-section-${itemUuid}`,
-		);
-		const sharedUsers = [];
+		try {
+			// Make GET request with query parameters
+			const html = await window.APIClient.get(this.url, {
+				page: page,
+				sort_by: sort_by,
+				sort_order: sort_order,
+			});
 
-		if (usersWithAccessSection) {
-			const userRows = usersWithAccessSection.querySelectorAll("tbody tr");
+			// Update container(s) with HTML response
+			if (typeof html === "string") {
+				let tableHtml = html;
+				let modalsHtml = "";
 
-			for (const [index, row] of userRows.entries()) {
-				const nameElement = row.querySelector("h5");
-				const emailElement = row.querySelector("small.text-muted");
-				// Only select the permission dropdown, not the member count badge
-				const permissionElement = row.querySelector(".access-level-dropdown");
-
-				if (nameElement && emailElement) {
-					const user = {
-						index: index,
-						name: nameElement.textContent.trim(),
-						email: emailElement.textContent.trim(),
-						permission_level: permissionElement
-							? permissionElement.textContent.trim().toLowerCase()
-							: window.PermissionLevels.VIEWER,
-						isOwner: index === 0,
-						type: nameElement.querySelector(".bi-people-fill")
-							? "group"
-							: "user",
-					};
-					sharedUsers.push(user);
+				if (this.modalsContainer && html.includes(LIST_REFRESH_SEP)) {
+					const parts = html.split(LIST_REFRESH_SEP);
+					tableHtml = parts[0];
+					modalsHtml = parts[1] ?? "";
+					this.modalsContainer.innerHTML = modalsHtml;
 				}
-			}
-		}
 
-		return sharedUsers;
+				this.container.innerHTML = tableHtml;
+
+				// Re-initialize any necessary event listeners after update
+				this._reinitializeEventListeners();
+
+				// Call success callback if provided
+				if (onSuccess) {
+					onSuccess(tableHtml);
+				}
+
+				return tableHtml;
+			}
+			throw new Error("Invalid response format: expected HTML string");
+		} catch (error) {
+			console.error(`Error loading ${this.itemType} list table:`, error);
+
+			// Show error state
+			await window.DOMUtils?.renderError(
+				this.container,
+				`Failed to load ${this.itemType} list. Please try again.`,
+				{ format: "alert" },
+			).catch(() => {
+				// Fallback if DOMUtils is not available
+				this.container.innerHTML = `<div class="alert alert-danger">Failed to load ${this.itemType} list. Please refresh the page.</div>`;
+			});
+
+			// Call error callback if provided
+			if (onError) {
+				onError(error);
+			}
+
+			throw error;
+		}
 	}
 
 	/**
-	 * Update table content with fresh HTML
-	 * @param {string} html - Fresh HTML
-	 * @param {Object} options - Update options
+	 * Re-initialize event listeners after table update
+	 * This ensures modals, dropdowns, and other interactive elements work after AJAX updates
 	 */
-	updateTableContent(html, options = {}) {
-		const { tableSelector = ".table-and-pagination", mainSelector = "main" } =
-			options;
+	_reinitializeEventListeners() {
+		// Re-initialize Bootstrap dropdowns
+		if (typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
+			window.DOMUtils.initializeListDropdowns();
+		}
 
-		const tempDiv = document.createElement("div");
-		tempDiv.innerHTML = html;
+		// Re-initialize tooltips if Bootstrap tooltips are available
+		if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
+			for (const element of document.querySelectorAll(
+				'[data-bs-toggle="tooltip"]',
+			)) {
+				// Dispose existing tooltip if any
+				const existing = bootstrap.Tooltip.getInstance(element);
+				if (existing) {
+					existing.dispose();
+				}
 
-		// Update only the table content
-		const mainContent = document.querySelector(mainSelector);
-		const newMainContent = tempDiv.querySelector(mainSelector);
-
-		if (mainContent && newMainContent) {
-			const tableContainer = mainContent.querySelector(tableSelector);
-			const newTableContainer = newMainContent.querySelector(tableSelector);
-
-			if (tableContainer && newTableContainer) {
-				tableContainer.innerHTML = newTableContainer.innerHTML;
+				// Create new tooltip instance
+				new bootstrap.Tooltip(element);
 			}
 		}
-	}
 
-	/**
-	 * Update modals with fresh shared users data
-	 * @param {Array} items - Items with shared users data
-	 * @param {Function} updateCallback - Callback to update individual modal
-	 */
-	updateModalsWithData(items, updateCallback) {
-		for (const item of items) {
-			const modal = document.getElementById(`share-modal-${item.uuid}`);
-			if (modal && updateCallback) {
-				updateCallback(modal, item);
+		// Trigger page lifecycle manager re-initialization if available
+		if (window.pageLifecycleManager) {
+			// The PageLifecycleManager should handle modal re-initialization
+			// You may need to call a refresh method if it exists
+			if (typeof window.pageLifecycleManager.refresh === "function") {
+				window.pageLifecycleManager.refresh();
 			}
 		}
 	}
@@ -438,7 +422,8 @@ class ListRefreshManager {
 window.APIClient = new APIClient();
 window.APIError = APIError;
 window.LoadingStateManager = LoadingStateManager;
-window.ListRefreshManager = new ListRefreshManager();
+// NOTE: ListRefreshManager is a class and should be instantiated explicitly.
+window.ListRefreshManager = ListRefreshManager;
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
@@ -446,6 +431,5 @@ if (typeof module !== "undefined" && module.exports) {
 		APIClient,
 		APIError,
 		LoadingStateManager,
-		ListRefreshManager,
 	};
 }

@@ -1,8 +1,10 @@
 <!-- Dataset Details Modal -->
 <div class="modal fade"
-     id="datasetDetailsModal"
+     id="datasetDetailsModal-{{ dataset.uuid }}"
+     data-item-uuid="{{ dataset.uuid }}"
+     data-item-type="dataset"
      tabindex="-1"
-     aria-labelledby="datasetDetailsModalLabel"
+     aria-labelledby="datasetDetailsModalLabel-{{ dataset.uuid }}"
      aria-hidden="true">
     <div class="modal-dialog modal-xl">
         <div class="modal-content">
