@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from unittest.mock import patch
 
 import pytest
 from django.conf import settings
@@ -326,60 +327,6 @@ class TestShareItemView:
         assert permissions.filter(shared_with=user_to_share_with).exists()
         assert permissions.filter(shared_with=user2).exists()
 
-    def test_unified_download_dataset_success(
-        self, client: Client, owner: User, dataset: Dataset
-    ) -> None:
-        """Test successful download request using the unified download endpoint."""
-        client.force_login(owner)
-        url = reverse(
-            "users:download_item",
-            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
-        )
-
-        response = client.post(url)
-
-        assert response.status_code == status.HTTP_202_ACCEPTED
-        result = response.json()
-        assert result["success"] is True
-        assert "download request accepted" in result["message"].lower()
-        assert "task_id" in result
-        assert result["item_name"] == dataset.name
-        assert result["user_email"] == owner.email
-
-    def test_unified_download_dataset_not_owner(
-        self, client: Client, user_to_share_with: User, dataset: Dataset
-    ) -> None:
-        """Test download request when user is not the owner."""
-        client.force_login(user_to_share_with)
-        url = reverse(
-            "users:download_item",
-            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
-        )
-
-        response = client.post(url)
-
-        assert response.status_code == status.HTTP_404_NOT_FOUND
-        result = response.json()
-        assert result["success"] is False
-        assert "not found or access denied" in result["message"].lower()
-
-    def test_unified_download_dataset_invalid_type(
-        self, client: Client, owner: User, dataset: Dataset
-    ) -> None:
-        """Test download request with invalid item type."""
-        client.force_login(owner)
-        url = reverse(
-            "users:download_item",
-            kwargs={"item_type": "invalid_type", "item_uuid": dataset.uuid},
-        )
-
-        response = client.post(url)
-
-        assert response.status_code == status.HTTP_400_BAD_REQUEST
-        result = response.json()
-        assert result["success"] is False
-        assert "invalid item type" in result["message"].lower()
-
     def test_share_with_group_individual_members_already_shared(
         self, client: Client, owner: User, user_to_share_with: User, dataset: Dataset
     ) -> None:
@@ -543,3 +490,186 @@ class TestShareItemView:
         member_emails = [member["email"] for member in group_entry["members"]]
         assert user_to_share_with.email in member_emails
         assert user2.email in member_emails
+
+
+@pytest.mark.django_db
+class TestDownloadItemView:
+    """Tests for the DownloadItemView (unified download endpoint)."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def owner(self) -> User:
+        """Create a user who owns items."""
+        return User.objects.create_user(
+            email="owner@example.com",
+            password=TEST_PASSWORD,
+            name="Owner User",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def user_to_share_with(self) -> User:
+        """Create a user to share items with."""
+        return User.objects.create_user(
+            email="share@example.com",
+            password=TEST_PASSWORD,
+            name="Share User",
+            is_approved=True,
+        )
+
+    @pytest.fixture
+    def dataset(self, owner: User) -> Dataset:
+        """Create a dataset owned by the owner."""
+        return Dataset.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test Dataset",
+            owner=owner,
+            description="A test dataset",
+        )
+
+    def test_unified_download_dataset_success(
+        self, client: Client, owner: User, dataset: Dataset
+    ) -> None:
+        """Test successful download request using the unified download endpoint."""
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        result = response.json()
+        assert result["success"] is True
+        assert "download request accepted" in result["message"].lower()
+        assert "task_id" in result
+        assert result["item_name"] == dataset.name
+        assert result["user_email"] == owner.email
+
+    def test_unified_download_dataset_not_owner(
+        self, client: Client, user_to_share_with: User, dataset: Dataset
+    ) -> None:
+        """Test download request when user is not the owner."""
+        client.force_login(user_to_share_with)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": ItemType.DATASET, "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        result = response.json()
+        assert result["success"] is False
+        assert "not found or access denied" in result["message"].lower()
+
+    def test_unified_download_dataset_invalid_type(
+        self, client: Client, owner: User, dataset: Dataset
+    ) -> None:
+        """Test download request with invalid item type."""
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": "invalid_type", "item_uuid": dataset.uuid},
+        )
+
+        response = client.post(url)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        result = response.json()
+        assert result["success"] is False
+        assert "invalid item type" in result["message"].lower()
+
+    def test_unified_download_capture_with_time_filter_success(
+        self, client: Client, owner: User
+    ) -> None:
+        """Test capture download request with start_time/end_time passes bounds to task."""
+        capture = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test DRF Capture",
+            owner=owner,
+            capture_type="drf",
+            top_level_dir="/test",
+            index_name="captures-drf",
+        )
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
+        )
+        data = {"start_time": "1000", "end_time": "5000"}
+
+        with patch(
+            "sds_gateway.users.views.send_item_files_email"
+        ) as mock_send_task:
+            mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
+            response = client.post(url, data)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        result = response.json()
+        assert result["success"] is True
+        assert "download request accepted" in result["message"].lower()
+        mock_send_task.delay.assert_called_once()
+        call_kwargs = mock_send_task.delay.call_args[1]
+        assert call_kwargs["start_time"] == 1000
+        assert call_kwargs["end_time"] == 5000
+
+    def test_unified_download_capture_without_time_filter(
+        self, client: Client, owner: User
+    ) -> None:
+        """Test capture download without start_time/end_time passes None to task."""
+        capture = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test DRF Capture",
+            owner=owner,
+            capture_type="drf",
+            top_level_dir="/test",
+            index_name="captures-drf",
+        )
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
+        )
+
+        with patch(
+            "sds_gateway.users.views.send_item_files_email"
+        ) as mock_send_task:
+            mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
+            response = client.post(url)
+
+        assert response.status_code == status.HTTP_202_ACCEPTED
+        mock_send_task.delay.assert_called_once()
+        call_kwargs = mock_send_task.delay.call_args[1]
+        assert call_kwargs.get("start_time") is None
+        assert call_kwargs.get("end_time") is None
+
+    def test_unified_download_capture_invalid_time_range(
+        self, client: Client, owner: User
+    ) -> None:
+        """Test capture download with start_time >= end_time returns 400."""
+        capture = Capture.objects.create(
+            uuid=uuid.uuid4(),
+            name="Test DRF Capture",
+            owner=owner,
+            capture_type="drf",
+            top_level_dir="/test",
+            index_name="captures-drf",
+        )
+        client.force_login(owner)
+        url = reverse(
+            "users:download_item",
+            kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
+        )
+        data = {"start_time": "5000", "end_time": "1000"}
+
+        response = client.post(url, data)
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        result = response.json()
+        assert result["success"] is False
+        assert "start_time" in result["message"].lower() or "time range" in result["message"].lower()

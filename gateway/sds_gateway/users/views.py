@@ -3300,6 +3300,35 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
 
 
+def _parse_optional_time(raw_value: str | None, param_name: str) -> tuple[int | None, JsonResponse | None]:
+    """Parse optional start/end time. Returns (value, None) or (None, error_response)."""
+    if raw_value in (None, ""):
+        return None, None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None, JsonResponse(
+            {"success": False, "message": f"Invalid {param_name}; it must be an integer value."},
+            status=400,
+        )
+    if value < 0:
+        return None, JsonResponse(
+            {"success": False, "message": f"Invalid {param_name}; it must be greater than or equal to 0."},
+            status=400,
+        )
+    return value, None
+
+
+def _validate_time_range(start_time: int | None, end_time: int | None) -> JsonResponse | None:
+    """Return 400 JsonResponse if both provided and start >= end; else None."""
+    if start_time is not None and end_time is not None and start_time >= end_time:
+        return JsonResponse(
+            {"success": False, "message": "Invalid time range; start_time must be less than end_time."},
+            status=400,
+        )
+    return None
+
+
 class DownloadItemView(Auth0LoginRequiredMixin, View):
     """
     Unified view to handle item download requests for both datasets and captures.
@@ -3333,13 +3362,19 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
         Returns:
             A JSON response containing the download status
         """
-        # optional start and end times for temporal filtering
-        start_time = request.POST.get("start_time") or None
-        end_time = request.POST.get("end_time") or None
-        if start_time is not None:
-            start_time = int(start_time)
-        if end_time is not None:
-            end_time = int(end_time)
+        # Optional start and end times for temporal filtering
+        raw_start_time = request.POST.get("start_time")
+        raw_end_time = request.POST.get("end_time")
+
+        start_time, err = _parse_optional_time(raw_start_time, "start_time")
+        if err is not None:
+            return err
+        end_time, err = _parse_optional_time(raw_end_time, "end_time")
+        if err is not None:
+            return err
+        err = _validate_time_range(start_time, end_time)
+        if err is not None:
+            return err
 
         # Validate item type
         if item_type not in self.ITEM_MODELS:

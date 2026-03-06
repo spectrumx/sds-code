@@ -2,6 +2,7 @@ import re
 
 from django.db.models import QuerySet
 
+from opensearchpy.exceptions import NotFoundError as OpenSearchNotFoundError
 from sds_gateway.api_methods.models import CaptureType, Capture, File
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
@@ -45,11 +46,6 @@ def _catch_capture_type_error(capture_type: CaptureType) -> None:
         raise ValueError(msg)
 
 
-def _parse_drf_rf_timestamp(file_name: str) -> int | None:
-    """Extract timestamp in ms from a Digital RF data filename (alias for drf_rf_filename_to_ms)."""
-    return drf_rf_filename_to_ms(file_name)
-
-
 def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[int, int]:
     """Get start and end bounds for capture from opensearch."""
     
@@ -60,22 +56,20 @@ def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[in
 
     try:
         response = client.get(index=index, id=capture_uuid)
-    except Exception as e:
-        if getattr(e, "status_code", None) == 404 or (hasattr(e, "info") and e.info.get("status") == 404):
-            raise ValueError(
-                f"Capture {capture_uuid} not found in OpenSearch index {index}"
-            ) from e
-        raise
+    except OpenSearchNotFoundError as e:
+        raise ValueError(
+            f"Capture {capture_uuid} not found in OpenSearch index {index}"
+        ) from e
 
     if not response.get("found"):
         raise ValueError(
             f"Capture {capture_uuid} not found in OpenSearch index {index}"
         )
 
-    source = response["_source"]
-    search_props = source["search_props"]
-    start_time = search_props["start_time"]
-    end_time = search_props["end_time"]
+    source = response.get("_source", {})
+    search_props = source.get("search_props", {})
+    start_time = search_props.get("start_time", 0)
+    end_time = search_props.get("end_time", 0)
     return start_time, end_time
 
 
@@ -111,18 +105,6 @@ def get_file_cadence(capture_type: CaptureType, capture: Capture) -> int:
     return max(1, int(duration_ms / count))
 
 
-def get_duration_bounds(capture_type: CaptureType, capture_uuid: str, relative_time: int) -> tuple[int, int]:
-    """Return (0, length_of_capture_ms). OpenSearch bounds are in seconds."""
-    try:
-        start_time, end_time = get_capture_bounds(capture_type, capture_uuid)
-    except ValueError as e:
-        log.error(e)
-        raise e
-
-    length_of_capture_ms = (end_time - start_time) * 1000
-    return 0, length_of_capture_ms
-
-
 def filter_capture_data_files_selection_bounds(
     capture_type: CaptureType,
     capture: Capture,
@@ -131,7 +113,7 @@ def filter_capture_data_files_selection_bounds(
 ) -> QuerySet[File]:
     """Filter the capture file selection bounds to the given start and end times."""
     _catch_capture_type_error(capture_type)
-    epoch_start_sec, _ = get_capture_bounds(capture_type, capture.uuid)
+    epoch_start_sec, _ = get_capture_bounds(capture_type, str(capture.uuid))
     epoch_start_ms = epoch_start_sec * 1000
     start_ms = epoch_start_ms + start_time
     end_ms = epoch_start_ms + end_time
@@ -148,8 +130,8 @@ def filter_capture_data_files_selection_bounds(
 def get_capture_files_with_temporal_filter(
     capture_type: CaptureType,
     capture: Capture,
-    start_time: int | None = None, # milliseconds since epoch (start of capture)
-    end_time: int | None = None, # milliseconds since epoch
+    start_time: int | None = None, # milliseconds since start of capture
+    end_time: int | None = None,
 ) -> QuerySet[File]:
     """Get the capture files with temporal filtering."""
     _catch_capture_type_error(capture_type)

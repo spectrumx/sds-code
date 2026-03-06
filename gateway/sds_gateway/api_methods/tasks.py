@@ -1301,7 +1301,7 @@ def _get_item_files(
         files_queryset = get_dataset_files_including_captures(
             item, include_deleted=False
         )
-        files = list(files_queryset)  # Convert to list before len() to avoid SQL issues
+        files = list(files_queryset)
         log.info(f"Found {len(files)} files for dataset {item.uuid}")
         return files
 
@@ -1327,8 +1327,9 @@ def _get_item_files(
                 include_deleted=False,
             )
 
+        files = list(files)
         log.info(f"Found {len(files)} files for capture {item.uuid}")
-        return list(files)
+        return files
 
     log.warning(f"Unknown item type: {item_type}")
     return []
