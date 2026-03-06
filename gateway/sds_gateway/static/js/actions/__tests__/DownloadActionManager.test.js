@@ -352,6 +352,103 @@ describe("DownloadActionManager", () => {
 		});
 	});
 
+	describe("initializeCaptureDownloadSlider", () => {
+		let mockSliderEl;
+		let mockNoUiSliderCreate;
+		let mockSliderInstance;
+
+		beforeEach(() => {
+			downloadManager = new DownloadActionManager({
+				permissions: mockPermissions,
+			});
+			mockSliderInstance = {
+				on: jest.fn(),
+				destroy: jest.fn(),
+				set: jest.fn(),
+			};
+			mockSliderEl = {
+				noUiSlider: null,
+				dataset: {},
+			};
+			mockNoUiSliderCreate = jest.fn(() => {
+				mockSliderEl.noUiSlider = mockSliderInstance;
+			});
+		});
+
+		test("should return early when temporalFilterSlider element is missing", () => {
+			document.getElementById = jest.fn((id) => {
+				if (id === "temporalFilterSlider") return null;
+				return {};
+			});
+			global.noUiSlider = { create: mockNoUiSliderCreate };
+
+			expect(() => {
+				downloadManager.initializeCaptureDownloadSlider(10000, 1000, {});
+			}).not.toThrow();
+			expect(mockNoUiSliderCreate).not.toHaveBeenCalled();
+		});
+
+		test("should return early when noUiSlider is undefined", () => {
+			const originalNoUiSlider = global.noUiSlider;
+			global.noUiSlider = undefined;
+			document.getElementById = jest.fn((id) => {
+				if (id === "temporalFilterSlider") return mockSliderEl;
+				return {};
+			});
+
+			expect(() => {
+				downloadManager.initializeCaptureDownloadSlider(10000, 1000, {});
+			}).not.toThrow();
+
+			global.noUiSlider = originalNoUiSlider;
+		});
+
+		test("should create slider and set modal dataset and range hint when slider and noUiSlider exist", () => {
+			const rangeHintEl = { textContent: "" };
+			const webDownloadModal = { dataset: {} };
+			document.getElementById = jest.fn((id) => {
+				if (id === "temporalFilterSlider") return mockSliderEl;
+				if (id === "temporalRangeHint") return rangeHintEl;
+				if (id === "webDownloadModal") return webDownloadModal;
+				return { textContent: "", value: "", dataset: {}, classList: { add: jest.fn(), remove: jest.fn() }, disabled: false };
+			});
+			global.noUiSlider = { create: mockNoUiSliderCreate };
+
+			downloadManager.initializeCaptureDownloadSlider(5000, 500, {
+				dataFilesCount: 10,
+				totalFilesCount: 12,
+				totalSize: 1000000,
+			});
+
+			expect(mockNoUiSliderCreate).toHaveBeenCalledWith(
+				mockSliderEl,
+				expect.objectContaining({
+					start: [0, 5000],
+					connect: true,
+					step: 500,
+					range: { min: 0, max: 5000 },
+				})
+			);
+			expect(webDownloadModal.dataset.durationMs).toBe("5000");
+			expect(webDownloadModal.dataset.fileCadenceMs).toBe("500");
+			expect(rangeHintEl.textContent).toBe("0 – 5000 ms");
+		});
+
+		test("should not create slider when durationMs is 0", () => {
+			const rangeHintEl = { textContent: "" };
+			document.getElementById = jest.fn((id) => {
+				if (id === "temporalFilterSlider") return mockSliderEl;
+				if (id === "temporalRangeHint") return rangeHintEl;
+				return {};
+			});
+			global.noUiSlider = { create: mockNoUiSliderCreate };
+
+			downloadManager.initializeCaptureDownloadSlider(0, 1000, {});
+
+			expect(mockNoUiSliderCreate).not.toHaveBeenCalled();
+		});
+	});
+
 	describe("Web Download Modal", () => {
 		beforeEach(() => {
 			downloadManager = new DownloadActionManager({

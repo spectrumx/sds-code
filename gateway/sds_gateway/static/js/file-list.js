@@ -716,6 +716,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			perDataFileSize: capture.per_data_file_size ?? 0,
 			totalSize: capture.total_file_size ?? 0,
 			dataFilesCount: capture.data_files_count ?? 0,
+			dataFilesTotalSize: capture.data_files_total_size ?? 0,
 			totalFilesCount: capture.files.length ?? 0,
 			captureStartEpochSec: capture.capture_start_epoch_sec ?? 0,
 		};
@@ -848,6 +849,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 										data-per-data-file-size="${safeData.perDataFileSize}"
 										data-total-size="${safeData.totalSize}"
 										data-data-files-count="${safeData.dataFilesCount}"
+										data-data-files-total-size="${safeData.dataFilesTotalSize}"
 										data-total-files-count="${safeData.totalFilesCount}"
 										data-capture-start-epoch-sec="${safeData.captureStartEpochSec}">
 									Download
