@@ -576,6 +576,24 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	}
 
 	/**
+	 * Use web download modal (with temporal slider) when DownloadActionManager is available.
+	 */
+	handleDownloadCapture(button) {
+		if (window.currentDownloadManager && document.getElementById("webDownloadModal")) {
+			const captureUuid = button.getAttribute("data-capture-uuid");
+			const captureName = button.getAttribute("data-capture-name") || captureUuid;
+			if (captureUuid) {
+				window.currentDownloadManager.handleCaptureDownload(
+					captureUuid,
+					captureName,
+					button,
+				);
+			}
+			return;
+		}
+	}
+
+	/**
 	 * Override showLoading to toggle button contents instead of showing separate indicator
 	 */
 	showLoading() {
