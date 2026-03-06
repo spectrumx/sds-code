@@ -576,6 +576,24 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	}
 
 	/**
+	 * Use web download modal (with temporal slider) when DownloadActionManager is available.
+	 */
+	handleDownloadCapture(button) {
+		if (window.currentDownloadManager && document.getElementById("webDownloadModal")) {
+			const captureUuid = button.getAttribute("data-capture-uuid");
+			const captureName = button.getAttribute("data-capture-name") || captureUuid;
+			if (captureUuid) {
+				window.currentDownloadManager.handleCaptureDownload(
+					captureUuid,
+					captureName,
+					button,
+				);
+			}
+			return;
+		}
+	}
+
+	/**
 	 * Override showLoading to toggle button contents instead of showing separate indicator
 	 */
 	showLoading() {
@@ -711,6 +729,14 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			centerFrequencyGhz: ComponentUtils.escapeHtml(
 				capture.center_frequency_ghz || "",
 			),
+			lengthOfCaptureMs: capture.length_of_capture_ms ?? 0,
+			fileCadenceMs: capture.file_cadence_ms ?? 1000,
+			perDataFileSize: capture.per_data_file_size ?? 0,
+			totalSize: capture.total_file_size ?? 0,
+			dataFilesCount: capture.data_files_count ?? 0,
+			dataFilesTotalSize: capture.data_files_total_size ?? 0,
+			totalFilesCount: capture.files.length ?? 0,
+			captureStartEpochSec: capture.capture_start_epoch_sec ?? 0,
 		};
 
 		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
@@ -835,7 +861,15 @@ class FileListCapturesTableManager extends CapturesTableManager {
 								<button class="dropdown-item download-capture-btn"
 										type="button"
 										data-capture-uuid="${safeData.uuid}"
-										data-capture-name="${safeData.name}">
+										data-capture-name="${safeData.name}"
+										data-length-of-capture-ms="${safeData.lengthOfCaptureMs}"
+										data-file-cadence-ms="${safeData.fileCadenceMs}"
+										data-per-data-file-size="${safeData.perDataFileSize}"
+										data-total-size="${safeData.totalSize}"
+										data-data-files-count="${safeData.dataFilesCount}"
+										data-data-files-total-size="${safeData.dataFilesTotalSize}"
+										data-total-files-count="${safeData.totalFilesCount}"
+										data-capture-start-epoch-sec="${safeData.captureStartEpochSec}">
 									Download
 								</button>
 							</li>

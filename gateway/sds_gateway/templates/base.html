@@ -19,6 +19,10 @@
               href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
         <link rel="stylesheet"
               href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+        <link rel="stylesheet"
+              href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+        <link rel="stylesheet"
+              href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css" />
         {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
@@ -42,6 +46,7 @@
             <script src="{% static 'js/core/PermissionsManager.js' %}"></script>
             <script src="{% static 'js/core/DOMUtils.js' %}"></script>
             <script src="{% static 'js/core/PageLifecycleManager.js' %}"></script>
+            <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
         {% endblock javascript %}
     </head>
     {# djlint:off H021 #}
@@ -226,6 +231,7 @@
             {# Removed JS that was hiding/showing the body #}
         {% endblock inline_javascript %}
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
         <script>
             // Initialize Django messages as Bootstrap toasts on page load
             document.addEventListener('DOMContentLoaded', function() {

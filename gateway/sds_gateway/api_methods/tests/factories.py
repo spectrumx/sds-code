@@ -15,8 +15,11 @@ from unittest.mock import patch
 from django.core.files.base import ContentFile
 from factory import Faker
 from factory import post_generation
+from factory import Sequence
 from factory.django import DjangoModelFactory
 
+from sds_gateway.api_methods.helpers.temporal_filtering import drf_rf_filename_from_ms
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
@@ -217,6 +220,53 @@ class FileFactory(DjangoModelFactory):
         else:
             # Create a simple file content
             content = b"test file content"
+            self.file = ContentFile(content, name=self.name)
+
+    class Meta:
+        model = File
+
+
+class CaptureFactory(DjangoModelFactory):
+    class Meta:
+        model = Capture
+
+    channel = Faker("word")
+    capture_type = "drf"
+    top_level_dir = Faker("file_path", depth=2).replace("/", "_")
+    owner = Faker("subfactory", factory=UserFactory)
+    name = Faker("slug")
+    index_name = "captures-drf"
+
+
+class DRFDataFileFactory(DjangoModelFactory):
+    """Factory for creating DRF data file instances for testing.
+    
+    This factory creates realistic DRF data file objects that represent files stored in the system.
+    It generates test data for file metadata and creates a Django ContentFile for the actual file content.
+    
+    The factory creates files with realistic metadata including size, checksums, and proper file extensions.
+    It also handles the creation of the Django file field with test content.
+    """
+
+    uuid = Faker("uuid4")
+    directory = f"/files/{self.owner.email}/{self.capture.top_level_dir}/"
+    name = Sequence(lambda n: drf_rf_filename_from_ms(1000 + n * 1000))
+    media_type = "application/x-hdf5"
+    permissions = "rw-r----"
+    size = Faker("random_int", min=1000, max=1000000)
+    sum_blake3 = Faker("sha256")
+    owner = Faker("subfactory", factory=UserFactory)
+    capture = Faker("subfactory", factory=CaptureFactory)
+    is_deleted = False
+
+    @post_generation
+    def file(self, create, extracted, **kwargs):
+        if not create:
+            return
+        if extracted:
+            self.file = extracted
+        else:
+            content = b"test drf file content"
             self.file = ContentFile(content, name=self.name)
 
     class Meta:

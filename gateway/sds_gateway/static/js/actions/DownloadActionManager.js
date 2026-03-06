@@ -2,6 +2,81 @@
  * Download Action Manager
  * Handles all download-related actions
  */
+
+function msToHms(ms) {
+	const n = Number(ms);
+	if (!Number.isFinite(n) || n < 0) return "0:00:00.000";
+	const totalSec = Math.floor(n / 1000);
+	const h = Math.floor(totalSec / 3600);
+	const m = Math.floor((totalSec % 3600) / 60);
+	const s = totalSec % 60;
+	const decimalMs = n % 1000;
+	const hms = [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
+	return hms + "." + String(decimalMs).padStart(3, "0");
+}
+
+function formatBytes(bytes) {
+	const n = Number(bytes);
+	if (!Number.isFinite(n) || n < 0) return "0 bytes";
+	if (n === 0) return "0 bytes";
+	const units = ["bytes", "KB", "MB", "GB"];
+	let i = 0;
+	let v = n;
+	while (v >= 1024 && i < units.length - 1) {
+		v /= 1024;
+		i++;
+	}
+	return (i === 0 ? v : v.toFixed(2)) + " " + units[i];
+}
+
+function formatUtcRange(startEpochSec, startMs, endMs) {
+	if (!Number.isFinite(startEpochSec)) return "—";
+	const startDate = new Date(startEpochSec * 1000 + startMs);
+	const endDate = new Date(startEpochSec * 1000 + endMs);
+	const pad2 = (x) => String(x).padStart(2, "0");
+	const fmt = (d) =>
+		pad2(d.getUTCHours()) +
+		":" +
+		pad2(d.getUTCMinutes()) +
+		":" +
+		pad2(d.getUTCSeconds()) +
+		" " +
+		pad2(d.getUTCMonth() + 1) +
+		"/" +
+		pad2(d.getUTCDate()) +
+		"/" +
+		d.getUTCFullYear();
+	return fmt(startDate) + " - " + fmt(endDate) + " (UTC)";
+}
+
+/** Format ms from capture start as UTC string for display (Y-m-d H:i:s). */
+function msToUtcString(captureStartEpochSec, ms) {
+	if (!Number.isFinite(captureStartEpochSec) || !Number.isFinite(ms)) return "";
+	const d = new Date(captureStartEpochSec * 1000 + ms);
+	const pad2 = (x) => String(x).padStart(2, "0");
+	return (
+		d.getUTCFullYear() +
+		"-" +
+		pad2(d.getUTCMonth() + 1) +
+		"-" +
+		pad2(d.getUTCDate()) +
+		" " +
+		pad2(d.getUTCHours()) +
+		":" +
+		pad2(d.getUTCMinutes()) +
+		":" +
+		pad2(d.getUTCSeconds())
+	);
+}
+
+/** Parse UTC date string (Y-m-d H:i:s or Y-m-d H:i) to epoch ms. */
+function parseUtcStringToEpochMs(str) {
+	if (!str || !str.trim()) return NaN;
+	const s = str.trim();
+	const d = new Date(s.endsWith("Z") ? s : s.replace(" ", "T") + "Z");
+	return Number.isFinite(d.getTime()) ? d.getTime() : NaN;
+}
+
 class DownloadActionManager {
 	/**
 	 * Initialize download action manager
@@ -21,6 +96,9 @@ class DownloadActionManager {
 
 		// Initialize download buttons for captures
 		this.initializeCaptureDownloadButtons();
+
+		// Web download modal (dataset + capture)
+		this.initializeWebDownloadModal();
 	}
 
 	/**
@@ -87,6 +165,391 @@ class DownloadActionManager {
 				this.handleCaptureDownload(captureUuid, captureName, button);
 			});
 		}
+	}
+
+	/**
+	 * Initialize web download modal: confirm button click and modal hidden handler.
+	 * Exposes showWebDownloadModal on window for template callbacks.
+	 */
+	initializeWebDownloadModal() {
+		const webDownloadModal = document.getElementById("webDownloadModal");
+		const confirmWebDownloadBtn = document.getElementById("confirmWebDownloadBtn");
+		if (!webDownloadModal || !confirmWebDownloadBtn) return;
+
+		confirmWebDownloadBtn.addEventListener("click", () => {
+			const itemType = confirmWebDownloadBtn.dataset.itemType || "dataset";
+			const uuid = confirmWebDownloadBtn.dataset.itemUuid || confirmWebDownloadBtn.dataset.datasetUuid;
+
+			if (!uuid) return;
+
+			const startTimeInput = document.getElementById("startTime");
+			const endTimeInput = document.getElementById("endTime");
+			const startEntry = document.getElementById("startTimeEntry");
+			const endEntry = document.getElementById("endTimeEntry");
+			const modalEl = document.getElementById("webDownloadModal");
+
+			if (startEntry && endEntry && modalEl && modalEl.dataset.durationMs) {
+				const entryStart = startEntry.value.trim();
+				const entryEnd = endEntry.value.trim();
+				if (entryStart !== "" || entryEnd !== "") {
+					const durationMs = parseInt(modalEl.dataset.durationMs, 10);
+					const startMs = entryStart === "" ? 0 : parseInt(entryStart, 10);
+					const endMs = entryEnd === "" ? durationMs : parseInt(entryEnd, 10);
+					if (
+						!Number.isFinite(startMs) ||
+						!Number.isFinite(endMs) ||
+						startMs < 0 ||
+						endMs > durationMs ||
+						startMs >= endMs
+					) {
+						this.showToast(
+							"Please enter valid start/end times (0 ≤ start < end ≤ " + durationMs + " ms).",
+							"warning",
+						);
+						return;
+					}
+					if (startTimeInput) startTimeInput.value = String(startMs);
+					if (endTimeInput) endTimeInput.value = String(endMs);
+				}
+			}
+
+			const labels = this.getWebDownloadModalLabels(itemType);
+			confirmWebDownloadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
+			confirmWebDownloadBtn.disabled = true;
+
+			const url = "/users/download-item/" + itemType + "/" + uuid + "/";
+			const headers = {
+				"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")?.value,
+			};
+			let body = null;
+			if (startTimeInput && endTimeInput && startTimeInput.value && endTimeInput.value) {
+				headers["Content-Type"] = "application/x-www-form-urlencoded";
+				body = new URLSearchParams({
+					start_time: startTimeInput.value,
+					end_time: endTimeInput.value,
+				});
+			} else {
+				headers["Content-Type"] = "application/json";
+			}
+
+			fetch(url, { method: "POST", headers, body })
+				.then((response) => {
+					const contentType = response.headers.get("content-type");
+					if (contentType && contentType.includes("application/json")) {
+						return response.json();
+					}
+					return response.text().then((text) => {
+						throw new Error("Server returned non-JSON response: " + text);
+					});
+				})
+				.then((data) => {
+					if (data.success === true) {
+						this.showToast(
+							data.message ||
+								"Download request submitted successfully! You will receive an email when ready.",
+							"success",
+						);
+						const modal = bootstrap.Modal.getInstance(webDownloadModal);
+						if (modal) modal.hide();
+					} else {
+						this.showToast(
+							"Error requesting download: " + (data.message || "Unknown error"),
+							"danger",
+						);
+					}
+				})
+				.catch((error) => {
+					console.error("Download error:", error);
+					this.showToast(
+						error.message || "An error occurred while processing your request.",
+						"danger",
+					);
+				})
+				.finally(() => {
+					confirmWebDownloadBtn.innerHTML =
+						'<i class="bi bi-download"></i> ' + labels.confirmText;
+					confirmWebDownloadBtn.disabled = false;
+				});
+		});
+
+		webDownloadModal.addEventListener("hidden.bs.modal", () => {
+			confirmWebDownloadBtn.dataset.itemType = "";
+			confirmWebDownloadBtn.dataset.itemUuid = "";
+			confirmWebDownloadBtn.dataset.itemName = "";
+			confirmWebDownloadBtn.dataset.datasetUuid = "";
+			confirmWebDownloadBtn.dataset.datasetName = "";
+			const nameEl = document.getElementById("webDownloadDatasetName");
+			if (nameEl) nameEl.textContent = "";
+		});
+
+		window.showWebDownloadModal = (a1, a2) => {
+			const options =
+				typeof a1 === "string" && a2 !== undefined
+					? { itemType: "dataset", uuid: a1, name: a2 }
+					: a1;
+			this.showWebDownloadModal(options);
+		};
+	}
+
+	/**
+	 * Open web download modal for a dataset or capture.
+	 * @param {{ itemType?: string, uuid: string, name?: string }} options - itemType 'dataset'|'capture', uuid, name
+	 */
+	showWebDownloadModal(options) {
+		const { itemType = "dataset", uuid, name } = options || {};
+		const nameEl = document.getElementById("webDownloadDatasetName");
+		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
+		const modalEl = document.getElementById("webDownloadModal");
+		const titleEl = document.getElementById("webDownloadModalLabel");
+
+		if (nameEl) nameEl.textContent = name || "";
+		if (confirmBtn) {
+			confirmBtn.dataset.itemType = itemType;
+			confirmBtn.dataset.itemUuid = uuid || "";
+			confirmBtn.dataset.itemName = name || "";
+		}
+		// Update title and button text from item type
+		const labels = this.getWebDownloadModalLabels(itemType);
+		if (titleEl && window.DOMUtils) {
+			window.DOMUtils.renderContent(titleEl, { icon: "download", text: labels.title });
+		}
+		if (confirmBtn && window.DOMUtils) {
+			window.DOMUtils.renderContent(confirmBtn, { icon: "download", text: labels.confirmText });
+		}
+		if (modalEl && window.bootstrap) {
+			new bootstrap.Modal(modalEl).show();
+		}
+	}
+
+	/**
+	 * Initialize or update the capture download temporal slider. Call before
+     * showing the modal when opening for a capture with known bounds.
+     * @param {number} durationMs - Total capture duration in milliseconds
+     * @param {number} fileCadenceMs - File cadence in milliseconds (step)
+     * @param {Object} opts - Optional: { perDataFileSize, totalSize, dataFilesCount, totalFilesCount, dataFilesTotalSize, captureUuid, captureStartEpochSec }
+     */
+	initializeCaptureDownloadSlider(durationMs, fileCadenceMs, opts) {
+		opts = opts || {};
+		var sliderEl = document.getElementById('temporalFilterSlider');
+		var rangeLabel = document.getElementById('temporalFilterRangeLabel');
+		var totalFilesLabel = document.getElementById('totalFilesLabel');
+		var metadataFilesLabel = document.getElementById('metadataFilesLabel');
+		var totalSizeLabel = document.getElementById('totalSizeLabel');
+		var dateTimeLabel = document.getElementById('dateTimeLabel');
+		var startTimeInput = document.getElementById('startTime');
+		var endTimeInput = document.getElementById('endTime');
+		var startTimeEntry = document.getElementById('startTimeEntry');
+		var endTimeEntry = document.getElementById('endTimeEntry');
+		var startDateTimeEntry = document.getElementById('startDateTimeEntry');
+		var endDateTimeEntry = document.getElementById('endDateTimeEntry');
+		var rangeHintEl = document.getElementById('temporalRangeHint');
+		var sizeWarningEl = document.getElementById('temporalFilterSizeWarning');
+		var webDownloadModal = document.getElementById('webDownloadModal');
+		if (!sliderEl || typeof noUiSlider === 'undefined') return;
+		durationMs = Number(durationMs);
+		if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
+		fileCadenceMs = Number(fileCadenceMs);
+		if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
+		var perDataFileSize = Number(opts.perDataFileSize) || 0;
+		var totalSize = Number(opts.totalSize) || 0;
+		var dataFilesCount = Number(opts.dataFilesCount) || 0;
+		var totalFilesCount = Number(opts.totalFilesCount) || 0;
+		var dataFilesTotalSize = Number(opts.dataFilesTotalSize);
+		if (!Number.isFinite(dataFilesTotalSize) || dataFilesTotalSize < 0) {
+			dataFilesTotalSize = perDataFileSize * dataFilesCount;
+		}
+		var metadataFilesTotalSize = totalSize - dataFilesTotalSize;
+		if (metadataFilesTotalSize < 0) metadataFilesTotalSize = 0;
+		var metadataFilesCount = Math.max(0, totalFilesCount - dataFilesCount);
+		var captureUuid = opts.captureUuid != null ? String(opts.captureUuid) : '';
+		var captureStartEpochSec = Number(opts.captureStartEpochSec);
+		if (totalSize > 0 && dataFilesTotalSize > totalSize) {
+			console.warn(
+				'[DownloadActionManager] data files total size exceeds total size (backend/query inconsistency).',
+				{ captureUuid: captureUuid || '(unknown)', totalSize, dataFilesTotalSize, perDataFileSize, dataFilesCount }
+			);
+			if (sizeWarningEl) {
+				sizeWarningEl.classList.remove('d-none');
+			}
+			dataFilesTotalSize = totalSize;
+			metadataFilesTotalSize = 0;
+		} else if (sizeWarningEl) {
+			sizeWarningEl.classList.add('d-none');
+		}
+		if (webDownloadModal) {
+			webDownloadModal.dataset.durationMs = String(Math.round(durationMs));
+			webDownloadModal.dataset.fileCadenceMs = String(fileCadenceMs);
+			webDownloadModal.dataset.captureStartEpochSec = Number.isFinite(captureStartEpochSec) ? String(captureStartEpochSec) : '';
+		}
+		if (rangeHintEl) rangeHintEl.textContent = '0 – ' + Math.round(durationMs) + ' ms';
+		if (sliderEl.noUiSlider) {
+			sliderEl.noUiSlider.destroy();
+		}
+		if (rangeLabel) rangeLabel.textContent = '—';
+		if (totalFilesLabel) totalFilesLabel.textContent = '0 files';
+		if (totalSizeLabel) totalSizeLabel.textContent = formatBytes(totalSize);
+		if (dateTimeLabel) dateTimeLabel.textContent = '—';
+		if (startTimeInput) startTimeInput.value = '';
+		if (endTimeInput) endTimeInput.value = '';
+		if (startTimeEntry) startTimeEntry.value = '';
+		if (endTimeEntry) endTimeEntry.value = '';
+		var hasEpoch = Number.isFinite(captureStartEpochSec);
+		if (startDateTimeEntry) {
+			startDateTimeEntry.value = '';
+			startDateTimeEntry.disabled = !hasEpoch;
+		}
+		if (endDateTimeEntry) {
+			endDateTimeEntry.value = '';
+			endDateTimeEntry.disabled = !hasEpoch;
+		}
+		if (durationMs <= 0) return;
+		var fpStart = null, fpEnd = null;
+		var epochStart = captureStartEpochSec * 1000;
+		var epochEnd = epochStart + durationMs;
+		if (hasEpoch && typeof flatpickr !== 'undefined' && startDateTimeEntry && endDateTimeEntry) {
+			var fpOpts = {
+				enableTime: true,
+				enableSeconds: true,
+				utc: true,
+				dateFormat: 'Y-m-d H:i:S',
+				time_24hr: true,
+				minDate: epochStart,
+				maxDate: epochEnd,
+				allowInput: true,
+				static: true,
+				appendTo: webDownloadModal || undefined,
+			};
+			flatpickr(startDateTimeEntry, Object.assign({}, fpOpts, {
+				onChange: function() { syncFromDateTimeEntries(); }
+			}));
+			flatpickr(endDateTimeEntry, Object.assign({}, fpOpts, {
+				onChange: function() { syncFromDateTimeEntries(); }
+			}));
+			fpStart = startDateTimeEntry._flatpickr;
+			fpEnd = endDateTimeEntry._flatpickr;
+			startDateTimeEntry.disabled = false;
+			endDateTimeEntry.disabled = false;
+		}
+		noUiSlider.create(sliderEl, {
+			start: [0, durationMs],
+			connect: true,
+			step: fileCadenceMs,
+			range: { min: 0, max: durationMs },
+		});
+		sliderEl.noUiSlider.on('update', function(values) {
+			var startMs = Number(values[0]);
+			var endMs = Number(values[1]);
+			// the + 1 is to include the first file in the selection
+			// as file cadence is the time between files, not the time of the file
+			var filesInSelection = Math.round((endMs - startMs) / fileCadenceMs) + 1;
+			if (rangeLabel) {
+				rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
+			}
+			if (totalFilesLabel) {
+				totalFilesLabel.textContent = dataFilesCount > 0
+					? filesInSelection + ' of ' + dataFilesCount + ' files'
+					: filesInSelection + ' files';
+			}
+			if (totalSizeLabel) {
+				totalSizeLabel.textContent = formatBytes(
+					(perDataFileSize * filesInSelection) + metadataFilesTotalSize
+				);
+			}
+			if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
+				dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, startMs, endMs);
+			}
+			if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
+			if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
+			if (startTimeEntry) startTimeEntry.value = String(Math.round(startMs));
+			if (endTimeEntry) endTimeEntry.value = String(Math.round(endMs));
+			if (hasEpoch) {
+				if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart + startMs);
+				else if (startDateTimeEntry) startDateTimeEntry.value = msToUtcString(captureStartEpochSec, startMs);
+				if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochStart + endMs);
+				else if (endDateTimeEntry) endDateTimeEntry.value = msToUtcString(captureStartEpochSec, endMs);
+			}
+		});
+		if (rangeLabel) {
+			rangeLabel.textContent = '0:00:00.000 - ' + msToHms(durationMs);
+		}
+		if (totalFilesLabel) {
+			totalFilesLabel.textContent = dataFilesCount > 0
+				? dataFilesCount + ' files'
+				: '0 files';
+		}
+		if (metadataFilesLabel) {
+			metadataFilesLabel.textContent = metadataFilesCount > 0
+				? metadataFilesCount + ' files'
+				: '0 files';
+		}
+		if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
+			dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, 0, durationMs);
+		}
+		var startVal = '0';
+		var endVal = String(durationMs);
+		if (startTimeInput) startTimeInput.value = startVal;
+		if (endTimeInput) endTimeInput.value = endVal;
+		if (startTimeEntry) startTimeEntry.value = startVal;
+		if (endTimeEntry) endTimeEntry.value = endVal;
+		if (hasEpoch && startDateTimeEntry && endDateTimeEntry) {
+			if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart);
+			else startDateTimeEntry.value = msToUtcString(captureStartEpochSec, 0);
+			if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochEnd);
+			else endDateTimeEntry.value = msToUtcString(captureStartEpochSec, durationMs);
+			if (!fpStart) { startDateTimeEntry.disabled = false; endDateTimeEntry.disabled = false; }
+		}
+
+		function syncSliderFromEntries() {
+			if (!sliderEl.noUiSlider || !startTimeEntry || !endTimeEntry) return;
+			var s = startTimeEntry.value.trim();
+			var e = endTimeEntry.value.trim();
+			var startMs = s === '' ? 0 : parseInt(s, 10);
+			var endMs = e === '' ? durationMs : parseInt(e, 10);
+			if (!Number.isFinite(startMs)) startMs = 0;
+			if (!Number.isFinite(endMs)) endMs = durationMs;
+			startMs = Math.max(0, Math.min(startMs, durationMs));
+			endMs = Math.max(0, Math.min(endMs, durationMs));
+			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			sliderEl.noUiSlider.set([startMs, endMs]);
+		}
+		function syncFromDateTimeEntries() {
+			if (!hasEpoch || !sliderEl.noUiSlider || !startDateTimeEntry || !endDateTimeEntry) return;
+			var startMs, endMs;
+			if (startDateTimeEntry._flatpickr && endDateTimeEntry._flatpickr) {
+				var dStart = startDateTimeEntry._flatpickr.selectedDates[0];
+				var dEnd = endDateTimeEntry._flatpickr.selectedDates[0];
+				startMs = dStart ? dStart.getTime() - epochStart : 0;
+				endMs = dEnd ? dEnd.getTime() - epochStart : durationMs;
+			} else {
+				startMs = parseUtcStringToEpochMs(startDateTimeEntry.value) - epochStart;
+				endMs = parseUtcStringToEpochMs(endDateTimeEntry.value) - epochStart;
+			}
+			if (Number.isNaN(startMs) || Number.isNaN(endMs)) return;
+			startMs = Math.max(0, Math.min(startMs, durationMs));
+			endMs = Math.max(0, Math.min(endMs, durationMs));
+			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			var cur = sliderEl.noUiSlider.get();
+			if (Math.round(Number(cur[0])) === Math.round(startMs) && Math.round(Number(cur[1])) === Math.round(endMs)) return;
+			sliderEl.noUiSlider.set([startMs, endMs]);
+		}
+		if (startTimeEntry) startTimeEntry.addEventListener('change', syncSliderFromEntries);
+		if (endTimeEntry) endTimeEntry.addEventListener('change', syncSliderFromEntries);
+		if (startDateTimeEntry && !startDateTimeEntry._flatpickr) startDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
+		if (endDateTimeEntry && !endDateTimeEntry._flatpickr) endDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
+	}
+
+	/**
+	 * Labels for web download modal by item type (dataset vs capture).
+	 * @param {string} itemType - 'dataset' or 'capture'
+	 * @returns {{ title: string, confirmText: string }}
+	 */
+	getWebDownloadModalLabels(itemType) {
+		const t = (itemType || "dataset").toLowerCase();
+		return {
+			title: t === "capture" ? "Download Capture" : "Download Dataset",
+			confirmText:
+				t === "capture" ? "Yes, Download Capture" : "Yes, Download Dataset",
+		};
 	}
 
 	/**
@@ -188,7 +651,7 @@ class DownloadActionManager {
 			return;
 		}
 
-		// Update modal content for capture
+		const labels = this.getWebDownloadModalLabels("capture");
 		const modalTitleElement = document.getElementById("webDownloadModalLabel");
 		const modalNameElement = document.getElementById("webDownloadDatasetName");
 		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
@@ -196,7 +659,7 @@ class DownloadActionManager {
 		if (modalTitleElement) {
 			await window.DOMUtils.renderContent(modalTitleElement, {
 				icon: "download",
-				text: "Download Capture",
+				text: labels.title,
 			});
 		}
 
@@ -205,38 +668,41 @@ class DownloadActionManager {
 		}
 
 		if (confirmBtn) {
-			// Update button text for capture
 			await window.DOMUtils.renderContent(confirmBtn, {
 				icon: "download",
-				text: "Yes, Download Capture",
+				text: labels.confirmText,
 			});
-
-			// Update the dataset UUID to capture UUID for the API call
-			confirmBtn.dataset.datasetUuid = captureUuid;
-			confirmBtn.dataset.datasetName = captureName;
-
-			// Override the API endpoint for captures by temporarily modifying the fetch URL
-			const originalFetch = window.fetch;
-			window.fetch = (url, options) => {
-				const modifiedUrl = url.includes(
-					`/users/download-item/dataset/${captureUuid}/`,
-				)
-					? `/users/download-item/capture/${captureUuid}/`
-					: url;
-				return originalFetch(modifiedUrl, options);
-			};
-
-			// Restore fetch after modal is hidden
-			const modal = document.getElementById("webDownloadModal");
-			const restoreFetch = () => {
-				window.fetch = originalFetch;
-				modal.removeEventListener("hidden.bs.modal", restoreFetch);
-			};
-			modal.addEventListener("hidden.bs.modal", restoreFetch);
+			confirmBtn.dataset.itemType = "capture";
+			confirmBtn.dataset.itemUuid = captureUuid;
+			confirmBtn.dataset.itemName = captureName || "Unnamed Capture";
 		}
 
+		// Initialize temporal slider from button data attributes (clears or builds slider)
+		const durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
+		const fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
+		const perDataFileSize = parseFloat(button.getAttribute("data-per-data-file-size"), 10);
+		const totalSize = parseInt(button.getAttribute("data-total-size"), 10);
+		const dataFilesCount = parseInt(button.getAttribute("data-data-files-count"), 10);
+		const totalFilesCount = parseInt(button.getAttribute("data-total-files-count"), 10);
+		const dataFilesTotalSizeRaw = button.getAttribute("data-data-files-total-size");
+		const dataFilesTotalSize = dataFilesTotalSizeRaw !== null && dataFilesTotalSizeRaw !== '' ? parseInt(dataFilesTotalSizeRaw, 10) : NaN;
+		const captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
+		this.initializeCaptureDownloadSlider(
+			Number.isNaN(durationMs) ? 0 : durationMs,
+			Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
+			{
+				perDataFileSize: Number.isNaN(perDataFileSize) ? 0 : perDataFileSize,
+				totalSize: Number.isNaN(totalSize) ? 0 : totalSize,
+				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
+				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
+				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize) ? undefined : dataFilesTotalSize,
+				captureUuid: captureUuid || undefined,
+				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
+			},
+		);
+
 		// Show the modal
-		window.showWebDownloadModal(captureUuid, captureName);
+		this.openCustomModal("webDownloadModal");
 	}
 
 	/**
