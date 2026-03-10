@@ -363,22 +363,6 @@ def get_waterfall_metadata(drf_path: Path, channel: str) -> dict[str, Any]:
 
     base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
     total_slices = base_params.total_samples // SAMPLES_PER_SLICE
-
-    # Testing override: report an artificially large number of slices when configured
-    try:
-        test_total = getattr(settings, "WATERFALL_TEST_TOTAL_SLICES", 0)
-        min_capture = getattr(settings, "WATERFALL_TEST_MIN_CAPTURE_SLICES", 1000000)
-        if test_total and total_slices >= min_capture:
-            logger.info(
-                "Overriding total_slices %d -> %d for testing (drf_path=%s)",
-                total_slices,
-                test_total,
-                drf_path,
-            )
-            total_slices = int(test_total)
-    except Exception as e:  # noqa: BLE001 - settings may be unavailable
-        logger.debug("WATERFALL_TEST_* settings unavailable: %s", e)
-
     return _build_metadata(base_params, total_slices, 0)
 
 
