@@ -92,9 +92,5 @@ export const get_waterfall_slices_stream_endpoint = (
 };
 
 export const ERROR_MESSAGES = {
-	NO_CAPTURE: "No capture data found",
 	API_ERROR: "API request failed",
-	RENDER_ERROR: "Failed to render waterfall",
-	NO_DATA:
-		"Waterfall data not available. Please ensure post-processing is complete.",
 };

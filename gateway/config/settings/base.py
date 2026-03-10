@@ -654,13 +654,3 @@ MAX_WEB_DOWNLOAD_SIZE: int = env.int(
     "MAX_WEB_DOWNLOAD_SIZE",
     default=guess_max_web_download_size(),
 )
-
-# Testing override: report a fake large number of slices for waterfall
-# visualizations when set. Useful for UI/scale testing. Set
-# WATERFALL_TEST_TOTAL_SLICES to an integer (e.g. 100000000) and optionally
-# WATERFALL_TEST_MIN_CAPTURE_SLICES to only apply the override for captures
-# with at least that many real slices (default: 1_000_000).
-WATERFALL_TEST_TOTAL_SLICES: int = env.int("WATERFALL_TEST_TOTAL_SLICES", default=0)
-WATERFALL_TEST_MIN_CAPTURE_SLICES: int = env.int(
-    "WATERFALL_TEST_MIN_CAPTURE_SLICES", default=1000000
-)

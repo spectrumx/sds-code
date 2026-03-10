@@ -7,6 +7,7 @@ import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
 import WaterfallSliceCache from "./WaterfallSliceCache.js";
 import WaterfallSliceLoader from "./WaterfallSliceLoader.js";
 import {
+	BATCH_SIZE,
 	DEFAULT_COLOR_MAP,
 	DEFAULT_SCALE_MAX,
 	DEFAULT_SCALE_MIN,
@@ -42,30 +43,31 @@ class WaterfallVisualization {
 		this.scaleMax = null;
 		this.isLoading = false;
 		this.isStreamingMode = false; // Flag to indicate streaming mode
-		this._isLoadingWindow = false; // Flag to prevent redundant loads during render
-		this._pendingRender = false; // Flag to batch renders via requestAnimationFrame
-		this._pendingWindowRender = false; // Flag to re-render after load completes
+
+		// Throttle/debounce and loading flags (internal UI state)
+		this._ui = {
+			isLoadingWindow: false,
+			pendingRender: false,
+			pendingWindowRender: false,
+			isLoadingPeriodogram: false,
+			loadingPeriodogramSlice: null,
+			lastPeriodogramTime: 0,
+			periodogramThrottleMs: 80,
+			pendingPeriodogramRender: false,
+			prefetchDebounceTimer: null,
+			prefetchDebounceMs: 120,
+			waterfallWindowDebounceTimer: null,
+			waterfallWindowDebounceMs: 150,
+		};
 
 		// Processing state
 		this.isGenerating = false;
 		this.currentJobId = null;
 		this.pollingInterval = null;
-		this._isLoadingPeriodogram = false; // Flag to prevent re-entrant periodogram loads
-		this._loadingPeriodogramSlice = null; // Track which slice is being loaded
-
-		// Throttle/debounce for smooth playback (avoid heavy work every frame)
-		this._lastPeriodogramTime = 0;
-		this._periodogramThrottleMs = 80;
-		this._pendingPeriodogramRender = false;
-		this._prefetchDebounceTimer = null;
-		this._prefetchDebounceMs = 120;
-
-		// Visualization state
 		this.currentSliceIndex = 0;
 		this.waterfallWindowStart = 0;
 		this.colorMap = DEFAULT_COLOR_MAP;
 
-		// Canvas references
 		this.canvas = null;
 		this.overlayCanvas = null;
 
@@ -142,14 +144,16 @@ class WaterfallVisualization {
 
 				if (windowChanged) {
 					this.renderWaterfall();
-					// Debounce prefetch so rapid scroll doesn't fire many requests
-					if (this._prefetchDebounceTimer) {
-						clearTimeout(this._prefetchDebounceTimer);
+					// Only prefetch when user scrolls, not during playback (avoids many API calls)
+					if (!this.controls?.isPlaying) {
+						if (this._ui.prefetchDebounceTimer) {
+							clearTimeout(this._ui.prefetchDebounceTimer);
+						}
+						this._ui.prefetchDebounceTimer = setTimeout(() => {
+							this._ui.prefetchDebounceTimer = null;
+							this.prefetchAhead();
+						}, this._ui.prefetchDebounceMs);
 					}
-					this._prefetchDebounceTimer = setTimeout(() => {
-						this._prefetchDebounceTimer = null;
-						this.prefetchAhead();
-					}, this._prefetchDebounceMs);
 				}
 
 				if (sliceChanged) {
@@ -158,9 +162,10 @@ class WaterfallVisualization {
 					const sliceInCache = this.sliceCache?.getSlice(currentSliceIndex);
 					const now = performance.now();
 					const throttleElapsed =
-						now - this._lastPeriodogramTime >= this._periodogramThrottleMs;
+						now - this._ui.lastPeriodogramTime >=
+						this._ui.periodogramThrottleMs;
 					if (sliceInCache || !this.controls?.isPlaying || throttleElapsed) {
-						if (!sliceInCache) this._lastPeriodogramTime = now;
+						if (!sliceInCache) this._ui.lastPeriodogramTime = now;
 						this.renderPeriodogram();
 					}
 					this.updateSliceHighlights();
@@ -296,52 +301,50 @@ class WaterfallVisualization {
 			}
 			if (slice?.data) {
 				// Parse if needed
-				const parsedSlice = {
-					...slice,
-					data: this.parseWaterfallData(slice.data),
-				};
-				this.periodogramChart.renderPeriodogram(parsedSlice);
+				this.periodogramChart.renderPeriodogram(this._toParsedSlice(slice));
 				// Hide loading in case it was shown
 				if (this.periodogramChart.showLoading) {
 					this.periodogramChart.showLoading(false);
 				}
 			} else {
-				// Slice not loaded yet - request it and show loading
-				// Guard against re-entrant calls to prevent loading flicker
-				// But allow if we're loading a different slice than requested
+				// Slice not loaded yet - request a full batch that includes this slice
+				// so we don't make one API call every 20 slices during playback
 				if (
-					this._isLoadingPeriodogram &&
-					this._loadingPeriodogramSlice === this.currentSliceIndex
+					this._ui.isLoadingPeriodogram &&
+					this._ui.loadingPeriodogramSlice === this.currentSliceIndex
 				) {
 					return;
 				}
-				this._isLoadingPeriodogram = true;
-				this._loadingPeriodogramSlice = this.currentSliceIndex;
+				this._ui.isLoadingPeriodogram = true;
+				this._ui.loadingPeriodogramSlice = this.currentSliceIndex;
 				const targetSliceIndex = this.currentSliceIndex;
 
 				if (this.periodogramChart.showLoading) {
 					this.periodogramChart.showLoading(true);
 				}
 				try {
-					await this.loadSliceRange(targetSliceIndex, targetSliceIndex + 1);
+					// Request a full batch (BATCH_SIZE) so one API call serves many slices
+					const batchEnd = Math.min(
+						targetSliceIndex + BATCH_SIZE,
+						this.totalSlices,
+					);
+					await this.loadSliceRange(targetSliceIndex, batchEnd);
 					// Only render if we're still on the same slice
 					if (this.currentSliceIndex === targetSliceIndex) {
 						const loadedSlice = this.sliceCache.getSlice(targetSliceIndex);
 						if (loadedSlice?.data && !loadedSlice._gap) {
-							const parsedSlice = {
-								...loadedSlice,
-								data: this.parseWaterfallData(loadedSlice.data),
-							};
-							this.periodogramChart.renderPeriodogram(parsedSlice);
+							this.periodogramChart.renderPeriodogram(
+								this._toParsedSlice(loadedSlice),
+							);
 						}
 						if (this.periodogramChart.showLoading) {
 							this.periodogramChart.showLoading(false);
 						}
 					}
 					// If slice changed during load, trigger another render
-					else if (this.currentSliceIndex !== targetSliceIndex) {
-						this._isLoadingPeriodogram = false;
-						this._loadingPeriodogramSlice = null;
+					else {
+						this._ui.isLoadingPeriodogram = false;
+						this._ui.loadingPeriodogramSlice = null;
 						this.renderPeriodogram();
 						return;
 					}
@@ -350,11 +353,9 @@ class WaterfallVisualization {
 					if (this.currentSliceIndex === targetSliceIndex) {
 						const fromCache = this.sliceCache.getSlice(targetSliceIndex);
 						if (fromCache?.data && !fromCache._gap) {
-							const parsed = {
-								...fromCache,
-								data: this.parseWaterfallData(fromCache.data),
-							};
-							this.periodogramChart.renderPeriodogram(parsed);
+							this.periodogramChart.renderPeriodogram(
+								this._toParsedSlice(fromCache),
+							);
 						} else if (!fromCache?._gap) {
 							console.warn(
 								"Failed to load slice for periodogram (network/timeout):",
@@ -366,8 +367,8 @@ class WaterfallVisualization {
 						}
 					}
 				} finally {
-					this._isLoadingPeriodogram = false;
-					this._loadingPeriodogramSlice = null;
+					this._ui.isLoadingPeriodogram = false;
+					this._ui.loadingPeriodogramSlice = null;
 				}
 			}
 		} else {
@@ -397,70 +398,30 @@ class WaterfallVisualization {
 			// Check for missing slices and load them
 			const missing = this.sliceCache.getMissingSlices(startIndex, endIndex);
 			if (missing.length > 0) {
-				// If already loading, schedule a re-render after load completes
-				if (this._isLoadingWindow) {
-					// Mark that we need a re-render after current load completes
-					this._pendingWindowRender = true;
-					// Don't render with incomplete data - wait for load to complete
-					return;
-				}
-
-				this._isLoadingWindow = true;
-
-				// Only pause playback and show full overlay when most of the window is missing
-				// (e.g. big scroll/jump). Small refills (e.g. edge prefetch) load without overlay.
 				const windowSize = endIndex - startIndex;
 				const mostlyMissing = missing.length >= windowSize / 2;
-				const wasPlaying = this.controls?.isPlaying ?? false;
+
 				if (mostlyMissing) {
-					if (wasPlaying) {
-						this.controls.stopPlayback();
+					// Jump or big scroll: load immediately so the user sees data (or loading) right away
+					if (this._ui.waterfallWindowDebounceTimer) {
+						clearTimeout(this._ui.waterfallWindowDebounceTimer);
+						this._ui.waterfallWindowDebounceTimer = null;
 					}
-					this.showLoading(true);
-				}
-
-				// Wait for missing slices to load before rendering
-				try {
-					await this.loadSliceRange(startIndex, endIndex);
-				} catch (error) {
-					console.error("Failed to load slices for waterfall:", error);
-				} finally {
-					this._isLoadingWindow = false;
-					if (mostlyMissing) {
-						this.showLoading(false);
-						if (wasPlaying) {
-							this.controls.startPlayback();
-						}
-					}
-				}
-
-				// Check if another render was requested while we were loading
-				if (this._pendingWindowRender) {
-					this._pendingWindowRender = false;
-					// Schedule re-render for the new window position
-					requestAnimationFrame(() => {
-						this.renderWaterfall();
-					});
+					this._loadWaterfallWindow();
 					return;
 				}
 
-				// Verify slices were actually loaded (load may have failed)
-				const stillMissing = this.sliceCache.getMissingSlices(
-					startIndex,
-					endIndex,
-				);
-				if (stillMissing.length > 0) {
-					// Don't render with nulls - would show "Loading..." indefinitely
-					return;
+				// Small move (e.g. slider drag): debounce to avoid an API call per slice
+				if (this._ui.waterfallWindowDebounceTimer) {
+					clearTimeout(this._ui.waterfallWindowDebounceTimer);
 				}
-
-				// Re-get slices after loading and render
-				const loadedSlices = this.sliceCache.getSliceRange(
-					startIndex,
-					endIndex,
-				);
+				this._ui.waterfallWindowDebounceTimer = setTimeout(() => {
+					this._ui.waterfallWindowDebounceTimer = null;
+					this._loadWaterfallWindow();
+				}, this._ui.waterfallWindowDebounceMs);
+				// Render what we have from cache (may show partial/loading)
 				const parsedSlices = this._parseSlicesForRender(
-					loadedSlices,
+					slices,
 					endIndex - startIndex,
 				);
 				this.waterfallRenderer.renderWaterfall(
@@ -491,6 +452,57 @@ class WaterfallVisualization {
 				this.totalSlices,
 			);
 		}
+	}
+
+	/**
+	 * Load the current waterfall window (used after debounce to limit API calls).
+	 * Loads a batch-aligned range (BATCH_SIZE) so one request serves many window positions.
+	 * @private
+	 */
+	async _loadWaterfallWindow() {
+		if (!this.isStreamingMode || !this.sliceLoader) return;
+		const startIndex = this.waterfallWindowStart;
+		const endIndex = Math.min(
+			startIndex + this.waterfallRenderer.WATERFALL_WINDOW_SIZE,
+			this.totalSlices,
+		);
+		const missing = this.sliceCache.getMissingSlices(startIndex, endIndex);
+		if (missing.length === 0) {
+			this.renderWaterfall();
+			return;
+		}
+		if (this._ui.isLoadingWindow) {
+			this._ui.pendingWindowRender = true;
+			return;
+		}
+		this._ui.isLoadingWindow = true;
+		// Load a batch-aligned range so one API call serves many window positions (e.g. 300 slices)
+		const alignStart = Math.floor(startIndex / BATCH_SIZE) * BATCH_SIZE;
+		const loadEnd = Math.min(alignStart + BATCH_SIZE, this.totalSlices);
+		const windowSize = endIndex - startIndex;
+		const mostlyMissing = missing.length >= windowSize / 2;
+		const wasPlaying = this.controls?.isPlaying ?? false;
+		if (mostlyMissing) {
+			if (wasPlaying) this.controls.stopPlayback();
+			this.showLoading(true);
+		}
+		try {
+			await this.loadSliceRange(alignStart, loadEnd);
+		} catch (error) {
+			console.error("Failed to load slices for waterfall:", error);
+		} finally {
+			this._ui.isLoadingWindow = false;
+			if (mostlyMissing) {
+				this.showLoading(false);
+				if (wasPlaying) this.controls.startPlayback();
+			}
+		}
+		if (this._ui.pendingWindowRender) {
+			this._ui.pendingWindowRender = false;
+			requestAnimationFrame(() => this.renderWaterfall());
+			return;
+		}
+		this.renderWaterfall();
 	}
 
 	/**
@@ -753,10 +765,9 @@ class WaterfallVisualization {
 		const waterfallJson = await dataResponse.json();
 		this.waterfallData = waterfallJson;
 		this.totalSlices = waterfallJson.length;
-		this.parsedWaterfallData = this.waterfallData.map((slice) => ({
-			...slice,
-			data: this.parseWaterfallData(slice.data),
-		}));
+		this.parsedWaterfallData = this.waterfallData.map((slice) =>
+			this._toParsedSlice(slice),
+		);
 		this.calculatePowerBounds();
 		this.isStreamingMode = false;
 		this.isLoading = false;
@@ -884,10 +895,8 @@ class WaterfallVisualization {
 			this.render();
 
 			// Prefetch in background so scrolling is smooth (don't block initial display)
-			const prefetchEnd = Math.min(
-				initialEnd + PREFETCH_DISTANCE,
-				this.totalSlices,
-			);
+			// Cap to one batch on load so we don't make many API calls without user scroll
+			const prefetchEnd = Math.min(initialEnd + BATCH_SIZE, this.totalSlices);
 			if (prefetchEnd > initialEnd) {
 				this.loadSliceRange(initialEnd, prefetchEnd)
 					.then(() => this.prefetchAhead())
@@ -996,11 +1005,8 @@ class WaterfallVisualization {
 			await this.calculatePowerBoundsFromSamples();
 		}
 
-		// Prefetch additional data
-		const prefetchEnd = Math.min(
-			initialEnd + PREFETCH_DISTANCE,
-			this.totalSlices,
-		);
+		// Prefetch additional data (cap to one batch on load to limit API calls)
+		const prefetchEnd = Math.min(initialEnd + BATCH_SIZE, this.totalSlices);
 		if (prefetchEnd > initialEnd) {
 			await this.loadSliceRange(initialEnd, prefetchEnd);
 		}
@@ -1165,10 +1171,9 @@ class WaterfallVisualization {
 			this.totalSlices = waterfallJson.length;
 
 			// Parse all waterfall data once and cache it
-			this.parsedWaterfallData = this.waterfallData.map((slice) => ({
-				...slice,
-				data: this.parseWaterfallData(slice.data),
-			}));
+			this.parsedWaterfallData = this.waterfallData.map((slice) =>
+				this._toParsedSlice(slice),
+			);
 
 			// Calculate power bounds from all data
 			this.calculatePowerBounds();
@@ -1240,10 +1245,10 @@ class WaterfallVisualization {
 				currentStart,
 				currentEnd,
 			);
-			if (stillMissing.length === 0 && !this._pendingRender) {
-				this._pendingRender = true;
+			if (stillMissing.length === 0 && !this._ui.pendingRender) {
+				this._ui.pendingRender = true;
 				requestAnimationFrame(() => {
-					this._pendingRender = false;
+					this._ui.pendingRender = false;
 					this.renderWaterfall();
 				});
 			}
@@ -1255,14 +1260,17 @@ class WaterfallVisualization {
 			this.currentSliceIndex < endIndex
 		) {
 			const now = performance.now();
-			if (now - this._lastPeriodogramTime >= this._periodogramThrottleMs) {
-				this._lastPeriodogramTime = now;
+			if (
+				now - this._ui.lastPeriodogramTime >=
+				this._ui.periodogramThrottleMs
+			) {
+				this._ui.lastPeriodogramTime = now;
 				this.renderPeriodogram();
-			} else if (!this._pendingPeriodogramRender) {
-				this._pendingPeriodogramRender = true;
+			} else if (!this._ui.pendingPeriodogramRender) {
+				this._ui.pendingPeriodogramRender = true;
 				requestAnimationFrame(() => {
-					this._pendingPeriodogramRender = false;
-					this._lastPeriodogramTime = performance.now();
+					this._ui.pendingPeriodogramRender = false;
+					this._ui.lastPeriodogramTime = performance.now();
 					this.renderPeriodogram();
 				});
 			}
@@ -1484,6 +1492,16 @@ class WaterfallVisualization {
 	}
 
 	/**
+	 * Return a slice with parsed .data for periodogram/legacy render.
+	 * @private
+	 * @param {Object} slice - Slice object with .data (base64)
+	 * @returns {Object} Slice with .data as parsed float array
+	 */
+	_toParsedSlice(slice) {
+		return { ...slice, data: this.parseWaterfallData(slice.data) };
+	}
+
+	/**
 	 * Parse an array of slices for rendering
 	 * @param {Array} slices - Array of slice objects (may contain nulls)
 	 * @param {number} windowSize - Expected window size
@@ -1699,11 +1717,15 @@ class WaterfallVisualization {
 		// Stop polling
 		this.stopStatusPolling();
 
-		if (this._prefetchDebounceTimer) {
-			clearTimeout(this._prefetchDebounceTimer);
-			this._prefetchDebounceTimer = null;
+		if (this._ui.prefetchDebounceTimer) {
+			clearTimeout(this._ui.prefetchDebounceTimer);
+			this._ui.prefetchDebounceTimer = null;
 		}
-		this._pendingPeriodogramRender = false;
+		if (this._ui.waterfallWindowDebounceTimer) {
+			clearTimeout(this._ui.waterfallWindowDebounceTimer);
+			this._ui.waterfallWindowDebounceTimer = null;
+		}
+		this._ui.pendingPeriodogramRender = false;
 
 		// Cleanup loader
 		if (this.sliceLoader) {

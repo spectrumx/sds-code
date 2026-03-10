@@ -149,7 +149,6 @@ describe("WaterfallSliceLoader", () => {
 		});
 
 		test("should batch large requests", async () => {
-
 			// Mock 3 API responses
 			for (let i = 0; i < 3; i++) {
 				const start = i * 100;

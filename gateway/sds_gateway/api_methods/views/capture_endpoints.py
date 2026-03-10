@@ -162,10 +162,6 @@ def _extract_waterfall_slice_range(
     total_slices: int
     if total_slices_from_metadata is not None:
         total_slices = total_slices_from_metadata
-        if start_index >= total_slices:
-            msg = f"start_index ({start_index}) exceeds total slices ({total_slices})"
-            raise ValueError(msg)
-        end_index = min(end_index, total_slices)
     else:
         # One pass to count array length (no list storage)
         count = 0
@@ -176,11 +172,12 @@ def _extract_waterfall_slice_range(
             file_handle.seek(0)
             raise
         total_slices = count
-        if start_index >= total_slices:
-            msg = f"start_index ({start_index}) exceeds total slices ({total_slices})"
-            raise ValueError(msg)
-        end_index = min(end_index, total_slices)
         file_handle.seek(0)
+
+    if start_index >= total_slices:
+        msg = f"start_index ({start_index}) exceeds total slices ({total_slices})"
+        raise ValueError(msg)
+    end_index = min(end_index, total_slices)
 
     requested_slices: list[Any] = []
     for current, item in enumerate(ijson.items(file_handle, "item")):
@@ -404,19 +401,7 @@ class CaptureViewSet(viewsets.ViewSet):
         )
 
         if not processed_data:
-            hint = ""
-            if (
-                capture.capture_type == CaptureType.DigitalRF
-                and processing_type == "waterfall"
-            ):
-                hint = (
-                    " For DigitalRF captures, streaming mode may work without "
-                    "preprocessed data; otherwise run post-processing to generate "
-                    "waterfall data."
-                )
-            else:
-                hint = " Run post-processing to generate this data."
-            msg = f"No completed {processing_type} data found for this capture.{hint}"
+            msg = f"No completed {processing_type} data found for this capture."
             raise Http404(msg)
 
         if not processed_data.data_file:
@@ -1269,13 +1254,6 @@ class CaptureViewSet(viewsets.ViewSet):
         self, request: Request, pk: str | None = None
     ) -> Response:
         """Get metadata for post-processed data."""
-        capture = get_object_or_404(
-            Capture,
-            pk=pk,
-            owner=request.user,
-            is_deleted=False,
-        )
-
         processing_type = request.query_params.get("processing_type")
 
         if not processing_type:
@@ -1284,41 +1262,16 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Get the most recent post-processed data for this capture and
-        # processing type
-        processed_data = (
-            capture.visualization_post_processed_data.filter(
-                processing_type=processing_type,
-                processing_status=ProcessingStatus.Completed.value,
+        try:
+            _, processed_data = self._get_processed_data_for_capture(
+                request, pk, processing_type
             )
-            .order_by("-created_at")
-            .first()
-        )
-
-        if not processed_data:
-            hint = ""
-            if (
-                capture.capture_type == CaptureType.DigitalRF
-                and processing_type == "waterfall"
-            ):
-                hint = (
-                    " For DigitalRF captures, streaming mode may work without "
-                    "preprocessed data; otherwise run post-processing to generate "
-                    "waterfall data."
-                )
-            else:
-                hint = " Run post-processing to generate this data."
+        except Http404 as e:
             return Response(
-                {
-                    "error": (
-                        f"No completed {processing_type} data found for this "
-                        f"capture.{hint}"
-                    )
-                },
+                {"error": str(e)},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Return the metadata
         return Response(
             {
                 "metadata": processed_data.metadata,
