@@ -15,7 +15,7 @@ def convert_version_to_integer(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api_methods', '0019_capture_datasets_file_captures_file_datasets_and_more'),
+        ("api_methods", "0020_group_owner_as_member_and_individual_share_field"),
     ]
 
     operations = [
