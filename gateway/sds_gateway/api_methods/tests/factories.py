@@ -46,7 +46,7 @@ class DatasetFactory(DjangoModelFactory):
         institutions: Fixed list ["Example University"]
         release_date: Random datetime
         repository: Random URL
-        version: Fixed value "1.0.0"
+        version: Integer number
         website: Random URL
         provenance: Fixed dict {"source": "test"}
         citation: Fixed dict {"title": "Test Dataset"}
@@ -89,7 +89,7 @@ class DatasetFactory(DjangoModelFactory):
     institutions = ["Example University"]
     release_date = Faker("date_time")
     repository = Faker("url")
-    version = "1.0.0"
+    version = 1
     website = Faker("url")
     provenance = {"source": "test"}
     citation = {"title": "Test Dataset"}
