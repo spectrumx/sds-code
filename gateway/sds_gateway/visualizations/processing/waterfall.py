@@ -1,6 +1,7 @@
 """Waterfall processing logic for visualizations."""
 
 import base64
+import contextlib
 import datetime
 import time
 from pathlib import Path
@@ -144,6 +145,23 @@ def _process_waterfall_slice(params: WaterfallSliceParams) -> dict[str, Any] | N
     }
 
 
+@contextlib.contextmanager
+def _waterfall_lock_context(cache_backend: Any, lock_key: str, *, acquired: bool):
+    """Context manager that releases the waterfall compute lock on exit.
+
+    Ensures the lock is released on normal return, early return, or exception,
+    avoiding up to lock_timeout seconds of unnecessary wait for other workers.
+    """
+    try:
+        yield
+    finally:
+        if acquired:
+            try:
+                cache_backend.delete(lock_key)
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Failed to release waterfall lock: %s", e)
+
+
 def compute_slices_on_demand(  # noqa: C901, PLR0912, PLR0915
     drf_path: Path,
     channel: str,
@@ -225,69 +243,65 @@ def compute_slices_on_demand(  # noqa: C901, PLR0912, PLR0915
         except Exception:  # noqa: BLE001 - cache backends can raise various
             got_lock = True
 
-    # Validate DigitalRF data and get base parameters
-    base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
+    with _waterfall_lock_context(cache, lock_key, acquired=got_lock):
+        # Validate DigitalRF data and get base parameters
+        base_params = validate_waterfall_data(drf_path, channel, FFT_SIZE)
 
-    # Calculate total slices available
-    total_slices = base_params.total_samples // SAMPLES_PER_SLICE
+        # Calculate total slices available
+        total_slices = base_params.total_samples // SAMPLES_PER_SLICE
 
-    # Validate and clamp indices
-    start_index = max(start_index, 0)
-    if start_index >= total_slices:
-        return {
-            "slices": [],
+        # Validate and clamp indices
+        start_index = max(start_index, 0)
+        if start_index >= total_slices:
+            return {
+                "slices": [],
+                "total_slices": total_slices,
+                "start_index": start_index,
+                "end_index": start_index,
+                "metadata": _build_metadata(base_params, total_slices, 0),
+            }
+
+        end_index = min(end_index, total_slices)
+
+        # Process only the requested slice range
+        waterfall_slices = []
+        failed_slices = 0
+        for slice_idx in range(start_index, end_index):
+            # Use shallow copy since we're only updating slice_idx (an integer)
+            # The reader object is excluded from serialization, so no need for deep copy
+            slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
+            waterfall_file = _process_waterfall_slice(slice_params)
+            if waterfall_file:
+                waterfall_slices.append(waterfall_file)
+            else:
+                failed_slices += 1
+
+        if failed_slices > 0:
+            logger.warning(
+                f"Computed {len(waterfall_slices)} slices on-demand, "
+                f"{failed_slices} slices failed (likely data gaps)"
+            )
+        else:
+            logger.info(f"Computed {len(waterfall_slices)} slices on-demand")
+
+        result = {
+            "slices": waterfall_slices,
             "total_slices": total_slices,
             "start_index": start_index,
-            "end_index": start_index,
-            "metadata": _build_metadata(base_params, total_slices, 0),
+            "end_index": end_index,
+            "metadata": _build_metadata(
+                base_params, total_slices, len(waterfall_slices)
+            ),
         }
 
-    end_index = min(end_index, total_slices)
+        # Cache the computed result for a short period to avoid repeat work.
+        ttl = getattr(settings, "WATERFALL_COMPUTE_CACHE_TTL", 60)
+        try:
+            cache.set(cache_key, result, ttl)
+        except Exception:  # noqa: BLE001 - cache backends can raise various errors
+            logger.debug("Failed to set waterfall cache key %s", cache_key)
 
-    # Process only the requested slice range
-    waterfall_slices = []
-    failed_slices = 0
-    for slice_idx in range(start_index, end_index):
-        # Use shallow copy since we're only updating slice_idx (an integer)
-        # The reader object is excluded from serialization, so no need for deep copy
-        slice_params = base_params.model_copy(update={"slice_idx": slice_idx})
-        waterfall_file = _process_waterfall_slice(slice_params)
-        if waterfall_file:
-            waterfall_slices.append(waterfall_file)
-        else:
-            failed_slices += 1
-
-    if failed_slices > 0:
-        logger.warning(
-            f"Computed {len(waterfall_slices)} slices on-demand, "
-            f"{failed_slices} slices failed (likely data gaps)"
-        )
-    else:
-        logger.info(f"Computed {len(waterfall_slices)} slices on-demand")
-
-    result = {
-        "slices": waterfall_slices,
-        "total_slices": total_slices,
-        "start_index": start_index,
-        "end_index": end_index,
-        "metadata": _build_metadata(base_params, total_slices, len(waterfall_slices)),
-    }
-
-    # Cache the computed result for a short period to avoid repeat work.
-    ttl = getattr(settings, "WATERFALL_COMPUTE_CACHE_TTL", 60)
-    try:
-        cache.set(cache_key, result, ttl)
-    except Exception:  # noqa: BLE001 - cache backends can raise various errors
-        logger.debug("Failed to set waterfall cache key %s", cache_key)
-
-    # Release lock if we acquired it
-    try:
-        if got_lock:
-            cache.delete(lock_key)
-    except Exception as e:  # noqa: BLE001
-        logger.debug("Failed to release waterfall lock: %s", e)
-
-    return result
+        return result
 
 
 def get_waterfall_power_bounds(

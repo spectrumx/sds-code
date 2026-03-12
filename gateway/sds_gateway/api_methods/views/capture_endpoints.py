@@ -1566,7 +1566,7 @@ class CaptureViewSet(viewsets.ViewSet):
                     )
                     return Response(
                         {"error": "Slice computation timed out"},
-                        status=status.HTTP_504_GATEWAY_TIMEOUT,
+                        status=status.HTTP_408_REQUEST_TIMEOUT,
                     )
 
             return Response(result, status=status.HTTP_200_OK)
