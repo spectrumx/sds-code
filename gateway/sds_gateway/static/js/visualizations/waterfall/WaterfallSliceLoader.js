@@ -21,6 +21,8 @@ class WaterfallSliceLoader {
 
 		// Request tracking
 		this.pendingRequests = new Map(); // Map of request key -> Promise
+		this.activeFetchControllers = new Set(); // Track in-flight fetch AbortControllers
+		this.cancelEpoch = 0; // Incremented on cancel to invalidate in-progress retry chains
 
 		// Retry configuration (network/429 can be transient)
 		this.maxRetries = 5;
@@ -121,7 +123,7 @@ class WaterfallSliceLoader {
 	 * @param {string} processingType - Processing type
 	 */
 	async prefetchAhead(
-		currentStart,
+		_currentStart,
 		currentEnd,
 		prefetchMargin = 50,
 		processingType = "waterfall",
@@ -173,10 +175,13 @@ class WaterfallSliceLoader {
 		}
 
 		// Create new request
+		const requestEpoch = this.cancelEpoch;
 		const requestPromise = this._fetchSlicesWithRetry(
 			fetchStart,
 			fetchEnd,
 			processingType,
+			0,
+			requestEpoch,
 		);
 
 		this.pendingRequests.set(requestKey, requestPromise);
@@ -218,7 +223,12 @@ class WaterfallSliceLoader {
 
 			return slices;
 		} catch (error) {
-			console.error(`Failed to load slices ${startIndex}-${endIndex}:`, error);
+			if (error?.message !== "WaterfallSliceLoader cancelled") {
+				console.error(
+					`Failed to load slices ${startIndex}-${endIndex}:`,
+					error,
+				);
+			}
 			throw error;
 		} finally {
 			// Remove from pending requests
@@ -233,6 +243,7 @@ class WaterfallSliceLoader {
 	 * @param {number} endIndex - Ending slice index
 	 * @param {string} processingType - Processing type
 	 * @param {number} retryCount - Current retry attempt
+	 * @param {number} requestEpoch - Cancellation epoch captured at request start
 	 * @returns {Promise<Object>} Promise resolving to API response
 	 */
 	async _fetchSlicesWithRetry(
@@ -240,7 +251,12 @@ class WaterfallSliceLoader {
 		endIndex,
 		processingType,
 		retryCount = 0,
+		requestEpoch = this.cancelEpoch,
 	) {
+		if (requestEpoch !== this.cancelEpoch) {
+			throw new Error("WaterfallSliceLoader cancelled");
+		}
+
 		try {
 			// Use streaming endpoint if enabled, otherwise use preprocessed endpoint
 			const url = this.useStreamingEndpoint
@@ -257,6 +273,7 @@ class WaterfallSliceLoader {
 					);
 
 			const controller = new AbortController();
+			this.activeFetchControllers.add(controller);
 			const timeoutId = setTimeout(
 				() => controller.abort(),
 				this.fetchTimeoutMs,
@@ -274,6 +291,7 @@ class WaterfallSliceLoader {
 				});
 			} finally {
 				clearTimeout(timeoutId);
+				this.activeFetchControllers.delete(controller);
 			}
 
 			if (!response.ok) {
@@ -283,6 +301,9 @@ class WaterfallSliceLoader {
 
 				// Retry on 429 (rate limit) using Retry-After or backoff
 				if (response.status === 429 && retryCount < this.maxRetries) {
+					if (requestEpoch !== this.cancelEpoch) {
+						throw new Error("WaterfallSliceLoader cancelled");
+					}
 					const retryAfterHeader = response.headers.get("Retry-After");
 					const waitSeconds = retryAfterHeader
 						? Math.min(Number.parseInt(retryAfterHeader, 10) || 60, 60)
@@ -293,6 +314,7 @@ class WaterfallSliceLoader {
 						endIndex,
 						processingType,
 						retryCount + 1,
+						requestEpoch,
 					);
 				}
 
@@ -301,6 +323,10 @@ class WaterfallSliceLoader {
 
 			return await response.json();
 		} catch (error) {
+			if (requestEpoch !== this.cancelEpoch) {
+				throw new Error("WaterfallSliceLoader cancelled");
+			}
+
 			// Retry on network errors (timeout, connection reset, abort) or 5xx errors
 			const isRetryableNetwork =
 				error?.name === "AbortError" ||
@@ -320,6 +346,7 @@ class WaterfallSliceLoader {
 					endIndex,
 					processingType,
 					retryCount + 1,
+					requestEpoch,
 				);
 			}
 
@@ -411,6 +438,8 @@ class WaterfallSliceLoader {
 	 * Cancel all pending requests and reject any debounce-pending promises
 	 */
 	cancelPendingRequests() {
+		this.cancelEpoch += 1;
+
 		// Clear debounce timer and reject pending debounce callers so they don't hang
 		if (this.debounceTimer) {
 			clearTimeout(this.debounceTimer);
@@ -425,6 +454,18 @@ class WaterfallSliceLoader {
 				// ignore if reject throws
 			}
 		}
+
+		// Abort all in-flight network requests
+		for (const controller of this.activeFetchControllers) {
+			try {
+				controller.abort();
+			} catch (_) {
+				// ignore abort errors
+			}
+		}
+
+		// Clear active controllers set
+		this.activeFetchControllers.clear();
 
 		// Clear pending requests
 		this.pendingRequests.clear();
