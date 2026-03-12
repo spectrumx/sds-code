@@ -2294,8 +2294,7 @@ class CaptureTestCases(APITestCase):
         assert data["end_index"] == 5  # noqa: PLR2004
         mock_reconstruct_drf_files.assert_called_once()
         mock_compute_slices_on_demand.assert_called_once()
-        # Avoid unused variable linter warning
-        assert stream_file.capture_id == capture.id
+        assert stream_file.capture_id == capture.pk
 
 
 class OpenSearchErrorTestCases(APITestCase):
