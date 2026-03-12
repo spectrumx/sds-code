@@ -60,7 +60,7 @@ export class SpectrogramControls {
 		// Standard Deviation change
 		this.stdDevInput.addEventListener("change", (e) => {
 			const value = Number.parseInt(e.target.value);
-			if (this.validateInput(value, INPUT_RANGES.stdDev)) {
+			if (this.validateInput(value, this.inputRanges.stdDev)) {
 				this.settings.stdDev = value;
 				this.notifySettingsChange();
 			} else {
@@ -71,7 +71,7 @@ export class SpectrogramControls {
 		// Hop Size change
 		this.hopSizeInput.addEventListener("change", (e) => {
 			const value = Number.parseInt(e.target.value);
-			if (this.validateInput(value, INPUT_RANGES.hopSize)) {
+			if (this.validateInput(value, this.inputRanges.hopSize)) {
 				this.settings.hopSize = value;
 				this.notifySettingsChange();
 			} else {

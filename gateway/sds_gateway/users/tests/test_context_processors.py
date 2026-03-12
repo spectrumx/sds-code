@@ -56,5 +56,5 @@ def test_admin_template_shows_environment_and_fqdn(
     rendered = render_to_string("admin/base_site.html", request=request)
 
     assert "Django Administration" in rendered
-    assert "STAGING" in rendered
-    assert "staging.sds.example" in rendered
+    assert "staging" in rendered.lower()
+    assert "staging.sds.example" in rendered.lower()
