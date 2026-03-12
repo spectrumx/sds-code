@@ -275,21 +275,25 @@ class CaptureTestCases(APITestCase):
 
         return _stub
 
+    def _delete_owned_files(self) -> None:
+        """Remove files owned by the primary test user after clearing relations."""
+
+        owned_files = list(File.objects.filter(owner=self.user))
+        for owned_file in owned_files:
+            owned_file.captures.clear()
+            owned_file.datasets.clear()
+
+        File.objects.filter(owner=self.user).update(
+            capture=None,
+            dataset=None,
+        )
+        File.objects.filter(owner=self.user).delete()
+
     def tearDown(self) -> None:
         """Clean up test data."""
 
-        # remove temporary files linked during tests
-        for temp_file in getattr(self, "_temp_files", []):
-            temp_file_obj = File.objects.get(pk=temp_file.pk)
-            # Clear M2M relationships
-            temp_file_obj.captures.clear()
-            temp_file_obj.datasets.clear()
-            # Clear FK relationships
-            File.objects.filter(pk=temp_file.pk).update(
-                capture=None,
-                dataset=None,
-            )
-            File.objects.filter(pk=temp_file.pk).delete()
+        # remove files linked during tests, including ones created directly by tests
+        self._delete_owned_files()
         self._temp_files.clear()
 
         # Clean up OpenSearch documents
