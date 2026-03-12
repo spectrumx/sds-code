@@ -1,5 +1,8 @@
 """API views for the visualizations app."""
 
+from enum import StrEnum
+from typing import ClassVar
+
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiExample
@@ -7,6 +10,9 @@ from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from loguru import logger as log
+from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
+from pydantic import field_validator
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
@@ -28,18 +34,125 @@ from .post_processing import launch_visualization_processing
 from .serializers import PostProcessedDataSerializer
 
 
+class SpectrogramProcessingParams(BaseModel):
+    MIN_FFT_SIZE: ClassVar[int] = 64
+    MAX_FFT_SIZE: ClassVar[int] = 2048
+    MIN_STD_DEV: ClassVar[int] = 10
+    MAX_STD_DEV: ClassVar[int] = 500
+    MIN_HOP_SIZE: ClassVar[int] = 100
+    MAX_HOP_SIZE: ClassVar[int] = 1000
+    INTEGER_ERROR_MESSAGE: ClassVar[str] = "must be an integer"
+    FFT_RANGE_ERROR_MESSAGE: ClassVar[str] = "must be a power of 2 within allowed range"
+    RANGE_ERROR_MESSAGE: ClassVar[str] = "out of allowed range"
+    DIMENSIONS_TYPE_ERROR_MESSAGE: ClassVar[str] = "must be a dictionary"
+    DIMENSION_POSITIVE_TEMPLATE: ClassVar[str] = "{dimension} must be greater than 0"
+    DIMENSION_INTEGER_TEMPLATE: ClassVar[str] = "{dimension} must be an integer"
+
+    fft_size: int
+    std_dev: int
+    hop_size: int
+    colormap: "Colormap"
+    dimensions: dict[str, int] | None = None
+
+    @field_validator("fft_size", "std_dev", "hop_size", mode="before")
+    @classmethod
+    def validate_int_fields(cls, value):
+        if isinstance(value, bool):
+            msg = cls.INTEGER_ERROR_MESSAGE
+            raise TypeError(msg)
+
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            msg = cls.INTEGER_ERROR_MESSAGE
+            raise ValueError(msg) from exc
+
+    @field_validator("fft_size")
+    @classmethod
+    def validate_fft_size(cls, value: int) -> int:
+        if (
+            value < cls.MIN_FFT_SIZE
+            or value > cls.MAX_FFT_SIZE
+            or (value & (value - 1)) != 0
+        ):
+            msg = cls.FFT_RANGE_ERROR_MESSAGE
+            raise ValueError(msg)
+        return value
+
+    @field_validator("std_dev")
+    @classmethod
+    def validate_std_dev(cls, value: int) -> int:
+        if value < cls.MIN_STD_DEV or value > cls.MAX_STD_DEV:
+            msg = cls.RANGE_ERROR_MESSAGE
+            raise ValueError(msg)
+        return value
+
+    @field_validator("hop_size")
+    @classmethod
+    def validate_hop_size(cls, value: int) -> int:
+        if value < cls.MIN_HOP_SIZE or value > cls.MAX_HOP_SIZE:
+            msg = cls.RANGE_ERROR_MESSAGE
+            raise ValueError(msg)
+        return value
+
+    @field_validator("dimensions", mode="before")
+    @classmethod
+    def validate_dimensions(cls, value):
+        if value is None:
+            return None
+        if not isinstance(value, dict):
+            msg = cls.DIMENSIONS_TYPE_ERROR_MESSAGE
+            raise TypeError(msg)
+
+        validated_dimensions: dict[str, int] = {}
+        for key in ("width", "height"):
+            if key not in value:
+                continue
+            key_value = value[key]
+            if isinstance(key_value, bool):
+                msg = cls.DIMENSION_INTEGER_TEMPLATE.format(dimension=key)
+                raise TypeError(msg)
+            try:
+                dimension = int(key_value)
+            except (TypeError, ValueError) as exc:
+                msg = cls.DIMENSION_INTEGER_TEMPLATE.format(dimension=key)
+                raise ValueError(msg) from exc
+            if dimension <= 0:
+                msg = cls.DIMENSION_POSITIVE_TEMPLATE.format(dimension=key)
+                raise ValueError(msg)
+            validated_dimensions[key] = dimension
+
+        return validated_dimensions
+
+    def to_dict(self) -> dict[str, int | str | dict[str, int]]:
+        processing_params: dict[str, int | str | dict[str, int]] = {
+            "fft_size": self.fft_size,
+            "std_dev": self.std_dev,
+            "hop_size": self.hop_size,
+            "colormap": self.colormap.value,
+        }
+        if self.dimensions is not None:
+            processing_params["dimensions"] = self.dimensions
+        return processing_params
+
+
+class Colormap(StrEnum):
+    MAGMA = "magma"
+    VIRIDIS = "viridis"
+    PLASMA = "plasma"
+    INFERNO = "inferno"
+    CIVIDIS = "cividis"
+    TURBO = "turbo"
+    JET = "jet"
+    HOT = "hot"
+    COOL = "cool"
+    RAINBOW = "rainbow"
+
+
 class VisualizationViewSet(ViewSet):
     """
     ViewSet for generating visualizations from captures.
     """
-
-    # Constants for validation
-    MIN_FFT_SIZE = 64
-    MAX_FFT_SIZE = 65536
-    MIN_STD_DEV = 10
-    MAX_STD_DEV = 500
-    MIN_HOP_SIZE = 100
-    MAX_HOP_SIZE = 1000
 
     authentication_classes = [SessionAuthentication, APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
@@ -136,30 +249,27 @@ class VisualizationViewSet(ViewSet):
         )
 
         # Extract and validate request parameters
-        fft_size = int(self.get_request_param(request, "fft_size", 1024))
-        std_dev = int(self.get_request_param(request, "std_dev", 100))
-        hop_size = int(self.get_request_param(request, "hop_size", 500))
+        fft_size = self.get_request_param(request, "fft_size", 1024)
+        std_dev = self.get_request_param(request, "std_dev", 100)
+        hop_size = self.get_request_param(request, "hop_size", 500)
         colormap = self.get_request_param(request, "colormap", "magma")
         dimensions = self.get_request_param(request, "dimensions", None)
 
-        # Validate parameters
-        if not self._validate_spectrogram_params(
-            fft_size, std_dev, hop_size, colormap, dimensions
-        ):
+        try:
+            spectrogram_params = self._validate_spectrogram_params(
+                fft_size=fft_size,
+                std_dev=std_dev,
+                hop_size=hop_size,
+                colormap=colormap,
+                dimensions=dimensions,
+            )
+        except ValidationError as exc:
             return Response(
-                {"error": "Invalid spectrogram parameters"},
+                {"error": str(exc)},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        # Check if spectrogram already exists with same parameters
-        processing_params = {
-            "fft_size": fft_size,
-            "std_dev": std_dev,
-            "hop_size": hop_size,
-            "colormap": colormap,
-        }
-        if dimensions is not None:
-            processing_params["dimensions"] = dimensions
+        processing_params = spectrogram_params.to_dict()
 
         existing_spectrogram = PostProcessedData.objects.filter(
             capture=capture,
@@ -447,52 +557,37 @@ class VisualizationViewSet(ViewSet):
 
     def _validate_spectrogram_params(
         self,
-        fft_size: int,
-        std_dev: int,
-        hop_size: int,
-        colormap: str,
-        dimensions: dict[str, int] | None = None,
-    ) -> bool:
+        fft_size,
+        std_dev,
+        hop_size,
+        colormap,
+        dimensions=None,
+    ) -> SpectrogramProcessingParams:
         """
         Validate spectrogram parameters.
+
+        Raises:
+            ValidationError: If any parameter is invalid.
         """
-        # Validate FFT size (must be power of 2)
-        if (
-            fft_size < self.MIN_FFT_SIZE
-            or fft_size > self.MAX_FFT_SIZE
-            or (fft_size & (fft_size - 1)) != 0
-        ):
-            return False
+        try:
+            return SpectrogramProcessingParams(
+                fft_size=fft_size,
+                std_dev=std_dev,
+                hop_size=hop_size,
+                colormap=colormap,
+                dimensions=dimensions,
+            )
+        except PydanticValidationError as exc:
+            raise ValidationError(self._format_validation_error_message(exc)) from exc
 
-        # Validate standard deviation
-        if std_dev < self.MIN_STD_DEV or std_dev > self.MAX_STD_DEV:
-            return False
-
-        # Validate hop size
-        if hop_size < self.MIN_HOP_SIZE or hop_size > self.MAX_HOP_SIZE:
-            return False
-
-        # Validate dimensions
-        if dimensions and "width" in dimensions and "height" in dimensions:
-            if dimensions["width"] <= 0:
-                return False
-            if dimensions["height"] <= 0:
-                return False
-
-        # Validate colormap
-        valid_colormaps = [
-            "magma",
-            "viridis",
-            "plasma",
-            "inferno",
-            "cividis",
-            "turbo",
-            "jet",
-            "hot",
-            "cool",
-            "rainbow",
-        ]
-        return colormap in valid_colormaps
+    @staticmethod
+    def _format_validation_error_message(error: PydanticValidationError) -> str:
+        error_details = "; ".join(
+            f"{'.'.join(str(item) for item in validation_error['loc'])}: "
+            f"{validation_error['msg']}"
+            for validation_error in error.errors()
+        )
+        return f"Invalid spectrogram parameters: {error_details}"
 
     @extend_schema(
         summary="Create waterfall visualization",

@@ -9,10 +9,10 @@ export const DEFAULT_SPECTROGRAM_SETTINGS = {
 	colorMap: "magma",
 };
 
-// FFT size options (powers of 2 from 64 to 65536)
-export const FFT_SIZE_OPTIONS = [
-	64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768, 65536,
-];
+// FFT size options (powers of 2 from 64 to 2048)
+// this parameter heavily impacts memory usage, so we're limiting it on the server too
+// for server-side validation, check VisualizationViewSet._validate_spectrogram_params()
+export const FFT_SIZE_OPTIONS = [64, 128, 256, 512, 1024, 2048];
 
 export const COLOR_MAP_OPTIONS = [
 	"magma",
