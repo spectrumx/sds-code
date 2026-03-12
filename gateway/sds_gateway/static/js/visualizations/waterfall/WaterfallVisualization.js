@@ -1521,6 +1521,9 @@ class WaterfallVisualization {
 				} else {
 					parsedSlices.push(null);
 				}
+			} else if (slice?._gap) {
+				// Known data gap (backend had no data for this range) - distinguishable from loading/failed
+				parsedSlices.push({ _gap: true });
 			} else {
 				parsedSlices.push(null);
 			}
