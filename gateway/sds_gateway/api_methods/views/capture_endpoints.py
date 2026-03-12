@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import re
 import tempfile
@@ -74,6 +75,8 @@ MAX_CAPTURE_NAME_LENGTH = 255  # Maximum length for capture names
 MAX_SLICE_BATCH_SIZE = (
     300  # Max slices per request (larger = fewer calls when fast-forwarding)
 )
+# Timeout for on-demand slice computation to avoid long-running requests
+SLICE_COMPUTE_TIMEOUT_SECONDS = 60
 
 
 def _validate_slice_indices(
@@ -1541,9 +1544,30 @@ class CaptureViewSet(viewsets.ViewSet):
             # is required for API compatibility. We pass a dummy path since it's unused.
             dummy_temp_path = Path(tempfile.gettempdir()) / "unused"
             drf_path = reconstruct_drf_files(capture, capture_files, dummy_temp_path)
-            result = compute_slices_on_demand(
-                drf_path, capture.channel, start_index, end_index
-            )
+            # Range is already capped by _validate_slice_indices (MAX_SLICE_BATCH_SIZE).
+            # Request rate is limited by VisStreamThrottle. Run compute with timeout.
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(
+                    compute_slices_on_demand,
+                    drf_path,
+                    capture.channel,
+                    start_index,
+                    end_index,
+                )
+                try:
+                    result = future.result(timeout=SLICE_COMPUTE_TIMEOUT_SECONDS)
+                except concurrent.futures.TimeoutError:
+                    log.warning(
+                        "Waterfall slice computation timed out for capture={} "
+                        "range=[{}, {})",
+                        pk,
+                        start_index,
+                        end_index,
+                    )
+                    return Response(
+                        {"error": "Slice computation timed out"},
+                        status=status.HTTP_504_GATEWAY_TIMEOUT,
+                    )
 
             return Response(result, status=status.HTTP_200_OK)
 
