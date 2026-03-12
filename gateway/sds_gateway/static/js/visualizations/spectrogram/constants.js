@@ -14,6 +14,7 @@ export const DEFAULT_SPECTROGRAM_SETTINGS = {
 // for server-side validation, check VisualizationViewSet._validate_spectrogram_params()
 export const FFT_SIZE_OPTIONS = [64, 128, 256, 512, 1024, 2048];
 
+// also change VisualizationViewSet.Colormap
 export const COLOR_MAP_OPTIONS = [
 	"magma",
 	"viridis",

@@ -93,7 +93,10 @@ export class SpectrogramVisualization {
 		}
 
 		try {
+			this.clearStatusDisplay();
 			this.setGeneratingState(true);
+			this.showSaveButton(false);
+			this.showStatus(STATUS_MESSAGES.GENERATING);
 
 			const settings = this.controls.getSettings();
 
@@ -101,7 +104,7 @@ export class SpectrogramVisualization {
 			await this.createSpectrogramJob(settings);
 		} catch (error) {
 			console.error("Error generating spectrogram:", error);
-			this.showError(ERROR_MESSAGES.API_ERROR);
+			this.displayRequestError(error, ERROR_MESSAGES.API_ERROR);
 			this.setGeneratingState(false);
 		}
 	}
@@ -133,14 +136,18 @@ export class SpectrogramVisualization {
 				},
 			);
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
+			await this.throwOnFailedResponse(
+				response,
+				"Unable to create spectrogram job",
+			);
 
 			const data = await response.json();
 
 			if (!data.uuid) {
-				throw new Error("Spectrogram job ID not found");
+				const missingUuidError = new Error("Spectrogram job ID not found");
+				missingUuidError.userMessage = "Unable to create spectrogram job.";
+				missingUuidError.errorDetail = "Response did not include a job id.";
+				throw missingUuidError;
 			}
 			this.currentJobId = data.uuid;
 
@@ -181,26 +188,34 @@ export class SpectrogramVisualization {
 				},
 			);
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
+			await this.throwOnFailedResponse(
+				response,
+				"Unable to check spectrogram status",
+			);
 
 			const data = await response.json();
+			const processingStatus = data.processing_status;
 
-			if (data.processing_status === "completed") {
+			if (processingStatus === "completed") {
 				// Job completed, stop polling and fetch result
 				this.stopStatusPolling();
 				await this.fetchSpectrogramResult();
-			} else if (data.processing_status === "failed") {
+			} else if (processingStatus === "failed") {
 				// Job failed
 				this.stopStatusPolling();
 				this.handleProcessingError(data);
 				this.setGeneratingState(false);
+			} else if (processingStatus) {
+				this.showStatus(
+					`${STATUS_MESSAGES.GENERATING} (${this.formatProcessingStatus(processingStatus)})`,
+				);
 			}
 			// If still processing, continue polling
 		} catch (error) {
 			console.error("Error checking job status:", error);
-			// Continue polling on error
+			this.stopStatusPolling();
+			this.displayRequestError(error, "Failed to check spectrogram status");
+			this.setGeneratingState(false);
 		}
 	}
 
@@ -228,9 +243,10 @@ export class SpectrogramVisualization {
 				},
 			);
 
-			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-			}
+			await this.throwOnFailedResponse(
+				response,
+				"Unable to fetch spectrogram result",
+			);
 
 			const blob = await response.blob();
 
@@ -245,19 +261,128 @@ export class SpectrogramVisualization {
 			this.setGeneratingState(false);
 
 			if (renderResult) {
-				this.updateStatus(STATUS_MESSAGES.SUCCESS);
+				this.clearStatusDisplay();
 				this.showSaveButton(true);
 			} else {
-				this.showError("Failed to render spectrogram");
+				this.showErrorWithDetails("Failed to render spectrogram");
 			}
 
 			// Store the result for saving
 			this.currentSpectrogramUrl = URL.createObjectURL(blob);
 		} catch (error) {
 			console.error("Error fetching spectrogram result:", error);
-			this.showError("Failed to fetch spectrogram result");
+			this.displayRequestError(error, "Failed to fetch spectrogram result");
 			this.setGeneratingState(false);
 		}
+	}
+
+	/**
+	 * Throw enriched error for failed HTTP responses
+	 */
+	async throwOnFailedResponse(response, userMessage) {
+		if (response.ok) {
+			return;
+		}
+
+		const responseData = await this.safeParseJson(response);
+		const processingStatus = responseData?.processing_status;
+		const responseDetail = this.extractResponseDetail(responseData);
+
+		const details = [];
+		if (processingStatus) {
+			details.push(
+				`Processing status: ${this.formatProcessingStatus(processingStatus)}`,
+			);
+		}
+		if (responseDetail) {
+			details.push(responseDetail);
+		} else {
+			details.push(`HTTP ${response.status}: ${response.statusText}`);
+		}
+
+		const requestError = new Error(
+			`HTTP ${response.status}: ${response.statusText}`,
+		);
+		requestError.userMessage = `${userMessage}.`;
+		requestError.errorDetail = details.join(" • ");
+		throw requestError;
+	}
+
+	/**
+	 * Parse JSON payload safely from response
+	 */
+	async safeParseJson(response) {
+		try {
+			return await response.json();
+		} catch {
+			return null;
+		}
+	}
+
+	/**
+	 * Extract a readable error detail from API response payload
+	 */
+	extractResponseDetail(responseData) {
+		if (!responseData) {
+			return null;
+		}
+
+		if (typeof responseData === "string") {
+			return responseData;
+		}
+
+		const detailFields = ["detail", "error", "message"];
+		for (const fieldName of detailFields) {
+			if (typeof responseData[fieldName] === "string") {
+				return responseData[fieldName];
+			}
+		}
+
+		if (Array.isArray(responseData.errors)) {
+			return responseData.errors.join(", ");
+		}
+
+		if (
+			responseData.errors &&
+			typeof responseData.errors === "object" &&
+			!Array.isArray(responseData.errors)
+		) {
+			const firstFieldErrors = Object.entries(responseData.errors)[0];
+			if (!firstFieldErrors) {
+				return null;
+			}
+
+			const [fieldName, fieldValue] = firstFieldErrors;
+			if (Array.isArray(fieldValue)) {
+				return `${fieldName}: ${fieldValue.join(", ")}`;
+			}
+
+			if (typeof fieldValue === "string") {
+				return `${fieldName}: ${fieldValue}`;
+			}
+		}
+
+		return null;
+	}
+
+	/**
+	 * Format backend processing status for user display
+	 */
+	formatProcessingStatus(processingStatus) {
+		if (!processingStatus || typeof processingStatus !== "string") {
+			return "unknown";
+		}
+
+		return processingStatus.replace(/_/g, " ");
+	}
+
+	/**
+	 * Display request error to user
+	 */
+	displayRequestError(error, fallbackMessage) {
+		const message = error?.userMessage || fallbackMessage;
+		const errorDetail = error?.errorDetail || error?.message || null;
+		this.showErrorWithDetails(message, errorDetail);
 	}
 
 	/**
@@ -286,18 +411,16 @@ export class SpectrogramVisualization {
 			}
 		}
 
-		// Hide error display during generation, show transparent overlay instead
+		// Keep status/error display visibility in sync with whether it has content
 		if (this.errorDisplay) {
-			if (isGenerating) {
-				this.errorDisplay.classList.add("d-none");
+			const hasContent = this.errorDisplay
+				.querySelector("p.error-message-text")
+				?.textContent.trim();
+
+			if (hasContent) {
+				this.errorDisplay.classList.remove("d-none");
 			} else {
-				// Only show if it has content (error), otherwise keep hidden
-				const hasContent = this.errorDisplay
-					.querySelector("p.error-message-text")
-					?.textContent.trim();
-				if (hasContent) {
-					this.errorDisplay.classList.remove("d-none");
-				}
+				this.errorDisplay.classList.add("d-none");
 			}
 		}
 	}
@@ -350,22 +473,69 @@ export class SpectrogramVisualization {
 	 * Update status message
 	 */
 	updateStatus(message) {
-		if (this.errorDisplay) {
-			const statusText = this.errorDisplay.querySelector("p");
-			if (statusText) {
-				statusText.textContent = message;
-			}
+		if (message) {
+			this.showStatus(message);
+			return;
 		}
+
+		this.clearStatusDisplay();
 	}
 
 	/**
 	 * Show error message
 	 */
 	showError(message) {
-		this.updateStatus(message);
-		if (this.renderer) {
-			this.renderer.clearImage();
+		this.showErrorWithDetails(message);
+	}
+
+	/**
+	 * Show non-error status message
+	 */
+	showStatus(message, detail = null) {
+		if (!this.errorDisplay) {
+			return;
 		}
+
+		const messageElement = this.errorDisplay.querySelector(
+			"p.error-message-text",
+		);
+		const errorDetailElement = this.errorDisplay.querySelector(
+			"p.error-detail-line",
+		);
+
+		setupErrorDisplay({
+			messageElement,
+			errorDetailElement,
+			message,
+			errorDetail: detail,
+		});
+
+		this.errorDisplay.classList.remove("d-none");
+	}
+
+	/**
+	 * Clear status/error display
+	 */
+	clearStatusDisplay() {
+		if (!this.errorDisplay) {
+			return;
+		}
+
+		const messageElement = this.errorDisplay.querySelector(
+			"p.error-message-text",
+		);
+		const errorDetailElement = this.errorDisplay.querySelector(
+			"p.error-detail-line",
+		);
+
+		setupErrorDisplay({
+			messageElement,
+			errorDetailElement,
+			message: "",
+			errorDetail: null,
+		});
+
+		this.errorDisplay.classList.add("d-none");
 	}
 
 	/**
@@ -374,11 +544,26 @@ export class SpectrogramVisualization {
 	handleProcessingError(data) {
 		const errorInfo = data.error_info || {};
 		const hasSourceDataError = data.has_source_data_error || false;
+		const processingStatus = data.processing_status;
 		const { message, errorDetail } = generateErrorMessage(
 			errorInfo,
 			hasSourceDataError,
 		);
-		this.showErrorWithDetails(message, errorDetail);
+
+		const detailParts = [];
+		if (processingStatus) {
+			detailParts.push(
+				`Processing status: ${this.formatProcessingStatus(processingStatus)}`,
+			);
+		}
+		if (errorDetail) {
+			detailParts.push(errorDetail);
+		}
+
+		this.showErrorWithDetails(
+			message,
+			detailParts.length > 0 ? detailParts.join(" • ") : null,
+		);
 	}
 
 	/**
