@@ -2115,6 +2115,188 @@ class CaptureTestCases(APITestCase):
         response = self.client.get(url, {"start_index": 0, "end_index": 5})
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
+    def test_waterfall_slices_stream_requires_authentication(self) -> None:
+        """Test that waterfall_slices_stream endpoint requires authentication."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test-stream",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        unauthenticated_client = APIClient()
+        response = unauthenticated_client.get(url, {"start_index": 0, "end_index": 10})
+        assert response.status_code in [
+            status.HTTP_401_UNAUTHORIZED,
+            status.HTTP_403_FORBIDDEN,
+        ]
+
+    def test_waterfall_slices_stream_non_drf_capture_400(self) -> None:
+        """Test that waterfall_slices_stream returns 400 for non-DigitalRF captures."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.RadioHound,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-rh-stream",
+            owner=self.user,
+            top_level_dir="test-dir",
+            scan_group=uuid.uuid4(),
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 10})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "digitalrf" in response.json()["error"].lower()
+
+    def test_waterfall_slices_stream_missing_parameters(self) -> None:
+        """Test waterfall_slices_stream with missing query parameters."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test-stream",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "start_index" in response.json()["error"].lower()
+
+        response = self.client.get(url, {"start_index": 0})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "end_index" in response.json()["error"].lower()
+
+    def test_waterfall_slices_stream_invalid_indices(self) -> None:
+        """Test waterfall_slices_stream with invalid indices."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test-stream",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": -1, "end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        response = self.client.get(url, {"start_index": 3, "end_index": 3})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+        response = self.client.get(url, {"start_index": "abc", "end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_waterfall_slices_stream_no_files_400(self) -> None:
+        """Test waterfall_slices_stream when capture has no files."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test-stream-nofiles",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "no files" in response.json()["error"].lower()
+
+    def test_waterfall_slices_stream_other_user_capture(self) -> None:
+        """Test that users cannot access stream endpoint for other users' captures."""
+        other_user = User.objects.create(
+            email="otherstream@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        other_capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-other-stream",
+            owner=other_user,
+            top_level_dir="other-dir",
+        )
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": other_capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.reconstruct_drf_files",
+    )
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.compute_slices_on_demand",
+    )
+    def test_waterfall_slices_stream_success(
+        self,
+        mock_compute_slices_on_demand: object,
+        mock_reconstruct_drf_files: object,
+    ) -> None:
+        """Test successful waterfall_slices_stream with mocked compute."""
+        capture = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="test-channel",
+            index_name=f"{self.test_index_prefix}-test-stream-success",
+            owner=self.user,
+            top_level_dir="test-dir",
+        )
+        # Associate a file so get_capture_files returns non-empty
+        base_dir = f"/files/{self.user.email}/waterfall-stream-test"
+        stream_file = File.objects.create(
+            name="test.drf",
+            directory=base_dir,
+            media_type="application/octet-stream",
+            size=1024,
+            owner=self.user,
+            capture=capture,
+        )
+
+        mock_reconstruct_drf_files.return_value = Path("/mock/drf/path")
+        mock_compute_slices_on_demand.return_value = {
+            "slices": [
+                {
+                    "data": "dGVzdA==",
+                    "custom_fields": {"slice_index": i},
+                }
+                for i in range(5)
+            ],
+            "total_slices": 10,
+            "start_index": 0,
+            "end_index": 5,
+            "metadata": {"total_slices": 10},
+        }
+
+        url = reverse(
+            "api:captures-waterfall-slices-stream",
+            kwargs={"pk": capture.uuid},
+        )
+        response = self.client.get(url, {"start_index": 0, "end_index": 5})
+
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "slices" in data
+        assert len(data["slices"]) == 5  # noqa: PLR2004
+        assert data["total_slices"] == 10  # noqa: PLR2004
+        assert data["start_index"] == 0
+        assert data["end_index"] == 5  # noqa: PLR2004
+        mock_reconstruct_drf_files.assert_called_once()
+        mock_compute_slices_on_demand.assert_called_once()
+        # Avoid unused variable linter warning
+        assert stream_file.capture_id == capture.id
+
 
 class OpenSearchErrorTestCases(APITestCase):
     """Test cases for OpenSearch error handling in capture endpoints."""
