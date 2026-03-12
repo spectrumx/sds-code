@@ -52,7 +52,7 @@ class TestUserAdmin:
     def _force_allauth(self, settings) -> None:
         settings.DJANGO_ADMIN_FORCE_ALLAUTH = True
         # Reload the admin module to apply the setting change
-        with contextlib.suppress(admin.sites.AlreadyRegistered):  # type: ignore[attr-defined]
+        with contextlib.suppress(admin.sites.AlreadyRegistered):
             reload(users_admin)
 
     @pytest.mark.django_db

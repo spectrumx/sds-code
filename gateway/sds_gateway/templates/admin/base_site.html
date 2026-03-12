@@ -1,0 +1,16 @@
+{% extends "admin/base_site.html" %}
+
+{% load static %}
+
+{% block extrastyle %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'css/admin_environment.css' %}" />
+{% endblock extrastyle %}
+{% block bodyclass %}
+    {{ block.super }} admin-env-{{ ADMIN_CONSOLE_ENV }}
+{% endblock bodyclass %}
+{% block branding %}
+    <h1 id="site-name">
+        <a href="{% url 'admin:index' %}">Django Administration · <span class="mono">{{ ADMIN_CONSOLE_ENV }}</span> · <span class="mono">{{ SDS_SITE_FQDN }}</span></a>
+    </h1>
+{% endblock branding %}

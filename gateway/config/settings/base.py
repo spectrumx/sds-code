@@ -10,6 +10,7 @@ from celery.schedules import crontab
 from environs import env
 
 from config.settings.logs import ColoredFormatter
+from config.settings.utils import guess_admin_console_env
 from config.settings.utils import guess_max_web_download_size
 
 __rng = random.SystemRandom()
@@ -590,6 +591,24 @@ SDS_FULL_INSTITUTION_NAME: str = env.str(
 SDS_SHORT_INSTITUTION_NAME: str = env.str("SDS_SHORT_INSTITUTION_NAME", default="SDS")
 SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default="sds")
 SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
+
+# ADMIN_CONSOLE_ENV is used to visually distinguish between different environments
+# (production, staging, local) in the admin console and error emails. It does not affect
+# any functionality and it is meant to prevent changes in production meant for testing
+# or development environments.
+ADMIN_CONSOLE_ENV: str = (
+    env.str(
+        "SDS_ADMIN_CONSOLE_ENV",
+        default=guess_admin_console_env(is_debug=DEBUG),
+    )
+    .strip()
+    .lower()
+)
+# cast to known values
+if ADMIN_CONSOLE_ENV in {"dev", "development"}:
+    ADMIN_CONSOLE_ENV = "local"
+elif ADMIN_CONSOLE_ENV not in {"production", "staging", "local"}:
+    ADMIN_CONSOLE_ENV = "local" if DEBUG else "production"
 
 
 def _get_brand_image_url() -> str | None:

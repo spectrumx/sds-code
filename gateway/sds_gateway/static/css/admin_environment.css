@@ -1,0 +1,27 @@
+body.admin-env-production #header {
+	background: #800020;
+}
+
+body.admin-env-staging #header {
+	background: #ff8c00;
+}
+
+body.admin-env-local #header {
+	background: #198754;
+}
+
+body.admin-env-production #header,
+body.admin-env-production #header a:link,
+body.admin-env-production #header a:visited,
+body.admin-env-staging #header,
+body.admin-env-staging #header a:link,
+body.admin-env-staging #header a:visited,
+body.admin-env-local #header,
+body.admin-env-local #header a:link,
+body.admin-env-local #header a:visited {
+	color: #ffffff;
+}
+
+.mono {
+	font-family: monospace;
+}

@@ -9,10 +9,11 @@ from django.conf import settings
 from django.http import HttpRequest
 
 
-def app_settings(_request: HttpRequest) -> dict[str, bool]:
+def app_settings(_request: HttpRequest) -> dict[str, bool | str]:
     """Expose application-wide settings in templates."""
     return {
         "VISUALIZATIONS_ENABLED": settings.VISUALIZATIONS_ENABLED,
+        "ADMIN_CONSOLE_ENV": settings.ADMIN_CONSOLE_ENV,
     }
 
 
