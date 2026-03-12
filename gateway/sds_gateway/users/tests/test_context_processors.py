@@ -26,6 +26,7 @@ def test_guess_admin_console_env_for_staging(monkeypatch) -> None:
 
 
 def test_guess_admin_console_env_for_local_debug(monkeypatch) -> None:
+    monkeypatch.setenv("SENTRY_ENVIRONMENT", "local")
     monkeypatch.setattr(
         "config.settings.utils.gethostname", lambda: "sds-gateway-prod-app"
     )
@@ -36,6 +37,7 @@ def test_guess_admin_console_env_for_local_debug(monkeypatch) -> None:
 
 
 def test_guess_admin_console_env_for_production(monkeypatch) -> None:
+    monkeypatch.setenv("SENTRY_ENVIRONMENT", "production")
     monkeypatch.setattr(
         "config.settings.utils.gethostname", lambda: "sds-gateway-prod-app"
     )
