@@ -41,6 +41,10 @@ class SpectrogramProcessingParams(BaseModel):
     MAX_STD_DEV: ClassVar[int] = 500
     MIN_HOP_SIZE: ClassVar[int] = 100
     MAX_HOP_SIZE: ClassVar[int] = 1000
+    DEFAULT_FFT_SIZE: ClassVar[int] = 1024
+    DEFAULT_STD_DEV: ClassVar[int] = 100
+    DEFAULT_HOP_SIZE: ClassVar[int] = 500
+    DEFAULT_COLORMAP: ClassVar[str] = "magma"
     INTEGER_ERROR_MESSAGE: ClassVar[str] = "must be an integer"
     FFT_RANGE_ERROR_MESSAGE: ClassVar[str] = "must be a power of 2 within allowed range"
     RANGE_ERROR_MESSAGE: ClassVar[str] = "out of allowed range"
@@ -134,6 +138,15 @@ class SpectrogramProcessingParams(BaseModel):
         if self.dimensions is not None:
             processing_params["dimensions"] = self.dimensions
         return processing_params
+
+    @classmethod
+    def get_fft_size_options(cls) -> tuple[int, ...]:
+        fft_size_options: list[int] = []
+        fft_size = cls.MIN_FFT_SIZE
+        while fft_size <= cls.MAX_FFT_SIZE:
+            fft_size_options.append(fft_size)
+            fft_size *= 2
+        return tuple(fft_size_options)
 
 
 class Colormap(StrEnum):
@@ -249,10 +262,26 @@ class VisualizationViewSet(ViewSet):
         )
 
         # Extract and validate request parameters
-        fft_size = self.get_request_param(request, "fft_size", 1024)
-        std_dev = self.get_request_param(request, "std_dev", 100)
-        hop_size = self.get_request_param(request, "hop_size", 500)
-        colormap = self.get_request_param(request, "colormap", "magma")
+        fft_size = self.get_request_param(
+            request,
+            "fft_size",
+            SpectrogramProcessingParams.DEFAULT_FFT_SIZE,
+        )
+        std_dev = self.get_request_param(
+            request,
+            "std_dev",
+            SpectrogramProcessingParams.DEFAULT_STD_DEV,
+        )
+        hop_size = self.get_request_param(
+            request,
+            "hop_size",
+            SpectrogramProcessingParams.DEFAULT_HOP_SIZE,
+        )
+        colormap = self.get_request_param(
+            request,
+            "colormap",
+            SpectrogramProcessingParams.DEFAULT_COLORMAP,
+        )
         dimensions = self.get_request_param(request, "dimensions", None)
 
         try:

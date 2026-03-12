@@ -39,17 +39,12 @@
                         <div class="mb-3">
                             <label for="fftSize" class="form-label">FFT Size</label>
                             <select class="form-select" id="fftSize">
-                                <option value="64">64</option>
-                                <option value="128">128</option>
-                                <option value="256">256</option>
-                                <option value="512">512</option>
-                                <option value="1024" selected>1024</option>
-                                <option value="2048">2048</option>
-                                <option value="4096">4096</option>
-                                <option value="8192">8192</option>
-                                <option value="16384">16384</option>
-                                <option value="32768">32768</option>
-                                <option value="65536">65536</option>
+                                {% for fft_size in spectrogram_form.fft_size_options %}
+                                    <option value="{{ fft_size }}"
+                                            {% if fft_size == spectrogram_form.default_fft_size %}selected{% endif %}>
+                                        {{ fft_size }}
+                                    </option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="mb-3">
@@ -57,32 +52,28 @@
                             <input type="number"
                                    class="form-control"
                                    id="stdDev"
-                                   value="100"
-                                   min="10"
-                                   max="500" />
+                                   value="{{ spectrogram_form.default_std_dev }}"
+                                   min="{{ spectrogram_form.std_dev_min }}"
+                                   max="{{ spectrogram_form.std_dev_max }}" />
                         </div>
                         <div class="mb-3">
                             <label for="hopSize" class="form-label">Hop Size (samples)</label>
                             <input type="number"
                                    class="form-control"
                                    id="hopSize"
-                                   value="500"
-                                   min="100"
-                                   max="1000" />
+                                   value="{{ spectrogram_form.default_hop_size }}"
+                                   min="{{ spectrogram_form.hop_size_min }}"
+                                   max="{{ spectrogram_form.hop_size_max }}" />
                         </div>
                         <div class="mb-3">
                             <label for="colorMap" class="form-label">Color Map</label>
                             <select class="form-select" id="colorMap">
-                                <option value="magma" selected>Magma</option>
-                                <option value="viridis">Viridis</option>
-                                <option value="plasma">Plasma</option>
-                                <option value="inferno">Inferno</option>
-                                <option value="cividis">Cividis</option>
-                                <option value="turbo">Turbo</option>
-                                <option value="jet">Jet</option>
-                                <option value="hot">Hot</option>
-                                <option value="cool">Cool</option>
-                                <option value="rainbow">Rainbow</option>
+                                {% for color_map in spectrogram_form.color_map_options %}
+                                    <option value="{{ color_map }}"
+                                            {% if color_map == spectrogram_form.default_color_map %}selected{% endif %}>
+                                        {{ color_map|title }}
+                                    </option>
+                                {% endfor %}
                             </select>
                         </div>
                         <div class="mb-3">

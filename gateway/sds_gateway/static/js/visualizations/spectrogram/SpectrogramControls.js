@@ -3,11 +3,11 @@
  * Manages the control panel for spectrogram generation settings
  */
 
-import { DEFAULT_SPECTROGRAM_SETTINGS, INPUT_RANGES } from "./constants.js";
-
 export class SpectrogramControls {
 	constructor() {
-		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
+		this.settings = null;
+		this.defaultSettings = null;
+		this.inputRanges = {};
 		this.onSettingsChange = null;
 		this.onGenerateClick = null;
 		this.initializeControls();
@@ -40,6 +40,9 @@ export class SpectrogramControls {
 			return;
 		}
 
+		this.settings = this.getSettingsFromControls();
+		this.defaultSettings = { ...this.settings };
+		this.inputRanges = this.getInputRanges();
 		this.setupEventListeners();
 		this.updateControlValues();
 	}
@@ -84,10 +87,38 @@ export class SpectrogramControls {
 	}
 
 	/**
+	 * Read the initial settings rendered by the server
+	 */
+	getSettingsFromControls() {
+		return {
+			fftSize: Number.parseInt(this.fftSizeSelect.value, 10),
+			stdDev: Number.parseInt(this.stdDevInput.value, 10),
+			hopSize: Number.parseInt(this.hopSizeInput.value, 10),
+			colorMap: this.colorMapSelect.value,
+		};
+	}
+
+	/**
+	 * Read numeric validation ranges from the current form inputs
+	 */
+	getInputRanges() {
+		return {
+			stdDev: {
+				min: Number.parseInt(this.stdDevInput.min, 10),
+				max: Number.parseInt(this.stdDevInput.max, 10),
+			},
+			hopSize: {
+				min: Number.parseInt(this.hopSizeInput.min, 10),
+				max: Number.parseInt(this.hopSizeInput.max, 10),
+			},
+		};
+	}
+
+	/**
 	 * Validate input value against specified range
 	 */
 	validateInput(value, range) {
-		return value >= range.min && value <= range.max;
+		return Number.isInteger(value) && value >= range.min && value <= range.max;
 	}
 
 	/**
@@ -95,11 +126,10 @@ export class SpectrogramControls {
 	 */
 	resetInputValue(input, value) {
 		input.value = value;
+		const range = this.inputRanges[input.id];
 		this.showValidationError(
 			input,
-			`Value must be between ${INPUT_RANGES[input.id].min} and ${
-				INPUT_RANGES[input.id].max
-			}`,
+			`Value must be between ${range.min} and ${range.max}`,
 		);
 	}
 
@@ -201,7 +231,7 @@ export class SpectrogramControls {
 	 * Reset controls to default values
 	 */
 	resetToDefaults() {
-		this.settings = { ...DEFAULT_SPECTROGRAM_SETTINGS };
+		this.settings = { ...this.defaultSettings };
 		this.updateControlValues();
 		this.notifySettingsChange();
 	}

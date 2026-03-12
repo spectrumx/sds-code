@@ -2,38 +2,6 @@
  * Constants for Spectrogram Visualization
  */
 
-export const DEFAULT_SPECTROGRAM_SETTINGS = {
-	fftSize: 1024,
-	stdDev: 100,
-	hopSize: 500,
-	colorMap: "magma",
-};
-
-// FFT size options (powers of 2 from 64 to 2048)
-// this parameter heavily impacts memory usage, so we're limiting it on the server too
-// for server-side validation, check VisualizationViewSet._validate_spectrogram_params()
-export const FFT_SIZE_OPTIONS = [64, 128, 256, 512, 1024, 2048];
-
-// also change VisualizationViewSet.Colormap
-export const COLOR_MAP_OPTIONS = [
-	"magma",
-	"viridis",
-	"plasma",
-	"inferno",
-	"cividis",
-	"turbo",
-	"jet",
-	"hot",
-	"cool",
-	"rainbow",
-];
-
-// Input validation ranges
-export const INPUT_RANGES = {
-	stdDev: { min: 10, max: 500 },
-	hopSize: { min: 100, max: 1000 },
-};
-
 export const DEFAULT_IMAGE_DIMENSIONS = {
 	width: 800,
 	height: 400,

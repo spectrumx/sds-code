@@ -13,6 +13,8 @@ from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.visualizations.api_views import Colormap
+from sds_gateway.visualizations.api_views import SpectrogramProcessingParams
 from sds_gateway.visualizations.models import PostProcessedData
 from sds_gateway.visualizations.models import ProcessingStatus
 from sds_gateway.visualizations.models import ProcessingType
@@ -449,6 +451,34 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         assert capture.channel == self.capture.channel
         assert capture.owner == self.user
         assert capture.is_deleted is False
+
+        spectrogram_form = context["spectrogram_form"]
+        assert spectrogram_form.fft_size_options == (
+            SpectrogramProcessingParams.get_fft_size_options()
+        )
+        assert spectrogram_form.default_fft_size == (
+            SpectrogramProcessingParams.DEFAULT_FFT_SIZE
+        )
+        assert spectrogram_form.default_std_dev == (
+            SpectrogramProcessingParams.DEFAULT_STD_DEV
+        )
+        assert spectrogram_form.default_hop_size == (
+            SpectrogramProcessingParams.DEFAULT_HOP_SIZE
+        )
+        assert spectrogram_form.default_color_map == (
+            SpectrogramProcessingParams.DEFAULT_COLORMAP
+        )
+        assert spectrogram_form.color_map_options == tuple(
+            colormap.value for colormap in Colormap
+        )
+        assert spectrogram_form.std_dev_min == SpectrogramProcessingParams.MIN_STD_DEV
+        assert spectrogram_form.std_dev_max == SpectrogramProcessingParams.MAX_STD_DEV
+        assert spectrogram_form.hop_size_min == (
+            SpectrogramProcessingParams.MIN_HOP_SIZE
+        )
+        assert spectrogram_form.hop_size_max == (
+            SpectrogramProcessingParams.MAX_HOP_SIZE
+        )
 
 
 class SpectrogramAPIViewTestCases(TestCase):
