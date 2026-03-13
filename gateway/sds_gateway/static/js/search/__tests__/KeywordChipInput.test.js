@@ -359,7 +359,8 @@ describe("KeywordChipInput", () => {
 			chipInput.renderChips();
 
 			const chip = mockChipContainer.querySelector(".keyword-chip");
-			expect(chip.innerHTML).not.toContain("<script>");
+			const span = chip.querySelector("span");
+			expect(span.innerHTML).not.toContain("<script>");
 		});
 
 		test("should remove existing chips before rendering", () => {
@@ -426,6 +427,7 @@ describe("initializeKeywordChipInput", () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		window.keywordChipInput = null;
 
 		mockContainer = document.createElement("div");
 		mockWrapper = document.createElement("div");
@@ -443,7 +445,8 @@ describe("initializeKeywordChipInput", () => {
 		document.body.appendChild(mockHiddenInput);
 
 		document.getElementById = jest.fn((id) => {
-			if (id === "keywords-hidden") return mockHiddenInput;
+			if (id === "keywords-hidden" || id === "custom-hidden")
+				return mockHiddenInput;
 			return null;
 		});
 	});
@@ -499,6 +502,11 @@ describe("initializeKeywordChipInput", () => {
 		mockWrapper.className = "custom-wrapper";
 		mockInput.className = "custom-input";
 		mockHiddenInput.id = "custom-hidden";
+		document.getElementById.mockImplementation((id) => {
+			if (id === "custom-hidden" || id === "keywords-hidden")
+				return mockHiddenInput;
+			return null;
+		});
 
 		const result = window.KeywordChipInputInitializer.initialize(
 			mockContainer,

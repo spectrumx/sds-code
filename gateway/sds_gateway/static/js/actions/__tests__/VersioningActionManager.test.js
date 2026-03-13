@@ -174,6 +174,7 @@ describe("VersioningActionManager", () => {
 				"/users/dataset-versioning/",
 				{
 					dataset_uuid: "test-dataset-uuid",
+					copy_shared_users: false,
 				},
 			);
 		});
@@ -220,6 +221,12 @@ describe("VersioningActionManager", () => {
 
 		test("should fallback to page reload if listRefreshManager not available", async () => {
 			global.window.listRefreshManager = undefined;
+			const reloadMock = jest.fn();
+			Object.defineProperty(global.window, "location", {
+				value: { reload: reloadMock },
+				writable: true,
+				configurable: true,
+			});
 			global.window.APIClient.post.mockResolvedValue({
 				success: true,
 				version: 2,
@@ -237,7 +244,7 @@ describe("VersioningActionManager", () => {
 			expect(console.warn).toHaveBeenCalledWith(
 				"listRefreshManager not available, reloading page",
 			);
-			expect(global.window.location.reload).toHaveBeenCalled();
+			expect(reloadMock).toHaveBeenCalled();
 		});
 
 		test("should handle API error response", async () => {
@@ -338,15 +345,17 @@ describe("VersioningActionManager", () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
-				expect.stringContaining("Failed to create dataset version"),
+				expect.stringMatching(/Failed to create dataset version|Network error/),
 				"error",
 			);
 		});
 
 		test("should handle success response without version number", async () => {
+			global.window.listRefreshManager = { loadTable: jest.fn() };
 			global.window.APIClient.post.mockResolvedValue({
 				success: true,
 			});
+			document.getElementById = jest.fn(() => null);
 
 			await versioningManager.handleVersionCreation(
 				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },

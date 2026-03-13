@@ -73,38 +73,37 @@ describe("DownloadActionManager", () => {
 			return null;
 		});
 
-		// Mock window objects
-		global.window = {
-			fetch: jest.fn(() =>
-				Promise.resolve({
-					ok: true,
-					json: () =>
-						Promise.resolve({ success: true, message: "Download requested" }),
-				}),
-			),
-			showWebDownloadModal: jest.fn(),
+		// Mock window objects (augment global window so code under test sees DOMUtils)
+		const domUtils = {
+			show: jest.fn(),
+			hide: jest.fn(),
 			showAlert: jest.fn(),
-			DOMUtils: {
-				show: jest.fn(),
-				hide: jest.fn(),
-				showAlert: jest.fn(),
-				renderError: jest.fn().mockResolvedValue(true),
-				renderLoading: jest.fn().mockResolvedValue(true),
-				renderContent: jest.fn().mockResolvedValue(true),
-				renderTable: jest.fn().mockResolvedValue(true),
-				showModalLoading: jest.fn().mockResolvedValue(true),
-				clearModalLoading: jest.fn(),
-				showModalError: jest.fn().mockResolvedValue(true),
-				openModal: jest.fn(),
-				closeModal: jest.fn(),
-			},
-			APIClient: {
-				post: jest.fn().mockResolvedValue({
-					success: true,
-					message: "Download request submitted successfully!",
-				}),
-			},
+			renderError: jest.fn().mockResolvedValue(true),
+			renderLoading: jest.fn().mockResolvedValue(true),
+			renderContent: jest.fn().mockResolvedValue(true),
+			renderTable: jest.fn().mockResolvedValue(true),
+			showModalLoading: jest.fn().mockResolvedValue(true),
+			clearModalLoading: jest.fn(),
+			showModalError: jest.fn().mockResolvedValue(true),
+			openModal: jest.fn(),
+			closeModal: jest.fn(),
 		};
+		global.window.DOMUtils = domUtils;
+		global.window.APIClient = {
+			post: jest.fn().mockResolvedValue({
+				success: true,
+				message: "Download request submitted successfully!",
+			}),
+		};
+		global.window.fetch = jest.fn(() =>
+			Promise.resolve({
+				ok: true,
+				json: () =>
+					Promise.resolve({ success: true, message: "Download requested" }),
+			}),
+		);
+		global.window.showWebDownloadModal = jest.fn();
+		global.window.showAlert = jest.fn();
 
 		// Mock bootstrap globally
 		global.bootstrap = {
@@ -152,6 +151,8 @@ describe("DownloadActionManager", () => {
 			window.APIClient = mockAPIClient;
 
 			window.DOMUtils = {
+				openModal: jest.fn(),
+				closeModal: jest.fn(),
 				renderLoading: jest.fn().mockResolvedValue(true),
 				renderContent: jest.fn().mockResolvedValue(true),
 				showAlert: jest.fn(),
@@ -376,9 +377,19 @@ describe("DownloadActionManager", () => {
 
 		test("should use DOMUtils.openModal for opening modals", () => {
 			const modalId = "webDownloadModal-test-uuid";
+			const confirmBtn = {
+				dataset: {},
+				cloneNode: jest.fn(() => confirmBtn),
+				parentNode: { replaceChild: jest.fn() },
+				onclick: null,
+				innerHTML: "",
+				disabled: false,
+			};
 			document.getElementById = jest.fn(() => ({
 				id: modalId,
-				querySelector: jest.fn(() => ({ textContent: "" })),
+				querySelector: jest.fn((sel) =>
+					sel === "#confirmWebDownloadBtn" ? confirmBtn : { textContent: "" },
+				),
 				addEventListener: jest.fn(),
 			}));
 
@@ -451,8 +462,6 @@ describe("DownloadActionManager", () => {
 		});
 
 		test("should handle missing modal elements", () => {
-			document.getElementById.mockReturnValue(null);
-
 			expect(() => {
 				downloadManager.closeCustomModal("test-modal");
 			}).not.toThrow();

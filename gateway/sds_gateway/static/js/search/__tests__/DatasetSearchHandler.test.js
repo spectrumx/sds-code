@@ -177,34 +177,38 @@ describe("DatasetSearchHandler", () => {
 		});
 
 		test("should handle enter key press on input", () => {
-			const mockInput = {
-				addEventListener: jest.fn(),
-				type: "text",
-			};
-			mockForm.querySelectorAll.mockReturnValue([mockInput]);
-
+			const realForm = document.createElement("form");
+			realForm.id = "search-form";
+			const mockInput = document.createElement("input");
+			mockInput.type = "text";
+			realForm.appendChild(mockInput);
+			document.getElementById = jest.fn((id) => {
+				if (id === "search-form") return realForm;
+				const elements = {
+					"search-button": mockSearchButton,
+					"clear-button": mockClearButton,
+					"results-container": mockResultsContainer,
+					"results-tbody": mockResultsTbody,
+					"results-count": mockResultsCount,
+				};
+				return elements[id] || null;
+			});
+			searchHandler = new DatasetSearchHandler(mockConfig);
+			const mockInputListener = { addEventListener: jest.fn(), type: "text" };
+			realForm.querySelectorAll = jest.fn(() => [mockInputListener]);
 			searchHandler.initializeEnterKeyListener();
 
-			// Get the event handler
-			const handler = mockInput.addEventListener.mock.calls.find(
+			const handler = mockInputListener.addEventListener.mock.calls.find(
 				(call) => call[0] === "keypress",
-			)[1];
-
-			// Create mock event
-			const mockEvent = {
-				key: "Enter",
-				preventDefault: jest.fn(),
-			};
-
-			// Spy on handleSearch
+			)?.[1];
+			if (!handler) {
+				throw new Error("keypress handler not attached");
+			}
+			const mockEvent = { key: "Enter", preventDefault: jest.fn() };
 			const handleSearchSpy = jest.spyOn(searchHandler, "handleSearch");
-
-			// Trigger handler
 			handler(mockEvent);
-
 			expect(mockEvent.preventDefault).toHaveBeenCalled();
 			expect(handleSearchSpy).toHaveBeenCalled();
-
 			handleSearchSpy.mockRestore();
 		});
 
@@ -434,16 +438,21 @@ describe("DatasetSearchHandler", () => {
 		});
 
 		test("should navigate to base URL without parameters", () => {
-			// Track location changes
-			let locationHref = window.location.href;
-			Object.defineProperty(window, "location", {
-				get: () => ({
-					href: locationHref,
-					pathname: "/datasets/",
-				}),
-				set: (value) => {
+			let locationHref = "/datasets/";
+			const locationObj = {
+				get pathname() {
+					return "/datasets/";
+				},
+				get href() {
+					return locationHref;
+				},
+				set href(value) {
 					locationHref = value;
 				},
+			};
+			Object.defineProperty(window, "location", {
+				value: locationObj,
+				writable: true,
 				configurable: true,
 			});
 

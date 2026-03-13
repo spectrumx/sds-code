@@ -319,7 +319,7 @@ class PageLifecycleManager {
 				modal.shareActionManager = shareManager;
 			}
 
-			if (window.VersioningActionManager) {
+			if (window.VersioningActionManager && !modal.versioningActionManager) {
 				const versioningManager = new window.VersioningActionManager({
 					datasetUuid: itemUuid,
 					permissions: this.permissions,

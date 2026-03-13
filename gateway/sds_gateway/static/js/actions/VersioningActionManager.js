@@ -74,7 +74,9 @@ class VersioningActionManager {
 				if (response.success) {
 					const modalEl = document.getElementById(this.modalId);
 					const onHidden = () => {
-						modalEl.removeEventListener("hidden.bs.modal", onHidden);
+						if (modalEl) {
+							modalEl.removeEventListener("hidden.bs.modal", onHidden);
+						}
 						window.DOMUtils.showAlert(
 							`Dataset version updated to v${response.version} successfully`,
 							"success",

@@ -524,6 +524,16 @@ class DownloadActionManager {
 	}
 
 	/**
+	 * Close a modal by id (delegates to DOMUtils.closeModal)
+	 * @param {string} modalId - Modal element id
+	 */
+	closeCustomModal(modalId) {
+		if (window.DOMUtils?.closeModal) {
+			window.DOMUtils.closeModal(modalId);
+		}
+	}
+
+	/**
 	 * Cleanup resources
 	 */
 	cleanup() {
