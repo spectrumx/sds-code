@@ -3550,7 +3550,11 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         return JsonResponse({"success": True, "version": new_dataset.version})
 
     def _copy_dataset_with_relations(
-        self, original_dataset: Dataset, request_user: User, copy_shared_users: bool
+        self,
+        original_dataset: Dataset,
+        request_user: User,
+        *,
+        copy_shared_users: bool = False,
     ) -> Dataset:
         """
         Copy a dataset along with all its related files and captures.
