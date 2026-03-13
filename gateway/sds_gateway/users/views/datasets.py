@@ -7,6 +7,8 @@ from typing import cast
 from uuid import UUID
 
 from django.contrib import messages
+from django.core.paginator import EmptyPage
+from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
@@ -29,6 +31,7 @@ from loguru import logger as log
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import Keyword
@@ -41,11 +44,14 @@ from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
+from sds_gateway.users.forms import PublishedDatasetSearchForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import FileTreeMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
+
+from .captures import _apply_frequency_filters_to_list
 
 if TYPE_CHECKING:
     from rest_framework.utils.serializer_helpers import ReturnDict
@@ -784,6 +790,182 @@ class GroupCapturesView(
 user_group_captures_view = GroupCapturesView.as_view()
 
 
+def filter_by_frequency_range(
+    datasets: QuerySet[Dataset],
+    min_freq: float | None,
+    max_freq: float | None,
+) -> QuerySet[Dataset]:
+    """Filter datasets by frequency range of their captures.
+
+    Reuses the existing _apply_frequency_filters_to_list function
+    to filter captures, then maps back to datasets.
+    """
+    if min_freq is None and max_freq is None:
+        return datasets
+
+    # Get dataset UUIDs
+    dataset_uuids = list(datasets.values_list("uuid", flat=True))
+    if not dataset_uuids:
+        return datasets.none()
+
+    # Get all captures for these datasets and convert to list
+    captures_qs = Capture.objects.filter(
+        dataset__uuid__in=dataset_uuids, is_deleted=False
+    )
+    captures_list = list(captures_qs.iterator(chunk_size=1000))
+    if not captures_list:
+        return datasets.none()
+
+    # Use existing frequency filter function
+    filtered_captures = _apply_frequency_filters_to_list(
+        captures_list=captures_list,
+        min_freq=min_freq,
+        max_freq=max_freq,
+    )
+
+    # Get dataset IDs from filtered captures
+    matching_dataset_ids = {
+        capture.dataset_id
+        for capture in filtered_captures
+        if capture.dataset_id is not None
+    }
+    if not matching_dataset_ids:
+        return datasets.none()
+
+    # Get dataset UUIDs from IDs and filter the queryset
+    matching_dataset_uuids = set(
+        Dataset.objects.filter(id__in=matching_dataset_ids).values_list(
+            "uuid", flat=True
+        )
+    )
+    return datasets.filter(uuid__in=matching_dataset_uuids)
+
+
+def serialize_datasets_for_user(
+    datasets: QuerySet[Dataset], user: User | None
+) -> list[dict[str, Any]]:
+    """Serialize datasets for display with user context.
+
+    Args:
+        datasets: QuerySet of Dataset objects to serialize
+        user: User object or None for anonymous users
+
+    Returns:
+        List of serialized dataset dictionaries
+    """
+    serialized_datasets = []
+    for dataset in datasets:
+        # Create a mock request object for the serializer context
+        context_req = {
+            "request": type(
+                "Request",
+                (),
+                {"user": user if user and user.is_authenticated else None},
+            )()
+        }
+        dataset_data = cast(
+            "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
+        )
+        dataset_data["dataset"] = dataset
+        serialized_datasets.append(dataset_data)
+    return serialized_datasets
+
+
+def get_published_datasets() -> QuerySet[Dataset]:
+    """Get all published datasets (status=FINAL or is_public=True)."""
+    return (
+        Dataset.objects.filter(
+            status=DatasetStatus.FINAL,
+            is_public=True,
+            is_deleted=False,
+        )
+        .prefetch_related("keywords", "owner")
+        .distinct()
+        .order_by("-created_at")
+    )
+
+
+def apply_search_filters(
+    datasets: QuerySet[Dataset],
+    form_data: dict[str, Any],
+) -> QuerySet[Dataset]:
+    """Apply search filters to the dataset queryset."""
+    query = form_data.get("query", "").strip()
+    keywords_str = form_data.get("keywords", "").strip()
+    min_freq = form_data.get("min_frequency")
+    max_freq = form_data.get("max_frequency")
+
+    # Apply text search
+    if query:
+        datasets = datasets.filter(
+            Q(name__icontains=query)
+            | Q(abstract__icontains=query)
+            | Q(description__icontains=query)
+            | Q(authors__icontains=query)
+            | Q(doi__icontains=query)
+        )
+
+    # Apply keyword filter
+    if keywords_str:
+        # Split and slugify keywords
+        keyword_slugs = {
+            slugify(k.strip())
+            for k in keywords_str.split(",")
+            if k.strip() and slugify(k.strip())
+        }
+        if keyword_slugs:
+            datasets = datasets.filter(keywords__name__in=keyword_slugs).distinct()
+
+    # Apply frequency range filter
+    if min_freq is not None or max_freq is not None:
+        datasets = filter_by_frequency_range(datasets, min_freq, max_freq)
+
+    return datasets
+
+
+class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
+    """View for searching published datasets (public, no auth required)."""
+
+    template_name = "users/published_datasets_list.html"
+
+    def get(self, request: HttpRequest, *args, **kwargs) -> HttpResponse:
+        """Handle GET request for dataset search."""
+        form = PublishedDatasetSearchForm(request.GET)
+        datasets = get_published_datasets()
+
+        # Apply search filters
+        if form.is_valid():
+            datasets = apply_search_filters(
+                datasets,
+                form.cleaned_data,
+            )
+
+        # Serialize datasets
+        serialized_datasets = serialize_datasets_for_user(
+            datasets, request.user if request.user.is_authenticated else None
+        )
+
+        # Paginate results
+        paginator = Paginator(serialized_datasets, per_page=15)
+        page_number = request.GET.get("page", 1)
+        try:
+            page_obj = paginator.get_page(page_number)
+        except (PageNotAnInteger, EmptyPage):
+            page_obj = paginator.get_page(1)
+
+        return render(
+            request,
+            template_name=self.template_name,
+            context={
+                "search_form": form,
+                "page_obj": page_obj,
+            },
+        )
+
+
+user_search_datasets_view = SearchPublishedDatasetsView.as_view()
+
+
 class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
@@ -986,3 +1168,130 @@ class DatasetDetailsView(Auth0LoginRequiredMixin, FileTreeMixin, View):
 
 
 user_dataset_details_view = DatasetDetailsView.as_view()
+
+
+class PublishDatasetView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset publishing (updating status and is_public)."""
+
+    def post(self, request, dataset_uuid: str) -> JsonResponse:
+        """Handle POST request to publish a dataset."""
+        # Get the dataset
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
+
+        # Check if user has access
+        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+            return JsonResponse(
+                {"success": False, "error": "Access denied."}, status=403
+            )
+
+        can_publish = UserSharePermission.user_can_edit_dataset(
+            request.user, dataset_uuid, ItemType.DATASET
+        )
+
+        if not can_publish:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "error": "You do not have permission to publish this dataset.",
+                },
+                status=403,
+            )
+
+        # Get status and is_public from request
+        status_value = request.POST.get("status")
+
+        is_public_raw = request.POST.get("is_public")
+        if is_public_raw is None:
+            is_public_value = None
+        else:
+            try:
+                is_public_value = json.loads(is_public_raw)
+            except (json.JSONDecodeError, TypeError):
+                return JsonResponse(
+                    {
+                        "success": False,
+                        "error": "Could not determine dataset visibility.",
+                    },
+                    status=400,
+                )
+
+        error_messages = self._handle_400_errors(
+            dataset,
+            status_value,
+            is_public_value=is_public_value,
+        )
+        if len(error_messages) > 0:
+            return JsonResponse(
+                {"success": False, "errors": {"non_field_errors": error_messages}},
+                status=400,
+            )
+
+        # Update status if provided and dataset is not already final
+        if status_value:
+            dataset.status = status_value
+
+        # Update is_public if provided and dataset is not already public
+        if is_public_value is not None:
+            dataset.is_public = is_public_value
+
+        dataset.save()
+
+        return JsonResponse(
+            {
+                "success": True,
+                "message": "Dataset updated successfully.",
+                "status": dataset.status,
+                "is_public": dataset.is_public,
+            }
+        )
+
+    def _handle_400_errors(
+        self,
+        dataset: Dataset,
+        status_value: str | None,
+        *,
+        is_public_value: bool | None,
+    ) -> list[str]:
+        """Handle status change."""
+
+        # Initialize error message
+        error_messages = []
+
+        # Validate that at least one field is being updated
+        if not status_value and is_public_value is None:
+            error_messages.append("No fields to update.")
+        # Validate status value
+        if status_value and status_value not in [
+            DatasetStatus.DRAFT,
+            DatasetStatus.FINAL,
+        ]:
+            error_messages.append("Invalid status value.")
+
+        # Update status if provided and dataset is not already final
+        if status_value:
+            if (
+                dataset.status == DatasetStatus.FINAL
+                and status_value == DatasetStatus.DRAFT
+            ):
+                error_messages.append(
+                    "Cannot change published dataset status back to Draft."
+                )
+
+        # Cannot make DRAFT dataset public - must be FINAL first
+        if is_public_value is True:
+            # Check if dataset will be DRAFT after this update
+            new_status = status_value or dataset.status
+            if new_status == DatasetStatus.DRAFT:
+                error_messages.append(
+                    "Draft datasets cannot be made public. Status must be Final."
+                )
+
+        if dataset.is_public and is_public_value is False:
+            error_messages.append(
+                "Cannot change public dataset visibility back to Private."
+            )
+
+        return error_messages
+
+
+user_publish_dataset_view = PublishDatasetView.as_view()
