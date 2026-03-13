@@ -36,6 +36,7 @@ from sds_gateway.api_methods.tasks import format_file_size
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import release_user_lock
+from sds_gateway.api_methods.tasks import _get_item_files
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 
@@ -1232,3 +1233,51 @@ class TestCeleryTasks(TestCase):
             assert result["status"] == "error"
             assert "SDK" in result["message"]
             assert "GB" in result["message"]  # Check for GB in general
+
+    def test_get_item_files_with_temporal_bounds_returns_expected_rf_subset(self):
+        """
+        Task-level test: start_time/end_time flow into _get_item_files and the helper
+        returns only the expected DRF data files in range (temporal_filtering logic
+        is unit-tested in test_temporal_filtering.py).
+        """
+        # Create DRF-named files for self.capture (epoch 1s..5s)
+        epoch_start_sec = 1
+        epoch_end_sec = 6
+        for i in range(epoch_start_sec, epoch_end_sec):
+            name = f"rf@{i}.000.h5"
+            content = ContentFile(b"x", name=name)
+            File.objects.create(
+                name=name,
+                size=100,
+                directory=self.top_level_dir,
+                owner=self.user,
+                capture=self.capture,
+                file=content,
+                sum_blake3="a" * 64,
+            )
+        # Link to capture via FK (get_capture_files uses both M2M and FK)
+        mock_response = {
+            "found": True,
+            "_source": {
+                "search_props": {
+                    "start_time": epoch_start_sec,
+                    "end_time": epoch_end_sec,
+                }
+            },
+        }
+        with patch(
+            "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
+        ) as m:
+            m.return_value.get.return_value = mock_response
+            # Relative ms: 1000–4000 ms from start → files rf@1.000.h5 .. rf@4.000.h5
+            result = _get_item_files(
+                self.user,
+                self.capture,
+                ItemType.CAPTURE,
+                start_time=1000,
+                end_time=4000,
+            )
+        names = [f.name for f in result]
+        # start_time=1000, end_time=4000 → absolute 2s..5s → rf@2.000.h5 .. rf@5.000.h5
+        expected = [f"rf@{i}.000.h5" for i in range(2, 6)]
+        assert names == expected, f"Expected {expected}, got {names}"
