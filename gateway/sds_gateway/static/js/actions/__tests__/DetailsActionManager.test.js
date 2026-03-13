@@ -185,7 +185,22 @@ describe("DetailsActionManager", () => {
 			const permissions = new PermissionsManager({
 				capturePermissions: { canEditMetadata: true },
 			});
-			detailsManager = new DetailsActionManager({ permissions });
+			detailsManager = new DetailsActionManager({
+				permissions,
+				itemType: "capture",
+				itemUuid: "test-uuid",
+			});
+			document.getElementById = jest.fn((id) => {
+				if (
+					id === "capture-modal" ||
+					id === "test-modal" ||
+					id === "captureDetailsModal" ||
+					id === "captureDetailsModal-test-uuid"
+				)
+					return mockModal;
+				if (id === "capture-name-input") return mockInput;
+				return null;
+			});
 		});
 
 		test("should initialize capture details buttons", () => {
@@ -225,7 +240,9 @@ describe("DetailsActionManager", () => {
 
 			await detailsManager.handleCaptureDetails("test-uuid");
 
-			expect(global.bootstrap.Modal).toHaveBeenCalled();
+			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(
+				detailsManager.modalId,
+			);
 			expect(mockModal.querySelector).toHaveBeenCalled();
 		});
 	});
@@ -239,13 +256,18 @@ describe("DetailsActionManager", () => {
 		});
 
 		test("should show modal loading state using DOMUtils", async () => {
-			// The showModalLoading method in DetailsActionManager is a wrapper
-			// that calls DOMUtils.showModalLoading
+			const mockModalBody = { dataset: {}, innerHTML: "" };
+			document.getElementById = jest.fn((id) =>
+				id === "test-modal"
+					? { querySelector: jest.fn(() => mockModalBody) }
+					: null,
+			);
 			await detailsManager.showModalLoading("test-modal");
 
-			// Verify DOMUtils.showModalLoading was called
-			expect(global.window.DOMUtils.showModalLoading).toHaveBeenCalledWith(
-				"test-modal",
+			expect(global.window.DOMUtils.renderLoading).toHaveBeenCalledWith(
+				mockModalBody,
+				"Loading details...",
+				expect.any(Object),
 			);
 		});
 	});
@@ -343,6 +365,7 @@ describe("DetailsActionManager", () => {
 				name: "Test Dataset",
 				description: "A shared dataset",
 				status: "Final",
+				version: 1,
 				created_at: "2024-01-01T00:00:00Z",
 				updated_at: "2024-01-15T00:00:00Z",
 				authors: ["John Doe", "Jane Smith"],
@@ -418,8 +441,9 @@ describe("DetailsActionManager", () => {
 			};
 
 			// Mock modal element with proper querySelector responses
+			const datasetModalId = "datasetDetailsModal-test-uuid";
 			mockDatasetModal = {
-				id: "datasetDetailsModal",
+				id: datasetModalId,
 				querySelector: jest.fn((selector) => {
 					const selectors = {
 						".dataset-details-name": mockNameElement,
@@ -443,7 +467,11 @@ describe("DetailsActionManager", () => {
 			};
 
 			document.getElementById.mockImplementation((id) => {
-				if (id === "datasetDetailsModal") return mockDatasetModal;
+				if (
+					id === "datasetDetailsModal" ||
+					id === "datasetDetailsModal-test-uuid"
+				)
+					return mockDatasetModal;
 				return null;
 			});
 		});
@@ -469,7 +497,11 @@ describe("DetailsActionManager", () => {
 			"should show details for %s dataset",
 			async (_label, permissionsConfig) => {
 				const permissions = new PermissionsManager(permissionsConfig);
-				detailsManager = new DetailsActionManager({ permissions });
+				detailsManager = new DetailsActionManager({
+					permissions,
+					itemType: "dataset",
+					itemUuid: "test-uuid",
+				});
 
 				// spies to verify the methods are called
 				const populateSpy = jest.spyOn(
@@ -513,8 +545,10 @@ describe("DetailsActionManager", () => {
 					true,
 				);
 
-				// Verify modal was populated
-				expect(mockNameElement.textContent).toBe(mockDatasetData.name);
+				// Verify modal was populated (name includes version: "Name (v1)")
+				expect(mockNameElement.textContent).toBe(
+					`${mockDatasetData.name} (v${mockDatasetData.version})`,
+				);
 				expect(mockDescriptionElement.textContent).toBe(
 					mockDatasetData.description,
 				);

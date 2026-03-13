@@ -71,15 +71,16 @@ class KeywordChipInput {
 	}
 
 	addChip(keyword) {
-		if (!keyword) return;
+		const trimmed = typeof keyword === "string" ? keyword.trim() : "";
+		if (!trimmed) return;
 
 		// Prevent duplicates
-		if (this.chips.includes(keyword)) {
+		if (this.chips.includes(trimmed)) {
 			this.input.value = "";
 			return;
 		}
 
-		this.chips.push(keyword);
+		this.chips.push(trimmed);
 		this.input.value = "";
 		this.renderChips();
 		this.updateHiddenInput();
@@ -446,7 +447,9 @@ class KeywordAutocomplete {
 		if (this.currentFocus < 0) this.currentFocus = items.length - 1;
 		items[this.currentFocus].classList.add("keyword-autocomplete-active");
 		items[this.currentFocus].style.backgroundColor = "#e9ecef";
-		items[this.currentFocus].scrollIntoView({ block: "nearest" });
+		if (typeof items[this.currentFocus].scrollIntoView === "function") {
+			items[this.currentFocus].scrollIntoView({ block: "nearest" });
+		}
 	}
 
 	removeActiveClass() {

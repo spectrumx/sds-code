@@ -1152,9 +1152,7 @@ describe("DOMUtils", () => {
 
 			beforeEach(() => {
 				mockDropdownMenu = {
-					classList: {
-						contains: jest.fn(() => true),
-					},
+					classList: { contains: jest.fn((cls) => cls === "dropdown-menu") },
 				};
 
 				mockToggle = {
@@ -1168,14 +1166,22 @@ describe("DOMUtils", () => {
 					return [];
 				});
 
-				global.document.body = {
-					appendChild: jest.fn(),
-				};
+				// Mock appendChild so DOMUtils can call it with mock dropdown (not a real Node)
+				global.document.bodyAppendChildSpy = jest
+					.spyOn(global.document.body, "appendChild")
+					.mockImplementation(() => {});
 
 				global.bootstrap.Dropdown = jest.fn().mockImplementation(() => ({
 					dispose: jest.fn(),
 				}));
 				global.bootstrap.Dropdown.getInstance = jest.fn(() => null);
+				global.document.addEventListener = jest.fn();
+			});
+
+			afterEach(() => {
+				if (global.document.bodyAppendChildSpy?.mockRestore) {
+					global.document.bodyAppendChildSpy.mockRestore();
+				}
 			});
 
 			test("should initialize dropdowns for all toggle buttons", () => {
@@ -1221,7 +1227,7 @@ describe("DOMUtils", () => {
 
 				if (showHandler) {
 					showHandler();
-					expect(document.body.appendChild).toHaveBeenCalledWith(
+					expect(global.document.bodyAppendChildSpy).toHaveBeenCalledWith(
 						mockDropdownMenu,
 					);
 				}
@@ -1240,8 +1246,8 @@ describe("DOMUtils", () => {
 
 				domUtils.initializeListDropdowns();
 
-				// Simulate click event
-				const clickHandler = document.addEventListener.mock.calls.find(
+				// Simulate click event (use global.document.addEventListener set in beforeEach)
+				const clickHandler = global.document.addEventListener.mock.calls.find(
 					(call) => call[0] === "click",
 				)?.[1];
 

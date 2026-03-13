@@ -32,6 +32,7 @@ describe("PageLifecycleManager", () => {
 		global.window = {
 			addEventListener: jest.fn(),
 			removeEventListener: jest.fn(),
+			PermissionsManager: jest.fn().mockImplementation(() => ({})),
 		};
 	});
 
@@ -273,6 +274,11 @@ describe("PageLifecycleManager", () => {
 				return [];
 			});
 
+			// Mock PermissionsManager so initializeCoreManagers sets this.permissions
+			global.window.PermissionsManager = jest
+				.fn()
+				.mockImplementation(() => ({}));
+
 			// Mock action manager classes
 			global.window.ShareActionManager = jest
 				.fn()
@@ -361,17 +367,17 @@ describe("PageLifecycleManager", () => {
 		});
 
 		test("should prevent duplicate VersioningActionManager initialization", () => {
+			// Set existing manager before init so initializeDatasetModals skips creating another
+			mockModal.versioningActionManager = { existing: true };
+
 			lifecycleManager = new PageLifecycleManager({
 				...mockConfig,
 				pageType: "dataset-list",
 			});
 
-			// Set existing manager
-			mockModal.versioningActionManager = { existing: true };
-
 			lifecycleManager.initializeDatasetModals();
 
-			// Should not create a new instance
+			// Should not create a new instance when one already exists on the modal
 			expect(global.window.VersioningActionManager).not.toHaveBeenCalled();
 		});
 
@@ -471,14 +477,30 @@ describe("PageLifecycleManager", () => {
 		});
 
 		test("should dispose all modal instances during cleanup", () => {
-			lifecycleManager = new PageLifecycleManager(mockConfig);
+			mockModal.shareActionManager = {};
+			mockModal.versioningActionManager = {};
+			mockModal.downloadActionManager = {};
+			mockModal.detailsActionManager = {};
+			document.querySelectorAll = jest.fn((selector) => {
+				if (
+					selector === ".modal[data-item-type='dataset']" ||
+					selector === ".modal"
+				)
+					return [mockModal];
+				return [];
+			});
 
+			lifecycleManager = new PageLifecycleManager({
+				...mockConfig,
+				pageType: "dataset-list",
+			});
 			lifecycleManager.cleanup();
 
-			expect(global.window.bootstrap.Modal.getInstance).toHaveBeenCalledWith(
-				mockModal,
-			);
-			expect(mockBootstrapModal.dispose).toHaveBeenCalled();
+			// cleanup() clears manager refs from modals; it does not dispose Bootstrap modals
+			expect(mockModal.shareActionManager).toBeUndefined();
+			expect(mockModal.versioningActionManager).toBeUndefined();
+			expect(mockModal.downloadActionManager).toBeUndefined();
+			expect(mockModal.detailsActionManager).toBeUndefined();
 		});
 
 		test("should handle disposal failures gracefully", () => {
