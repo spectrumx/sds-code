@@ -504,17 +504,17 @@ class PageLifecycleManager {
 			".modal[data-item-type='dataset']",
 		);
 		for (const modal of datasetModals) {
-			delete modal.shareActionManager;
-			delete modal.versioningActionManager;
-			delete modal.downloadActionManager;
-			delete modal.detailsActionManager;
+			modal.shareActionManager = undefined;
+			modal.versioningActionManager = undefined;
+			modal.downloadActionManager = undefined;
+			modal.detailsActionManager = undefined;
 		}
 		const captureModals = document.querySelectorAll(
 			".modal[data-item-type='capture']",
 		);
 		for (const modal of captureModals) {
-			delete modal.shareActionManager;
-			delete modal.downloadActionManager;
+			modal.shareActionManager = undefined;
+			modal.downloadActionManager = undefined;
 		}
 
 		// Clear manager references

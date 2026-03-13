@@ -364,7 +364,7 @@ class KeywordAutocomplete {
 	showSuggestions(suggestions) {
 		this.suggestionsContainer.innerHTML = "";
 		this.currentFocus = -1;
-		suggestions.forEach((suggestion) => {
+		for (const suggestion of suggestions) {
 			const item = document.createElement("div");
 			item.className = "keyword-autocomplete-item";
 			item.textContent = suggestion;
@@ -384,7 +384,7 @@ class KeywordAutocomplete {
 				this.selectSuggestion(suggestion);
 			});
 			this.suggestionsContainer.appendChild(item);
-		});
+		}
 		const rect = this.input.getBoundingClientRect();
 		this.suggestionsContainer.style.width = `${rect.width}px`;
 		this.suggestionsContainer.style.top = `${this.input.offsetTop + this.input.offsetHeight}px`;
@@ -401,9 +401,9 @@ class KeywordAutocomplete {
 		let newValue;
 		if (lastCommaIndex >= 0) {
 			const beforeComma = fullValue.substring(0, lastCommaIndex + 1);
-			newValue = beforeComma + " " + suggestion + textAfterCursor;
+			newValue = `${beforeComma} ${suggestion}${textAfterCursor}`;
 		} else {
-			newValue = suggestion + textAfterCursor;
+			newValue = `${suggestion}${textAfterCursor}`;
 		}
 		this.input.value = newValue;
 		this.input.focus();
@@ -453,10 +453,10 @@ class KeywordAutocomplete {
 		const items = this.suggestionsContainer.querySelectorAll(
 			".keyword-autocomplete-item",
 		);
-		items.forEach((item) => {
+		for (const item of items) {
 			item.classList.remove("keyword-autocomplete-active");
 			item.style.backgroundColor = "";
-		});
+		}
 	}
 
 	handleBlur() {

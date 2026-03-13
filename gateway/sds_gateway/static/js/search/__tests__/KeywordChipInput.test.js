@@ -842,8 +842,8 @@ describe("KeywordAutocomplete", () => {
 		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
 		autocomplete.showSuggestions(["keyword1"]);
 
-		const escape = new KeyboardEvent("keydown", { key: "Escape" });
-		mockInput.dispatchEvent(escape);
+		const escapeKeydown = new KeyboardEvent("keydown", { key: "Escape" });
+		mockInput.dispatchEvent(escapeKeydown);
 
 		expect(autocomplete.suggestionsContainer.style.display).toBe("none");
 	});

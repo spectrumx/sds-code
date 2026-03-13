@@ -3,8 +3,10 @@
 import uuid
 
 import pytest
+from django.http import HttpResponse
 from django.test import Client
 from django.urls import reverse
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
@@ -18,9 +20,15 @@ from sds_gateway.users.models import User
 from sds_gateway.users.tests.factories import UserFactory
 
 pytestmark = pytest.mark.django_db
+FIRST_VERSION = 1
+SECOND_VERSION = 2
 
 
-def _create_dataset_with_files_and_captures(owner: User, version: int = 1, **kwargs) -> Dataset:
+def _create_dataset_with_files_and_captures(
+    owner: User,
+    version: int = FIRST_VERSION,
+    **kwargs,
+) -> Dataset:
     """Create a dataset with linked files and captures."""
     dataset = Dataset.objects.create(
         name=kwargs.get("name", "Test Dataset"),
@@ -29,7 +37,11 @@ def _create_dataset_with_files_and_captures(owner: User, version: int = 1, **kwa
         description=kwargs.get("description", "Description"),
         abstract=kwargs.get("abstract", "Abstract"),
         status=DatasetStatus.DRAFT.value,
-        **{k: v for k, v in kwargs.items() if k not in ("name", "description", "abstract")},
+        **{
+            k: v
+            for k, v in kwargs.items()
+            if k not in ("name", "description", "abstract")
+        },
     )
     file = FileFactory(owner=owner)
     capture = Capture.objects.create(
@@ -42,7 +54,12 @@ def _create_dataset_with_files_and_captures(owner: User, version: int = 1, **kwa
     return dataset
 
 
-def _post_versioning(client: Client, dataset_uuid: uuid.UUID, copy_shared_users: bool = False):
+def _post_versioning(
+    client: Client,
+    dataset_uuid: uuid.UUID,
+    *,
+    copy_shared_users: bool = False,
+) -> HttpResponse:
     url = reverse("users:dataset_versioning")
     data = {"dataset_uuid": str(dataset_uuid)}
     if copy_shared_users:
@@ -58,12 +75,12 @@ class TestDatasetVersioningNewVersionGreater:
         dataset = _create_dataset_with_files_and_captures(owner, version=1)
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert data["success"] is True
-        assert data["version"] == 2
+        assert data["version"] == SECOND_VERSION
         new_dataset = Dataset.objects.get(previous_version=dataset)
-        assert new_dataset.version == 2
+        assert new_dataset.version == SECOND_VERSION
         assert new_dataset.version > dataset.version
 
 
@@ -85,7 +102,7 @@ class TestDatasetVersioningMetadataCopied:
         )
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
         assert new_dataset.name == dataset.name
         assert new_dataset.description == dataset.description
@@ -103,14 +120,17 @@ class TestDatasetVersioningFilesAndCaptures:
     def test_files_and_captures_same_as_original(self, client: Client) -> None:
         owner = UserFactory(is_approved=True)
         dataset = _create_dataset_with_files_and_captures(owner)
-        original_file_ids = list(dataset.files.values_list("pk", flat=True))
-        original_capture_ids = list(dataset.captures.values_list("pk", flat=True))
+        original_file_ids = set(dataset.files.values_list("pk", flat=True))
+        original_capture_ids = set(dataset.captures.values_list("pk", flat=True))
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
-        assert list(new_dataset.files.values_list("pk", flat=True)) == original_file_ids
-        assert list(new_dataset.captures.values_list("pk", flat=True)) == original_capture_ids
+        assert set(new_dataset.files.values_list("pk", flat=True)) == original_file_ids
+        assert (
+            set(new_dataset.captures.values_list("pk", flat=True))
+            == original_capture_ids
+        )
 
 
 class TestDatasetVersioningNonOwnerForbidden:
@@ -129,9 +149,11 @@ class TestDatasetVersioningNonOwnerForbidden:
         )
         client.force_login(other)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         data = response.json()
-        assert "permission" in data["error"].lower() or "advance" in data["error"].lower()
+        assert (
+            "permission" in data["error"].lower() or "advance" in data["error"].lower()
+        )
         assert not Dataset.objects.filter(previous_version=dataset).exists()
 
     def test_contributor_cannot_advance_version(self, client: Client) -> None:
@@ -147,7 +169,7 @@ class TestDatasetVersioningNonOwnerForbidden:
         )
         client.force_login(other)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         assert not Dataset.objects.filter(previous_version=dataset).exists()
 
     def test_unshared_user_cannot_advance_version(self, client: Client) -> None:
@@ -156,7 +178,7 @@ class TestDatasetVersioningNonOwnerForbidden:
         dataset = _create_dataset_with_files_and_captures(owner)
         client.force_login(other)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 403
+        assert response.status_code == status.HTTP_403_FORBIDDEN
         assert not Dataset.objects.filter(previous_version=dataset).exists()
 
 
@@ -165,14 +187,14 @@ class TestDatasetVersioningPreviousAndNext:
 
     def test_previous_version_and_next_version_linked(self, client: Client) -> None:
         owner = UserFactory(is_approved=True)
-        dataset = _create_dataset_with_files_and_captures(owner, version=1)
+        dataset = _create_dataset_with_files_and_captures(owner, version=FIRST_VERSION)
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
         assert new_dataset.previous_version_id == dataset.pk
         assert dataset.next_version.filter(pk=new_dataset.pk).exists()
-        assert dataset.next_version.get().version == 2
+        assert dataset.next_version.get().version == SECOND_VERSION
 
 
 class TestDatasetVersioningNotCarriedOver:
@@ -185,7 +207,7 @@ class TestDatasetVersioningNotCarriedOver:
         orig_updated = dataset.updated_at
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
         assert new_dataset.created_at >= orig_created
         assert new_dataset.updated_at >= orig_updated
@@ -198,11 +220,13 @@ class TestDatasetVersioningNotCarriedOver:
         dataset.save(update_fields=["is_public"])
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
         assert new_dataset.is_public is False
 
-    def test_shared_users_do_not_carry_over_when_not_requested(self, client: Client) -> None:
+    def test_shared_users_do_not_carry_over_when_not_requested(
+        self, client: Client
+    ) -> None:
         owner = UserFactory(is_approved=True)
         shared_user = UserFactory(is_approved=True)
         dataset = _create_dataset_with_files_and_captures(owner)
@@ -215,7 +239,7 @@ class TestDatasetVersioningNotCarriedOver:
         )
         client.force_login(owner)
         response = _post_versioning(client, dataset.uuid, copy_shared_users=False)
-        assert response.status_code == 200
+        assert response.status_code == status.HTTP_200_OK
         new_dataset = Dataset.objects.get(previous_version=dataset)
         new_perms = UserSharePermission.objects.filter(
             item_type=ItemType.DATASET,
