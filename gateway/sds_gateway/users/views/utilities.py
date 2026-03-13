@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 from django.http import HttpRequest
 from django.http import JsonResponse
@@ -7,6 +8,18 @@ from loguru import logger as log
 
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.utils import render_html_fragment
+
+
+def _is_safe_template_path(template_name: str) -> bool:
+    """Check if the template path is safe (within users/components/)."""
+    normalized_path = Path(template_name).resolve()
+    base_dir = Path("users/components").resolve()
+    try:
+        normalized_path.relative_to(base_dir)
+    except ValueError:
+        return False
+    else:
+        return True
 
 
 class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
@@ -41,7 +54,8 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             return JsonResponse({"error": "Template name is required"}, status=400)
 
         # Security: Only allow templates from users/components/ directory
-        if not template_name.startswith("users/components/"):
+        # Resolves path traversal attempts like "../"
+        if not _is_safe_template_path(template_name):
             log.warning(f"Invalid template path: {template_name}")
             return JsonResponse(
                 {"error": "Cannot render component."},
