@@ -12,6 +12,7 @@ from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
+from django.db import transaction
 from django.db.models import Q
 from django.db.models import Sum
 from django.db.models.query import QuerySet
@@ -37,6 +38,7 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.models import get_shared_users_for_item
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
@@ -1295,3 +1297,147 @@ class PublishDatasetView(Auth0LoginRequiredMixin, View):
 
 
 user_publish_dataset_view = PublishDatasetView.as_view()
+
+
+class DatasetVersioningView(Auth0LoginRequiredMixin, View):
+    """View to handle dataset versioning updates."""
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        dataset_uuid = request.POST.get("dataset_uuid")
+        copy_shared_users = request.POST.get("copy_shared_users", "false").lower() in (
+            "true",
+            "1",
+            "on",
+        )
+        if not dataset_uuid:
+            return JsonResponse({"error": "Dataset UUID is required"}, status=400)
+
+        dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
+
+        # check if user has access to the dataset
+        if not UserSharePermission.user_can_advance_version(
+            request.user, dataset_uuid, ItemType.DATASET
+        ):
+            return JsonResponse(
+                {
+                    "error": (
+                        "You do not have permission to advance "
+                        "the version of this dataset"
+                    )
+                },
+                status=403,
+            )
+
+        # copy dataset with relations
+        new_dataset = self._copy_dataset_with_relations(
+            dataset, request.user, copy_shared_users
+        )
+
+        return JsonResponse({"success": True, "version": new_dataset.version})
+
+    def _copy_dataset_with_relations(
+        self,
+        original_dataset: Dataset,
+        request_user: User,
+        *,
+        copy_shared_users: bool = False,
+    ) -> Dataset:
+        """
+        Copy a dataset along with all its related files and captures.
+
+        Args:
+            original_dataset: The dataset to copy
+            request_user: The user creating the new version
+
+        Returns:
+            The new dataset with copied related objects
+        """
+        new_version = original_dataset.version + 1
+
+        # Use database transaction with locking to prevent race conditions
+        # when multiple requests try to create the same version simultaneously
+        with transaction.atomic():
+            # Lock the original dataset to prevent concurrent version creation
+            locked_dataset = Dataset.objects.select_for_update().get(
+                uuid=original_dataset.uuid
+            )
+
+            # Check again for existing version within the locked transaction
+            existing_version = Dataset.objects.filter(
+                previous_version=locked_dataset,
+                version=new_version,
+                owner=request_user,
+                is_deleted=False,
+            ).first()
+
+            if existing_version:
+                # Return existing version if it was already created
+                return existing_version
+
+            # Fields that should not be copied from the original dataset
+            # These fields will be reset for the new version
+            no_copy_fields = [
+                "uuid",
+                "created_at",
+                "updated_at",
+                "status",
+                "is_public",
+                "shared_with",
+                "previous_version",
+                "version",
+                "owner",
+            ]
+
+            dataset_data = {
+                field.name: getattr(locked_dataset, field.name)
+                for field in locked_dataset._meta.get_fields()  # noqa: SLF001
+                if hasattr(field, "name")
+                and field.name not in no_copy_fields
+                and not field.many_to_many
+                and not field.one_to_many
+                and not field.one_to_one
+            }
+            dataset_data["owner"] = request_user
+            dataset_data["version"] = new_version
+            dataset_data["previous_version"] = locked_dataset
+
+            # Ensure status is draft for new version
+            dataset_data["status"] = DatasetStatus.DRAFT.value
+            dataset_data["is_public"] = False
+
+            new_dataset = Dataset.objects.create(**dataset_data)
+
+            # Set the relationships on the new dataset
+            new_dataset.captures.set(locked_dataset.captures.all())
+            new_dataset.files.set(locked_dataset.files.all())
+            new_dataset.keywords.set(locked_dataset.keywords.all())
+            if copy_shared_users:
+                self._copy_shared_users(locked_dataset, new_dataset)
+
+        return new_dataset
+
+    def _copy_shared_users(
+        self, original_dataset: Dataset, new_dataset: Dataset
+    ) -> None:
+        """
+        Copy the shared users from the original dataset to the new dataset.
+        Args:
+            original_dataset: The original dataset
+            new_dataset: The new dataset
+        """
+        shared_users = get_shared_users_for_item(
+            original_dataset.uuid, ItemType.DATASET
+        )
+        for shared_user in shared_users:
+            UserSharePermission.objects.create(
+                owner=new_dataset.owner,
+                shared_with=shared_user.shared_with,
+                item_type=ItemType.DATASET,
+                item_uuid=new_dataset.uuid,
+                is_enabled=True,
+                is_deleted=False,
+                permission_level=shared_user.permission_level,
+            )
+
+
+user_dataset_versioning_view = DatasetVersioningView.as_view()

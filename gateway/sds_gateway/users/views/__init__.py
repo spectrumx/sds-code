@@ -27,11 +27,13 @@ from .captures import user_captures_api_view
 
 # Dataset views
 from .datasets import DatasetDetailsView
+from .datasets import DatasetVersioningView
 from .datasets import GroupCapturesView
 from .datasets import ListDatasetsView
 from .datasets import SearchPublishedDatasetsView
 from .datasets import user_dataset_details_view
 from .datasets import user_dataset_list_view
+from .datasets import user_dataset_versioning_view
 from .datasets import user_group_captures_view
 from .datasets import user_publish_dataset_view
 from .datasets import user_search_datasets_view
@@ -90,6 +92,7 @@ __all__ = [
     "CapturesAPIView",
     "CheckFileExistsView",
     "DatasetDetailsView",
+    "DatasetVersioningView",
     "DownloadItemView",
     "FileContentView",
     "FileDetailView",
@@ -133,6 +136,7 @@ __all__ = [
     "user_check_file_exists_view",
     "user_dataset_details_view",
     "user_dataset_list_view",
+    "user_dataset_versioning_view",
     "user_detail_view",
     "user_publish_dataset_view",
     "user_search_datasets_view",
