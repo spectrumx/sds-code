@@ -29,9 +29,12 @@ from .captures import user_captures_api_view
 from .datasets import DatasetDetailsView
 from .datasets import GroupCapturesView
 from .datasets import ListDatasetsView
+from .datasets import SearchPublishedDatasetsView
 from .datasets import user_dataset_details_view
 from .datasets import user_dataset_list_view
 from .datasets import user_group_captures_view
+from .datasets import user_publish_dataset_view
+from .datasets import user_search_datasets_view
 
 # Download views
 from .downloads import DownloadItemView
@@ -62,7 +65,9 @@ from .sharing import ShareOperationError
 from .sharing import user_share_item_view
 
 # Special pages
+from .special_pages import HomePageView
 from .special_pages import SPXDACDatasetAltView
+from .special_pages import home_page_view
 from .special_pages import spx_dac_dataset_alt_view
 
 # Upload views
@@ -101,6 +106,7 @@ __all__ = [
     "NewAPIKeyView",
     "RenderHTMLFragmentView",
     "RevokeAPIKeyView",
+    "SearchPublishedDatasetsView",
     "SPXDACDatasetAltView",
     "ShareGroupListView",
     "ShareItemView",
@@ -110,12 +116,14 @@ __all__ = [
     "UserDetailView",
     "UserRedirectView",
     "UserUpdateView",
+    "HomePageView",
     "_get_captures_for_template",
     "files_view",
     "generate_api_key_form_view",
     "get_active_api_key_count",
     "keyword_autocomplete_api_view",
     "new_api_key_view",
+    "home_page_view",
     "render_html_fragment_view",
     "revoke_api_key_view",
     "spx_dac_dataset_alt_view",
@@ -126,6 +134,8 @@ __all__ = [
     "user_dataset_details_view",
     "user_dataset_list_view",
     "user_detail_view",
+    "user_publish_dataset_view",
+    "user_search_datasets_view",
     "user_download_item_view",
     "user_file_detail_view",
     "user_file_list_view",
