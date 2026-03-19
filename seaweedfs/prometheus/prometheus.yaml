@@ -1,0 +1,29 @@
+global:
+    scrape_interval: 15s
+    evaluation_interval: 15s
+
+scrape_configs:
+    - job_name: seaweedfs-master
+      static_configs:
+          - targets:
+                - sds-gateway-local-sfs-master:9324
+
+    - job_name: seaweedfs-volume
+      static_configs:
+          - targets:
+                - sds-gateway-local-sfs-volume:9325
+
+    - job_name: seaweedfs-filer
+      static_configs:
+          - targets:
+                - sds-gateway-local-sfs-filer:9326
+
+    - job_name: seaweedfs-s3
+      static_configs:
+          - targets:
+                - sds-gateway-local-sfs-s3:9327
+
+    - job_name: prometheus
+      static_configs:
+          - targets:
+                - localhost:9090
