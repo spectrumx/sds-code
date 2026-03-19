@@ -1,0 +1,11 @@
+# A sample TOML config file for SeaweedFS cluster
+# Based on 'docker compose -p seaweedfs exec -it sds-gateway-local-sfs-master weed scaffold -config shell'
+
+[cluster]
+    default = "c1"
+
+    [cluster.c1]
+        master = "localhost:9333" # comma-separated master servers
+
+    [cluster.c2]
+        master = ""
