@@ -30,7 +30,7 @@ repos:
     # Gitleaks is a tool for detecting secrets like passwords, API keys, and tokens in
     # git repos, files, and whatever else you wanna throw at it via stdin.
     - repo: https://github.com/gitleaks/gitleaks
-      rev: v8.30.0
+      rev: v8.30.1
       hooks:
           - id: gitleaks
             name: "gitleaks for secrets detection"
@@ -41,7 +41,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.4.5
+      rev: v2.4.8
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.0.0"]
@@ -55,7 +55,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.5
+      rev: v0.15.6
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
