@@ -3544,7 +3544,9 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
         # copy dataset with relations
         new_dataset = self._copy_dataset_with_relations(
-            dataset, request.user, copy_shared_users
+            dataset,
+            request_user=request.user,
+            copy_shared_users=copy_shared_users,
         )
 
         return JsonResponse({"success": True, "version": new_dataset.version})
@@ -3552,8 +3554,8 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
     def _copy_dataset_with_relations(
         self,
         original_dataset: Dataset,
-        request_user: User,
         *,
+        request_user: User,
         copy_shared_users: bool = False,
     ) -> Dataset:
         """
