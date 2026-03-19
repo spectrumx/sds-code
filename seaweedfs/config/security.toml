@@ -1,0 +1,171 @@
+# Put this file to one of the location, with descending priority
+# Based on 'docker compose -p seaweedfs exec -it sds-gateway-local-sfs-master weed scaffold -config security'
+#    ./security.toml
+#    $HOME/.seaweedfs/security.toml
+#    /etc/seaweedfs/security.toml
+# this file is read by master, volume server, filer, and worker
+
+# comma separated origins allowed to make requests to the filer and s3 gateway.
+# enter in this format: https://domain.com, or http://localhost:port
+[cors.allowed_origins]
+    values = "*"
+
+# this jwt signing key is read by master and volume server, and it is used for write operations:
+# - the Master server generates the JWT, which can be used to write a certain file on a volume server
+# - the Volume server validates the JWT on writing
+# the jwt defaults to expire after 10 seconds.
+[jwt.signing]
+    expires_after_seconds = 10 # seconds
+    key                   = ""
+
+# by default, if the signing key above is set, the Volume UI over HTTP is disabled.
+# by setting ui.access to true, you can re-enable the Volume UI. Despite
+# some information leakage (as the UI is not authenticated), this should not
+# pose a security risk.
+[access]
+    ui = false
+
+# by default the filer UI is enabled. This can be a security risk if the filer is exposed to the public
+# and the JWT for reads is not set. If you don't want the public to have access to the objects in your
+# storage, and you haven't set the JWT for reads it is wise to disable access to directory metadata.
+# This disables access to the Filer UI, and will no longer return directory metadata in GET requests.
+[filer.expose_directory_metadata]
+    enabled = true
+
+    # this jwt signing key is read by master and volume server, and it is used for read operations:
+    # - the Master server generates the JWT, which can be used to read a certain file on a volume server
+    # - the Volume server validates the JWT on reading
+    # NOTE: jwt for read is only supported with master+volume setup. Filer does not support this mode.
+    [jwt.signing.read]
+        expires_after_seconds = 10 # seconds
+        key                   = ""
+
+
+# If this JWT key is configured, Filer only accepts writes over HTTP if they are signed with this JWT:
+# - f.e. the S3 API Shim generates the JWT
+# - the Filer server validates the JWT on writing
+# NOTE: This key is ALSO used as a fallback signing key for S3 STS if s3.iam.config does not specify a signingKey.
+# the jwt defaults to expire after 10 seconds.
+[jwt.filer_signing]
+    expires_after_seconds = 10 # seconds
+    key                   = ""
+
+    # If this JWT key is configured, Filer only accepts reads over HTTP if they are signed with this JWT:
+    # - f.e. the S3 API Shim generates the JWT
+    # - the Filer server validates the JWT on reading
+    # the jwt defaults to expire after 10 seconds.
+    [jwt.filer_signing.read]
+        expires_after_seconds = 10 # seconds
+        key                   = ""
+
+# gRPC mTLS configuration
+# All gRPC TLS authentications are mutual (mTLS)
+# The values for ca, cert, and key are paths to the certificate/key files
+# The host name is not checked, so the certificate files can be shared
+[grpc]
+    ca = ""
+    # Set wildcard domain for enable TLS authentication by common names
+    allowed_wildcard_domain = "" # .mycompany.com
+
+    # Volume server gRPC options (server-side)
+    # Enables mTLS for incoming gRPC connections to volume server
+    [grpc.volume]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    # Master server gRPC options (server-side)
+    # Enables mTLS for incoming gRPC connections to master server
+    [grpc.master]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    # Filer server gRPC options (server-side)
+    # Enables mTLS for incoming gRPC connections to filer server
+    [grpc.filer]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    # S3 server gRPC options (server-side)
+    # Enables mTLS for incoming gRPC connections to S3 server
+    [grpc.s3]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    [grpc.msg_broker]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    [grpc.msg_agent]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    [grpc.admin]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    [grpc.worker]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    [grpc.mq]
+        allowed_commonNames = "" # comma-separated SSL certificate common names
+        cert                = ""
+        key                 = ""
+
+    # gRPC client configuration for outgoing gRPC connections
+    # Used by clients (S3, mount, backup, benchmark, filer.copy, filer.replicate, upload, etc.)
+    # when connecting to any gRPC server (master, volume, filer)
+    [grpc.client]
+        cert = ""
+        key  = ""
+
+# HTTPS client configuration for outgoing HTTP connections
+# Used by S3, mount, filer.copy, backup, and other clients when communicating with master/volume/filer
+# Set enabled=true to use HTTPS instead of HTTP for data operations (separate from gRPC)
+# If [https.filer] or [https.volume] are enabled on servers, clients must have [https.client] enabled=true
+[https.client]
+    ca      = ""    # CA certificate to verify server certificates (required when enabled=true)
+    cert    = ""    # Client certificate for mTLS (optional if server doesn't require client cert)
+    enabled = false # Set to true to enable HTTPS for all outgoing HTTP client connections
+    key     = ""    # Client key for mTLS (optional if server doesn't require client cert)
+
+# Volume server HTTPS options (server-side)
+# Enables HTTPS for incoming HTTP connections to volume server
+[https.volume]
+    ca   = ""
+    cert = ""
+    key  = ""
+
+# Master server HTTPS options (server-side)
+# Enables HTTPS for incoming HTTP connections to master server (web UI, HTTP API)
+[https.master]
+    ca   = ""
+    cert = ""
+    key  = ""
+
+# Filer server HTTPS options (server-side)
+# Enables HTTPS for incoming HTTP connections to filer server (web UI, HTTP API)
+[https.filer]
+    ca   = ""
+    cert = ""
+    key  = ""
+    # disable_tls_verify_client_cert = true|false (default: false)
+
+# Admin server HTTPS options (server-side)
+# Enables HTTPS for incoming HTTP connections to admin server
+[https.admin]
+    ca   = ""
+    cert = ""
+    key  = ""
+
+# white list. It's checking request ip address.
+[guard]
+    white_list = ""
