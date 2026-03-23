@@ -66,10 +66,10 @@ describe("DownloadActionManager", () => {
 			if (id === "downloadModal") return mockModal;
 			if (id === "downloadDatasetName") return { textContent: "" };
 			if (id === "confirmDownloadBtn") return mockButton;
-			if (id === "webDownloadModal") return mockModal;
-			if (id === "webDownloadModalLabel") return { innerHTML: "" };
-			if (id === "webDownloadDatasetName") return { textContent: "" };
-			if (id === "confirmWebDownloadBtn") return mockButton;
+			if (id.startsWith("webDownloadModal-")) return mockModal;
+			if (id.startsWith("webDownloadModalLabel-")) return { innerHTML: "" };
+			if (id.startsWith("webDownloadDatasetName-")) return { textContent: "" };
+			if (id.startsWith("confirmWebDownloadBtn-")) return mockButton;
 			return null;
 		});
 
@@ -102,7 +102,6 @@ describe("DownloadActionManager", () => {
 					Promise.resolve({ success: true, message: "Download requested" }),
 			}),
 		);
-		global.window.showWebDownloadModal = jest.fn();
 		global.window.showAlert = jest.fn();
 
 		// Mock bootstrap globally
@@ -385,13 +384,18 @@ describe("DownloadActionManager", () => {
 				innerHTML: "",
 				disabled: false,
 			};
-			document.getElementById = jest.fn(() => ({
-				id: modalId,
-				querySelector: jest.fn((sel) =>
-					sel === "#confirmWebDownloadBtn" ? confirmBtn : { textContent: "" },
-				),
-				addEventListener: jest.fn(),
-			}));
+			document.getElementById = jest.fn((id) => {
+				if (id === modalId) {
+					return { id: modalId, addEventListener: jest.fn() };
+				}
+				if (id === "webDownloadDatasetName-test-uuid") {
+					return { textContent: "" };
+				}
+				if (id === "confirmWebDownloadBtn-test-uuid") {
+					return confirmBtn;
+				}
+				return null;
+			});
 
 			downloadManager.openWebDownloadModal("test-uuid", "Test Dataset");
 

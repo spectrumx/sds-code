@@ -59,7 +59,7 @@
                                                         <a href="#"
                                                            class="dataset-name-link text-decoration-none"
                                                            data-bs-toggle="modal"
-                                                           data-bs-target="#datasetDetailsModal"
+                                                           data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                                            data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</a>
                                                         {% if dataset.is_public %}<i class="bi bi-globe ms-1 text-primary" title="Public"></i>{% endif %}
                                                     </h5>
@@ -161,8 +161,10 @@
             </div>
         </div>
     </main>
-    <!-- Dataset Details Modal -->
-    {% include "users/partials/dataset_details_modal.html" %}
+    <!-- Dataset details modals (one per card; IDs must match data-bs-target above) -->
+    {% for dataset in latest_datasets %}
+        {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+    {% endfor %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}

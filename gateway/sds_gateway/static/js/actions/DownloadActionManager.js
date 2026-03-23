@@ -186,10 +186,17 @@ class DownloadActionManager {
 	 * @param {string} captureName - Capture name
 	 */
 	async handleCaptureDownload(captureUuid, captureName) {
-		// Update modal content for capture
-		const modalTitleElement = document.getElementById("webDownloadModalLabel");
-		const modalNameElement = document.getElementById("webDownloadDatasetName");
-		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
+		const modalId = `webDownloadModal-${captureUuid}`;
+		// Update modal content for capture (same per-item modal markup as datasets)
+		const modalTitleElement = document.getElementById(
+			`webDownloadModalLabel-${captureUuid}`,
+		);
+		const modalNameElement = document.getElementById(
+			`webDownloadDatasetName-${captureUuid}`,
+		);
+		const confirmBtn = document.getElementById(
+			`confirmWebDownloadBtn-${captureUuid}`,
+		);
 
 		if (modalTitleElement) {
 			await window.DOMUtils.renderContent(modalTitleElement, {
@@ -225,16 +232,20 @@ class DownloadActionManager {
 			};
 
 			// Restore fetch after modal is hidden
-			const modal = document.getElementById("webDownloadModal");
+			const modal = document.getElementById(modalId);
 			const restoreFetch = () => {
 				window.fetch = originalFetch;
-				modal.removeEventListener("hidden.bs.modal", restoreFetch);
+				if (modal) {
+					modal.removeEventListener("hidden.bs.modal", restoreFetch);
+				}
 			};
-			modal.addEventListener("hidden.bs.modal", restoreFetch);
+			if (modal) {
+				modal.addEventListener("hidden.bs.modal", restoreFetch);
+			}
 		}
 
 		// Show the modal
-		window.DOMUtils.openModal("webDownloadModal");
+		window.DOMUtils.openModal(modalId);
 	}
 
 	/**
@@ -315,14 +326,16 @@ class DownloadActionManager {
 			return;
 		}
 
-		// Set the dataset name in the modal (find within this specific modal)
-		const nameElement = modal.querySelector("#webDownloadDatasetName");
+		const nameElement = document.getElementById(
+			`webDownloadDatasetName-${datasetUuid}`,
+		);
 		if (nameElement) {
 			nameElement.textContent = datasetName || "this dataset";
 		}
 
-		// Store dataset info in the download button (find within this specific modal)
-		const confirmBtn = modal.querySelector("#confirmWebDownloadBtn");
+		const confirmBtn = document.getElementById(
+			`confirmWebDownloadBtn-${datasetUuid}`,
+		);
 
 		if (!confirmBtn) {
 			console.warn(`Confirm button not found for dataset ${datasetUuid}`);

@@ -62,13 +62,13 @@
                                         <a href="#"
                                            class="dataset-name-link"
                                            data-bs-toggle="modal"
-                                           data-bs-target="#datasetDetailsModal"
+                                           data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                            data-dataset-uuid="{{ dataset.uuid }}"
                                            aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                     {% else %}
                                         <span class="text-muted dataset-name-link"
                                               data-bs-toggle="modal"
-                                              data-bs-target="#datasetDetailsModal"
+                                              data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                               data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
                                     {% endif %}
                                     {% if dataset.status == 'draft' %}
@@ -149,7 +149,7 @@
                                                 <button class="dropdown-item"
                                                         type="button"
                                                         data-bs-toggle="modal"
-                                                        data-bs-target="#share-modal-{{ dataset.uuid }}">
+                                                        data-bs-target="#shareModal-{{ dataset.uuid }}">
                                                     <i class="bi bi-share me-2"></i>Share
                                                 </button>
                                             </li>
@@ -164,18 +164,26 @@
                                                     </button>
                                                 </li>
                                             {% endif %}
+                                            <li>
+                                                <button class="dropdown-item"
+                                                        type="button"
+                                                        onclick="window.DOMUtils.openModal('versioningModal-{{ dataset.uuid }}')">
+                                                    <i class="bi bi-folder-symlink me-2"></i>Create New Version
+                                                </button>
+                                            </li>
                                         {% endif %}
                                         <li>
-                                            <button class="dropdown-item"
+                                            <button class="dropdown-item web-download-btn"
                                                     type="button"
-                                                    onclick="showWebDownloadModal('{{ dataset.uuid }}', '{{ dataset.name }}')">
+                                                    data-dataset-uuid="{{ dataset.uuid }}"
+                                                    data-dataset-name="{{ dataset.name }}">
                                                 <i class="bi bi-download me-2"></i>Web Download
                                             </button>
                                         </li>
                                         <li>
-                                            <button class="dropdown-item"
+                                            <button class="dropdown-item sdk-download-btn"
                                                     type="button"
-                                                    onclick="showSDKDownloadModal('{{ dataset.uuid }}')">
+                                                    data-dataset-uuid="{{ dataset.uuid }}">
                                                 <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
                                             </button>
                                         </li>
