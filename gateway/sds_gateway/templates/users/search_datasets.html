@@ -115,7 +115,7 @@
                                                     <a href="#"
                                                        class="dataset-name-link"
                                                        data-bs-toggle="modal"
-                                                       data-bs-target="#datasetDetailsModal"
+                                                       data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                                        data-dataset-uuid="{{ dataset.uuid }}"
                                                        aria-label="View details for {{ dataset.name }}">
                                                         {{ dataset.name }}
@@ -176,7 +176,7 @@
                                             <td>
                                                 <button class="btn btn-sm btn-outline-primary dataset-name-link"
                                                         data-bs-toggle="modal"
-                                                        data-bs-target="#datasetDetailsModal"
+                                                        data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                                         data-dataset-uuid="{{ dataset.uuid }}"
                                                         aria-label="View details for {{ dataset.name }}">
                                                     <i class="bi bi-eye"></i> View
@@ -237,8 +237,12 @@
         </div>
     </div>
 </div>
-<!-- Dataset Details Modal (reuse from dataset_list) -->
-{% include "users/partials/dataset_details_modal.html" %}
+<!-- Dataset details modals (IDs must match data-bs-target on each row) -->
+{% if page_obj %}
+    {% for dataset in page_obj %}
+        {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
+    {% endfor %}
+{% endif %}
 {% block javascript %}
     {{ block.super }}
     <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>

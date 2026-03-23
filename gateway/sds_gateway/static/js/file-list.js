@@ -824,7 +824,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 									<button class="dropdown-item"
 											type="button"
 											data-bs-toggle="modal"
-											data-bs-target="#share-modal-${safeData.uuid}">
+											data-bs-target="#shareModal-${safeData.uuid}">
 										Share
 									</button>
 								</li>

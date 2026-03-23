@@ -26,10 +26,10 @@
         </div>
     </div>
     <!-- Modals to reveal on click -->
-    {% include "users/partials/web_download_modal.html" %}
-    {% include "users/partials/dataset_details_modal.html" %}
     {% if page_obj %}
         {% for dataset in page_obj %}
+            {% include "users/partials/web_download_modal.html" with dataset=dataset %}
+            {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
             {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
         {% endfor %}
     {% endif %}
