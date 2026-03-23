@@ -222,56 +222,6 @@ class DOMUtils {
 	}
 
 	/**
-	 * Patch bootstrap.Modal.getOrCreateInstance so data-bs-toggle uses the same
-	 * safety as openModal: dispose instances missing _config (disposed / corrupt).
-	 * Call once after bootstrap.bundle loads (DOMContentLoaded is sufficient).
-	 */
-	installBootstrapModalGuards() {
-		if (typeof bootstrap === "undefined" || !bootstrap?.Modal) {
-			return;
-		}
-		const Modal = bootstrap.Modal;
-		if (Modal.__sdsModalGuardInstalled) {
-			return;
-		}
-		Modal.__sdsModalGuardInstalled = true;
-
-		const defaultConfig = { backdrop: true, keyboard: true, focus: true };
-		const original = Modal.getOrCreateInstance.bind(Modal);
-
-		Modal.getOrCreateInstance = (element, config) => {
-			if (!element) {
-				console.warn(
-					"Modal.getOrCreateInstance: missing element — check data-bs-target / href selector.",
-				);
-				return undefined;
-			}
-
-			const existing = Modal.getInstance(element);
-			if (
-				existing &&
-				(!existing._config || existing._config.backdrop === undefined)
-			) {
-				try {
-					existing.dispose();
-				} catch {
-					/* ignore */
-				}
-			}
-
-			const safeConfig =
-				config !== undefined &&
-				config !== null &&
-				typeof config === "object" &&
-				!Array.isArray(config)
-					? { ...defaultConfig, ...config }
-					: defaultConfig;
-
-			return original(element, safeConfig);
-		};
-	}
-
-	/**
 	 * Close modal
 	 * @param {string} modalId - Modal ID
 	 */
@@ -718,12 +668,6 @@ class DOMUtils {
 
 // Create global instance
 window.DOMUtils = new DOMUtils();
-
-if (typeof document !== "undefined") {
-	document.addEventListener("DOMContentLoaded", () => {
-		window.DOMUtils.installBootstrapModalGuards();
-	});
-}
 
 // Also expose showAlert as global function for convenience
 window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
