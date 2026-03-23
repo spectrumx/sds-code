@@ -232,6 +232,17 @@
         </div>
         <!-- Upload Button Group -->
     </div>
+    <!-- Per-capture modals outside table/filters stacking contexts (matches dataset_list.html) -->
+    <div id="capture-modals-container">
+        {% if captures %}
+            {% for cap in captures %}
+                {% include "users/partials/web_download_modal.html" with item=cap item_type="capture" %}
+                {% if cap.is_owner %}
+                    {% include "users/partials/share_modal.html" with item=cap item_type="capture" %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+    </div>
     <hr />
     <!-- Upload Capture Modal -->
     <div class="modal fade"
@@ -529,8 +540,8 @@
 
             window.currentDownloadManager = downloadManager;
 
-            // Initialize share action managers for each capture modal
-            for (const modal of document.querySelectorAll('.modal[data-item-uuid]')) {
+            // Initialize share action managers for each capture share modal
+            for (const modal of document.querySelectorAll('#capture-modals-container .modal[data-item-uuid]')) {
                 const itemUuid = modal.getAttribute('data-item-uuid');
                 const itemType = modal.getAttribute('data-item-type');
 

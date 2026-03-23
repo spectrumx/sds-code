@@ -1286,6 +1286,10 @@ def _get_captures_for_template(
         # Use composite serialization to handle multi-channel captures properly
         capture_data = serialize_capture_or_composite(capture)
 
+        # Composite serialization omits top-level name; templates and API need a display name
+        if not capture_data.get("name"):
+            capture_data["name"] = capture.name or ""
+
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
         capture_data["is_shared_with_me"] = capture.owner != request.user
