@@ -318,18 +318,13 @@ describe("DownloadActionManager", () => {
 
 		test("should handle capture download click with permissions", async () => {
 			const captureUuid = "test-capture-uuid";
-			const captureName = "Test Capture";
 
 			// Ensure window.DOMUtils is properly set up
 			window.DOMUtils = global.window.DOMUtils;
 
 			// Test that the method exists and can be called without throwing
 			await expect(
-				downloadManager.handleCaptureDownload(
-					captureUuid,
-					captureName,
-					mockButton,
-				),
+				downloadManager.handleCaptureDownload(captureUuid, mockButton),
 			).resolves.not.toThrow();
 		});
 
@@ -397,7 +392,7 @@ describe("DownloadActionManager", () => {
 				return null;
 			});
 
-			downloadManager.openWebDownloadModal("test-uuid", "Test Dataset");
+			downloadManager.openWebDownloadModal("test-uuid");
 
 			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(modalId);
 		});

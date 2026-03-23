@@ -80,7 +80,6 @@ class DownloadActionManager {
 				e.stopPropagation();
 
 				const captureUuid = button.getAttribute("data-capture-uuid");
-				const captureName = button.getAttribute("data-capture-name");
 
 				if (!this.permissions.canDownload()) {
 					this.showToast(
@@ -90,7 +89,7 @@ class DownloadActionManager {
 					return;
 				}
 
-				this.handleCaptureDownload(captureUuid, captureName, button);
+				this.handleCaptureDownload(captureUuid, button);
 			});
 		}
 	}
@@ -181,70 +180,100 @@ class DownloadActionManager {
 	}
 
 	/**
-	 * Handle capture download
+	 * Handle capture download (modal copy comes from web_download_modal.html)
 	 * @param {string} captureUuid - Capture UUID
-	 * @param {string} captureName - Capture name
+	 * @param {Element} [button] - Optional row action button for loading state
 	 */
-	async handleCaptureDownload(captureUuid, captureName) {
+	async handleCaptureDownload(captureUuid, button) {
 		const modalId = `webDownloadModal-${captureUuid}`;
-		// Update modal content for capture (same per-item modal markup as datasets)
-		const modalTitleElement = document.getElementById(
-			`webDownloadModalLabel-${captureUuid}`,
-		);
-		const modalNameElement = document.getElementById(
-			`webDownloadDatasetName-${captureUuid}`,
-		);
+		const modal = document.getElementById(modalId);
+		if (!modal) {
+			console.warn(`Web download modal not found for capture ${captureUuid}`);
+			return;
+		}
+
 		const confirmBtn = document.getElementById(
 			`confirmWebDownloadBtn-${captureUuid}`,
 		);
 
-		if (modalTitleElement) {
-			await window.DOMUtils.renderContent(modalTitleElement, {
-				icon: "download",
-				text: "Download Capture",
-			});
+		if (!confirmBtn) {
+			console.warn(
+				`Web download confirm button not found for capture ${captureUuid}`,
+			);
+			return;
 		}
 
-		if (modalNameElement) {
-			modalNameElement.textContent = captureName || "Unnamed Capture";
-		}
+		const newConfirmBtn = confirmBtn.cloneNode(true);
+		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
-		if (confirmBtn) {
-			// Update button text for capture
-			await window.DOMUtils.renderContent(confirmBtn, {
-				icon: "download",
-				text: "Yes, Download Capture",
-			});
+		const originalRowButtonContent = button?.innerHTML;
 
-			// Update the dataset UUID to capture UUID for the API call
-			confirmBtn.dataset.datasetUuid = captureUuid;
-			confirmBtn.dataset.datasetName = captureName;
+		newConfirmBtn.onclick = async () => {
+			window.DOMUtils.closeModal(modalId);
 
-			// Override the API endpoint for captures by temporarily modifying the fetch URL
-			const originalFetch = window.fetch;
-			window.fetch = (url, options) => {
-				const modifiedUrl = url.includes(
-					`/users/download-item/dataset/${captureUuid}/`,
-				)
-					? `/users/download-item/capture/${captureUuid}/`
-					: url;
-				return originalFetch(modifiedUrl, options);
-			};
-
-			// Restore fetch after modal is hidden
-			const modal = document.getElementById(modalId);
-			const restoreFetch = () => {
-				window.fetch = originalFetch;
-				if (modal) {
-					modal.removeEventListener("hidden.bs.modal", restoreFetch);
-				}
-			};
-			if (modal) {
-				modal.addEventListener("hidden.bs.modal", restoreFetch);
+			if (button) {
+				await window.DOMUtils.renderLoading(button, "Processing...", {
+					format: "spinner",
+					size: "sm",
+				});
+				button.disabled = true;
 			}
-		}
 
-		// Show the modal
+			try {
+				const response = await window.APIClient.post(
+					`/users/download-item/capture/${captureUuid}/`,
+					{},
+				);
+
+				if (response.success === true) {
+					if (button) {
+						await window.DOMUtils.renderContent(button, {
+							icon: "check-circle",
+							color: "success",
+							text: "Download Requested",
+						});
+					}
+					this.showToast(
+						response.message ||
+							"Download request submitted successfully! You will receive an email when ready.",
+						"success",
+					);
+				} else {
+					if (button) {
+						await window.DOMUtils.renderContent(button, {
+							icon: "exclamation-triangle",
+							color: "danger",
+							text: "Request Failed",
+						});
+					}
+					this.showToast(
+						response.message || "Download request failed. Please try again.",
+						"danger",
+					);
+				}
+			} catch (error) {
+				console.error("Download error:", error);
+				if (button) {
+					await window.DOMUtils.renderContent(button, {
+						icon: "exclamation-triangle",
+						color: "danger",
+						text: "Request Failed",
+					});
+				}
+				this.showToast(
+					error.message || "An error occurred while processing your request.",
+					"danger",
+				);
+			} finally {
+				if (button && originalRowButtonContent !== undefined) {
+					setTimeout(() => {
+						button.innerHTML = originalRowButtonContent;
+						button.disabled = false;
+					}, 3000);
+				}
+			}
+		};
+
 		window.DOMUtils.openModal(modalId);
 	}
 
@@ -269,14 +298,13 @@ class DownloadActionManager {
 				e.stopPropagation();
 
 				const datasetUuid = button.getAttribute("data-dataset-uuid");
-				const datasetName = button.getAttribute("data-dataset-name");
 
 				if (!datasetUuid) {
 					console.warn("Web download button missing dataset-uuid attribute");
 					return;
 				}
 
-				this.openWebDownloadModal(datasetUuid, datasetName);
+				this.openWebDownloadModal(datasetUuid);
 			});
 		}
 	}
@@ -314,23 +342,15 @@ class DownloadActionManager {
 	}
 
 	/**
-	 * Open web download modal for a specific dataset
+	 * Open web download modal for a specific dataset (labels from web_download_modal.html)
 	 * @param {string} datasetUuid - Dataset UUID
-	 * @param {string} datasetName - Dataset name
 	 */
-	openWebDownloadModal(datasetUuid, datasetName) {
+	openWebDownloadModal(datasetUuid) {
 		const modalId = `webDownloadModal-${datasetUuid}`;
 		const modal = document.getElementById(modalId);
 		if (!modal) {
 			console.warn(`Web download modal not found for dataset ${datasetUuid}`);
 			return;
-		}
-
-		const nameElement = document.getElementById(
-			`webDownloadDatasetName-${datasetUuid}`,
-		);
-		if (nameElement) {
-			nameElement.textContent = datasetName || "this dataset";
 		}
 
 		const confirmBtn = document.getElementById(
@@ -341,9 +361,6 @@ class DownloadActionManager {
 			console.warn(`Confirm button not found for dataset ${datasetUuid}`);
 			return;
 		}
-
-		confirmBtn.dataset.datasetUuid = datasetUuid;
-		confirmBtn.dataset.datasetName = datasetName;
 
 		// Remove any existing event listeners by cloning
 		const newConfirmBtn = confirmBtn.cloneNode(true);
@@ -503,7 +520,6 @@ class DownloadActionManager {
 					e.stopPropagation();
 
 					const captureUuid = button.getAttribute("data-capture-uuid");
-					const captureName = button.getAttribute("data-capture-name");
 
 					if (!this.permissions.canDownload()) {
 						this.showToast(
@@ -513,7 +529,7 @@ class DownloadActionManager {
 						return;
 					}
 
-					this.handleCaptureDownload(captureUuid, captureName, button);
+					this.handleCaptureDownload(captureUuid, button);
 				});
 			}
 		}
