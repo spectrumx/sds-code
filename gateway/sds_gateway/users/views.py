@@ -1286,7 +1286,8 @@ def _get_captures_for_template(
         # Use composite serialization to handle multi-channel captures properly
         capture_data = serialize_capture_or_composite(capture)
 
-        # Composite serialization omits top-level name; templates and API need a display name
+        # Composite serialization omits top-level name;
+        # templates and API need a display name
         if not capture_data.get("name"):
             capture_data["name"] = capture.name or ""
 
