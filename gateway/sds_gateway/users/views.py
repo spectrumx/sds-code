@@ -1,6 +1,8 @@
 import datetime
 import json
 import uuid
+from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
@@ -1724,6 +1726,47 @@ class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
 keyword_autocomplete_api_view = KeywordAutocompleteAPIView.as_view()
 
 
+@dataclass
+class AddToDatasetReport:
+    """Result of adding capture(s) to a dataset."""
+
+    added: list[UUID]
+    skipped: list[UUID]
+    errors: list[str]
+
+
+def _get_dataset_editable_by_user(
+    user: "User", dataset_uuid: UUID | str
+) -> tuple["Dataset | None", tuple[str, int] | None]:
+    """
+    Validate that the dataset exists, is editable (not deleted/public/final),
+    and the user has permission to edit or add assets.
+
+    Returns (dataset, None) on success, (None, (error_message, status_code)) on failure.
+    Caller may format the error as redirect + messages or as JsonResponse.
+    """
+    uuid_val = (
+        dataset_uuid if isinstance(dataset_uuid, UUID) else UUID(str(dataset_uuid))
+    )
+
+    if not user_has_access_to_item(user, uuid_val, ItemType.DATASET):
+        return (None, ("Dataset not found or access denied.", 404))
+
+    dataset = Dataset.objects.filter(uuid=uuid_val, is_deleted=False).first()
+    if not dataset:
+        return (None, ("Dataset not found or access denied.", 404))
+
+    if dataset.status == DatasetStatus.FINAL or dataset.is_public:
+        return (None, ("This dataset is published and cannot be edited.", 403))
+
+    if not UserSharePermission.user_can_edit_dataset(
+        user, uuid_val, ItemType.DATASET
+    ) and not UserSharePermission.user_can_add_assets(user, uuid_val, ItemType.DATASET):
+        return (None, ("You don't have permission to edit this dataset.", 403))
+
+    return (dataset, None)
+
+
 class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
     """
     Quick-add view: add a single capture (and all its channels if multi-channel)
@@ -1742,7 +1785,10 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
         assert data is not None  # type narrowing: success path only
 
         # Validate both UUIDs before any ORM access
-        dataset_uuid, capture_uuid, err = self._validate_quick_add_uuids(data)
+        dataset_uuid, err = self._validate_uuid(data.get("dataset_uuid"))
+        if err:
+            return err
+        capture_uuid, err = self._validate_uuid(data.get("capture_uuid"))
         if err:
             return err
         assert dataset_uuid is not None
@@ -1760,25 +1806,14 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Dataset: must exist, not deleted, private (cannot change public datasets)
-        dataset = Dataset.objects.filter(
-            uuid=dataset_uuid,
-            is_deleted=False,
-            is_public=False,
-        ).first()
-        if not dataset:
-            return JsonResponse(
-                {"error": "Dataset not found or cannot be modified"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        # User must have add permission (owner, co-owner, or contributor; not viewer)
-        if not UserSharePermission.user_can_add_assets(
-            cast("User", request.user), dataset.uuid, ItemType.DATASET
-        ):
-            return JsonResponse(
-                {"error": "You do not have permission to edit this dataset."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+        # Dataset: must exist, not deleted, editable, and user must have permission
+        dataset, err = _get_dataset_editable_by_user(
+            cast("User", request.user), dataset_uuid
+        )
+        if err:
+            message, status_code = err
+            return JsonResponse({"error": message}, status=status_code)
+        assert dataset is not None
 
         report = self._add_capture_to_dataset_with_report(
             capture=capture,
@@ -1788,41 +1823,24 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
         return JsonResponse(
             {
                 "success": True,
-                "added": [str(u) for u in report["added"]],
-                "skipped": [str(u) for u in report["skipped"]],
-                "errors": report["errors"],
+                "added": [str(u) for u in report.added],
+                "skipped": [str(u) for u in report.skipped],
+                "errors": report.errors,
             },
             status=status.HTTP_200_OK,
         )
-
-    def _validate_quick_add_uuids(
-        self, data: dict[str, Any]
-    ) -> tuple[UUID | None, UUID | None, JsonResponse | None]:
-        """
-        Validate dataset_uuid and capture_uuid from request data.
-        Returns (dataset_uuid, capture_uuid, None) on success,
-        (None, None, error_response) on validation failure.
-        """
-        dataset_uuid, err = self._validate_uuid(data.get("dataset_uuid"))
-        if err:
-            return None, None, err
-        capture_uuid, err = self._validate_uuid(data.get("capture_uuid"))
-        if err:
-            return None, None, err
-        return dataset_uuid, capture_uuid, None
 
     def _add_capture_to_dataset_with_report(
         self,
         capture: "Capture",
         dataset: "Dataset",
         user: "User",
-    ) -> dict[str, Any]:
+    ) -> AddToDatasetReport:
         """
         Add a single capture (and its multi-channel siblings if applicable) to a
         dataset. Skips captures already in the dataset. Internal use only.
 
-        Returns a dict with keys: "added" (list of UUIDs), "skipped" (list of
-        UUIDs), "errors" (list of str).
+        Returns an AddToDatasetReport with added, skipped, and errors lists.
         """
         added: list[UUID] = []
         skipped: list[UUID] = []
@@ -1859,7 +1877,7 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
             except Exception as e:  # noqa: BLE001 - catch-all for unexpected errors
                 errors.append(f"{c.uuid}: {e}")
 
-        return {"added": added, "skipped": skipped, "errors": errors}
+        return AddToDatasetReport(added=added, skipped=skipped, errors=errors)
 
     def _parse_json(
         self, request: HttpRequest
@@ -1867,24 +1885,18 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
         """
         Parse request body as JSON and require it to be an object.
         Returns (data, None) on success, (None, error_response) on error.
-        Caller should: data, err = self._parse_json(request); if err: return err
+        Caller should do: data, err = self._parse_json(request); if err: return err
         """
         if not request.content_type or "application/json" not in request.content_type:
             return None, JsonResponse(
                 {"error": "Content-Type must be application/json"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not request.body:
-            return None, JsonResponse(
-                {"error": "Invalid JSON body"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
         try:
             data = json.loads(request.body)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError, ValueError):
             return None, JsonResponse(
-                {"error": "Invalid JSON body"},
-                status=status.HTTP_400_BAD_REQUEST,
+                {"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST
             )
         if not isinstance(data, dict):
             return None, JsonResponse(
@@ -1904,26 +1916,12 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
                 {"error": "uuid is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        if not isinstance(value, str):
-            return None, JsonResponse(
-                {"error": "uuid must be a string"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        s = value.strip()
-        if not s:
-            return None, JsonResponse(
-                {"error": "uuid cannot be empty"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        max_length = 64
-        if len(s) > max_length:
-            return None, JsonResponse(
-                {"error": "Invalid uuid"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+
         try:
-            return UUID(s), None
-        except ValueError:
+            s = value.strip()  # will fail if not a string
+            return UUID(s), None  # handles validation and conversion to UUID
+
+        except (AttributeError, ValueError, TypeError):
             return None, JsonResponse(
                 {"error": "Invalid uuid"},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -2173,26 +2171,16 @@ class GroupCapturesView(
         self, request: HttpRequest, dataset_uuid: str
     ) -> HttpResponseRedirect | None:
         """Validate user permissions for editing a dataset."""
-        # Check if user has access to edit this dataset
-        if not user_has_access_to_item(request.user, dataset_uuid, ItemType.DATASET):
+        try:
+            uuid_val = UUID(dataset_uuid)
+        except (ValueError, TypeError):
             messages.error(request, "Dataset not found or access denied.")
             return redirect("users:dataset_list")
 
-        # Get the dataset to check its status
-        dataset = get_object_or_404(Dataset, uuid=dataset_uuid)
-
-        # Check if dataset is final (published) - cannot be edited
-        if dataset.status == DatasetStatus.FINAL or dataset.is_public:
-            messages.error(request, "This dataset is published and cannot be edited.")
-            return redirect("users:dataset_list")
-
-        # Check if user can edit dataset metadata
-        if not UserSharePermission.user_can_edit_dataset(
-            request.user, dataset_uuid, ItemType.DATASET
-        ) and not UserSharePermission.user_can_add_assets(
-            request.user, dataset_uuid, ItemType.DATASET
-        ):
-            messages.error(request, "You don't have permission to edit this dataset.")
+        _, err = _get_dataset_editable_by_user(request.user, uuid_val)
+        if err:
+            message, _ = err
+            messages.error(request, message)
             return redirect("users:dataset_list")
 
         return None
@@ -3257,7 +3245,7 @@ class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
         )
         datasets = [
             {"uuid": str(d["uuid"]), "name": (d["name"] or "Unnamed")}
-            for d in list(owned) + list(shared)
+            for d in chain(owned, shared)
         ]
         return JsonResponse({"datasets": datasets})
 
