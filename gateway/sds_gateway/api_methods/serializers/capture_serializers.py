@@ -12,7 +12,6 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.helpers.temporal_filtering import get_capture_bounds
 from sds_gateway.api_methods.helpers.temporal_filtering import get_file_cadence
-from sds_gateway.api_methods.helpers.temporal_filtering import get_data_files
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
@@ -72,15 +71,13 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
+    total_file_size = serializers.SerializerMethodField()
+    data_files_info = serializers.SerializerMethodField()
     center_frequency_ghz = serializers.SerializerMethodField()
     sample_rate_mhz = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
     capture_start_epoch_sec = serializers.SerializerMethodField()
-    data_files_count = serializers.SerializerMethodField()
-    data_files_total_size = serializers.SerializerMethodField()
-    per_data_file_size = serializers.SerializerMethodField()
-    total_file_size = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
     post_processed_data = serializers.SerializerMethodField()
@@ -98,6 +95,41 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             context=self.context,
         )
         return cast("ReturnList[File]", serializer.data)
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_total_file_size(self, capture: Capture) -> int | None:
+        """Get the total file size of all files associated with this capture."""
+        
+        if capture.capture_type != CaptureType.DigitalRF:
+            return None
+
+        all_files = get_capture_files(capture, include_deleted=False)
+        result = all_files.aggregate(total_size=Sum("size"))
+        total = result["total_size"] or 0
+        data_total = self.get_data_files_info(capture).get("total_size", 0)
+        if total < data_total:
+            logging.getLogger(__name__).warning(
+                "Capture %s: total_file_size (%s) < data_files_total_size (%s); using data total.",
+                str(capture.uuid), total, data_total,
+            )
+            total = data_total
+        
+        return total
+
+    @extend_schema_field(serializers.DictField(allow_null=True))
+    def get_data_files_info(self, capture: Capture) -> dict[str, Any]:
+        """Get the data files info for the capture."""
+        if capture.capture_type != CaptureType.DigitalRF:
+            return {}
+
+        stats = capture.get_drf_data_files_stats()
+        total_size = stats["total_size"]
+        count = stats["total_count"]
+        return {
+            "count": count,
+            "total_size": total_size,
+            "per_data_file_size": (float(total_size) / count) if count else None,
+        }
 
     @extend_schema_field(serializers.FloatField)
     def get_center_frequency_ghz(self, capture: Capture) -> float | None:
@@ -134,59 +166,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             return start_time
         except (ValueError, IndexError, KeyError):
             return None
-
-    @extend_schema_field(serializers.IntegerField)
-    def get_data_files_count(self, capture: Capture) -> int | None:
-        """Get the count of files associated with this capture."""
-        if capture.capture_type != CaptureType.DigitalRF:
-            return None
         
-        return get_data_files(capture.capture_type, capture).count()
-
-    @extend_schema_field(serializers.IntegerField)
-    def get_data_files_total_size(self, capture: Capture) -> int | None:
-        """Exact sum of data file sizes; use this for consistent totals with total_file_size."""
-        if capture.capture_type != CaptureType.DigitalRF:
-            return None
-        data_files = get_data_files(capture.capture_type, capture)
-        result = data_files.aggregate(total_size=Sum("size"))
-        return result.get("total_size") or 0
-        
-    @extend_schema_field(serializers.FloatField)
-    def get_per_data_file_size(self, capture: Capture) -> float | None:
-        """Get the size of each data file in the capture."""
-        if capture.capture_type != CaptureType.DigitalRF:
-            return None
-        
-        data_files = get_data_files(capture.capture_type, capture)
-
-        if data_files.count() == 0:  
-            return None  
-
-        data_file_sizes = data_files.aggregate(total_size=Sum("size"))
-        total_size = data_file_sizes.get("total_size")  
-
-        if not total_size:  
-            return None  
-
-        return float(total_size) / data_files.count()
-        
-    @extend_schema_field(serializers.IntegerField)
-    def get_total_file_size(self, capture: Capture) -> int:
-        """Get the total file size of all files associated with this capture."""
-        all_files = get_capture_files(capture, include_deleted=False)
-        result = all_files.aggregate(total_size=Sum("size"))
-        total = result["total_size"] or 0
-        if capture.capture_type == CaptureType.DigitalRF:
-            data_total = self.get_data_files_total_size(capture) or 0
-            if total < data_total:
-                logging.getLogger(__name__).warning(
-                    "Capture %s: total_file_size (%s) < data_files_total_size (%s); using data total.",
-                    str(capture.uuid), total, data_total,
-                )
-                total = data_total
-        return total
-
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
         """Retrieve the indexed metadata for the capture."""
@@ -376,9 +356,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     # Computed fields
     files = serializers.SerializerMethodField()
-    data_files_count = serializers.SerializerMethodField()
-    data_files_total_size = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
+    data_files_info = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
@@ -399,35 +378,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
             all_files.extend(serializer.data)
         return cast("ReturnList[File]", all_files)
 
-    @extend_schema_field(serializers.IntegerField)
-    def get_data_files_count(self, obj: dict[str, Any]) -> int | None:
-        """Get the total count of files across all channels."""
-        if obj["capture_type"] != CaptureType.DigitalRF:
-            return None
-        
-        total_count = 0
-        for channel_data in obj["channels"]:
-            capture_uuid = channel_data["uuid"]
-            capture = Capture.objects.get(uuid=capture_uuid)
-            total_count += get_data_files(capture.capture_type, capture).count()
-        return total_count
-
-    @extend_schema_field(serializers.IntegerField)
-    def get_data_files_total_size(self, obj: dict[str, Any]) -> int | None:
-        """Exact sum of data file sizes across all channels."""
-        if obj["capture_type"] != CaptureType.DigitalRF:
-            return None
-        total = 0
-        for channel_data in obj["channels"]:
-            capture_uuid = channel_data["uuid"]
-            capture = Capture.objects.get(uuid=capture_uuid)
-            data_files = get_data_files(capture.capture_type, capture)
-            result = data_files.aggregate(total_size=Sum("size"))
-            total += result.get("total_size") or 0
-        return total
-
-    @extend_schema_field(serializers.IntegerField)
-    def get_total_file_size(self, obj: dict[str, Any]) -> int:
+    def get_total_file_size(self, obj: dict[str, Any]) -> int | None:
         """Get the total file size across all channels."""
         if obj["capture_type"] != CaptureType.DigitalRF:
             return None
@@ -439,7 +390,9 @@ class CompositeCaptureSerializer(serializers.Serializer):
             all_files = get_capture_files(capture, include_deleted=False)
             result = all_files.aggregate(total_size=Sum("size"))
             total_size += result["total_size"] or 0
-        data_total = self.get_data_files_total_size(obj) or 0
+        
+        data_total = self.get_data_files_info(obj).get("total_size", 0)
+        
         if total_size < data_total:
             logging.getLogger(__name__).warning(
                 "Composite capture: total_file_size (%s) < data_files_total_size (%s); using data total.",
@@ -447,6 +400,26 @@ class CompositeCaptureSerializer(serializers.Serializer):
             )
             total_size = data_total
         return total_size
+
+    def get_data_files_info(self, obj: dict[str, Any]) -> dict[str, Any]:
+        """Get the data files info for the composite capture."""
+        if obj["capture_type"] != CaptureType.DigitalRF:
+            return {}
+        
+        total_count = 0
+        total_size = 0
+        for channel_data in obj["channels"]:
+            capture_uuid = channel_data["uuid"]
+            capture = Capture.objects.get(uuid=capture_uuid)
+            stats = capture.get_drf_data_files_stats()
+            total_count += stats["total_count"]
+            total_size += stats["total_size"]
+
+        return {
+            "count": total_count,
+            "total_size": total_size,
+            "per_data_file_size": (float(total_size) / total_count) if total_count else None,
+        }
 
     @extend_schema_field(serializers.CharField)
     def get_formatted_created_at(self, obj: dict[str, Any]) -> str:

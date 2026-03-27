@@ -18,11 +18,17 @@ class DOMUtils {
 	 * @returns {string} Formatted file size
 	 */
 	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
+		const n = Number(bytes);
+		if (!Number.isFinite(n) || n < 0) return "0 bytes";
+		if (n === 0) return "0 bytes";
+		const units = ["bytes", "KB", "MB", "GB"];
+		let i = 0;
+		let v = n;
+		while (v >= 1024 && i < units.length - 1) {
+			v /= 1024;
+			i++;
+		}
+		return (i === 0 ? v : v.toFixed(2)) + " " + units[i];
 	}
 
 	/**

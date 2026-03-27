@@ -1,3 +1,9 @@
+/**
+ * TODO: This file has a lot of redundancy with manager files
+ * And needs to be deprecated. and have its functionality migrated
+ * to the new JS structure.
+ */
+
 /* File List Page JavaScript - Refactored to use Components */
 
 /**
@@ -573,24 +579,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		this.searchButton = document.getElementById("search-btn");
 		this.searchButtonContent = document.getElementById("search-btn-content");
 		this.searchButtonLoading = document.getElementById("search-btn-loading");
-	}
-
-	/**
-	 * Use web download modal (with temporal slider) when DownloadActionManager is available.
-	 */
-	handleDownloadCapture(button) {
-		if (window.currentDownloadManager && document.getElementById("webDownloadModal")) {
-			const captureUuid = button.getAttribute("data-capture-uuid");
-			const captureName = button.getAttribute("data-capture-name") || captureUuid;
-			if (captureUuid) {
-				window.currentDownloadManager.handleCaptureDownload(
-					captureUuid,
-					captureName,
-					button,
-				);
-			}
-			return;
-		}
 	}
 
 	/**

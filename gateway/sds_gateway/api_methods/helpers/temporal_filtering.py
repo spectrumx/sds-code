@@ -3,7 +3,7 @@ import re
 from django.db.models import QuerySet
 
 from opensearchpy.exceptions import NotFoundError as OpenSearchNotFoundError
-from sds_gateway.api_methods.models import CaptureType, Capture, File
+from sds_gateway.api_methods.models import CaptureType, Capture, File, DRF_RF_FILENAME_REGEX_STR
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from loguru import logger as log
@@ -14,7 +14,6 @@ DRF_RF_FILENAME_PATTERN = re.compile(
     r"^rf@(\d+)\.(\d+)\.h5$",
     re.IGNORECASE,
 )
-DRF_RF_FILENAME_REGEX_STR = r"^rf@\d+\.\d+\.h5$"
 
 
 def drf_rf_filename_from_ms(ms: int) -> str:
@@ -48,7 +47,6 @@ def _catch_capture_type_error(capture_type: CaptureType) -> None:
 
 def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[int, int]:
     """Get start and end bounds for capture from opensearch."""
-    
     _catch_capture_type_error(capture_type)
 
     client = get_opensearch_client()
@@ -73,31 +71,14 @@ def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[in
     return start_time, end_time
 
 
-def get_data_files(capture_type: CaptureType, capture: Capture) -> QuerySet[File]:
-    """Get the data files in the capture."""
-    _catch_capture_type_error(capture_type)
-
-    return get_capture_files(capture).filter(name__regex=DRF_RF_FILENAME_REGEX_STR)
-
-
 def get_file_cadence(capture_type: CaptureType, capture: Capture) -> int:
     """Get the file cadence in milliseconds. OpenSearch bounds are in seconds."""
     _catch_capture_type_error(capture_type)
 
     capture_uuid = str(capture.uuid)
-    try:
-        start_time, end_time = get_capture_bounds(capture_type, capture_uuid)
-    except ValueError as e:
-        log.error(e)
-        raise e
+    start_time, end_time = get_capture_bounds(capture_type, capture_uuid)
 
-    data_files = get_data_files(capture_type, capture)
-    count = data_files.count()
-
-    # the first file represents the beginning of the capture
-    # exclude it from the count to get the correct file cadence
-    # the count - 1 gives us the number of "spaces" between the files
-    count -= 1
+    count = capture.get_drf_data_files_stats()["total_count"]
     if count == 0:
         return 0
     duration_sec = end_time - start_time
@@ -121,7 +102,7 @@ def filter_capture_data_files_selection_bounds(
     start_file_name = drf_rf_filename_from_ms(start_ms)
     end_file_name = drf_rf_filename_from_ms(end_ms)
 
-    data_files = get_data_files(capture_type, capture)
+    data_files = capture.get_drf_data_files_queryset()
     return data_files.filter(
         name__gte=start_file_name,
         name__lte=end_file_name,

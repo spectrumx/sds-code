@@ -82,6 +82,9 @@ class PageLifecycleManager {
 			case "capture-list":
 				this.initializeCaptureListPage();
 				break;
+			case "published-datasets-list":
+				this.initializePublishedDatasetsListPage();
+				break;
 			default:
 				console.warn(`Unknown page type: ${this.pageType}`);
 		}
@@ -163,6 +166,32 @@ class PageLifecycleManager {
 
 		// Initialize modals for each capture
 		this.initializeCaptureModals();
+	}
+
+	/**
+	 * Published datasets search page: pagination + dataset modals (same modal wiring as dataset list, no sort UI).
+	 */
+	initializePublishedDatasetsListPage() {
+		this.initializePagination();
+		this.initializeDatasetModals();
+	}
+
+
+	/**
+	 * Single DownloadActionManager for document-wide .web-download-btn / SDK buttons (not per modal).
+	 */
+	ensureDownloadActionManager() {
+		if (
+			this.downloadActionManager ||
+			!this.permissions ||
+			!window.DownloadActionManager
+		) {
+			return;
+		}
+		this.downloadActionManager = new window.DownloadActionManager({
+			permissions: this.permissions,
+		});
+		this.managers.push(this.downloadActionManager);
 	}
 
 	/**
@@ -269,6 +298,10 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
+		// TODO: Refactor this to align all modal initialization
+		// with a single manager instance per modal type.
+		// Plan to do this on a future PR.
+
 		// Pre-initialize all modals on the page with proper config to prevent Bootstrap auto-initialization errors
 		const allModals = document.querySelectorAll(".modal");
 		for (const modal of allModals) {
@@ -299,6 +332,7 @@ class PageLifecycleManager {
 
 		for (const modal of datasetModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
 
 			if (!itemUuid || !this.permissions) {
 				console.warn(
@@ -309,9 +343,9 @@ class PageLifecycleManager {
 
 			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
-					itemUuid: itemUuid,
-					itemType: "dataset",
 					permissions: this.permissions,
+					itemUuid: itemUuid,
+					itemType: itemType,
 				});
 				this.managers.push(shareManager);
 
@@ -321,28 +355,18 @@ class PageLifecycleManager {
 
 			if (window.VersioningActionManager && !modal.versioningActionManager) {
 				const versioningManager = new window.VersioningActionManager({
-					datasetUuid: itemUuid,
 					permissions: this.permissions,
+					datasetUuid: itemUuid,
 				});
 				this.managers.push(versioningManager);
 				modal.versioningActionManager = versioningManager;
-			}
-
-			if (window.DownloadActionManager) {
-				const downloadManager = new window.DownloadActionManager({
-					permissions: this.permissions,
-				});
-				this.managers.push(downloadManager);
-
-				// Store reference on modal
-				modal.downloadActionManager = downloadManager;
 			}
 
 			if (window.DetailsActionManager) {
 				const detailsManager = new window.DetailsActionManager({
 					permissions: this.permissions,
 					itemUuid: itemUuid,
-					itemType: "dataset",
+					itemType: itemType,
 				});
 				this.managers.push(detailsManager);
 
@@ -350,18 +374,25 @@ class PageLifecycleManager {
 				modal.detailsActionManager = detailsManager;
 			}
 		}
+
+		this.ensureDownloadActionManager();
 	}
 
 	/**
 	 * Initialize capture modals
 	 */
 	initializeCaptureModals() {
+		// TODO: Refactor this to align all modal initialization
+		// with a single manager instance per modal type.
+		// Plan to do this on a future PR.
+
 		const captureModals = document.querySelectorAll(
 			".modal[data-item-type='capture']",
 		);
 
 		for (const modal of captureModals) {
 			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
 
 			if (!itemUuid || !this.permissions) {
 				console.warn(
@@ -372,28 +403,18 @@ class PageLifecycleManager {
 
 			if (window.ShareActionManager) {
 				const shareManager = new window.ShareActionManager({
-					itemUuid: itemUuid,
-					itemType: "capture",
 					permissions: this.permissions,
+					itemUuid: itemUuid,
+					itemType: itemType,
 				});
 				this.managers.push(shareManager);
 
 				// Store reference on modal
 				modal.shareActionManager = shareManager;
 			}
-
-			if (window.DownloadActionManager) {
-				const downloadManager = new window.DownloadActionManager({
-					itemUuid: itemUuid,
-					itemType: "capture",
-					permissions: this.permissions,
-				});
-				this.managers.push(downloadManager);
-
-				// Store reference on modal
-				modal.downloadActionManager = downloadManager;
-			}
 		}
+
+		this.ensureDownloadActionManager();
 	}
 
 	/**
