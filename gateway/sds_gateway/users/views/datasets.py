@@ -25,6 +25,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
 from django.template.defaultfilters import slugify
+from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views import View
 from django.views.generic import TemplateView
@@ -973,6 +974,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
         """Handle GET request for dataset list."""
+
         sort_by, sort_order = self._get_sort_parameters(request)
         order_by = self._build_order_by(sort_by, sort_order)
 
@@ -981,13 +983,34 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 
         datasets_with_shared_users: list[dict] = []  # pyright: ignore[reportMissingTypeArgument]
         datasets_with_shared_users.extend(
-            self._serialize_datasets(owned_datasets, request.user)
+            serialize_datasets_for_user(owned_datasets, request.user)
         )
         datasets_with_shared_users.extend(
-            self._serialize_datasets(shared_datasets, request.user)
+            serialize_datasets_for_user(shared_datasets, request.user)
         )
-
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
+
+        # Check if this is an AJAX request
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            # Return table and modals so the client can update both after list refresh
+            table_html = render_to_string(
+                "users/components/dataset_list_table.html",
+                {
+                    "page_obj": page_obj,
+                    "sort_by": sort_by,
+                    "sort_order": sort_order,
+                    "ajax_fragment": True,
+                },
+                request=request,
+            )
+            modals_html = render_to_string(
+                "users/components/dataset_list_modals.html",
+                {"page_obj": page_obj},
+                request=request,
+            )
+            # Separator used by ListRefreshManager to split table vs modals
+            list_refresh_sep = "<!-- LIST_REFRESH_SEP -->"
+            return HttpResponse(table_html + list_refresh_sep + modals_html)
 
         return render(
             request,
@@ -1013,7 +1036,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             order_prefix = "-" if sort_order == "desc" else ""
             return f"{order_prefix}{sort_by}"
 
-        return "-created_at"  # Default sorting
+        return "-created_at"
 
     def _get_owned_datasets(self, user: User, order_by: str) -> QuerySet[Dataset]:
         """Get datasets owned by the user."""
@@ -1039,23 +1062,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
             .prefetch_related("keywords")
             .order_by(order_by)
         )
-
-    def _serialize_datasets(
-        self, datasets: QuerySet[Dataset], user: User
-    ) -> list[dict[str, Any]]:
-        """Prepare serialized datasets."""
-        result = []
-        for dataset in datasets:
-            # Use serializer with request context for proper field calculation
-            context = {"request": type("Request", (), {"user": user})()}
-            dataset_data = cast(
-                "ReturnDict", DatasetGetSerializer(dataset, context=context).data
-            )
-
-            # Add the original model for template access
-            dataset_data["dataset"] = dataset
-            result.append(dataset_data)
-        return result
 
     def _paginate_datasets(
         self, datasets: list[dict[str, Any]], request: HttpRequest
@@ -1330,7 +1336,9 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
 
         # copy dataset with relations
         new_dataset = self._copy_dataset_with_relations(
-            dataset, request.user, copy_shared_users
+            dataset,
+            request_user=request.user,
+            copy_shared_users=copy_shared_users,
         )
 
         return JsonResponse({"success": True, "version": new_dataset.version})
@@ -1338,8 +1346,8 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
     def _copy_dataset_with_relations(
         self,
         original_dataset: Dataset,
-        request_user: User,
         *,
+        request_user: User,
         copy_shared_users: bool = False,
     ) -> Dataset:
         """
@@ -1348,7 +1356,8 @@ class DatasetVersioningView(Auth0LoginRequiredMixin, View):
         Args:
             original_dataset: The dataset to copy
             request_user: The user creating the new version
-
+            copy_shared_users: Whether to copy the shared users from 
+            the original dataset to the new dataset
         Returns:
             The new dataset with copied related objects
         """
