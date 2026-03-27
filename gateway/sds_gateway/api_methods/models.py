@@ -13,6 +13,8 @@ from typing import cast
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
+from django.db.models import Sum
+from django.db.models import Count
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.db.models.signals import post_save
@@ -26,6 +28,8 @@ if TYPE_CHECKING:
     from sds_gateway.users.models import User
 
 log = logging.getLogger(__name__)
+
+DRF_RF_FILENAME_REGEX_STR = r"^rf@\d+\.\d+\.h5$"
 
 
 class KeywordNameField(models.CharField):
@@ -418,6 +422,33 @@ class Capture(BaseModel):
             "capture_type": self.capture_type,
             "owner": self.owner,
         }
+
+
+    def get_drf_data_files_queryset(self) -> QuerySet[File]:
+        """DRF data files (rf@*.h5) for this capture (M2M + FK)."""
+        if self.capture_type != CaptureType.DigitalRF:
+            log.warning("Capture %s is not a DigitalRF capture", self.uuid)
+            return File.objects.none()
+
+        # Local import avoids circular import (relationship_utils imports Capture).
+        from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
+
+        return get_capture_files(self, include_deleted=False).filter(
+            name__regex=DRF_RF_FILENAME_REGEX_STR,
+        )
+
+    def get_drf_data_files_stats(self) -> dict[str, int]:
+        """Count + total size in one query; cached per instance. File PK is ``uuid`` — use ``pk``."""
+        if hasattr(self, "_drf_data_files_stats_cache"):
+            return self._drf_data_files_stats_cache
+
+        qs = self.get_drf_data_files_queryset()
+        agg = qs.aggregate(total_count=Count("pk"), total_size=Sum("size"))
+        self._drf_data_files_stats_cache = {
+            "total_count": agg["total_count"] or 0,
+            "total_size": int(agg["total_size"] or 0),
+        }
+        return self._drf_data_files_stats_cache
 
     def get_opensearch_frequency_metadata(self) -> dict[str, Any]:
         """

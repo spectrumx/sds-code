@@ -1236,9 +1236,10 @@ class TestCeleryTasks(TestCase):
 
     def test_get_item_files_with_temporal_bounds_returns_expected_rf_subset(self):
         """
-        Task-level test: start_time/end_time flow into _get_item_files and the helper
-        returns only the expected DRF data files in range (temporal_filtering logic
-        is unit-tested in test_temporal_filtering.py).
+        Task-level test: start_time/end_time flow into _get_item_files.
+        For DigitalRF captures, ``get_capture_files_with_temporal_filter`` returns
+        non-DRF capture files (metadata) plus DRF files in the selected time range
+        (temporal_filtering details are unit-tested in test_temporal_filtering.py).
         """
         # Create DRF-named files for self.capture (epoch 1s..5s)
         epoch_start_sec = 1
@@ -1269,7 +1270,7 @@ class TestCeleryTasks(TestCase):
             "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
         ) as m:
             m.return_value.get.return_value = mock_response
-            # Relative ms: 1000–4000 ms from start → files rf@1.000.h5 .. rf@4.000.h5
+            # Relative ms: 1000–4000 from capture start → absolute 2s–5s filenames
             result = _get_item_files(
                 self.user,
                 self.capture,
@@ -1278,6 +1279,10 @@ class TestCeleryTasks(TestCase):
                 end_time=4000,
             )
         names = [f.name for f in result]
-        # start_time=1000, end_time=4000 → absolute 2s..5s → rf@2.000.h5 .. rf@5.000.h5
-        expected = [f"rf@{i}.000.h5" for i in range(2, 6)]
-        assert names == expected, f"Expected {expected}, got {names}"
+        # DRF files in [2s, 5s] inclusive (see filter_capture_data_files_selection_bounds)
+        expected_rf = [f"rf@{i}.000.h5" for i in range(2, 6)]
+        rf_names = sorted(n for n in names if n.startswith("rf@"))
+        assert rf_names == expected_rf, f"Expected RF files {expected_rf}, got {rf_names}"
+        # Metadata / non-DRF capture files from setUp are still included in the download set
+        assert "test_file1.txt" in names
+        assert "test_file2.txt" in names

@@ -15,20 +15,6 @@ function msToHms(ms) {
 	return hms + "." + String(decimalMs).padStart(3, "0");
 }
 
-function formatBytes(bytes) {
-	const n = Number(bytes);
-	if (!Number.isFinite(n) || n < 0) return "0 bytes";
-	if (n === 0) return "0 bytes";
-	const units = ["bytes", "KB", "MB", "GB"];
-	let i = 0;
-	let v = n;
-	while (v >= 1024 && i < units.length - 1) {
-		v /= 1024;
-		i++;
-	}
-	return (i === 0 ? v : v.toFixed(2)) + " " + units[i];
-}
-
 function formatUtcRange(startEpochSec, startMs, endMs) {
 	if (!Number.isFinite(startEpochSec)) return "—";
 	const startDate = new Date(startEpochSec * 1000 + startMs);
@@ -91,27 +77,18 @@ class DownloadActionManager {
 	 * Initialize event listeners
 	 */
 	initializeEventListeners() {
-		// Initialize download buttons for datasets
-		this.initializeDatasetDownloadButtons();
-
-		// Initialize download buttons for captures
-		this.initializeCaptureDownloadButtons();
-
 		// Initialize web download modal buttons
 		this.initializeWebDownloadButtons();
 
 		// Initialize SDK download modal buttons
 		this.initializeSDKDownloadButtons();
-
-		// Web download modal (dataset + capture)
-		this.initializeWebDownloadModal();
 	}
 
 	/**
-	 * Initialize dataset download buttons
+	 * Initialize web download buttons on the table rows
 	 */
-	initializeDatasetDownloadButtons() {
-		const downloadButtons = document.querySelectorAll(".download-dataset-btn");
+	initializeWebDownloadButtons() {
+		const downloadButtons = document.querySelectorAll(".web-download-btn");
 
 		for (const button of downloadButtons) {
 			// Prevent duplicate event listener attachment
@@ -124,205 +101,19 @@ class DownloadActionManager {
 				e.preventDefault();
 				e.stopPropagation();
 
-				const datasetUuid = button.getAttribute("data-dataset-uuid");
-				const datasetName = button.getAttribute("data-dataset-name");
+				const itemUuid = button.getAttribute("data-item-uuid");
+				const itemType = button.getAttribute("data-item-type");
 
 				if (!this.permissions.canDownload()) {
 					this.showToast(
-						"You don't have permission to download this dataset",
+						`You don't have permission to download this ${itemType}`,
 						"warning",
 					);
 					return;
 				}
 
-				this.handleDatasetDownload(datasetUuid, datasetName, button);
+				this.initializeWebDownloadModal(itemUuid, itemType, button);
 			});
-		}
-	}
-
-	/**
-	 * Initialize capture download buttons
-	 */
-	initializeCaptureDownloadButtons() {
-		const downloadButtons = document.querySelectorAll(".download-capture-btn");
-
-		for (const button of downloadButtons) {
-			// Prevent duplicate event listener attachment
-			if (button.dataset.downloadSetup === "true") {
-				continue;
-			}
-			button.dataset.downloadSetup = "true";
-
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-
-				const captureUuid = button.getAttribute("data-capture-uuid");
-
-				if (!this.permissions.canDownload()) {
-					this.showToast(
-						"You don't have permission to download this capture",
-						"warning",
-					);
-					return;
-				}
-
-				this.handleCaptureDownload(captureUuid, button);
-			});
-		}
-	}
-
-	/**
-	 * Initialize web download modal: confirm button click and modal hidden handler.
-	 * Exposes showWebDownloadModal on window for template callbacks.
-	 */
-	initializeWebDownloadModal() {
-		const webDownloadModal = document.getElementById("webDownloadModal");
-		const confirmWebDownloadBtn = document.getElementById("confirmWebDownloadBtn");
-		if (!webDownloadModal || !confirmWebDownloadBtn) return;
-
-		confirmWebDownloadBtn.addEventListener("click", () => {
-			const itemType = confirmWebDownloadBtn.dataset.itemType || "dataset";
-			const uuid = confirmWebDownloadBtn.dataset.itemUuid || confirmWebDownloadBtn.dataset.datasetUuid;
-
-			if (!uuid) return;
-
-			const startTimeInput = document.getElementById("startTime");
-			const endTimeInput = document.getElementById("endTime");
-			const startEntry = document.getElementById("startTimeEntry");
-			const endEntry = document.getElementById("endTimeEntry");
-			const modalEl = document.getElementById("webDownloadModal");
-
-			if (startEntry && endEntry && modalEl && modalEl.dataset.durationMs) {
-				const entryStart = startEntry.value.trim();
-				const entryEnd = endEntry.value.trim();
-				if (entryStart !== "" || entryEnd !== "") {
-					const durationMs = parseInt(modalEl.dataset.durationMs, 10);
-					const startMs = entryStart === "" ? 0 : parseInt(entryStart, 10);
-					const endMs = entryEnd === "" ? durationMs : parseInt(entryEnd, 10);
-					if (
-						!Number.isFinite(startMs) ||
-						!Number.isFinite(endMs) ||
-						startMs < 0 ||
-						endMs > durationMs ||
-						startMs >= endMs
-					) {
-						this.showToast(
-							"Please enter valid start/end times (0 ≤ start < end ≤ " + durationMs + " ms).",
-							"warning",
-						);
-						return;
-					}
-					if (startTimeInput) startTimeInput.value = String(startMs);
-					if (endTimeInput) endTimeInput.value = String(endMs);
-				}
-			}
-
-			const labels = this.getWebDownloadModalLabels(itemType);
-			confirmWebDownloadBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-			confirmWebDownloadBtn.disabled = true;
-
-			const url = "/users/download-item/" + itemType + "/" + uuid + "/";
-			const headers = {
-				"X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]")?.value,
-			};
-			let body = null;
-			if (startTimeInput && endTimeInput && startTimeInput.value && endTimeInput.value) {
-				headers["Content-Type"] = "application/x-www-form-urlencoded";
-				body = new URLSearchParams({
-					start_time: startTimeInput.value,
-					end_time: endTimeInput.value,
-				});
-			} else {
-				headers["Content-Type"] = "application/json";
-			}
-
-			fetch(url, { method: "POST", headers, body })
-				.then((response) => {
-					const contentType = response.headers.get("content-type");
-					if (contentType && contentType.includes("application/json")) {
-						return response.json();
-					}
-					return response.text().then((text) => {
-						throw new Error("Server returned non-JSON response: " + text);
-					});
-				})
-				.then((data) => {
-					if (data.success === true) {
-						this.showToast(
-							data.message ||
-								"Download request submitted successfully! You will receive an email when ready.",
-							"success",
-						);
-						const modal = bootstrap.Modal.getInstance(webDownloadModal);
-						if (modal) modal.hide();
-					} else {
-						this.showToast(
-							"Error requesting download: " + (data.message || "Unknown error"),
-							"danger",
-						);
-					}
-				})
-				.catch((error) => {
-					console.error("Download error:", error);
-					this.showToast(
-						error.message || "An error occurred while processing your request.",
-						"danger",
-					);
-				})
-				.finally(() => {
-					confirmWebDownloadBtn.innerHTML =
-						'<i class="bi bi-download"></i> ' + labels.confirmText;
-					confirmWebDownloadBtn.disabled = false;
-				});
-		});
-
-		webDownloadModal.addEventListener("hidden.bs.modal", () => {
-			confirmWebDownloadBtn.dataset.itemType = "";
-			confirmWebDownloadBtn.dataset.itemUuid = "";
-			confirmWebDownloadBtn.dataset.itemName = "";
-			confirmWebDownloadBtn.dataset.datasetUuid = "";
-			confirmWebDownloadBtn.dataset.datasetName = "";
-			const nameEl = document.getElementById("webDownloadDatasetName");
-			if (nameEl) nameEl.textContent = "";
-		});
-
-		window.showWebDownloadModal = (a1, a2) => {
-			const options =
-				typeof a1 === "string" && a2 !== undefined
-					? { itemType: "dataset", uuid: a1, name: a2 }
-					: a1;
-			this.showWebDownloadModal(options);
-		};
-	}
-
-	/**
-	 * Open web download modal for a dataset or capture.
-	 * @param {{ itemType?: string, uuid: string, name?: string }} options - itemType 'dataset'|'capture', uuid, name
-	 */
-	showWebDownloadModal(options) {
-		const { itemType = "dataset", uuid, name } = options || {};
-		const nameEl = document.getElementById("webDownloadDatasetName");
-		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
-		const modalEl = document.getElementById("webDownloadModal");
-		const titleEl = document.getElementById("webDownloadModalLabel");
-
-		if (nameEl) nameEl.textContent = name || "";
-		if (confirmBtn) {
-			confirmBtn.dataset.itemType = itemType;
-			confirmBtn.dataset.itemUuid = uuid || "";
-			confirmBtn.dataset.itemName = name || "";
-		}
-		// Update title and button text from item type
-		const labels = this.getWebDownloadModalLabels(itemType);
-		if (titleEl && window.DOMUtils) {
-			window.DOMUtils.renderContent(titleEl, { icon: "download", text: labels.title });
-		}
-		if (confirmBtn && window.DOMUtils) {
-			window.DOMUtils.renderContent(confirmBtn, { icon: "download", text: labels.confirmText });
-		}
-		if (modalEl && window.bootstrap) {
-			new bootstrap.Modal(modalEl).show();
 		}
 	}
 
@@ -333,41 +124,44 @@ class DownloadActionManager {
      * @param {number} fileCadenceMs - File cadence in milliseconds (step)
      * @param {Object} opts - Optional: { perDataFileSize, totalSize, dataFilesCount, totalFilesCount, dataFilesTotalSize, captureUuid, captureStartEpochSec }
      */
-	initializeCaptureDownloadSlider(durationMs, fileCadenceMs, opts) {
+	initializeCaptureDownloadSlider(modalId, durationMs, fileCadenceMs, opts) {
+		const webDownloadModal = document.getElementById(modalId);
+		if (!webDownloadModal) return;
+
 		opts = opts || {};
-		var sliderEl = document.getElementById('temporalFilterSlider');
-		var rangeLabel = document.getElementById('temporalFilterRangeLabel');
-		var totalFilesLabel = document.getElementById('totalFilesLabel');
-		var metadataFilesLabel = document.getElementById('metadataFilesLabel');
-		var totalSizeLabel = document.getElementById('totalSizeLabel');
-		var dateTimeLabel = document.getElementById('dateTimeLabel');
-		var startTimeInput = document.getElementById('startTime');
-		var endTimeInput = document.getElementById('endTime');
-		var startTimeEntry = document.getElementById('startTimeEntry');
-		var endTimeEntry = document.getElementById('endTimeEntry');
-		var startDateTimeEntry = document.getElementById('startDateTimeEntry');
-		var endDateTimeEntry = document.getElementById('endDateTimeEntry');
-		var rangeHintEl = document.getElementById('temporalRangeHint');
-		var sizeWarningEl = document.getElementById('temporalFilterSizeWarning');
-		var webDownloadModal = document.getElementById('webDownloadModal');
+		const q = (id) => webDownloadModal.querySelector("#" + id);
+		const sliderEl = q("temporalFilterSlider");
+		const rangeLabel = q("temporalFilterRangeLabel");
+		const totalFilesLabel = q("totalFilesLabel");
+		const metadataFilesLabel = q("metadataFilesLabel");
+		const totalSizeLabel = q("totalSizeLabel");
+		const dateTimeLabel = q("dateTimeLabel");
+		const startTimeInput = q("startTime");
+		const endTimeInput = q("endTime");
+		const startTimeEntry = q("startTimeEntry");
+		const endTimeEntry = q("endTimeEntry");
+		const startDateTimeEntry = q("startDateTimeEntry");
+		const endDateTimeEntry = q("endDateTimeEntry");
+		const rangeHintEl = q("temporalRangeHint");
+		const sizeWarningEl = q("temporalFilterSizeWarning");
 		if (!sliderEl || typeof noUiSlider === 'undefined') return;
 		durationMs = Number(durationMs);
 		if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
 		fileCadenceMs = Number(fileCadenceMs);
 		if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
-		var perDataFileSize = Number(opts.perDataFileSize) || 0;
-		var totalSize = Number(opts.totalSize) || 0;
-		var dataFilesCount = Number(opts.dataFilesCount) || 0;
-		var totalFilesCount = Number(opts.totalFilesCount) || 0;
-		var dataFilesTotalSize = Number(opts.dataFilesTotalSize);
+		const perDataFileSize = Number(opts.perDataFileSize) || 0;
+		const totalSize = Number(opts.totalSize) || 0;
+		const dataFilesCount = Number(opts.dataFilesCount) || 0;
+		const totalFilesCount = Number(opts.totalFilesCount) || 0;
+		let dataFilesTotalSize = Number(opts.dataFilesTotalSize);
 		if (!Number.isFinite(dataFilesTotalSize) || dataFilesTotalSize < 0) {
 			dataFilesTotalSize = perDataFileSize * dataFilesCount;
 		}
-		var metadataFilesTotalSize = totalSize - dataFilesTotalSize;
+		let metadataFilesTotalSize = totalSize - dataFilesTotalSize;
 		if (metadataFilesTotalSize < 0) metadataFilesTotalSize = 0;
-		var metadataFilesCount = Math.max(0, totalFilesCount - dataFilesCount);
-		var captureUuid = opts.captureUuid != null ? String(opts.captureUuid) : '';
-		var captureStartEpochSec = Number(opts.captureStartEpochSec);
+		const metadataFilesCount = Math.max(0, totalFilesCount - dataFilesCount);
+		const captureUuid = opts.captureUuid != null ? String(opts.captureUuid) : '';
+		const captureStartEpochSec = Number(opts.captureStartEpochSec);
 		if (totalSize > 0 && dataFilesTotalSize > totalSize) {
 			console.warn(
 				'[DownloadActionManager] data files total size exceeds total size (backend/query inconsistency).',
@@ -392,13 +186,13 @@ class DownloadActionManager {
 		}
 		if (rangeLabel) rangeLabel.textContent = '—';
 		if (totalFilesLabel) totalFilesLabel.textContent = '0 files';
-		if (totalSizeLabel) totalSizeLabel.textContent = formatBytes(totalSize);
+		if (totalSizeLabel) totalSizeLabel.textContent = window.DOMUtils.formatFileSize(totalSize);
 		if (dateTimeLabel) dateTimeLabel.textContent = '—';
 		if (startTimeInput) startTimeInput.value = '';
 		if (endTimeInput) endTimeInput.value = '';
 		if (startTimeEntry) startTimeEntry.value = '';
 		if (endTimeEntry) endTimeEntry.value = '';
-		var hasEpoch = Number.isFinite(captureStartEpochSec);
+		const hasEpoch = Number.isFinite(captureStartEpochSec);
 		if (startDateTimeEntry) {
 			startDateTimeEntry.value = '';
 			startDateTimeEntry.disabled = !hasEpoch;
@@ -408,11 +202,12 @@ class DownloadActionManager {
 			endDateTimeEntry.disabled = !hasEpoch;
 		}
 		if (durationMs <= 0) return;
-		var fpStart = null, fpEnd = null;
-		var epochStart = captureStartEpochSec * 1000;
-		var epochEnd = epochStart + durationMs;
+		let fpStart = null;
+		let fpEnd = null;
+		const epochStart = captureStartEpochSec * 1000;
+		const epochEnd = epochStart + durationMs;
 		if (hasEpoch && typeof flatpickr !== 'undefined' && startDateTimeEntry && endDateTimeEntry) {
-			var fpOpts = {
+			const fpOpts = {
 				enableTime: true,
 				enableSeconds: true,
 				utc: true,
@@ -442,11 +237,11 @@ class DownloadActionManager {
 			range: { min: 0, max: durationMs },
 		});
 		sliderEl.noUiSlider.on('update', function(values) {
-			var startMs = Number(values[0]);
-			var endMs = Number(values[1]);
+			const startMs = Number(values[0]);
+			const endMs = Number(values[1]);
 			// the + 1 is to include the first file in the selection
 			// as file cadence is the time between files, not the time of the file
-			var filesInSelection = Math.round((endMs - startMs) / fileCadenceMs) + 1;
+			const filesInSelection = Math.round((endMs - startMs) / fileCadenceMs) + 1;
 			if (rangeLabel) {
 				rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
 			}
@@ -456,7 +251,7 @@ class DownloadActionManager {
 					: filesInSelection + ' files';
 			}
 			if (totalSizeLabel) {
-				totalSizeLabel.textContent = formatBytes(
+				totalSizeLabel.textContent = window.DOMUtils.formatFileSize(
 					(perDataFileSize * filesInSelection) + metadataFilesTotalSize
 				);
 			}
@@ -490,8 +285,8 @@ class DownloadActionManager {
 		if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
 			dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, 0, durationMs);
 		}
-		var startVal = '0';
-		var endVal = String(durationMs);
+		const startVal = '0';
+		const endVal = String(durationMs);
 		if (startTimeInput) startTimeInput.value = startVal;
 		if (endTimeInput) endTimeInput.value = endVal;
 		if (startTimeEntry) startTimeEntry.value = startVal;
@@ -506,10 +301,10 @@ class DownloadActionManager {
 
 		function syncSliderFromEntries() {
 			if (!sliderEl.noUiSlider || !startTimeEntry || !endTimeEntry) return;
-			var s = startTimeEntry.value.trim();
-			var e = endTimeEntry.value.trim();
-			var startMs = s === '' ? 0 : parseInt(s, 10);
-			var endMs = e === '' ? durationMs : parseInt(e, 10);
+			const s = startTimeEntry.value.trim();
+			const e = endTimeEntry.value.trim();
+			let startMs = s === '' ? 0 : parseInt(s, 10);
+			let endMs = e === '' ? durationMs : parseInt(e, 10);
 			if (!Number.isFinite(startMs)) startMs = 0;
 			if (!Number.isFinite(endMs)) endMs = durationMs;
 			startMs = Math.max(0, Math.min(startMs, durationMs));
@@ -519,10 +314,10 @@ class DownloadActionManager {
 		}
 		function syncFromDateTimeEntries() {
 			if (!hasEpoch || !sliderEl.noUiSlider || !startDateTimeEntry || !endDateTimeEntry) return;
-			var startMs, endMs;
+			let startMs, endMs;
 			if (startDateTimeEntry._flatpickr && endDateTimeEntry._flatpickr) {
-				var dStart = startDateTimeEntry._flatpickr.selectedDates[0];
-				var dEnd = endDateTimeEntry._flatpickr.selectedDates[0];
+				const dStart = startDateTimeEntry._flatpickr.selectedDates[0];
+				const dEnd = endDateTimeEntry._flatpickr.selectedDates[0];
 				startMs = dStart ? dStart.getTime() - epochStart : 0;
 				endMs = dEnd ? dEnd.getTime() - epochStart : durationMs;
 			} else {
@@ -533,7 +328,7 @@ class DownloadActionManager {
 			startMs = Math.max(0, Math.min(startMs, durationMs));
 			endMs = Math.max(0, Math.min(endMs, durationMs));
 			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
-			var cur = sliderEl.noUiSlider.get();
+			const cur = sliderEl.noUiSlider.get();
 			if (Math.round(Number(cur[0])) === Math.round(startMs) && Math.round(Number(cur[1])) === Math.round(endMs)) return;
 			sliderEl.noUiSlider.set([startMs, endMs]);
 		}
@@ -543,38 +338,93 @@ class DownloadActionManager {
 		if (endDateTimeEntry && !endDateTimeEntry._flatpickr) endDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
 	}
 
-	/**
-	 * Labels for web download modal by item type (dataset vs capture).
-	 * @param {string} itemType - 'dataset' or 'capture'
-	 * @returns {{ title: string, confirmText: string }}
-	 */
-	getWebDownloadModalLabels(itemType) {
-		const t = (itemType || "dataset").toLowerCase();
-		return {
-			title: t === "capture" ? "Download Capture" : "Download Dataset",
-			confirmText:
-				t === "capture" ? "Yes, Download Capture" : "Yes, Download Dataset",
-		};
+	setTemporalSliderAttrs(modalId, button, itemUuid) {
+		// Initialize temporal slider from button data attributes (clears or builds slider)
+		let durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
+		let fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
+		let perDataFileSize = parseFloat(button.getAttribute("data-per-data-file-size"));
+		let dataFilesCount = parseInt(button.getAttribute("data-data-files-count"), 10);
+		let dataFilesTotalSize = parseInt(button.getAttribute("data-total-data-file-size"), 10);
+		let totalSize = parseInt(button.getAttribute("data-total-size"), 10);
+		let totalFilesCount = parseInt(button.getAttribute("data-total-files-count"), 10);
+		let captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
+		this.initializeCaptureDownloadSlider(
+			modalId,
+			Number.isNaN(durationMs) ? 0 : durationMs,
+			Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
+			{
+				perDataFileSize: Number.isNaN(perDataFileSize) ? 0 : perDataFileSize,
+				totalSize: Number.isNaN(totalSize) ? 0 : totalSize,
+				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
+				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
+				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize) ? undefined : dataFilesTotalSize,
+				captureUuid: itemUuid || undefined,
+				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
+			},
+		);
+	}
+
+	addTimeFilteringToFetchRequest(modalId) {
+		const modalEl = document.getElementById(modalId);
+		if (!modalEl) {
+			return { body: {}, isJson: false };
+		}
+		const startTimeInput = modalEl.querySelector("#startTime");
+		const endTimeInput = modalEl.querySelector("#endTime");
+		const startEntry = modalEl.querySelector("#startTimeEntry");
+		const endEntry = modalEl.querySelector("#endTimeEntry");
+
+		if (startEntry && endEntry && modalEl && modalEl.dataset.durationMs) {
+			const entryStart = startEntry.value.trim();
+			const entryEnd = endEntry.value.trim();
+			if (entryStart !== "" || entryEnd !== "") {
+				const durationMs = parseInt(modalEl.dataset.durationMs, 10);
+				const startMs = entryStart === "" ? 0 : parseInt(entryStart, 10);
+				const endMs = entryEnd === "" ? durationMs : parseInt(entryEnd, 10);
+				if (
+					!Number.isFinite(startMs) ||
+					!Number.isFinite(endMs) ||
+					startMs < 0 ||
+					endMs > durationMs ||
+					startMs >= endMs
+				) {
+					this.showToast(
+						"Please enter valid start/end times (0 ≤ start < end ≤ " + durationMs + " ms).",
+						"warning",
+					);
+					return;
+				}
+				if (startTimeInput) startTimeInput.value = String(startMs);
+				if (endTimeInput) endTimeInput.value = String(endMs);
+			}
+		}
+
+		let body = {};
+		let isJson = true;
+		if (startTimeInput && endTimeInput && startTimeInput.value && endTimeInput.value) {
+			body.start_time = startTimeInput.value;
+			body.end_time = endTimeInput.value;
+			isJson = false;
+		}
+
+		return { body, isJson };
 	}
 
 	/**
-	 * Handle dataset download
-	 * @param {string} datasetUuid - Dataset UUID
-	 * @param {string} datasetName - Dataset name
+	 * Initialize web download modal for assets
 	 * @param {Element} button - Download button element
 	 */
-	async handleDatasetDownload(datasetUuid, datasetName, button) {
-		// Update modal content
-		const modalNameElement = document.getElementById("downloadDatasetName");
-		if (modalNameElement) {
-			modalNameElement.textContent = datasetName;
+	async initializeWebDownloadModal(itemUuid, itemType, button) {
+		const modalId = `webDownloadModal-${itemUuid}`;
+		// Show the modal
+		window.DOMUtils.openModal(modalId);
+
+		if (itemType === "capture") {
+			this.setTemporalSliderAttrs(modalId, button, itemUuid);
 		}
 
-		// Show the modal
-		window.DOMUtils.openModal("downloadModal");
-
 		// Handle confirm download
-		const confirmBtn = document.getElementById("confirmDownloadBtn");
+		const confirmBtn = document.getElementById(`confirmWebDownloadBtn-${itemUuid}`);
 		if (!confirmBtn) return;
 
 		// Remove any existing event listeners
@@ -582,9 +432,6 @@ class DownloadActionManager {
 		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
 		newConfirmBtn.onclick = async () => {
-			// Close modal first
-			window.DOMUtils.closeModal("downloadModal");
-
 			// Show loading state
 			const originalContent = button.innerHTML;
 			await window.DOMUtils.renderLoading(button, "Processing...", {
@@ -593,10 +440,23 @@ class DownloadActionManager {
 			});
 			button.disabled = true;
 
+			// Close modal
+			window.DOMUtils.closeModal(modalId);
+
+			let body = {};
+			let isJson = false;
 			try {
+
+				if (itemType === "capture") {
+					const result = this.addTimeFilteringToFetchRequest(modalId);
+					body = result.body;
+					isJson = result.isJson;
+				}
 				const response = await window.APIClient.post(
-					`/users/download-item/dataset/${datasetUuid}/`,
-					{},
+					`/users/download-item/${itemType}/${itemUuid}/`,
+					body,
+					null,
+					isJson,
 				);
 
 				if (response.success === true) {
@@ -643,104 +503,6 @@ class DownloadActionManager {
 	}
 
 	/**
-	 * Handle capture download (modal copy comes from web_download_modal.html)
-	 * @param {string} captureUuid - Capture UUID
-	 * @param {Element} [button] - Optional row action button for loading state
-	 */
-	async handleCaptureDownload(captureUuid, button) {
-		const modalId = `webDownloadModal-${captureUuid}`;
-		const modal = document.getElementById(modalId);
-		if (!modal) {
-			console.warn(`Web download modal not found for capture ${captureUuid}`);
-			return;
-		}
-
-		const labels = this.getWebDownloadModalLabels("capture");
-		const modalTitleElement = document.getElementById("webDownloadModalLabel");
-		const modalNameElement = document.getElementById("webDownloadDatasetName");
-		const confirmBtn = document.getElementById("confirmWebDownloadBtn");
-
-		if (modalTitleElement) {
-			await window.DOMUtils.renderContent(modalTitleElement, {
-				icon: "download",
-				text: labels.title,
-			});
-		}
-
-		const newConfirmBtn = confirmBtn.cloneNode(true);
-		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-		if (confirmBtn) {
-			await window.DOMUtils.renderContent(confirmBtn, {
-				icon: "download",
-				text: labels.confirmText,
-			});
-			confirmBtn.dataset.itemType = "capture";
-			confirmBtn.dataset.itemUuid = captureUuid;
-			confirmBtn.dataset.itemName = captureName || "Unnamed Capture";
-		}
-
-		// Initialize temporal slider from button data attributes (clears or builds slider)
-		const durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
-		const fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
-		const perDataFileSize = parseFloat(button.getAttribute("data-per-data-file-size"), 10);
-		const totalSize = parseInt(button.getAttribute("data-total-size"), 10);
-		const dataFilesCount = parseInt(button.getAttribute("data-data-files-count"), 10);
-		const totalFilesCount = parseInt(button.getAttribute("data-total-files-count"), 10);
-		const dataFilesTotalSizeRaw = button.getAttribute("data-data-files-total-size");
-		const dataFilesTotalSize = dataFilesTotalSizeRaw !== null && dataFilesTotalSizeRaw !== '' ? parseInt(dataFilesTotalSizeRaw, 10) : NaN;
-		const captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
-		this.initializeCaptureDownloadSlider(
-			Number.isNaN(durationMs) ? 0 : durationMs,
-			Number.isNaN(fileCadenceMs) ? 1000 : fileCadenceMs,
-			{
-				perDataFileSize: Number.isNaN(perDataFileSize) ? 0 : perDataFileSize,
-				totalSize: Number.isNaN(totalSize) ? 0 : totalSize,
-				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
-				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
-				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize) ? undefined : dataFilesTotalSize,
-				captureUuid: captureUuid || undefined,
-				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
-			},
-		);
-
-		// Show the modal
-		this.openCustomModal("webDownloadModal");
-	}
-
-	/**
-	 * Initialize web download modal buttons
-	 */
-	initializeWebDownloadButtons() {
-		// Find all web download buttons (by data attribute or class)
-		const webDownloadButtons = document.querySelectorAll(
-			'[data-action="web-download"], .web-download-btn',
-		);
-
-		for (const button of webDownloadButtons) {
-			// Prevent duplicate event listener attachment
-			if (button.dataset.downloadSetup === "true") {
-				continue;
-			}
-			button.dataset.downloadSetup = "true";
-
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-
-				const datasetUuid = button.getAttribute("data-dataset-uuid");
-
-				if (!datasetUuid) {
-					console.warn("Web download button missing dataset-uuid attribute");
-					return;
-				}
-
-				this.openWebDownloadModal(datasetUuid);
-			});
-		}
-	}
-
-	/**
 	 * Initialize SDK download modal buttons
 	 */
 	initializeSDKDownloadButtons() {
@@ -770,96 +532,6 @@ class DownloadActionManager {
 				this.openSDKDownloadModal(datasetUuid);
 			});
 		}
-	}
-
-	/**
-	 * Open web download modal for a specific dataset (labels from web_download_modal.html)
-	 * @param {string} datasetUuid - Dataset UUID
-	 */
-	openWebDownloadModal(datasetUuid) {
-		const modalId = `webDownloadModal-${datasetUuid}`;
-		const modal = document.getElementById(modalId);
-		if (!modal) {
-			console.warn(`Web download modal not found for dataset ${datasetUuid}`);
-			return;
-		}
-
-		const confirmBtn = document.getElementById(
-			`confirmWebDownloadBtn-${datasetUuid}`,
-		);
-
-		if (!confirmBtn) {
-			console.warn(`Confirm button not found for dataset ${datasetUuid}`);
-			return;
-		}
-
-		// Remove any existing event listeners by cloning
-		const newConfirmBtn = confirmBtn.cloneNode(true);
-		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-
-		// Attach download handler
-		newConfirmBtn.onclick = async () => {
-			// Close modal first
-			window.DOMUtils.closeModal(modalId);
-
-			// Show loading state
-			const originalContent = newConfirmBtn.innerHTML;
-			await window.DOMUtils.renderLoading(newConfirmBtn, "Processing...", {
-				format: "spinner",
-				size: "sm",
-			});
-			newConfirmBtn.disabled = true;
-
-			try {
-				const response = await window.APIClient.post(
-					`/users/download-item/dataset/${datasetUuid}/`,
-					{},
-				);
-
-				if (response.success === true) {
-					await window.DOMUtils.renderContent(newConfirmBtn, {
-						icon: "check-circle",
-						color: "success",
-						text: "Download Requested",
-					});
-					this.showToast(
-						response.message ||
-							"Download request submitted successfully! You will receive an email when ready.",
-						"success",
-					);
-				} else {
-					await window.DOMUtils.renderContent(newConfirmBtn, {
-						icon: "exclamation-triangle",
-						color: "danger",
-						text: "Request Failed",
-					});
-					this.showToast(
-						response.message || "Download request failed. Please try again.",
-						"danger",
-					);
-				}
-			} catch (error) {
-				console.error("Download error:", error);
-				await window.DOMUtils.renderContent(newConfirmBtn, {
-					icon: "exclamation-triangle",
-					color: "danger",
-					text: "Request Failed",
-				});
-				this.showToast(
-					error.message || "An error occurred while processing your request.",
-					"danger",
-				);
-			} finally {
-				// Reset button after 3 seconds
-				setTimeout(() => {
-					newConfirmBtn.innerHTML = originalContent;
-					newConfirmBtn.disabled = false;
-				}, 3000);
-			}
-		};
-
-		// Use centralized openModal method
-		window.DOMUtils.openModal(modalId);
 	}
 
 	/**
@@ -908,65 +580,6 @@ class DownloadActionManager {
 	}
 
 	/**
-	 * Initialize download buttons for dynamically loaded content
-	 * @param {Element} container - Container element to search within
-	 */
-	initializeDownloadButtonsForContainer(container) {
-		// Initialize dataset download buttons in the container
-		const datasetDownloadButtons = container.querySelectorAll(
-			".download-dataset-btn",
-		);
-		for (const button of datasetDownloadButtons) {
-			if (!button.dataset.downloadSetup) {
-				button.dataset.downloadSetup = "true";
-				button.addEventListener("click", (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const datasetUuid = button.getAttribute("data-dataset-uuid");
-					const datasetName = button.getAttribute("data-dataset-name");
-
-					if (!this.permissions.canDownload()) {
-						this.showToast(
-							"You don't have permission to download this dataset",
-							"warning",
-						);
-						return;
-					}
-
-					this.handleDatasetDownload(datasetUuid, datasetName, button);
-				});
-			}
-		}
-
-		// Initialize capture download buttons in the container
-		const captureDownloadButtons = container.querySelectorAll(
-			".download-capture-btn",
-		);
-		for (const button of captureDownloadButtons) {
-			if (!button.dataset.downloadSetup) {
-				button.dataset.downloadSetup = "true";
-				button.addEventListener("click", (e) => {
-					e.preventDefault();
-					e.stopPropagation();
-
-					const captureUuid = button.getAttribute("data-capture-uuid");
-
-					if (!this.permissions.canDownload()) {
-						this.showToast(
-							"You don't have permission to download this capture",
-							"warning",
-						);
-						return;
-					}
-
-					this.handleCaptureDownload(captureUuid, button);
-				});
-			}
-		}
-	}
-
-	/**
 	 * Check if user can download specific item
 	 * @param {Object} item - Item object
 	 * @returns {boolean} Whether user can download
@@ -999,11 +612,10 @@ class DownloadActionManager {
 	cleanup() {
 		// Remove event listeners and clean up any resources
 		const downloadButtons = document.querySelectorAll(
-			".download-dataset-btn, .download-capture-btn",
+			".web-download-btn",
 		);
 		for (const button of downloadButtons) {
-			button.removeEventListener("click", this.handleDatasetDownload);
-			button.removeEventListener("click", this.handleCaptureDownload);
+			button.removeEventListener("click", this.initializeWebDownloadButtons);
 		}
 	}
 }

@@ -178,12 +178,19 @@
                                                             </li>
                                                         {% endif %}
                                                         <li>
-                                                            <button class="dropdown-item download-capture-btn"
-                                                                    type="button"
-                                                                    data-capture-uuid="{{ item.uuid }}"
-                                                                    data-capture-name="{{ item.name }}">
-                                                                <i class="bi bi-download me-2"></i>Download
-                                                            </button>
+                                                            <button class="dropdown-item web-download-btn"
+                                                                type="button"
+                                                                data-item-uuid="{{ item.uuid }}"
+                                                                data-item-type="capture"
+                                                                data-length-of-capture-ms="{{ item.length_of_capture_ms|default:0 }}"
+                                                                data-file-cadence-ms="{{ item.file_cadence_ms|default:1000 }}"
+                                                                data-per-data-file-size="{{ item.data_files_info.per_data_file_size|default:0 }}"
+                                                                data-total-data-file-size="{{ item.data_files_info.total_size|default:0 }}"
+                                                                data-total-size="{{ item.total_file_size|default:0 }}"
+                                                                data-data-files-count="{{ item.data_files_info.count|default:0 }}"
+                                                                data-total-files-count="{{ item.files|length|default:0 }}"
+                                                                data-capture-start-epoch-sec="{{ item.capture_start_epoch_sec|default:0 }}"
+                                                            >Download</button>
                                                         </li>
                                                     {% elif item.type == 'file' %}
                                                         <!-- Individual file actions -->
