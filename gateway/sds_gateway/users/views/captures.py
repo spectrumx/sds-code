@@ -44,10 +44,8 @@ def _get_captures_for_template(
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
         capture_data["is_shared_with_me"] = capture.owner != request.user
-        capture_data["owner_name"] = (
-            capture.owner.name if capture.owner.name else "Owner"
-        )
-        capture_data["owner_email"] = capture.owner.email if capture.owner.email else ""
+        capture_data["owner_name"] = capture.owner.name or "Owner"
+        capture_data["owner_email"] = capture.owner.email or ""
 
         # Add the original model instance for template use
         capture_data["capture"] = capture
