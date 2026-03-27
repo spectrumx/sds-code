@@ -1,11 +1,10 @@
 import time
 
 from unittest.mock import patch
+from django.db.models import QuerySet
 from django.test import TestCase
 
 import sds_gateway.api_methods.helpers.temporal_filtering as temporal_filtering
-from sds_gateway.api_methods.models import Capture, CaptureType
-
 from sds_gateway.api_methods.tests.factories import CaptureFactory, DRFDataFileFactory, UserFactory
 
 
@@ -82,8 +81,13 @@ class TemporalFilteringTestCase(TestCase):
             file_cadence = temporal_filtering.get_file_cadence(
                 self.capture.capture_type, self.capture
             )
-            expected_cadence = max(1, int((end_sec - start_sec) * 1000 / (self.file_count - 1)))
-            assert file_cadence is not None
+            
+            expected_cadence = max(
+                1, int((end_sec - start_sec) * 1000 / self.file_count)
+            )
+            
+            # duration_ms / DRF data file count (get_drf_data_files_stats total_count)
+            assert self.capture.get_drf_data_files_stats()["total_count"] == self.file_count
             assert file_cadence == expected_cadence
 
     def test_file_filtering(self):
@@ -106,7 +110,8 @@ class TemporalFilteringTestCase(TestCase):
             filtered_files = temporal_filtering.filter_capture_data_files_selection_bounds(
                 self.capture.capture_type, self.capture, start_ms, end_ms
             )
-        assert filtered_files is not None
-        assert len(filtered_files) == expected_count
+        assert isinstance(filtered_files, QuerySet)
+        assert filtered_files.count() == expected_count
+        names = list(filtered_files.values_list("name", flat=True))
         for i in range(expected_count):
-            assert filtered_files[i].name == self.files[1 + i].name
+            assert names[i] == self.files[1 + i].name

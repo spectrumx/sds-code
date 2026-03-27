@@ -55,17 +55,11 @@ describe("DownloadActionManager", () => {
 		// Mock document methods
 		document.querySelector = jest.fn(() => mockButton);
 		document.querySelectorAll = jest.fn((selector) => {
-			if (selector === ".download-dataset-btn") return [mockButton];
-			if (selector === ".download-capture-btn") return [mockButton];
-			if (selector === ".download-dataset-btn, .download-capture-btn")
-				return [mockButton];
+			if (selector === ".web-download-btn") return [mockButton];
 			return [];
 		});
 
 		document.getElementById = jest.fn((id) => {
-			if (id === "downloadModal") return mockModal;
-			if (id === "downloadDatasetName") return { textContent: "" };
-			if (id === "confirmDownloadBtn") return mockButton;
 			if (id.startsWith("webDownloadModal-")) return mockModal;
 			if (id.startsWith("webDownloadModalLabel-")) return { innerHTML: "" };
 			if (id.startsWith("webDownloadDatasetName-")) return { textContent: "" };
@@ -163,25 +157,22 @@ describe("DownloadActionManager", () => {
 				addEventListener: jest.fn(),
 				dataset: { downloadSetup: "false" },
 				getAttribute: jest.fn((attr) => {
-					if (attr === "data-dataset-uuid") return "test-dataset-uuid";
-					if (attr === "data-dataset-name") return "Test Dataset";
+					if (attr === "data-item-uuid") return "test-item-uuid";
+					if (attr === "data-item-type") return "dataset";
 					return null;
 				}),
 			};
 
 			document.querySelectorAll = jest.fn((selector) => {
-				if (selector === ".download-dataset-btn") return [mockButton];
-				if (selector === ".download-capture-btn") return [mockButton];
-				if (selector === ".download-dataset-btn, .download-capture-btn")
-					return [mockButton];
+				if (selector === ".web-download-btn") return [mockButton];
 				return [];
 			});
 
 			document.getElementById = jest.fn((id) => {
-				if (id === "downloadDatasetName") {
+				if (id.startsWith("webDownloadDatasetName-")) {
 					return { textContent: "" };
 				}
-				if (id === "confirmDownloadBtn") {
+				if (id.startsWith("confirmWebDownloadBtn-")) {
 					return {
 						cloneNode: jest.fn(() => {
 							clonedConfirmBtn = {
@@ -199,16 +190,14 @@ describe("DownloadActionManager", () => {
 			downloadManager = new DownloadActionManager({
 				permissions: { canDownload: () => true },
 			});
-			downloadManager.openCustomModal = jest.fn();
-			downloadManager.closeCustomModal = jest.fn();
 			downloadManager.showToast = jest.fn();
 		});
 
-		test("should initialize dataset download buttons", () => {
-			downloadManager.initializeDatasetDownloadButtons();
+		test("should initialize web download buttons", () => {
+			downloadManager.initializeWebDownloadButtons();
 
 			expect(document.querySelectorAll).toHaveBeenCalledWith(
-				".download-dataset-btn",
+				".web-download-btn",
 			);
 			expect(mockButton.addEventListener).toHaveBeenCalledWith(
 				"click",
@@ -222,9 +211,9 @@ describe("DownloadActionManager", () => {
 				message: "Download request submitted",
 			});
 
-			await downloadManager.handleDatasetDownload(
-				"test-uuid",
-				"Test Dataset",
+			await downloadManager.initializeWebDownloadModal(
+				"test-item-uuid",
+				"dataset",
 				mockButton,
 			);
 
@@ -236,8 +225,10 @@ describe("DownloadActionManager", () => {
 			await new Promise((resolve) => setTimeout(resolve, 0));
 
 			expect(mockAPIClient.post).toHaveBeenCalledWith(
-				"/users/download-item/dataset/test-uuid/",
+				"/users/download-item/dataset/test-item-uuid/",
 				{},
+				null,
+				false,
 			);
 			expect(window.DOMUtils.renderContent).toHaveBeenCalledWith(
 				mockButton,
@@ -266,7 +257,7 @@ describe("DownloadActionManager", () => {
 			// Clear previous calls
 			mockButtonWithSetup.addEventListener.mockClear();
 
-			downloadManager.initializeDatasetDownloadButtons();
+			downloadManager.initializeWebDownloadButtons();
 
 			expect(mockButtonWithSetup.addEventListener).not.toHaveBeenCalled();
 		});
@@ -297,35 +288,60 @@ describe("DownloadActionManager", () => {
 
 	describe("Capture Download Functionality", () => {
 		beforeEach(() => {
-			if (!window.DOMUtils) window.DOMUtils = {};
-			window.DOMUtils.showAlert = jest.fn();
+			window.DOMUtils = {
+				...global.window.DOMUtils,
+				openModal: jest.fn(),
+				closeModal: jest.fn(),
+				renderLoading: jest.fn().mockResolvedValue(true),
+				renderContent: jest.fn().mockResolvedValue(true),
+				showAlert: jest.fn(),
+			};
 			downloadManager = new DownloadActionManager({
 				permissions: mockPermissions,
 			});
 		});
 
-		test("should initialize capture download buttons", () => {
-			downloadManager.initializeCaptureDownloadButtons();
+		test("should configure temporal slider when opening web download for capture", async () => {
+			const spy = jest
+				.spyOn(downloadManager, "setTemporalSliderAttrs")
+				.mockImplementation(() => {});
 
-			expect(document.querySelectorAll).toHaveBeenCalledWith(
-				".download-capture-btn",
+			document.getElementById = jest.fn((id) => {
+				if (id.startsWith("confirmWebDownloadBtn-")) {
+					return {
+						cloneNode: jest.fn(() => ({
+							parentNode: { replaceChild: jest.fn() },
+							onclick: null,
+						})),
+						parentNode: { replaceChild: jest.fn() },
+					};
+				}
+				return null;
+			});
+
+			const captureBtn = {
+				innerHTML: "Download",
+				disabled: false,
+				dataset: {},
+				getAttribute: jest.fn((attr) => {
+					if (attr === "data-item-uuid") return "test-capture-uuid";
+					if (attr === "data-item-type") return "capture";
+					return null;
+				}),
+			};
+
+			await downloadManager.initializeWebDownloadModal(
+				"test-capture-uuid",
+				"capture",
+				captureBtn,
 			);
-			expect(mockButton.addEventListener).toHaveBeenCalledWith(
-				"click",
-				expect.any(Function),
+
+			expect(spy).toHaveBeenCalledWith(
+				"webDownloadModal-test-capture-uuid",
+				captureBtn,
+				"test-capture-uuid",
 			);
-		});
-
-		test("should handle capture download click with permissions", async () => {
-			const captureUuid = "test-capture-uuid";
-
-			// Ensure window.DOMUtils is properly set up
-			window.DOMUtils = global.window.DOMUtils;
-
-			// Test that the method exists and can be called without throwing
-			await expect(
-				downloadManager.handleCaptureDownload(captureUuid, mockButton),
-			).resolves.not.toThrow();
+			spy.mockRestore();
 		});
 
 		test("should show permission error for capture download", async () => {
@@ -353,9 +369,36 @@ describe("DownloadActionManager", () => {
 	});
 
 	describe("initializeCaptureDownloadSlider", () => {
+		const MODAL_ID = "webDownloadModal-test-uuid";
 		let mockSliderEl;
 		let mockNoUiSliderCreate;
 		let mockSliderInstance;
+
+		function stubEl() {
+			return {
+				textContent: "",
+				value: "",
+				dataset: {},
+				classList: { add: jest.fn(), remove: jest.fn() },
+				disabled: false,
+				addEventListener: jest.fn(),
+			};
+		}
+
+		/** Modal root with querySelector("#id") like the real DOM */
+		function mockWebDownloadModal(elementMap) {
+			const map = elementMap || {};
+			return {
+				dataset: {},
+				querySelector: jest.fn((sel) => {
+					const id = sel.startsWith("#") ? sel.slice(1) : sel;
+					if (Object.prototype.hasOwnProperty.call(map, id)) {
+						return map[id];
+					}
+					return stubEl();
+				}),
+			};
+		}
 
 		beforeEach(() => {
 			downloadManager = new DownloadActionManager({
@@ -373,31 +416,59 @@ describe("DownloadActionManager", () => {
 			mockNoUiSliderCreate = jest.fn(() => {
 				mockSliderEl.noUiSlider = mockSliderInstance;
 			});
+			// Slider path touches formatFileSize on totalSizeLabel
+			global.window.DOMUtils = {
+				...global.window.DOMUtils,
+				formatFileSize: jest.fn((n) => `${n} B`),
+			};
+		});
+
+		test("should return early when modal root element is missing", () => {
+			document.getElementById = jest.fn(() => null);
+			global.noUiSlider = { create: mockNoUiSliderCreate };
+
+			downloadManager.initializeCaptureDownloadSlider(
+				MODAL_ID,
+				10000,
+				1000,
+				{},
+			);
+			expect(mockNoUiSliderCreate).not.toHaveBeenCalled();
 		});
 
 		test("should return early when temporalFilterSlider element is missing", () => {
-			document.getElementById = jest.fn((id) => {
-				if (id === "temporalFilterSlider") return null;
-				return {};
-			});
+			const modal = mockWebDownloadModal({ temporalFilterSlider: null });
+			document.getElementById = jest.fn((id) =>
+				id === MODAL_ID ? modal : null,
+			);
 			global.noUiSlider = { create: mockNoUiSliderCreate };
 
-			expect(() => {
-				downloadManager.initializeCaptureDownloadSlider(10000, 1000, {});
-			}).not.toThrow();
+			downloadManager.initializeCaptureDownloadSlider(
+				MODAL_ID,
+				10000,
+				1000,
+				{},
+			);
 			expect(mockNoUiSliderCreate).not.toHaveBeenCalled();
 		});
 
 		test("should return early when noUiSlider is undefined", () => {
 			const originalNoUiSlider = global.noUiSlider;
 			global.noUiSlider = undefined;
-			document.getElementById = jest.fn((id) => {
-				if (id === "temporalFilterSlider") return mockSliderEl;
-				return {};
+			const modal = mockWebDownloadModal({
+				temporalFilterSlider: mockSliderEl,
 			});
+			document.getElementById = jest.fn((id) =>
+				id === MODAL_ID ? modal : null,
+			);
 
 			expect(() => {
-				downloadManager.initializeCaptureDownloadSlider(10000, 1000, {});
+				downloadManager.initializeCaptureDownloadSlider(
+					MODAL_ID,
+					10000,
+					1000,
+					{},
+				);
 			}).not.toThrow();
 
 			global.noUiSlider = originalNoUiSlider;
@@ -405,16 +476,16 @@ describe("DownloadActionManager", () => {
 
 		test("should create slider and set modal dataset and range hint when slider and noUiSlider exist", () => {
 			const rangeHintEl = { textContent: "" };
-			const webDownloadModal = { dataset: {} };
-			document.getElementById = jest.fn((id) => {
-				if (id === "temporalFilterSlider") return mockSliderEl;
-				if (id === "temporalRangeHint") return rangeHintEl;
-				if (id === "webDownloadModal") return webDownloadModal;
-				return { textContent: "", value: "", dataset: {}, classList: { add: jest.fn(), remove: jest.fn() }, disabled: false };
+			const webDownloadModal = mockWebDownloadModal({
+				temporalFilterSlider: mockSliderEl,
+				temporalRangeHint: rangeHintEl,
 			});
+			document.getElementById = jest.fn((id) =>
+				id === MODAL_ID ? webDownloadModal : null,
+			);
 			global.noUiSlider = { create: mockNoUiSliderCreate };
 
-			downloadManager.initializeCaptureDownloadSlider(5000, 500, {
+			downloadManager.initializeCaptureDownloadSlider(MODAL_ID, 5000, 500, {
 				dataFilesCount: 10,
 				totalFilesCount: 12,
 				totalSize: 1000000,
@@ -427,7 +498,7 @@ describe("DownloadActionManager", () => {
 					connect: true,
 					step: 500,
 					range: { min: 0, max: 5000 },
-				})
+				}),
 			);
 			expect(webDownloadModal.dataset.durationMs).toBe("5000");
 			expect(webDownloadModal.dataset.fileCadenceMs).toBe("500");
@@ -436,14 +507,16 @@ describe("DownloadActionManager", () => {
 
 		test("should not create slider when durationMs is 0", () => {
 			const rangeHintEl = { textContent: "" };
-			document.getElementById = jest.fn((id) => {
-				if (id === "temporalFilterSlider") return mockSliderEl;
-				if (id === "temporalRangeHint") return rangeHintEl;
-				return {};
+			const modal = mockWebDownloadModal({
+				temporalFilterSlider: mockSliderEl,
+				temporalRangeHint: rangeHintEl,
 			});
+			document.getElementById = jest.fn((id) =>
+				id === MODAL_ID ? modal : null,
+			);
 			global.noUiSlider = { create: mockNoUiSliderCreate };
 
-			downloadManager.initializeCaptureDownloadSlider(0, 1000, {});
+			downloadManager.initializeCaptureDownloadSlider(MODAL_ID, 0, 1000, {});
 
 			expect(mockNoUiSliderCreate).not.toHaveBeenCalled();
 		});
@@ -456,9 +529,11 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should have openWebDownloadModal method", () => {
-			expect(downloadManager.openWebDownloadModal).toBeDefined();
-			expect(typeof downloadManager.openWebDownloadModal).toBe("function");
+		test("should have initializeWebDownloadModal method", () => {
+			expect(downloadManager.initializeWebDownloadModal).toBeDefined();
+			expect(typeof downloadManager.initializeWebDownloadModal).toBe(
+				"function",
+			);
 		});
 
 		test("should have openSDKDownloadModal method", () => {
@@ -466,7 +541,7 @@ describe("DownloadActionManager", () => {
 			expect(typeof downloadManager.openSDKDownloadModal).toBe("function");
 		});
 
-		test("should use DOMUtils.openModal for opening modals", () => {
+		test("should use DOMUtils.openModal for opening modals", async () => {
 			const modalId = "webDownloadModal-test-uuid";
 			const confirmBtn = {
 				dataset: {},
@@ -489,7 +564,22 @@ describe("DownloadActionManager", () => {
 				return null;
 			});
 
-			downloadManager.openWebDownloadModal("test-uuid");
+			const btn = {
+				innerHTML: "Download",
+				disabled: false,
+				dataset: {},
+				getAttribute: jest.fn((attr) => {
+					if (attr === "data-item-uuid") return "test-uuid";
+					if (attr === "data-item-type") return "dataset";
+					return null;
+				}),
+			};
+
+			await downloadManager.initializeWebDownloadModal(
+				"test-uuid",
+				"dataset",
+				btn,
+			);
 
 			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(modalId);
 		});
@@ -502,14 +592,11 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should have handleDatasetDownload method", () => {
-			expect(downloadManager.handleDatasetDownload).toBeDefined();
-			expect(typeof downloadManager.handleDatasetDownload).toBe("function");
-		});
-
-		test("should have handleCaptureDownload method", () => {
-			expect(downloadManager.handleCaptureDownload).toBeDefined();
-			expect(typeof downloadManager.handleCaptureDownload).toBe("function");
+		test("should have initializeWebDownloadModal method", () => {
+			expect(downloadManager.initializeWebDownloadModal).toBeDefined();
+			expect(typeof downloadManager.initializeWebDownloadModal).toBe(
+				"function",
+			);
 		});
 	});
 
@@ -553,7 +640,7 @@ describe("DownloadActionManager", () => {
 			document.querySelectorAll.mockReturnValue([]);
 
 			expect(() => {
-				downloadManager.initializeDatasetDownloadButtons();
+				downloadManager.initializeWebDownloadButtons();
 			}).not.toThrow();
 		});
 

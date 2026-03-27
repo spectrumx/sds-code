@@ -23,18 +23,6 @@ const ComponentUtils = {
 		return div.innerHTML;
 	},
 
-	/**
-	 * Formats file size in human readable format
-	 * @param {number} bytes - File size in bytes
-	 * @returns {string} Formatted file size
-	 */
-	formatFileSize(bytes) {
-		if (bytes === 0) return "0 Bytes";
-		const k = 1024;
-		const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
-		const i = Math.floor(Math.log(bytes) / Math.log(k));
-		return `${Number.parseFloat((bytes / k ** i).toFixed(2))} ${sizes[i]}`;
-	},
 
 	/**
 	 * Formats date for display with date and time on separate lines
@@ -335,19 +323,6 @@ class CapturesTableManager extends TableManager {
 				return;
 			}
 
-			// Handle download capture button clicks from actions dropdown
-			if (
-				e.target.matches(".download-capture-btn") ||
-				e.target.closest(".download-capture-btn")
-			) {
-				e.preventDefault();
-				const button = e.target.matches(".download-capture-btn")
-					? e.target
-					: e.target.closest(".download-capture-btn");
-				this.handleDownloadCapture(button);
-				return;
-			}
-
 			// Handle capture link clicks
 			if (
 				e.target.matches(".capture-link") ||
@@ -377,145 +352,6 @@ class CapturesTableManager extends TableManager {
 
 		// Add the persistent event listener
 		document.addEventListener("click", this.eventDelegationHandler);
-	}
-
-	/**
-	 * Handle download capture action
-	 */
-	handleDownloadCapture(button) {
-		const captureUuid = button.dataset.captureUuid;
-		const captureName =
-			button.dataset.captureName || button.dataset.captureUuid;
-
-		if (!captureUuid) {
-			console.error("No capture UUID found for download");
-			return;
-		}
-
-		// Update modal content
-		document.getElementById("downloadCaptureName").textContent = captureName;
-
-		// Show the modal
-		this.openCustomModal("downloadModal");
-
-		// Handle confirm download
-		document.getElementById("confirmDownloadBtn").onclick = () => {
-			// Close modal first
-			this.closeCustomModal("downloadModal");
-
-			// Show loading state
-			const originalContent = button.innerHTML;
-			button.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
-			button.disabled = true;
-
-			// Make API request using the unified download endpoint
-			fetch(`/users/download-item/capture/${captureUuid}/`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"X-CSRFToken": this.getCSRFToken(),
-				},
-			})
-				.then((response) => response.json())
-				.then((data) => {
-					if (data.success === true) {
-						button.innerHTML =
-							'<i class="bi bi-check-circle text-success"></i> Download Requested';
-						this.showDownloadSuccessMessage(data.message);
-					} else {
-						button.innerHTML =
-							'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-						this.showDownloadErrorMessage(
-							data.detail ||
-								data.message ||
-								"Download request failed. Please try again.",
-						);
-					}
-				})
-				.catch((error) => {
-					console.error("Download error:", error);
-					button.innerHTML =
-						'<i class="bi bi-exclamation-triangle text-danger"></i> Request Failed';
-					this.showDownloadErrorMessage(
-						"An error occurred while processing your request.",
-					);
-				})
-				.finally(() => {
-					// Reset button after 3 seconds
-					setTimeout(() => {
-						button.innerHTML = originalContent;
-						button.disabled = false;
-					}, 3000);
-				});
-		};
-	}
-
-	/**
-	 * Show download success message
-	 */
-	showDownloadSuccessMessage(message) {
-		// Try to find an existing alert container or create one
-		let alertContainer = document.querySelector(".alert-container");
-		if (!alertContainer) {
-			alertContainer = document.createElement("div");
-			alertContainer.className = "alert-container";
-			// Insert at the top of the main content area
-			const mainContent =
-				document.querySelector(".container-fluid") || document.body;
-			mainContent.insertBefore(alertContainer, mainContent.firstChild);
-		}
-
-		const alertHtml = `
-			<div class="alert alert-success alert-dismissible fade show" role="alert">
-				<i class="bi bi-check-circle-fill me-2"></i>
-				${ComponentUtils.escapeHtml(message)}
-				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-			</div>
-		`;
-
-		alertContainer.innerHTML = alertHtml;
-
-		// Auto-dismiss after 5 seconds
-		setTimeout(() => {
-			const alert = alertContainer.querySelector(".alert");
-			if (alert) {
-				alert.remove();
-			}
-		}, 5000);
-	}
-
-	/**
-	 * Show download error message
-	 */
-	showDownloadErrorMessage(message) {
-		// Try to find an existing alert container or create one
-		let alertContainer = document.querySelector(".alert-container");
-		if (!alertContainer) {
-			alertContainer = document.createElement("div");
-			alertContainer.className = "alert-container";
-			// Insert at the top of the main content area
-			const mainContent =
-				document.querySelector(".container-fluid") || document.body;
-			mainContent.insertBefore(alertContainer, mainContent.firstChild);
-		}
-
-		const alertHtml = `
-			<div class="alert alert-danger alert-dismissible fade show" role="alert">
-				<i class="bi bi-exclamation-triangle-fill me-2"></i>
-				${ComponentUtils.escapeHtml(message)}
-				<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-			</div>
-		`;
-
-		alertContainer.innerHTML = alertHtml;
-
-		// Auto-dismiss after 8 seconds (longer for error messages)
-		setTimeout(() => {
-			const alert = alertContainer.querySelector(".alert");
-			if (alert) {
-				alert.remove();
-			}
-		}, 8000);
 	}
 
 	renderRow(capture, index) {
@@ -1674,7 +1510,7 @@ class ModalManager {
 						<div class="col-md-6">
 							<p class="mb-2">
 								<span class="fw-medium text-muted">Total Size:</span>
-								<span class="ms-2">${ComponentUtils.formatFileSize(totalSize)}</span>
+								<span class="ms-2">${window.DOMUtils.formatFileSize(totalSize)}</span>
 							</p>
 						</div>
 					</div>
@@ -1703,7 +1539,7 @@ class ModalManager {
 		// Primary file information - most useful for users
 		if (file.size) {
 			metadata.push(
-				`<strong>Size:</strong> ${ComponentUtils.formatFileSize(file.size)} (${file.size.toLocaleString()} bytes)`,
+				`<strong>Size:</strong> ${window.DOMUtils.formatFileSize(file.size)} (${file.size.toLocaleString()} bytes)`,
 			);
 		}
 

@@ -13,7 +13,10 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from django.core.files.base import ContentFile
-from factory import Faker
+from faker import Faker as FakerInstance
+from factory import Faker as FactoryFaker
+from factory import LazyAttribute
+from factory import LazyFunction
 from factory import post_generation
 from factory import Sequence
 from factory.django import DjangoModelFactory
@@ -27,6 +30,8 @@ from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.tests.factories import UserFactory
 
+# Standalone Faker for LazyFunction callbacks (not factory_boy's FactoryFaker declaration)
+_faker = FakerInstance()
 
 class DatasetFactory(DjangoModelFactory):
     """Factory for creating Dataset instances for testing.
@@ -82,22 +87,22 @@ class DatasetFactory(DjangoModelFactory):
         dataset = DatasetFactory(keywords=None)
     """
 
-    uuid = Faker("uuid4")
-    name = Faker("sentence", nb_words=3)
-    abstract = Faker("text", max_nb_chars=200)
-    description = Faker("text", max_nb_chars=500)
-    doi = Faker("uuid4")
+    uuid = FactoryFaker("uuid4")
+    name = FactoryFaker("sentence", nb_words=3)
+    abstract = FactoryFaker("text", max_nb_chars=200)
+    description = FactoryFaker("text", max_nb_chars=500)
+    doi = FactoryFaker("uuid4")
     authors = ["John Doe", "Jane Smith"]
     license = "MIT"
     institutions = ["Example University"]
-    release_date = Faker("date_time")
-    repository = Faker("url")
+    release_date = FactoryFaker("date_time")
+    repository = FactoryFaker("url")
     version = 1
-    website = Faker("url")
+    website = FactoryFaker("url")
     provenance = {"source": "test"}
     citation = {"title": "Test Dataset"}
     other = {"notes": "Test dataset"}
-    owner = Faker("subfactory", factory=UserFactory)
+    owner = FactoryFaker("subfactory", factory=UserFactory)
     is_deleted = False
     is_public = False
 
@@ -184,14 +189,14 @@ class FileFactory(DjangoModelFactory):
         file = FileFactory(dataset=dataset)
     """
 
-    uuid = Faker("uuid4")
+    uuid = FactoryFaker("uuid4")
     directory = "/files/test/"
-    name = Faker("file_name", extension="h5")
+    name = FactoryFaker("file_name", extension="h5")
     media_type = "application/x-hdf5"
     permissions = "rw-r--r--"
-    size = Faker("random_int", min=1000, max=1000000)
-    sum_blake3 = Faker("sha256")
-    owner = Faker("subfactory", factory=UserFactory)
+    size = FactoryFaker("random_int", min=1000, max=1000000)
+    sum_blake3 = FactoryFaker("sha256")
+    owner = FactoryFaker("subfactory", factory=UserFactory)
     is_deleted = False
 
     @post_generation
@@ -230,11 +235,13 @@ class CaptureFactory(DjangoModelFactory):
     class Meta:
         model = Capture
 
-    channel = Faker("word")
+    channel = FactoryFaker("word")
     capture_type = "drf"
-    top_level_dir = Faker("file_path", depth=2).replace("/", "_")
-    owner = Faker("subfactory", factory=UserFactory)
-    name = Faker("slug")
+    top_level_dir = LazyFunction(
+        lambda: _faker.file_path(depth=2).replace("/", "_")
+    )
+    owner = FactoryFaker("subfactory", factory=UserFactory)
+    name = FactoryFaker("slug")
     index_name = "captures-drf"
 
 
@@ -248,15 +255,15 @@ class DRFDataFileFactory(DjangoModelFactory):
     It also handles the creation of the Django file field with test content.
     """
 
-    uuid = Faker("uuid4")
-    directory = f"/files/{self.owner.email}/{self.capture.top_level_dir}/"
+    uuid = FactoryFaker("uuid4")
+    directory = LazyAttribute(lambda obj: f"/files/{obj.owner.email}/{obj.capture.top_level_dir}/")
     name = Sequence(lambda n: drf_rf_filename_from_ms(1000 + n * 1000))
     media_type = "application/x-hdf5"
     permissions = "rw-r----"
-    size = Faker("random_int", min=1000, max=1000000)
-    sum_blake3 = Faker("sha256")
-    owner = Faker("subfactory", factory=UserFactory)
-    capture = Faker("subfactory", factory=CaptureFactory)
+    size = FactoryFaker("random_int", min=1000, max=1000000)
+    sum_blake3 = FactoryFaker("sha256")
+    owner = FactoryFaker("subfactory", factory=UserFactory)
+    capture = FactoryFaker("subfactory", factory=CaptureFactory)
     is_deleted = False
 
     @post_generation
@@ -268,6 +275,8 @@ class DRFDataFileFactory(DjangoModelFactory):
         else:
             content = b"test drf file content"
             self.file = ContentFile(content, name=self.name)
+    
+
 
     class Meta:
         model = File
@@ -305,12 +314,12 @@ class UserSharePermissionFactory(DjangoModelFactory):
         permission = UserSharePermissionFactory(is_enabled=False)
     """
 
-    owner = Faker("subfactory", factory=UserFactory)
-    shared_with = Faker("subfactory", factory=UserFactory)
-    item_type = Faker("random_element", elements=[ItemType.DATASET, ItemType.CAPTURE])
-    item_uuid = Faker("uuid4")
+    owner = FactoryFaker("subfactory", factory=UserFactory)
+    shared_with = FactoryFaker("subfactory", factory=UserFactory)
+    item_type = FactoryFaker("random_element", elements=[ItemType.DATASET, ItemType.CAPTURE])
+    item_uuid = FactoryFaker("uuid4")
     is_enabled = True
-    message = Faker("sentence", nb_words=5)
+    message = FactoryFaker("sentence", nb_words=5)
     is_deleted = False
 
     class Meta:
