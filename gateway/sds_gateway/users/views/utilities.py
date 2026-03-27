@@ -6,7 +6,6 @@ from django.http import JsonResponse
 from django.views import View
 from loguru import logger as log
 
-from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.utils import render_html_fragment
 
 
@@ -22,8 +21,31 @@ def _is_safe_template_path(template_name: str) -> bool:
         return True
 
 
-class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
-    """Generic view to render any HTML fragment from a Django template."""
+# Auth0LoginRequiredMixin is not used because this view might be called from the home
+# page where users may not be authenticated, but we still want to allow rendering of
+# public components.
+#
+# SECURITY MODEL:
+# - Only templates in users/components/ directory are allowed (enforced by prefix check)
+# - Context data is provided by the client, not pulled from the database
+# - All data is rendered through Django templates with automatic HTML escaping
+# - CSRF protection is still enforced by Django middleware
+# - No sensitive server-side data is exposed - only client-provided data is rendered
+# - Calling views (e.g., DatasetDetailsView) are responsible for authorization checks
+# - Rate limiting should be configured at the infrastructure level
+class RenderHTMLFragmentView(View):
+    """Generic view to render any HTML fragment from a Django template.
+
+    This endpoint allows rendering of component templates with client-provided context.
+    It's designed to support both authenticated and unauthenticated users for rendering
+    public UI components (e.g., file trees for public datasets).
+
+    Security:
+    - Restricted to users/components/ templates only
+    - Context is client-provided (no database queries)
+    - Django's automatic HTML escaping prevents XSS
+    - Authorization must be handled by calling views
+    """
 
     def post(self, request: HttpRequest) -> JsonResponse:
         """
@@ -70,9 +92,12 @@ class RenderHTMLFragmentView(Auth0LoginRequiredMixin, View):
             )
 
             return JsonResponse({"html": html})
-        except Exception as e:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             log.exception(f"Error rendering template {data.get('template', 'unknown')}")
-            return JsonResponse({"error": str(e)}, status=500)
+            return JsonResponse(
+                {"error": "Failed to render component.", "code": "RENDER_ERROR"},
+                status=500,
+            )
 
 
 render_html_fragment_view = RenderHTMLFragmentView.as_view()

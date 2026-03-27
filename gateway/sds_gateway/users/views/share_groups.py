@@ -1,4 +1,5 @@
 from typing import Any
+from typing import cast
 
 from django.db.utils import IntegrityError
 from django.http import HttpRequest
@@ -50,10 +51,14 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
         self, request: HttpRequest, group_uuid: str, search_query: str
     ) -> HttpResponse:
         """Search users for a specific group."""
-        try:
-            group = request.user.owned_share_groups.get(
-                uuid=group_uuid, is_deleted=False
+        user = cast("User", request.user)
+        if not hasattr(user, "owned_share_groups"):
+            return JsonResponse(
+                {"error": "User does not have owned share groups"}, status=400
             )
+        shared_groups = cast("QuerySet[ShareGroup]", user.owned_share_groups)
+        try:
+            group = shared_groups.get(uuid=group_uuid, is_deleted=False)
             users_in_group = group.members.values_list("id", flat=True)
 
             return self.search_users(
@@ -130,6 +135,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
 
         try:
             share_group = ShareGroup.objects.create(name=name, owner=request.user)
+            share_group.members.add(request.user)
 
             return JsonResponse(
                 {
@@ -139,7 +145,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                         "uuid": str(share_group.uuid),
                         "name": share_group.name,
                         "created_at": share_group.created_at.isoformat(),
-                        "member_count": 0,
+                        "member_count": 1,
                     },
                 }
             )
@@ -219,7 +225,7 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
                 user_object = User.objects.get(email=email)
                 message = (
                     f"You have been added to the group {share_group.name} "
-                    f"by {request_user.name}"
+                    f"by {request.user.name}"
                 )
 
                 self._share_items_with_users_in_group_on_add(
@@ -310,15 +316,19 @@ class ShareGroupListView(Auth0LoginRequiredMixin, UserSearchMixin, View):
             try:
                 user = User.objects.get(email=email)
 
-                if share_group.members.filter(id=user.id).exists():
-                    share_group.members.remove(user)
-
-                    # Update share permissions for this user
-                    self._update_user_share_permissions_on_removal(user, share_group)
-
-                    removed_users.append(email)
-                else:
+                if not share_group.members.filter(id=user.id).exists():
                     errors.append(f"User {email} is not a member of this group")
+                    continue
+
+                if user == share_group.owner:
+                    errors.append(
+                        f"User {email} is the owner of this group and cannot be removed"
+                    )
+                    continue
+
+                share_group.members.remove(user)
+                self._update_user_share_permissions_on_removal(user, share_group)
+                removed_users.append(email)
 
             except User.DoesNotExist:
                 errors.append(f"User with email {email} not found")
