@@ -525,11 +525,11 @@
                 }
             };
 
-            // Initialize managers for captures
-            const permissionsManager = new PermissionsManager(pageConfig.permissions);
+            // Initialize managers for captures (use window.* — classes are attached by module/scripts)
+            const permissionsManager = new window.PermissionsManager(pageConfig.permissions);
 
             // Initialize download manager
-            const downloadManager = new DownloadActionManager({
+            const downloadManager = new window.DownloadActionManager({
                 permissions: permissionsManager
             });
 

@@ -137,10 +137,18 @@
                                         </li>
                                     {% endif %}
                                     <li>
-                                        <button class="dropdown-item download-capture-btn"
+                                        <button class="dropdown-item web-download-btn"
                                                 type="button"
-                                                data-capture-uuid="{{ cap.uuid }}"
-                                                data-capture-name="{{ cap.name|default:'' }}">Download</button>
+                                                data-item-uuid="{{ cap.uuid }}"
+                                                data-item-type="capture"
+                                                data-length-of-capture-ms="{{ cap.length_of_capture_ms|default:0 }}"
+                                                data-file-cadence-ms="{{ cap.file_cadence_ms|default:1000 }}"
+                                                data-per-data-file-size="{{ cap.data_files_info.per_data_file_size|default:0 }}"
+                                                data-total-data-file-size="{{ cap.data_files_info.total_size|default:0 }}"
+                                                data-total-size="{{ cap.total_file_size|default:0 }}"
+                                                data-data-files-count="{{ cap.data_files_info.count|default:0 }}"
+                                                data-total-files-count="{{ cap.files|length|default:0 }}"
+                                                data-capture-start-epoch-sec="{{ cap.capture_start_epoch_sec|default:0 }}">Download</button>
                                     </li>
                                     {% if cap.capture_type == 'drf' %}
                                         <li>
