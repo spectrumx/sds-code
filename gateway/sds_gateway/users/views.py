@@ -1875,12 +1875,27 @@ class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
             try:
                 dataset.captures.add(c)
                 added.append(c.uuid)
-            except OperationalError as e:
-                errors.append(f"{c.uuid}: {e}")
-            except IntegrityError as e:
-                errors.append(f"{c.uuid}: {e}")
-            except Exception as e:  # noqa: BLE001 - catch-all for unexpected errors
-                errors.append(f"{c.uuid}: {e}")
+            except OperationalError:
+                log.exception(
+                    "OperationalError while adding capture %s to dataset %s",
+                    c.uuid,
+                    dataset.pk,
+                )
+                errors.append(f"{c.uuid}: failed to add capture to dataset")
+            except IntegrityError:
+                log.exception(
+                    "IntegrityError while adding capture %s to dataset %s",
+                    c.uuid,
+                    dataset.pk,
+                )
+                errors.append(f"{c.uuid}: failed to add capture to dataset")
+            except Exception:  # noqa: BLE001 - catch-all for unexpected errors
+                log.exception(
+                    "Unexpected error while adding capture %s to dataset %s",
+                    c.uuid,
+                    dataset.pk,
+                )
+                errors.append(f"{c.uuid}: failed to add capture to dataset")
 
         return AddToDatasetReport(added=added, skipped=skipped, errors=errors)
 
