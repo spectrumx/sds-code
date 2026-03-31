@@ -178,12 +178,7 @@ class QuickAddToDatasetManager {
 		if (failedCount > 0) {
 			parts.push(`${failedCount} failed`);
 			if (firstErrorMessage != null) {
-				const text =
-					typeof firstErrorMessage === "object"
-						? (firstErrorMessage.message ??
-							firstErrorMessage.detail ??
-							String(firstErrorMessage))
-						: String(firstErrorMessage);
+				const text = String(firstErrorMessage);
 				if (text) parts.push(`: ${text}`);
 			}
 		}
@@ -194,6 +189,27 @@ class QuickAddToDatasetManager {
 	 * Call quick-add API once per selected capture UUID (loop). Backend handles
 	 * multi-channel grouping per UUID. We aggregate counts and show one concise message.
 	 */
+	/**
+	 * Close the modal and fire a toast notification after it finishes hiding.
+	 * This avoids showing the same message twice (once inside the closing modal
+	 * and once as a toast outside it).
+	 */
+	_closeWithToast(msg, alertType) {
+		const modal = window.bootstrap?.Modal?.getInstance(this.modalEl);
+		if (modal) {
+			const onHidden = () => {
+				this.modalEl.removeEventListener("hidden.bs.modal", onHidden);
+				window.fileListController?.exitSelectionMode?.();
+				if (window.showAlert) window.showAlert(msg, alertType);
+			};
+			this.modalEl.addEventListener("hidden.bs.modal", onHidden);
+			modal.hide();
+		} else {
+			window.fileListController?.exitSelectionMode?.();
+			if (window.showAlert) window.showAlert(msg, alertType);
+		}
+	}
+
 	async handleMultiAdd(datasetUuid) {
 		if (!this.quickAddUrl) {
 			this.showMessage("Quick-add URL not configured.", "danger");
@@ -228,7 +244,6 @@ class QuickAddToDatasetManager {
 				errorMessages.push(err?.data?.error || err?.message || String(err));
 			}
 		}
-		// failed count = requests that threw (non-200 or network) + response.success false + per-capture errors in 200 response
 		const errorCount = errorMessages.length;
 		const hasErrors = errorCount > 0;
 		const hasSuccess = totalAdded > 0 || totalSkipped > 0;
@@ -238,15 +253,12 @@ class QuickAddToDatasetManager {
 			errorCount,
 			errorMessages[0],
 		);
-		this.showMessage(msg, hasErrors ? "warning" : "success");
-		if (window.showAlert)
-			window.showAlert(msg, hasErrors ? "warning" : "success");
 		if (hasSuccess || !hasErrors) {
-			setTimeout(() => {
-				window.bootstrap?.Modal?.getInstance(this.modalEl)?.hide();
-			}, 1500);
-		} else if (this.confirmBtn) {
-			this.confirmBtn.disabled = false;
+			this._closeWithToast(msg, hasErrors ? "warning" : "success");
+		} else {
+			// All requests failed — keep modal open so the user can try again
+			this.showMessage(msg, "warning");
+			if (this.confirmBtn) this.confirmBtn.disabled = false;
 		}
 	}
 
@@ -272,12 +284,7 @@ class QuickAddToDatasetManager {
 					errorCount,
 					firstError,
 				);
-				this.showMessage(msg, errorCount > 0 ? "warning" : "success");
-				if (window.showAlert)
-					window.showAlert(msg, errorCount > 0 ? "warning" : "success");
-				setTimeout(() => {
-					window.bootstrap?.Modal?.getInstance(this.modalEl)?.hide();
-				}, 1500);
+				this._closeWithToast(msg, errorCount > 0 ? "warning" : "success");
 			} else {
 				this.showMessage(response.error || "Request failed.", "danger");
 				if (this.confirmBtn) this.confirmBtn.disabled = false;
