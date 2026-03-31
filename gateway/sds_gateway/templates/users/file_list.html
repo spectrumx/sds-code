@@ -252,7 +252,12 @@
                                                     id="add-to-dataset-cancel-btn">Cancel</button>
                                             <button type="button"
                                                     class="btn btn-primary"
-                                                    id="add-to-dataset-add-btn">Add</button>
+                                                    id="add-to-dataset-add-btn"
+                                                    disabled
+                                                    title="Select at least one capture to add to a dataset"
+                                                    aria-label="Add to dataset — select at least one capture first">
+                                                Add
+                                            </button>
                                         </div>
                                     </div>
                                 </div>
@@ -424,7 +429,6 @@
     <!-- Page-specific components -->
     <script src="{% static 'js/components.js' %}"></script>
     <script src="{% static 'js/file-list.js' %}"></script>
-    <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}

@@ -92,6 +92,7 @@ class FileListController {
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
 			modalHandler: this.modalManager,
+			onSelectionChange: () => this.syncBulkAddToDatasetButton(),
 		});
 
 		this.searchManager = new SearchManager({
@@ -139,6 +140,7 @@ class FileListController {
 			mainBtn.classList.add("d-none");
 			mainBtn.setAttribute("aria-pressed", "true");
 			if (modeButtonsWrap) modeButtonsWrap.classList.remove("d-none");
+			this.syncBulkAddToDatasetButton();
 		};
 
 		const exitSelectionMode = () => {
@@ -156,15 +158,47 @@ class FileListController {
 
 		if (addBtn) {
 			addBtn.addEventListener("click", () => {
+				const ids = Array.from(this.tableManager?.selectedCaptureIds ?? []);
+				if (ids.length === 0) {
+					if (window.showAlert) {
+						window.showAlert(
+							"Select at least one capture before adding to a dataset.",
+							"warning",
+						);
+					}
+					return;
+				}
 				const modal = document.getElementById("quickAddToDatasetModal");
 				if (modal) {
-					const ids = Array.from(this.tableManager?.selectedCaptureIds ?? []);
 					modal.dataset.captureUuids = JSON.stringify(ids);
 					const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
 					bsModal.show();
 				}
 			});
 		}
+	}
+
+	/**
+	 * While selection mode is active, disable bulk "Add" until at least one capture is selected.
+	 */
+	syncBulkAddToDatasetButton() {
+		const addBtn = document.getElementById("add-to-dataset-add-btn");
+		const table = document.getElementById("captures-table");
+		if (!addBtn || !table?.classList.contains("selection-mode-active")) {
+			return;
+		}
+		const n = this.tableManager?.selectedCaptureIds?.size ?? 0;
+		addBtn.disabled = n === 0;
+		addBtn.title =
+			n === 0
+				? "Select at least one capture to add to a dataset"
+				: "Add selected captures to a dataset";
+		addBtn.setAttribute(
+			"aria-label",
+			n === 0
+				? "Add to dataset — select at least one capture first"
+				: `Add ${n} selected capture${n === 1 ? "" : "s"} to a dataset`,
+		);
 	}
 
 	/**
@@ -614,12 +648,27 @@ class FileListController {
  * Extends the base CapturesTableManager from components.js
  */
 class FileListCapturesTableManager extends CapturesTableManager {
+	/**
+	 * UUIDs selected for quick-add / bulk actions. Class field initializes as soon as
+	 * the instance exists (after super()), so renderRow never runs before this exists.
+	 */
+	selectedCaptureIds = new Set();
+
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
 		this.searchButton = document.getElementById("search-btn");
 		this.searchButtonContent = document.getElementById("search-btn-content");
 		this.searchButtonLoading = document.getElementById("search-btn-loading");
+		this.onSelectionChange = options.onSelectionChange ?? null;
+		this.setupSelectionCheckboxHandler();
+		this.setupRowClickSelection();
+	}
+
+	_notifySelectionChange() {
+		if (typeof this.onSelectionChange === "function") {
+			this.onSelectionChange();
+		}
 	}
 
 	/**
@@ -646,9 +695,6 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			if (this.searchButtonLoading)
 				this.searchButtonLoading.classList.add("d-none");
 		}
-		this.selectedCaptureIds = new Set();
-		this.setupSelectionCheckboxHandler();
-		this.setupRowClickSelection();
 	}
 
 	/**
@@ -664,6 +710,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			} else {
 				this.selectedCaptureIds.delete(uuid);
 			}
+			this._notifySelectionChange();
 		});
 	}
 
@@ -699,6 +746,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					this.selectedCaptureIds.add(uuid);
 					checkbox.checked = true;
 				}
+				this._notifySelectionChange();
 				e.preventDefault();
 				e.stopPropagation();
 			},
@@ -751,7 +799,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Update table with new data
 	 */
 	updateTable(captures, hasResults) {
-		const tbody = document.querySelector("tbody");
+		this.selectedCaptureIds ??= new Set();
+		const tbody = this.tbody ?? this.table?.querySelector("tbody");
 		if (!tbody) return;
 
 		// Update results count
@@ -765,6 +814,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 					</td>
 				</tr>
 			`;
+			this._notifySelectionChange();
 			return;
 		}
 
@@ -776,6 +826,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 
 		// Initialize dropdowns after table is updated
 		this.initializeDropdowns();
+		this._notifySelectionChange();
 	}
 
 	/**
@@ -794,6 +845,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Overrides the base class method to include file-specific columns
 	 */
 	renderRow(capture) {
+		this.selectedCaptureIds ??= new Set();
 		// Sanitize all data before rendering
 		const safeData = {
 			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),

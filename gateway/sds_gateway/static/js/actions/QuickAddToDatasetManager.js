@@ -150,7 +150,13 @@ class QuickAddToDatasetManager {
 			Array.isArray(this.currentCaptureUuids) &&
 			this.currentCaptureUuids.length > 0;
 		const isSingle = this.currentCaptureUuid && this.quickAddUrl;
-		if (!isMulti && !isSingle) return;
+		if (!isMulti && !isSingle) {
+			this.showMessage(
+				"Select at least one capture, or use “Add to dataset” from a row’s actions menu.",
+				"warning",
+			);
+			return;
+		}
 		if (this.confirmBtn) this.confirmBtn.disabled = true;
 		this.resetMessage();
 		if (isMulti) {
