@@ -418,7 +418,7 @@
     <!-- Visualization Selection Modal -->
     {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
     <!-- Web Download Modal -->
-    {% include "users/partials/web_download_modal.html" %}
+    {% include "users/partials/web_download_modal.html" with item=None item_type=None %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
