@@ -92,6 +92,7 @@ class FileListController {
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
 			modalHandler: this.modalManager,
+			onSelectionChange: () => this.syncBulkAddToDatasetButton(),
 		});
 
 		this.searchManager = new SearchManager({
@@ -118,6 +119,107 @@ class FileListController {
 		this.initializeAccordions();
 		this.initializeFrequencyHandling();
 		this.initializeItemsPerPageHandler();
+		this.initializeAddToDatasetButton();
+	}
+
+	/**
+	 * Selection mode: one button to enter; when on, show Cancel and Add
+	 */
+	initializeAddToDatasetButton() {
+		const mainBtn = document.getElementById("add-captures-to-dataset-btn");
+		const table = document.getElementById("captures-table");
+		const modeButtonsWrap = document.getElementById(
+			"add-to-dataset-mode-buttons",
+		);
+		const cancelBtn = document.getElementById("add-to-dataset-cancel-btn");
+		const addBtn = document.getElementById("add-to-dataset-add-btn");
+		if (!mainBtn || !table) return;
+
+		const enterSelectionMode = () => {
+			table.classList.add("selection-mode-active");
+			mainBtn.classList.add("d-none");
+			mainBtn.setAttribute("aria-pressed", "true");
+			if (modeButtonsWrap) modeButtonsWrap.classList.remove("d-none");
+			this.syncBulkAddToDatasetButton();
+		};
+
+		mainBtn.addEventListener("click", enterSelectionMode);
+
+		if (cancelBtn) {
+			cancelBtn.addEventListener("click", () => this.exitSelectionMode());
+		}
+
+		if (addBtn) {
+			addBtn.addEventListener("click", () => {
+				const ids = Array.from(this.tableManager?.selectedCaptureIds ?? []);
+				if (ids.length === 0) {
+					if (window.showAlert) {
+						window.showAlert(
+							"Select at least one capture before adding to a dataset.",
+							"warning",
+						);
+					}
+					return;
+				}
+				const modal = document.getElementById("quickAddToDatasetModal");
+				if (modal) {
+					modal.dataset.captureUuids = JSON.stringify(ids);
+					const bsModal = bootstrap.Modal.getOrCreateInstance(modal);
+					bsModal.show();
+				}
+			});
+		}
+	}
+
+	/**
+	 * Exit bulk-add selection mode: hide the mode controls, uncheck all selected
+	 * captures, and clear the selection set.
+	 */
+	exitSelectionMode() {
+		const mainBtn = document.getElementById("add-captures-to-dataset-btn");
+		const table = document.getElementById("captures-table");
+		const modeButtonsWrap = document.getElementById(
+			"add-to-dataset-mode-buttons",
+		);
+		table?.classList.remove("selection-mode-active");
+		mainBtn?.classList.remove("d-none");
+		mainBtn?.setAttribute("aria-pressed", "false");
+		modeButtonsWrap?.classList.add("d-none");
+
+		// Uncheck all visible checkboxes and clear the tracked set
+		if (this.tableManager) {
+			for (const uuid of this.tableManager.selectedCaptureIds) {
+				const cb = document.querySelector(
+					`.capture-select-checkbox[data-capture-uuid="${uuid}"]`,
+				);
+				if (cb) cb.checked = false;
+			}
+			this.tableManager.selectedCaptureIds.clear();
+			this.syncBulkAddToDatasetButton();
+		}
+	}
+
+	/**
+	 * While selection mode is active, disable bulk "Add" until at least one capture is selected.
+	 */
+	syncBulkAddToDatasetButton() {
+		const addBtn = document.getElementById("add-to-dataset-add-btn");
+		const table = document.getElementById("captures-table");
+		if (!addBtn || !table?.classList.contains("selection-mode-active")) {
+			return;
+		}
+		const n = this.tableManager?.selectedCaptureIds?.size ?? 0;
+		addBtn.disabled = n === 0;
+		addBtn.title =
+			n === 0
+				? "Select at least one capture to add to a dataset"
+				: "Add selected captures to a dataset";
+		addBtn.setAttribute(
+			"aria-label",
+			n === 0
+				? "Add to dataset — select at least one capture first"
+				: `Add ${n} selected capture${n === 1 ? "" : "s"} to a dataset`,
+		);
 	}
 
 	/**
@@ -567,12 +669,27 @@ class FileListController {
  * Extends the base CapturesTableManager from components.js
  */
 class FileListCapturesTableManager extends CapturesTableManager {
+	/**
+	 * UUIDs selected for quick-add / bulk actions. Class field initializes as soon as
+	 * the instance exists (after super()), so renderRow never runs before this exists.
+	 */
+	selectedCaptureIds = new Set();
+
 	constructor(options) {
 		super(options);
 		this.resultsCountElement = document.getElementById(options.resultsCountId);
 		this.searchButton = document.getElementById("search-btn");
 		this.searchButtonContent = document.getElementById("search-btn-content");
 		this.searchButtonLoading = document.getElementById("search-btn-loading");
+		this.onSelectionChange = options.onSelectionChange ?? null;
+		this.setupSelectionCheckboxHandler();
+		this.setupRowClickSelection();
+	}
+
+	_notifySelectionChange() {
+		if (typeof this.onSelectionChange === "function") {
+			this.onSelectionChange();
+		}
 	}
 
 	/**
@@ -599,6 +716,80 @@ class FileListCapturesTableManager extends CapturesTableManager {
 			if (this.searchButtonLoading)
 				this.searchButtonLoading.classList.add("d-none");
 		}
+	}
+
+	/**
+	 * Delegated handler for selection checkboxes: keep selectedCaptureIds in sync
+	 */
+	setupSelectionCheckboxHandler() {
+		this._checkboxChangeHandler = (e) => {
+			if (!e.target.matches(".capture-select-checkbox")) return;
+			const uuid = e.target.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			if (e.target.checked) {
+				this.selectedCaptureIds.add(uuid);
+			} else {
+				this.selectedCaptureIds.delete(uuid);
+			}
+			this._notifySelectionChange();
+		};
+		document.addEventListener("change", this._checkboxChangeHandler);
+	}
+
+	/**
+	 * When selection mode is active, clicking a row toggles its selection (instead of opening the modal).
+	 * Uses capture phase so we run before the row's click handler.
+	 */
+	setupRowClickSelection() {
+		const table = document.getElementById(this.tableId);
+		if (!table) return;
+		this._rowClickTable = table;
+
+		this._rowClickHandler = (e) => {
+			if (!table.classList.contains("selection-mode-active")) return;
+			if (
+				e.target.closest(
+					"button, a, [data-bs-toggle='dropdown'], .capture-select-checkbox",
+				)
+			)
+				return;
+			const row = e.target.closest("tr");
+			if (!row) return;
+			const checkbox = row.querySelector(".capture-select-checkbox");
+			if (!checkbox) return;
+			const uuid = checkbox.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+
+			if (this.selectedCaptureIds.has(uuid)) {
+				this.selectedCaptureIds.delete(uuid);
+				checkbox.checked = false;
+			} else {
+				this.selectedCaptureIds.add(uuid);
+				checkbox.checked = true;
+			}
+			this._notifySelectionChange();
+			e.preventDefault();
+			e.stopPropagation();
+		};
+
+		table.addEventListener("click", this._rowClickHandler, true);
+	}
+
+	destroy() {
+		if (this._checkboxChangeHandler) {
+			document.removeEventListener("change", this._checkboxChangeHandler);
+			this._checkboxChangeHandler = null;
+		}
+		if (this._rowClickHandler && this._rowClickTable) {
+			this._rowClickTable.removeEventListener(
+				"click",
+				this._rowClickHandler,
+				true,
+			);
+			this._rowClickHandler = null;
+			this._rowClickTable = null;
+		}
+		super.destroy();
 	}
 
 	/**
@@ -646,7 +837,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Update table with new data
 	 */
 	updateTable(captures, hasResults) {
-		const tbody = document.querySelector("tbody");
+		this.selectedCaptureIds ??= new Set();
+		const tbody = this.tbody ?? this.table?.querySelector("tbody");
 		if (!tbody) return;
 
 		// Update results count
@@ -655,11 +847,12 @@ class FileListCapturesTableManager extends CapturesTableManager {
 		if (!hasResults || captures.length === 0) {
 			tbody.innerHTML = `
 				<tr>
-					<td colspan="5" class="text-center text-muted py-4">
+					<td colspan="6" class="text-center text-muted py-4">
 						<em>No captures found matching your search criteria.</em>
 					</td>
 				</tr>
 			`;
+			this._notifySelectionChange();
 			return;
 		}
 
@@ -671,6 +864,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 
 		// Initialize dropdowns after table is updated
 		this.initializeDropdowns();
+		this._notifySelectionChange();
 	}
 
 	/**
@@ -689,6 +883,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Overrides the base class method to include file-specific columns
 	 */
 	renderRow(capture) {
+		this.selectedCaptureIds ??= new Set();
 		// Sanitize all data before rendering
 		const safeData = {
 			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
@@ -749,11 +944,19 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				</span>`
 			: "";
 
-		// Check if owner (for conditional actions)
-		const isOwner = capture.is_owner !== false; // Default to true if not specified
+		// Check if owner (for conditional actions and selection — only owned captures are selectable)
+		const isOwner = capture.is_owner === true;
 
+		const checked = this.selectedCaptureIds.has(capture.uuid) ? " checked" : "";
+		const selectCell = isOwner
+			? `<input type="checkbox"
+						   class="capture-select-checkbox form-check-input"
+						   data-capture-uuid="${safeData.uuid}"
+						   aria-label="Select capture ${nameDisplay}"${checked}>`
+			: '<span class="text-muted" aria-hidden="true">—</span>';
 		return `
-			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
+			<tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}" data-capture-uuid="${safeData.uuid}">
+				<td class="capture-select-column" headers="select-header">${selectCell}</td>
 				<td headers="name-header">
 					<a href="#" class="capture-link"
 					   data-uuid="${safeData.uuid}"
@@ -826,6 +1029,14 @@ class FileListCapturesTableManager extends CapturesTableManager {
 											data-bs-toggle="modal"
 											data-bs-target="#shareModal-${safeData.uuid}">
 										Share
+									</button>
+								</li>
+								<li>
+									<button class="dropdown-item add-to-dataset-btn"
+											type="button"
+											data-capture-uuid="${safeData.uuid}"
+											data-capture-name="${safeData.name}">
+										Add to dataset
 									</button>
 								</li>
 							`
