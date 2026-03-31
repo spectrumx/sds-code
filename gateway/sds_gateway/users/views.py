@@ -1914,7 +1914,7 @@ class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
             )
         try:
             data = json.loads(request.body)
-        except (json.JSONDecodeError, TypeError, ValueError):
+        except (json.JSONDecodeError, TypeError, ValueError, UnicodeDecodeError):
             return None, JsonResponse(
                 {"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST
             )
