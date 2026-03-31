@@ -1767,7 +1767,7 @@ def _get_dataset_editable_by_user(
     return (dataset, None)
 
 
-class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
+class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
     """
     Quick-add view: add a single capture (and all its channels if multi-channel)
     owned by the user to a dataset the user can modify.
@@ -1785,10 +1785,14 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
         assert data is not None  # type narrowing: success path only
 
         # Validate both UUIDs before any ORM access
-        dataset_uuid, err = self._validate_uuid(data.get("dataset_uuid"))
+        dataset_uuid, err = self._validate_uuid(
+            data.get("dataset_uuid"), "dataset_uuid"
+        )
         if err:
             return err
-        capture_uuid, err = self._validate_uuid(data.get("capture_uuid"))
+        capture_uuid, err = self._validate_uuid(
+            data.get("capture_uuid"), "capture_uuid"
+        )
         if err:
             return err
         assert dataset_uuid is not None
@@ -1905,7 +1909,9 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
             )
         return data, None
 
-    def _validate_uuid(self, value: Any) -> tuple[UUID | None, JsonResponse | None]:
+    def _validate_uuid(
+        self, value: Any, field_name: str = "uuid"
+    ) -> tuple[UUID | None, JsonResponse | None]:
         """
         Validate capture_uuid or dataset_uuid from request data.
         Returns (uuid, None) on success,
@@ -1913,7 +1919,7 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
         """
         if value is None:
             return None, JsonResponse(
-                {"error": "uuid is required"},
+                {"error": f"{field_name} is required"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -1923,12 +1929,12 @@ class QuickAddCapturesToDatasetView(Auth0LoginRequiredMixin, View):
 
         except (AttributeError, ValueError, TypeError):
             return None, JsonResponse(
-                {"error": "Invalid uuid"},
+                {"error": f"Invalid {field_name}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
 
-quick_add_capture_to_dataset_view = QuickAddCapturesToDatasetView.as_view()
+quick_add_capture_to_dataset_view = QuickAddCaptureToDatasetView.as_view()
 
 
 class GroupCapturesView(
@@ -3224,17 +3230,18 @@ class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
             .order_by("name")
             .values("uuid", "name")
         )
-        shared_perms = UserSharePermission.objects.filter(
-            shared_with=user,
-            item_type=ItemType.DATASET,
-            is_deleted=False,
-            is_enabled=True,
-            permission_level__in=[
-                PermissionLevel.CO_OWNER,
-                PermissionLevel.CONTRIBUTOR,
-            ],
+        shared_uuids = list(
+            UserSharePermission.objects.filter(
+                shared_with=user,
+                item_type=ItemType.DATASET,
+                is_deleted=False,
+                is_enabled=True,
+                permission_level__in=[
+                    PermissionLevel.CO_OWNER,
+                    PermissionLevel.CONTRIBUTOR,
+                ],
+            ).values_list("item_uuid", flat=True)
         )
-        shared_uuids = [p.item_uuid for p in shared_perms]
         shared = (
             Dataset.objects.filter(
                 uuid__in=shared_uuids, is_deleted=False, is_public=False

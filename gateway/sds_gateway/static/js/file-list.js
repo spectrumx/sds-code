@@ -143,17 +143,10 @@ class FileListController {
 			this.syncBulkAddToDatasetButton();
 		};
 
-		const exitSelectionMode = () => {
-			table.classList.remove("selection-mode-active");
-			mainBtn.classList.remove("d-none");
-			mainBtn.setAttribute("aria-pressed", "false");
-			if (modeButtonsWrap) modeButtonsWrap.classList.add("d-none");
-		};
-
 		mainBtn.addEventListener("click", enterSelectionMode);
 
 		if (cancelBtn) {
-			cancelBtn.addEventListener("click", exitSelectionMode);
+			cancelBtn.addEventListener("click", () => this.exitSelectionMode());
 		}
 
 		if (addBtn) {
@@ -175,6 +168,34 @@ class FileListController {
 					bsModal.show();
 				}
 			});
+		}
+	}
+
+	/**
+	 * Exit bulk-add selection mode: hide the mode controls, uncheck all selected
+	 * captures, and clear the selection set.
+	 */
+	exitSelectionMode() {
+		const mainBtn = document.getElementById("add-captures-to-dataset-btn");
+		const table = document.getElementById("captures-table");
+		const modeButtonsWrap = document.getElementById(
+			"add-to-dataset-mode-buttons",
+		);
+		table?.classList.remove("selection-mode-active");
+		mainBtn?.classList.remove("d-none");
+		mainBtn?.setAttribute("aria-pressed", "false");
+		modeButtonsWrap?.classList.add("d-none");
+
+		// Uncheck all visible checkboxes and clear the tracked set
+		if (this.tableManager) {
+			for (const uuid of this.tableManager.selectedCaptureIds) {
+				const cb = document.querySelector(
+					`.capture-select-checkbox[data-capture-uuid="${uuid}"]`,
+				);
+				if (cb) cb.checked = false;
+			}
+			this.tableManager.selectedCaptureIds.clear();
+			this.syncBulkAddToDatasetButton();
 		}
 	}
 
@@ -701,7 +722,7 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	 * Delegated handler for selection checkboxes: keep selectedCaptureIds in sync
 	 */
 	setupSelectionCheckboxHandler() {
-		document.addEventListener("change", (e) => {
+		this._checkboxChangeHandler = (e) => {
 			if (!e.target.matches(".capture-select-checkbox")) return;
 			const uuid = e.target.getAttribute("data-capture-uuid");
 			if (!uuid) return;
@@ -711,7 +732,8 @@ class FileListCapturesTableManager extends CapturesTableManager {
 				this.selectedCaptureIds.delete(uuid);
 			}
 			this._notifySelectionChange();
-		});
+		};
+		document.addEventListener("change", this._checkboxChangeHandler);
 	}
 
 	/**
@@ -721,37 +743,53 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	setupRowClickSelection() {
 		const table = document.getElementById(this.tableId);
 		if (!table) return;
+		this._rowClickTable = table;
 
-		table.addEventListener(
-			"click",
-			(e) => {
-				if (!table.classList.contains("selection-mode-active")) return;
-				if (
-					e.target.closest(
-						"button, a, [data-bs-toggle='dropdown'], .capture-select-checkbox",
-					)
+		this._rowClickHandler = (e) => {
+			if (!table.classList.contains("selection-mode-active")) return;
+			if (
+				e.target.closest(
+					"button, a, [data-bs-toggle='dropdown'], .capture-select-checkbox",
 				)
-					return;
-				const row = e.target.closest("tr");
-				if (!row) return;
-				const checkbox = row.querySelector(".capture-select-checkbox");
-				if (!checkbox) return;
-				const uuid = checkbox.getAttribute("data-capture-uuid");
-				if (!uuid) return;
+			)
+				return;
+			const row = e.target.closest("tr");
+			if (!row) return;
+			const checkbox = row.querySelector(".capture-select-checkbox");
+			if (!checkbox) return;
+			const uuid = checkbox.getAttribute("data-capture-uuid");
+			if (!uuid) return;
 
-				if (this.selectedCaptureIds.has(uuid)) {
-					this.selectedCaptureIds.delete(uuid);
-					checkbox.checked = false;
-				} else {
-					this.selectedCaptureIds.add(uuid);
-					checkbox.checked = true;
-				}
-				this._notifySelectionChange();
-				e.preventDefault();
-				e.stopPropagation();
-			},
-			true,
-		);
+			if (this.selectedCaptureIds.has(uuid)) {
+				this.selectedCaptureIds.delete(uuid);
+				checkbox.checked = false;
+			} else {
+				this.selectedCaptureIds.add(uuid);
+				checkbox.checked = true;
+			}
+			this._notifySelectionChange();
+			e.preventDefault();
+			e.stopPropagation();
+		};
+
+		table.addEventListener("click", this._rowClickHandler, true);
+	}
+
+	destroy() {
+		if (this._checkboxChangeHandler) {
+			document.removeEventListener("change", this._checkboxChangeHandler);
+			this._checkboxChangeHandler = null;
+		}
+		if (this._rowClickHandler && this._rowClickTable) {
+			this._rowClickTable.removeEventListener(
+				"click",
+				this._rowClickHandler,
+				true,
+			);
+			this._rowClickHandler = null;
+			this._rowClickTable = null;
+		}
+		super.destroy();
 	}
 
 	/**
@@ -991,6 +1029,14 @@ class FileListCapturesTableManager extends CapturesTableManager {
 											data-bs-toggle="modal"
 											data-bs-target="#shareModal-${safeData.uuid}">
 										Share
+									</button>
+								</li>
+								<li>
+									<button class="dropdown-item add-to-dataset-btn"
+											type="button"
+											data-capture-uuid="${safeData.uuid}"
+											data-capture-name="${safeData.name}">
+										Add to dataset
 									</button>
 								</li>
 							`
