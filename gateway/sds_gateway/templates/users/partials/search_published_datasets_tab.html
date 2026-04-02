@@ -35,7 +35,9 @@
                             <th scope="col" class="w-25">Authors</th>
                             <th scope="col" class="w-20">Keywords</th>
                             <th scope="col" class="w-15">Created At</th>
-                            <th scope="col" class="w-10">Actions</th>
+                            {% if user.is_authenticated %}
+                                <th scope="col" class="w-10">Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody id="search-results-tbody">
@@ -101,35 +103,37 @@
                                     -
                                 {% endif %}
                             </td>
-                            <td class="text-center">
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                            type="button"
-                                            data-bs-toggle="dropdown"
-                                            data-bs-boundary="viewport"
-                                            aria-expanded="false"
-                                            aria-label="Actions for {{ dataset.name }}">
-                                        <i class="bi bi-three-dots-vertical"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <button class="dropdown-item web-download-btn"
-                                                    type="button"
-                                                    data-dataset-uuid="{{ dataset.uuid }}"
-                                                    data-dataset-name="{{ dataset.name }}">
-                                                <i class="bi bi-download me-2"></i>Web Download
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <button class="dropdown-item sdk-download-btn"
-                                                    type="button"
-                                                    data-dataset-uuid="{{ dataset.uuid }}">
-                                                <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </td>
+                            {% if user.is_authenticated %}
+                                <td class="text-center">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                type="button"
+                                                data-bs-toggle="dropdown"
+                                                data-bs-boundary="viewport"
+                                                aria-expanded="false"
+                                                aria-label="Actions for {{ dataset.name }}">
+                                            <i class="bi bi-three-dots-vertical"></i>
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li>
+                                                <button class="dropdown-item web-download-btn"
+                                                        type="button"
+                                                        data-dataset-uuid="{{ dataset.uuid }}"
+                                                        data-dataset-name="{{ dataset.name }}">
+                                                    <i class="bi bi-download me-2"></i>Web Download
+                                                </button>
+                                            </li>
+                                            <li>
+                                                <button class="dropdown-item sdk-download-btn"
+                                                        type="button"
+                                                        data-dataset-uuid="{{ dataset.uuid }}">
+                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                </button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </td>
+                            {% endif %}
                         </tr>
                     {% endfor %}
                 </tbody>

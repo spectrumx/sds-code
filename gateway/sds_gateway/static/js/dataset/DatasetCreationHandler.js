@@ -866,11 +866,11 @@ class DatasetCreationHandler {
 				// Normalize for generic table_rows template
 				const rows = capturesArray.map((capture) => ({
 					cells: [
-						{ value: capture.type },
-						{ value: capture.directory },
-						{ value: capture.channel },
-						{ value: capture.scan_group },
-						{ value: capture.created_at },
+						{ kind: "text", value: capture.type },
+						{ kind: "text", value: capture.directory },
+						{ kind: "text", value: capture.channel },
+						{ kind: "text", value: capture.scan_group },
+						{ kind: "text", value: capture.created_at },
 					],
 					actions: [
 						{
@@ -938,7 +938,10 @@ class DatasetCreationHandler {
 			try {
 				// Normalize for generic table_rows template
 				const rows = capturesArray.map((capture) => ({
-					cells: [{ value: capture.type }, { value: capture.directory }],
+					cells: [
+						{ kind: "text", value: capture.type },
+						{ kind: "text", value: capture.directory },
+					],
 					actions: [
 						{
 							icon: "bi-x",
@@ -1005,10 +1008,10 @@ class DatasetCreationHandler {
 				// Normalize for generic table_rows template
 				const rows = filesArray.map((file) => ({
 					cells: [
-						{ value: file.name },
-						{ value: file.media_type },
-						{ value: file.relative_path },
-						{ value: file.size },
+						{ kind: "text", value: file.name },
+						{ kind: "text", value: file.media_type },
+						{ kind: "text", value: file.relative_path },
+						{ kind: "text", value: file.size },
 					],
 					actions: [
 						{

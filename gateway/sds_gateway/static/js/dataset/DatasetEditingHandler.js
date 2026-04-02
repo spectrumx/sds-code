@@ -254,9 +254,9 @@ class DatasetEditingHandler {
 					css_class: !canRemoveThisCapture ? "readonly-row" : "",
 					data_attrs: { "capture-id": capture.id },
 					cells: [
-						{ value: capture.type },
-						{ value: capture.directory },
-						{ value: capture.owner?.name || capture.owner?.email || "Unknown" },
+						{ kind: "text", value: capture.type },
+						{ kind: "text", value: capture.directory },
+						{ kind: "text", value: capture.owner?.name || capture.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisCapture
 						? [
@@ -336,11 +336,11 @@ class DatasetEditingHandler {
 					css_class: !canRemoveThisFile ? "readonly-row" : "",
 					data_attrs: { "file-id": file.id },
 					cells: [
-						{ value: file.name },
-						{ value: file.media_type },
-						{ value: file.relative_path },
-						{ value: file.size },
-						{ value: file.owner?.name || file.owner?.email || "Unknown" },
+						{ kind: "text", value: file.name },
+						{ kind: "text", value: file.media_type },
+						{ kind: "text", value: file.relative_path },
+						{ kind: "text", value: file.size },
+						{ kind: "text", value: file.owner?.name || file.owner?.email || "Unknown" },
 					],
 					actions: canRemoveThisFile
 						? [
@@ -623,11 +623,12 @@ class DatasetEditingHandler {
 			data_attrs: { "change-id": id },
 			cells: [
 				{
-					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
-						${change.action === "add" ? "Add" : "Remove"}
-					</span>`,
+					kind: "html",
+					tag: "span",
+					class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
+					text: change.action === "add" ? "Add" : "Remove",
 				},
-				{ value: change.data.type },
+				{ kind: "text", value: change.data.type },
 			],
 			actions: [
 				{
@@ -686,11 +687,12 @@ class DatasetEditingHandler {
 			data_attrs: { "change-id": id },
 			cells: [
 				{
-					html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
-						${change.action === "add" ? "Add" : "Remove"}
-					</span>`,
+					kind: "html",
+					tag: "span",
+					class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
+					text: change.action === "add" ? "Add" : "Remove",
 				},
-				{ value: change.data.name },
+				{ kind: "text", value: change.data.name },
 			],
 			actions: [
 				{

@@ -25,16 +25,18 @@ Context structure:
     "empty_colspan": 5
 }
 {% endcomment %}
+{% load render_cell_node %}
+
 {% if rows %}
     {% for row in rows %}
         <tr {% if row.css_class %}class="{{ row.css_class }}"{% endif %}
             {% for key, value in row.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}>
             {% for cell in row.cells %}
-                <td {% if cell.css_class %}class="{{ cell.css_class }}"{% endif %}>
-                    {% if cell.html %}
-                        {{ cell.html|safe }}
-                    {% else %}
+                <td {% if cell.td_class %}class="{{ cell.td_class }}"{% endif %}>
+                    {% if cell.kind == "text" %}
                         {{ cell.value }}
+                    {% elif cell.kind == "html" %}
+                        {% render_cell_node cell %}
                     {% endif %}
                 </td>
             {% endfor %}
