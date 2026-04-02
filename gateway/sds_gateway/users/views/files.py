@@ -1,8 +1,6 @@
 import json
 from typing import cast
 
-from django.core.paginator import EmptyPage
-from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
@@ -47,7 +45,6 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 
     def get(self, request, *args, **kwargs) -> HttpResponse:
         # Get query parameters
-        page = int(request.GET.get("page", 1))
         sort_by = request.GET.get("sort_by", "created_at")
         sort_order = request.GET.get("sort_order", "desc")
 
@@ -89,10 +86,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
 
         # Paginate the results
         paginator = Paginator(files_qs, self.items_per_page)
-        try:
-            files_page = paginator.page(page)
-        except (EmptyPage, PageNotAnInteger):
-            files_page = paginator.page(1)
+        files_page = paginator.get_page(request.GET.get("page", 1))
 
         # Get visualization compatibility data
         visualization_compatibility = get_visualization_compatibility()
@@ -103,7 +97,7 @@ class ListFilesView(Auth0LoginRequiredMixin, View):
             context={
                 "files": files_page,
                 "total_pages": paginator.num_pages,
-                "current_page": page,
+                "current_page": files_page.number,
                 "total_items": paginator.count,
                 "sort_by": sort_by,
                 "sort_order": sort_order,

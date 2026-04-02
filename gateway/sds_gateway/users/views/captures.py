@@ -1,8 +1,6 @@
 from typing import Any
 
-from django.core.paginator import EmptyPage
 from django.core.paginator import Page
-from django.core.paginator import PageNotAnInteger
 from django.core.paginator import Paginator
 from django.db import DatabaseError
 from django.db.models import Q
@@ -29,6 +27,35 @@ from sds_gateway.visualizations.config import get_visualization_compatibility
 
 # API performance constant: maximum number of captures to return in API responses
 API_CAPTURES_LIMIT = 25
+
+
+def _parse_items_per_page(
+    raw: str | None,
+    default: int,
+    max_items: int,
+) -> int:
+    """
+    Parse items_per_page;
+    invalid or out-of-range values use defaults/clamps.
+
+    Args:
+        raw: The raw items_per_page value from the query string
+        default: The default items_per_page value
+        max_items: The maximum items_per_page value
+
+    Returns:
+    The parsed items_per_page value.
+    """
+    
+    if raw is None:
+        return default
+    try:
+        n = int(raw)
+    except ValueError:
+        return default
+    if n < 1:
+        return default
+    return min(n, max_items)
 
 
 def _get_captures_for_template(
@@ -407,7 +434,6 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
     def _extract_request_params(self, request):
         """Extract and return request parameters for HTML view."""
         return {
-            "page": int(request.GET.get("page", 1)),
             "sort_by": request.GET.get("sort_by", "created_at"),
             "sort_order": request.GET.get("sort_order", "desc"),
             "search": request.GET.get("search", ""),
@@ -416,8 +442,9 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             "cap_type": request.GET.get("capture_type", ""),
             "min_freq": request.GET.get("min_freq", ""),
             "max_freq": request.GET.get("max_freq", ""),
-            "items_per_page": min(
-                int(request.GET.get("items_per_page", self.default_items_per_page)),
+            "items_per_page": _parse_items_per_page(
+                request.GET.get("items_per_page"),
+                self.default_items_per_page,
                 self.max_items_per_page,
             ),
         }
@@ -430,12 +457,9 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Get filtered and sorted captures
         unique_captures = _get_filtered_and_sorted_captures(request.user, params)
 
-        # Paginate the unique captures
+        # Paginate; get_page handles bad page values safely
         paginator = Paginator(unique_captures, params["items_per_page"])
-        try:
-            page_obj = paginator.page(params["page"])
-        except (EmptyPage, PageNotAnInteger):
-            page_obj = paginator.page(1)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
 
         # Update the page_obj with enhanced captures
         page_obj.object_list = _get_captures_for_template(page_obj, request)

@@ -15,7 +15,6 @@ from sds_gateway.users.models import User
 class UserDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
     model = User
     slug_field = "id"
-    slug_url_arg = "id"
 
 
 user_detail_view = UserDetailView.as_view()
