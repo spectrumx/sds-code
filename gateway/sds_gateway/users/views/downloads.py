@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from django.http import FileResponse
 from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -109,18 +110,17 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
         try:
             file_size = file_path.stat().st_size
 
-            with file_path.open("rb") as f:
-                file_content = f.read()
-                response = HttpResponse(file_content, content_type="application/zip")
-                response["Content-Disposition"] = (
-                    f'attachment; filename="{temp_zip.filename}"'
-                )
-                response["Content-Length"] = file_size
+            response = FileResponse(
+                open(file_path, "rb"),
+                content_type="application/zip",
+                as_attachment=True,
+                filename=temp_zip.filename,
+            )
 
-                # Mark the file as downloaded
-                temp_zip.mark_downloaded()
+            # Mark the file as downloaded
+            temp_zip.mark_downloaded()
 
-                return response
+            return response
 
         except OSError:
             log.exception(f"Error reading file: {temp_zip.file_path}")

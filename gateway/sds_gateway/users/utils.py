@@ -170,6 +170,10 @@ def render_html_fragment(
     """
     Render HTML fragment from Django template.
 
+    Default ``{{ variable }}`` output is HTML-escaped. Templates that use ``|safe``
+    or pass raw HTML from context must be designed carefully; structured cell HTML
+    for ``table_rows.html`` is built via ``render_cell_node`` allowlists.
+
     Args:
         template_name: Path to Django template
         (e.g., "users/components/my_component.html")

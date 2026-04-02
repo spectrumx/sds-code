@@ -50,7 +50,7 @@ from sds_gateway.api_methods.serializers.dataset_serializers import (
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
-from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_users
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
@@ -1011,8 +1011,12 @@ def filter_by_frequency_range(
 
     # Get all captures for these datasets and convert to list
     captures_qs = Capture.objects.filter(
-        dataset__uuid__in=dataset_uuids, is_deleted=False
-    )
+        Q(
+            Q(dataset__uuid__in=dataset_uuids) |
+            Q(datasets__uuid__in=dataset_uuids)
+        ),
+        is_deleted=False,
+    ).distinct()
     captures_list = list(captures_qs.iterator(chunk_size=1000))
     if not captures_list:
         return datasets.none()
@@ -1024,21 +1028,17 @@ def filter_by_frequency_range(
         max_freq=max_freq,
     )
 
-    # Get dataset IDs from filtered captures
-    matching_dataset_ids = {
-        capture.dataset_id
-        for capture in filtered_captures
-        if capture.dataset_id is not None
-    }
-    if not matching_dataset_ids:
+    if len(filtered_captures) == 0:
         return datasets.none()
 
-    # Get dataset UUIDs from IDs and filter the queryset
-    matching_dataset_uuids = set(
-        Dataset.objects.filter(id__in=matching_dataset_ids).values_list(
-            "uuid", flat=True
-        )
-    )
+    matching_dataset_uuids: set[uuid.UUID] = set()
+    for capture in filtered_captures:
+        if capture.dataset is not None:
+            matching_dataset_uuids.add(capture.dataset.uuid)
+
+        for ds in capture.datasets.all():
+            matching_dataset_uuids.add(ds.uuid)
+
     return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
@@ -1124,7 +1124,7 @@ def apply_search_filters(
     return datasets
 
 
-class SearchPublishedDatasetsView(Auth0LoginRequiredMixin, View):
+class SearchPublishedDatasetsView(View):
     """View for searching published datasets (public, no auth required)."""
 
     template_name = "users/published_datasets_list.html"

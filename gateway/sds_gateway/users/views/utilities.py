@@ -27,8 +27,9 @@ def _is_safe_template_path(template_name: str) -> bool:
 #
 # SECURITY MODEL:
 # - Only templates in users/components/ directory are allowed (enforced by prefix check)
-# - Context data is provided by the client, not pulled from the database
-# - All data is rendered through Django templates with automatic HTML escaping
+# - Context is provided by the client JSON body
+# - Normal template variables use HTML escaping; |safe or raw HTML must not trust
+#   client strings unless sanitized or rendered via allowlisted builders (e.g. render_cell_node)
 # - CSRF protection is still enforced by Django middleware
 # - No sensitive server-side data is exposed - only client-provided data is rendered
 # - Calling views (e.g., DatasetDetailsView) are responsible for authorization checks
@@ -42,8 +43,8 @@ class RenderHTMLFragmentView(View):
 
     Security:
     - Restricted to users/components/ templates only
-    - Context is client-provided (no database queries)
-    - Django's automatic HTML escaping prevents XSS
+    - Context is client-provided (no database queries in this view)
+    - Escaping applies to normal variables; components using |safe need careful design
     - Authorization must be handled by calling views
     """
 
