@@ -1,6 +1,7 @@
 from typing import Any
 from typing import cast
 
+from django.db.models import QuerySet  # noqa: TC002
 from django.db.utils import IntegrityError
 from django.http import HttpRequest
 from django.http import HttpResponse

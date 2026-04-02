@@ -29,7 +29,8 @@ def _is_safe_template_path(template_name: str) -> bool:
 # - Only templates in users/components/ directory are allowed (enforced by prefix check)
 # - Context is provided by the client JSON body
 # - Normal template variables use HTML escaping; |safe or raw HTML must not trust
-#   client strings unless sanitized or rendered via allowlisted builders (e.g. render_cell_node)
+#   client strings unless sanitized or rendered via allowlisted builders such as
+#   render_cell_node
 # - CSRF protection is still enforced by Django middleware
 # - No sensitive server-side data is exposed - only client-provided data is rendered
 # - Calling views (e.g., DatasetDetailsView) are responsible for authorization checks

@@ -108,10 +108,9 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
             )
 
         try:
-            file_size = file_path.stat().st_size
-
+            fh = file_path.open("rb")
             response = FileResponse(
-                open(file_path, "rb"),
+                fh,
                 content_type="application/zip",
                 as_attachment=True,
                 filename=temp_zip.filename,
@@ -119,12 +118,11 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
             # Mark the file as downloaded
             temp_zip.mark_downloaded()
-
-            return response
-
         except OSError:
             log.exception(f"Error reading file: {temp_zip.file_path}")
             return JsonResponse({"error": "Error reading file."}, status=500)
+        else:
+            return response
 
 
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()

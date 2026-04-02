@@ -46,7 +46,7 @@ def _parse_items_per_page(
     Returns:
     The parsed items_per_page value.
     """
-    
+
     if raw is None:
         return default
     try:

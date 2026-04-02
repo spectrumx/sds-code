@@ -79,6 +79,7 @@ from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import notify_shared_users
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
@@ -4254,8 +4255,6 @@ class UploadCaptureView(Auth0LoginRequiredMixin, View):
         """
         try:
             # Set the index name based on capture type
-            from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name  # noqa: I001
-
             capture_data["index_name"] = infer_index_name(capture_data["capture_type"])
 
             # Use the helper function to create the capture
