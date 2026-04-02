@@ -435,8 +435,20 @@ class ShareGroupManager {
 				{
 					cells: [
 						{
-							html: '<div class="text-center text-muted"><i class="bi bi-people"></i><p class="mb-0">Loading members...</p></div>',
-							css_class: "p-2 shadow-sm",
+							kind: "html",
+							class: "text-center text-muted",
+							nested: [
+								{
+									tag: "icon",
+									class: "bi bi-people",
+								},
+								{
+									tag: "p",
+									class: "mb-0",
+									text: "Loading members...",
+								},
+							],
+							td_class: "p-2 shadow-sm",
 						},
 					],
 				},
@@ -463,18 +475,37 @@ class ShareGroupManager {
 					const rows = response.members.map((member) => ({
 						cells: [
 							{
-								html: `
-								<div class="row">
-									<div class="col-md-10">
-										<div>
-											<h5 class="mb-1">${member.name || "No name"}</h5>
-											<p class="mb-0">
-												<small class="text-muted">${member.email}</small>
-											</p>
-										</div>
-									</div>
-								</div>
-							`,
+								kind: "html",
+								class: "row",
+								nested: [
+									{
+										tag: "div",
+										class: "col-md-10",
+										nested: [
+											{
+												tag: "div",
+												nested: [
+													{
+														tag: "h5",
+														class: "mb-1",
+														text: member.name || "No name",
+													},
+													{
+														tag: "p",
+														class: "mb-0",
+														nested: [
+															{
+																tag: "small",
+																class: "text-muted",
+																text: member.email,
+															}
+														],
+													},
+												],
+											},
+										],
+									},
+								],
 							},
 						],
 						actions: [

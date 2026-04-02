@@ -520,10 +520,20 @@ describe("DOMUtils", () => {
 		});
 
 		describe("renderTable()", () => {
-			test("should render table rows using Django template", async () => {
+			test("should post text cells (kind text) to Django table_rows template", async () => {
 				const rows = [
-					{ cells: [{ content: "Cell 1" }, { content: "Cell 2" }] },
-					{ cells: [{ content: "Cell 3" }, { content: "Cell 4" }] },
+					{
+						cells: [
+							{ kind: "text", value: "Cell 1" },
+							{ kind: "text", value: "Cell 2" },
+						],
+					},
+					{
+						cells: [
+							{ kind: "text", value: "Cell 3" },
+							{ kind: "text", value: "Cell 4" },
+						],
+					},
 				];
 
 				mockAPIClient.post.mockResolvedValue({
@@ -546,6 +556,124 @@ describe("DOMUtils", () => {
 					true,
 				);
 				expect(result).toBe(true);
+			});
+
+			test("text cells: server escapes markup in value (mocked Django response)", async () => {
+				const rows = [
+					{
+						cells: [
+							{ kind: "text", value: "Plain" },
+							{ kind: "text", value: '<script>alert(1)</script>' },
+						],
+					},
+				];
+				mockAPIClient.post.mockResolvedValue({
+					html: "<tr><td>Plain</td><td>&lt;script&gt;alert(1)&lt;/script&gt;</td></tr>",
+				});
+
+				await domUtils.renderTable(mockContainer, rows);
+
+				expect(mockContainer.innerHTML).not.toMatch(/<script/i);
+				expect(mockContainer.textContent).toContain("alert(1)");
+			});
+
+			test("html kind: posts structured cell for render_cell_node (simple)", async () => {
+				const rows = [
+					{
+						cells: [
+							{
+								kind: "html",
+								tag: "span",
+								class: "badge bg-success",
+								text: "OK",
+							},
+						],
+					},
+				];
+				mockAPIClient.post.mockResolvedValue({
+					html: '<tr><td><span class="badge bg-success">OK</span></td></tr>',
+				});
+
+				await domUtils.renderTable(mockContainer, rows);
+
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					{
+						template: "users/components/table_rows.html",
+						context: {
+							rows: rows,
+							empty_message: "No items found",
+							empty_colspan: 5,
+						},
+					},
+					null,
+					true,
+				);
+				expect(mockContainer.innerHTML).toContain("badge");
+			});
+
+			test("html kind: posts nested nodes for render_cell_node", async () => {
+				const rows = [
+					{
+						cells: [
+							{
+								kind: "html",
+								tag: "div",
+								class: "row",
+								nested: [
+									{
+										tag: "span",
+										class: "text-muted",
+										text: "nested text",
+									},
+								],
+							},
+						],
+					},
+				];
+				mockAPIClient.post.mockResolvedValue({
+					html: '<tr><td><div class="row"><span class="text-muted">nested text</span></div></td></tr>',
+				});
+
+				await domUtils.renderTable(mockContainer, rows);
+
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					expect.objectContaining({
+						template: "users/components/table_rows.html",
+						context: expect.objectContaining({
+							rows: rows,
+						}),
+					}),
+					null,
+					true,
+				);
+				expect(mockContainer.textContent).toContain("nested text");
+			});
+
+			test("html kind: disallowed tags stripped server-side (mock simulates Django allowlist)", async () => {
+				const rows = [
+					{
+						cells: [
+							{
+								kind: "html",
+								tag: "div",
+								nested: [
+									{ tag: "script", text: "alert(1)" },
+									{ tag: "span", text: "safe" },
+								],
+							},
+						],
+					},
+				];
+				mockAPIClient.post.mockResolvedValue({
+					html: '<tr><td><div><span>safe</span></div></td></tr>',
+				});
+
+				await domUtils.renderTable(mockContainer, rows);
+
+				expect(mockContainer.innerHTML).not.toMatch(/<script/i);
+				expect(mockContainer.textContent).toContain("safe");
 			});
 
 			test("should render table with empty message", async () => {

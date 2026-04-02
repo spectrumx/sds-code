@@ -752,14 +752,15 @@ class DatasetModeManager {
 		for (const [id, change] of pendingChanges.captures) {
 			rows.push({
 				cells: [
-					{ value: "Capture" },
+					{ kind: "text", value: "Capture" },
 					{
-						html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
-							${change.action === "add" ? "Add" : "Remove"}
-						</span>`,
+						kind: "html",
+						tag: "span",
+						class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
+						text: change.action === "add" ? "Add" : "Remove",
 					},
-					{ value: change.data.type || "Unknown" },
-					{ value: change.data.directory || "" },
+					{ kind: "text", value: change.data.type || "Unknown" },
+					{ kind: "text", value: change.data.directory || "" },
 				],
 				actions: [
 					{
@@ -779,14 +780,15 @@ class DatasetModeManager {
 		for (const [id, change] of pendingChanges.files) {
 			rows.push({
 				cells: [
-					{ value: "File" },
+					{ kind: "text", value: "File" },
 					{
-						html: `<span class="badge ${change.action === "add" ? "bg-success" : "bg-danger"}">
-							${change.action === "add" ? "Add" : "Remove"}
-						</span>`,
+						kind: "html",
+						tag: "span",
+						class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
+						text: change.action === "add" ? "Add" : "Remove",
 					},
-					{ value: change.data.name || "Unknown" },
-					{ value: change.data.path || "" },
+					{ kind: "text", value: change.data.name || "Unknown" },
+					{ kind: "text", value: change.data.path || "" },
 				],
 				actions: [
 					{

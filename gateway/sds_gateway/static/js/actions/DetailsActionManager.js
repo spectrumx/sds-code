@@ -449,11 +449,11 @@ class DetailsActionManager {
 		// Transform captures into rows format for generalized table template
 		const rows = captures.map((capture) => ({
 			cells: [
-				{ value: capture.type },
-				{ value: capture.directory },
-				{ value: capture.channel },
-				{ value: capture.scan_group },
-				{ value: capture.created_at },
+				{ kind: "text", value: capture.type },
+				{ kind: "text", value: capture.directory },
+				{ kind: "text", value: capture.channel },
+				{ kind: "text", value: capture.scan_group },
+				{ kind: "text", value: capture.created_at },
 			],
 		}));
 
@@ -482,10 +482,10 @@ class DetailsActionManager {
 		// Transform files into rows format for generalized table template
 		const rows = files.map((file) => ({
 			cells: [
-				{ value: file.name },
-				{ value: file.media_type },
-				{ value: file.relative_path },
-				{ value: file.size },
+				{ kind: "text", value: file.name },
+				{ kind: "text", value: file.media_type },
+				{ kind: "text", value: file.relative_path },
+				{ kind: "text", value: file.size },
 			],
 		}));
 

@@ -298,7 +298,10 @@ class AssetSearchHandler {
 		// Normalize for generic table_rows template
 		const rows = capturesData.map((capture) => ({
 			data_attrs: { "capture-id": capture.id },
-			cells: [{ value: capture.type }, { value: capture.directory }],
+			cells: [
+				{ kind: "text", value: capture.type },
+				{ kind: "text", value: capture.directory },
+			],
 			actions: [
 				{
 					label: "Remove",
@@ -420,23 +423,32 @@ class AssetSearchHandler {
 				},
 				cells: [
 					{
-						html: `<input type="checkbox" class="form-check-input capture-checkbox" name="captures" value="${capture.id}"
-							${isSelected ? "checked" : ""}
-							${!canSelect ? "disabled" : ""}
-							data-capture-type="${capture.type}"
-							data-capture-directory="${capture.directory}"
-							data-capture-channel="${capture.channel}"
-							data-capture-scan-group="${capture.scan_group}"
-							data-capture-created-at="${capture.created_at}"
-							data-capture-owner-id="${capture.owner_id}"
-							data-capture-owner-name="${ownerName}" />`,
+						kind: "html",
+						tag: "input",
+						class: "form-check-input capture-checkbox",
+						name: "captures",
+						tag_attrs: {
+							type: "checkbox",
+							checked: isSelected,
+							disabled: !canSelect,
+							value: capture.id,
+						},
+						data_attrs: {
+							"capture-type": capture.type,
+							"capture-directory": capture.directory,
+							"capture-channel": capture.channel,
+							"capture-scan-group": capture.scan_group,
+							"capture-created-at": capture.created_at,
+							"capture-owner-id": capture.owner_id,
+							"capture-owner-name": ownerName,
+						},
 					},
-					{ value: capture.type },
-					{ value: capture.directory },
-					{ value: capture.channel },
-					{ value: capture.scan_group },
-					{ value: ownerName },
-					{ value: createdAt },
+					{ kind: "text", value: capture.type },
+					{ kind: "text", value: capture.directory },
+					{ kind: "text", value: capture.channel },
+					{ kind: "text", value: capture.scan_group },
+					{ kind: "text", value: ownerName },
+					{ kind: "text", value: createdAt },
 				],
 			};
 		});
@@ -1140,11 +1152,11 @@ class AssetSearchHandler {
 					"file-id": id,
 				},
 				cells: [
-					{ value: file.name },
-					{ value: file.media_type },
-					{ value: file.relative_path },
-					{ value: window.DOMUtils.formatFileSize(file.size) },
-					{ value: file.owner?.name || file.owner?.email || "Unknown" },
+					{ kind: "text", value: file.name },
+					{ kind: "text", value: file.media_type },
+					{ kind: "text", value: file.relative_path },
+					{ kind: "text", value: window.DOMUtils.formatFileSize(file.size) },
+					{ kind: "text", value: file.owner?.name || file.owner?.email || "Unknown" },
 				],
 				actions: canRemove
 					? [
