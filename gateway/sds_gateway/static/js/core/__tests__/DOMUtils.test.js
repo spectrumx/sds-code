@@ -563,7 +563,7 @@ describe("DOMUtils", () => {
 					{
 						cells: [
 							{ kind: "text", value: "Plain" },
-							{ kind: "text", value: '<script>alert(1)</script>' },
+							{ kind: "text", value: "<script>alert(1)</script>" },
 						],
 					},
 				];
@@ -667,7 +667,7 @@ describe("DOMUtils", () => {
 					},
 				];
 				mockAPIClient.post.mockResolvedValue({
-					html: '<tr><td><div><span>safe</span></div></td></tr>',
+					html: "<tr><td><div><span>safe</span></div></td></tr>",
 				});
 
 				await domUtils.renderTable(mockContainer, rows);

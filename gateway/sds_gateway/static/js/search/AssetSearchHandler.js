@@ -234,7 +234,7 @@ class AssetSearchHandler {
 	/**
 	 * Update selected captures pane
 	 */
-	updateSelectedCapturesPane() {
+	async updateSelectedCapturesPane() {
 		const selectedList = document.getElementById("selected-captures-list");
 		const countBadge = document.querySelector(".selected-captures-count");
 		if (!selectedList || !countBadge || !this.formHandler) return;
@@ -255,9 +255,9 @@ class AssetSearchHandler {
 			};
 		});
 
-		this.renderSelectedCapturesTable(selectedList, capturesData);
+		await this.renderSelectedCapturesTable(selectedList, capturesData);
 
-		// Add remove handlers
+		// Add remove handlers after async render (DOM must contain buttons)
 		const removeSelectedButtons = selectedList.querySelectorAll(
 			".remove-selected-capture",
 		);
@@ -284,7 +284,7 @@ class AssetSearchHandler {
 						checkbox.closest("tr").classList.remove("table-warning");
 					}
 
-					this.updateSelectedCapturesPane();
+					void this.updateSelectedCapturesPane();
 					this.formHandler.updateHiddenFields();
 				}
 			});
@@ -473,7 +473,7 @@ class AssetSearchHandler {
 		this.updatePagination("captures", data.pagination);
 
 		// Update selected captures pane
-		this.updateSelectedCapturesPane();
+		await this.updateSelectedCapturesPane();
 	}
 
 	/**
@@ -513,7 +513,7 @@ class AssetSearchHandler {
 						row.classList.add("table-warning");
 						this.selectedCaptureDetails.set(captureId, captureData);
 						this.formHandler.updateHiddenFields();
-						this.updateSelectedCapturesPane();
+						void this.updateSelectedCapturesPane();
 					}
 
 					if (this.formHandler.updateCurrentCapturesList) {
@@ -527,7 +527,7 @@ class AssetSearchHandler {
 						row.classList.remove("table-warning");
 						this.selectedCaptureDetails.delete(captureId);
 						this.formHandler.updateHiddenFields();
-						this.updateSelectedCapturesPane();
+						void this.updateSelectedCapturesPane();
 					}
 
 					if (this.formHandler.updateCurrentCapturesList) {
@@ -1156,7 +1156,10 @@ class AssetSearchHandler {
 					{ kind: "text", value: file.media_type },
 					{ kind: "text", value: file.relative_path },
 					{ kind: "text", value: window.DOMUtils.formatFileSize(file.size) },
-					{ kind: "text", value: file.owner?.name || file.owner?.email || "Unknown" },
+					{
+						kind: "text",
+						value: file.owner?.name || file.owner?.email || "Unknown",
+					},
 				],
 				actions: canRemove
 					? [

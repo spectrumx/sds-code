@@ -50,7 +50,7 @@ from sds_gateway.api_methods.serializers.dataset_serializers import (
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
-from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_users
+from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
 from sds_gateway.users.forms import FileSearchForm
@@ -1011,10 +1011,7 @@ def filter_by_frequency_range(
 
     # Get all captures for these datasets and convert to list
     captures_qs = Capture.objects.filter(
-        Q(
-            Q(dataset__uuid__in=dataset_uuids) |
-            Q(datasets__uuid__in=dataset_uuids)
-        ),
+        Q(Q(dataset__uuid__in=dataset_uuids) | Q(datasets__uuid__in=dataset_uuids)),
         is_deleted=False,
     ).distinct()
     captures_list = list(captures_qs.iterator(chunk_size=1000))

@@ -1,5 +1,8 @@
 # gateway/sds_gateway/users/templatetags/render_cell_node.py
-"""Render structured cell HTML (kind=html) with allowlists — no |safe on client blobs."""
+"""Render structured cell HTML (kind=html) with allowlists.
+
+No |safe on raw client blobs; use this builder instead.
+"""
 
 from __future__ import annotations
 
@@ -90,7 +93,7 @@ def _attr_allowed(tag: str, name: str) -> bool:
 def _sanitize_href(value: str) -> str | None:
     v = value.strip()
     low = v.lower()
-    if low.startswith("javascript:") or low.startswith("data:"):
+    if low.startswith(("javascript:", "data:")):
         return None
     p = urlparse(v)
     if p.scheme and p.scheme.lower() not in _HREF_SAFE_SCHEMES:
@@ -98,7 +101,7 @@ def _sanitize_href(value: str) -> str | None:
     return v
 
 
-def _format_attr(tag: str, name: str, value: Any) -> str | None:
+def _format_attr(tag: str, name: str, value: Any) -> str | None:  # noqa: PLR0911
     if not _attr_allowed(tag, name):
         return None
     key = name.lower()
@@ -119,6 +122,23 @@ def _format_attr(tag: str, name: str, value: Any) -> str | None:
     return f' {escape(key, quote=True)}="{escape(str(value), quote=True)}"'
 
 
+def _append_tag_attrs(parts: list[str], tag: str, tag_attrs: dict[str, Any]) -> None:
+    for k, v in tag_attrs.items():
+        if not isinstance(k, str):
+            continue
+        s = _format_attr(tag, k, v)
+        if s:
+            parts.append(s)
+
+
+def _append_data_attrs(parts: list[str], data_attrs: dict[str, Any]) -> None:
+    for k, v in data_attrs.items():
+        if not isinstance(k, str):
+            continue
+        dk = f"data-{k.replace('_', '-')}"
+        parts.append(f' {escape(dk, quote=True)}="{escape(str(v), quote=True)}"')
+
+
 def _attrs_string(tag: str, node: dict[str, Any]) -> str:
     parts: list[str] = []
 
@@ -133,20 +153,11 @@ def _attrs_string(tag: str, node: dict[str, Any]) -> str:
 
     tag_attrs = node.get("tag_attrs") or {}
     if isinstance(tag_attrs, dict):
-        for k, v in tag_attrs.items():
-            if not isinstance(k, str):
-                continue
-            s = _format_attr(tag, k, v)
-            if s:
-                parts.append(s)
+        _append_tag_attrs(parts, tag, tag_attrs)
 
     data_attrs = node.get("data_attrs") or {}
     if isinstance(data_attrs, dict):
-        for k, v in data_attrs.items():
-            if not isinstance(k, str):
-                continue
-            dk = f"data-{k.replace('_', '-')}"
-            parts.append(f' {escape(dk, quote=True)}="{escape(str(v), quote=True)}"')
+        _append_data_attrs(parts, data_attrs)
 
     return "".join(parts)
 
@@ -168,8 +179,7 @@ def render_html_node(node: Any) -> str:
     children = node.get("nested")
     inner_parts: list[str] = []
     if isinstance(children, list):
-        for child in children:
-            inner_parts.append(render_html_node(child))
+        inner_parts.extend(render_html_node(child) for child in children)
 
     text = node.get("text")
     if text is not None:
@@ -187,4 +197,4 @@ def render_cell_node(node: Any) -> str:
     Safe for use without |safe: output is built from allowlisted tags/attrs and
     escaped text/values.
     """
-    return mark_safe(render_html_node(node))
+    return mark_safe(render_html_node(node))  # noqa: S308 — allowlist-built HTML only

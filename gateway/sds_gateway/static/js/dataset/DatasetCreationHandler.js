@@ -298,7 +298,7 @@ class DatasetCreationHandler {
 		}
 
 		this.updateHiddenFields();
-		this.updateSelectedCapturesPanel();
+		void this.updateSelectedCapturesPanel();
 	}
 
 	/**
@@ -912,10 +912,10 @@ class DatasetCreationHandler {
 	 * Update selected captures side panel
 	 */
 	async updateSelectedCapturesPanel() {
-		const selectedCapturesTable = document.getElementById(
-			"selected-captures-table",
+		// Tbody id from AssetSearchHandler.createSelectedCapturesPane()
+		const selectedCapturesBody = document.getElementById(
+			"selected-captures-list",
 		);
-		const selectedCapturesBody = selectedCapturesTable?.querySelector("tbody");
 		const selectedCapturesCount = document.getElementById(
 			"selected-captures-count",
 		);
@@ -1106,7 +1106,7 @@ class DatasetCreationHandler {
 		}
 		this.updateHiddenFields();
 		this.updateSelectedItemsTable();
-		this.updateSelectedCapturesPanel();
+		void this.updateSelectedCapturesPanel();
 
 		// Update checkbox in captures table if visible
 		const checkbox = document.querySelector(

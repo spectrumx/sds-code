@@ -498,7 +498,7 @@ class ShareGroupManager {
 																tag: "small",
 																class: "text-muted",
 																text: member.email,
-															}
+															},
 														],
 													},
 												],

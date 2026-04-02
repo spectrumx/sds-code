@@ -32,7 +32,7 @@ def test_render_html_node_allowed_markup(node: dict, expected_substring: str) ->
 
 def test_render_html_node_escapes_text() -> None:
     out = render_html_node(
-        {"tag": "span", "text": '<script>alert(1)</script>'},
+        {"tag": "span", "text": "<script>alert(1)</script>"},
     )
     assert "<script>" not in out
     assert "&lt;script&gt;" in out
