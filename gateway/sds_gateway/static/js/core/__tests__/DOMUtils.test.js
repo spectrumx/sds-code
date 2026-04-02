@@ -5,6 +5,16 @@
 
 import { DOMUtils } from "../DOMUtils.js";
 
+/** Approximate Element.textContent from innerHTML for mock nodes (strip tags, decode entities). */
+function mockTextContentFromHtml(html) {
+	if (html == null || html === "") return "";
+	const noTags = String(html).replace(/<[^>]*>/g, "");
+	return noTags
+		.replace(/&lt;/g, "<")
+		.replace(/&gt;/g, ">")
+		.replace(/&amp;/g, "&");
+}
+
 describe("DOMUtils", () => {
 	let domUtils;
 	let mockAPIClient;
@@ -27,6 +37,12 @@ describe("DOMUtils", () => {
 			querySelector: jest.fn(),
 			querySelectorAll: jest.fn(() => []),
 		};
+		Object.defineProperty(mockContainer, "textContent", {
+			get() {
+				return mockTextContentFromHtml(this.innerHTML);
+			},
+			configurable: true,
+		});
 
 		mockToastContainer = {
 			id: "toast-container",
