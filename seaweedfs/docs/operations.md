@@ -1,22 +1,23 @@
 # SeaweedFS Operations Guide
 
-Reference guide for managing this deployment. All commands target the Docker Compose stack
-defined in `compose.yaml`.
+Reference guide for managing this deployment. All commands target the Docker Compose
+stack defined in `compose.yaml`.
 
 + [SeaweedFS Operations Guide](#seaweedfs-operations-guide)
     + [Architecture](#architecture)
         + [Data flow](#data-flow)
     + [Deployment](#deployment)
-        + [Start](#start)
-        + [Stop (preserve data)](#stop-preserve-data)
+        + [Data directory ownership](#data-directory-ownership)
+        + [Standard compose commands](#standard-compose-commands)
         + [Full teardown (destroy all data)](#full-teardown-destroy-all-data)
-        + [Restart a single service](#restart-a-single-service)
         + [View logs](#view-logs)
-        + [Check status](#check-status)
     + [Web UIs](#web-uis)
     + [S3 API](#s3-api)
+        + [Create or find S3 credentials (required)](#create-or-find-s3-credentials-required)
         + [AWS CLI setup](#aws-cli-setup)
-        + [Common operations](#common-operations)
+            + [Common operations with AWS CLI](#common-operations-with-aws-cli)
+        + [MinIO client setup](#minio-client-setup)
+            + [Common operations with MinIO client](#common-operations-with-minio-client)
     + [Filer HTTP API](#filer-http-api)
     + [Maintenance](#maintenance)
         + [Open the admin shell](#open-the-admin-shell)
@@ -37,6 +38,8 @@ defined in `compose.yaml`.
 
 ## Architecture
 
+> For production, replace `local` with `prod`, matching the Gateway's compose file.
+
 | Component  | Container                          | Default Port | Purpose                              |
 | ---------- | ---------------------------------- | ------------ | ------------------------------------ |
 | Master     | `sds-gateway-local-sfs-master`     | 9333         | Cluster coordination, volume routing |
@@ -55,24 +58,39 @@ Client → S3/WebDAV/Filer HTTP → Filer (metadata in /data/filer/filerldb2)
 ```
 
 The **Filer** stores only metadata (file paths, sizes, chunk IDs). The **Volume Server**
-stores the actual bytes. Both must persist across restarts — see the `volumes` section in
-`compose.yaml`.
+stores the actual bytes. Both must persist across restarts — see the `volumes` section
+in `compose.yaml`.
 
 ---
 
 ## Deployment
 
-### Start
+> [!TIP] Assign `alias dc='docker compose'` for convenience; then run e.g. `dc logs -f`
+> instead of `docker compose logs -f`.
+
+### Data directory ownership
+
+```bash
+sudo chown -R 1000:1000 data/
+# otherwise, match UID and GID used in compose.yaml
+```
+
+### Standard compose commands
 
 ```bash
 cd seaweedfs/
+docker compose build
 docker compose up -d
+docker compose down
+docker compose restart sds-gateway-local-sfs-filer
+docker compose ps
 ```
 
-### Stop (preserve data)
+If the alias is set, you can run a one-liner:
 
 ```bash
-docker compose down
+cd seaweedfs/
+dc pull --ignore-buildable; dc build && dc up -d && dc ps && dc logs -f
 ```
 
 ### Full teardown (destroy all data)
@@ -80,12 +98,6 @@ docker compose down
 ```bash
 docker compose down -v
 rm -rf data/volumes/* data/filer/*
-```
-
-### Restart a single service
-
-```bash
-docker compose restart sds-gateway-local-sfs-filer
 ```
 
 ### View logs
@@ -96,12 +108,6 @@ docker compose logs -f
 
 # single service
 docker compose logs -f sds-gateway-local-sfs-filer
-```
-
-### Check status
-
-```bash
-docker compose ps
 ```
 
 ---
@@ -119,45 +125,172 @@ docker compose ps
 
 ## S3 API
 
-The S3 gateway is compatible with the AWS CLI and any S3 SDK.
+The S3 gateway is compatible with the AWS CLI and any S3 SDK. The MinIO client also
+works, if migrating from that.
+
+### Create or find S3 credentials (required)
+
+This deployment stores S3 identities in SeaweedFS (not in `compose.yaml`).
+
++ Credential backend is configured in `config/credential.toml`.
++ In this repo, `[credential.filer_etc] enabled = true`, so identities are persisted in the filer store.
+
+Create a known admin key pair (recommended if you are unsure which keys exist):
+
+```bash
+export S3_ENDPOINT=http://localhost:8333
+export S3_USER=admin
+export S3_ACCESS_KEY=seaweed-sds-main
+export S3_SECRET_KEY=$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 32)
+
+# create/update credentials via weed shell
+echo "s3.configure -apply -user ${S3_USER} -access_key ${S3_ACCESS_KEY} -secret_key ${S3_SECRET_KEY} -actions Admin" \
+    | docker exec -i sds-gateway-local-sfs-master weed shell -master=localhost:9333
+```
+
+Verify credentials immediately:
+
+```bash
+AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY}" AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY}" \
+    aws --endpoint-url "${S3_ENDPOINT}" s3 ls
+```
+
+If you already have working admin credentials, you can inspect users and access key IDs:
+
+```bash
+export AWS_ENDPOINT="${S3_ENDPOINT}"
+export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY}"
+export AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY}"
+
+aws --endpoint "${AWS_ENDPOINT}" iam list-users
+aws --endpoint "${AWS_ENDPOINT}" iam list-access-keys --user-name admin
+```
+
+> [!IMPORTANT]
+> Access key IDs can be listed later, but secret keys cannot be recovered in plain text.
+> If a secret is unknown, create/rotate credentials with `s3.configure` or IAM APIs.
 
 ### AWS CLI setup
 
 ```bash
-aws configure set aws_access_key_id any
-aws configure set aws_secret_access_key any
+aws configure set aws_access_key_id "${S3_ACCESS_KEY}"
+aws configure set aws_secret_access_key "${S3_SECRET_KEY}"
 aws configure set default.region us-east-1
 aws configure set default.s3.signature_version s3v4
 
-export S3=http://localhost:8333
+export S3="${S3_ENDPOINT}"
 ```
 
-### Common operations
+#### Common operations with AWS CLI
 
 ```bash
 # list buckets
-aws --endpoint-url $S3 s3 ls
+aws --endpoint-url "${S3}" s3 ls
 
 # create a bucket
-aws --endpoint-url $S3 s3 mb s3://my-bucket
+aws --endpoint-url "${S3}" s3 mb s3://my-bucket
 
 # upload a file
-aws --endpoint-url $S3 s3 cp local-file.txt s3://my-bucket/
+aws --endpoint-url "${S3}" s3 cp local-file.txt s3://my-bucket/
 
 # list bucket contents
-aws --endpoint-url $S3 s3 ls s3://my-bucket
+aws --endpoint-url "${S3}" s3 ls s3://my-bucket
 
 # download a file
-aws --endpoint-url $S3 s3 cp s3://my-bucket/file.txt .
+aws --endpoint-url "${S3}" s3 cp s3://my-bucket/file.txt .
 
 # delete a file
-aws --endpoint-url $S3 s3 rm s3://my-bucket/file.txt
+aws --endpoint-url "${S3}" s3 rm s3://my-bucket/file.txt
 
 # delete a bucket (must be empty)
-aws --endpoint-url $S3 s3 rb s3://my-bucket
+aws --endpoint-url "${S3}" s3 rb s3://my-bucket
 
 # sync a local directory to a bucket
-aws --endpoint-url $S3 s3 sync ./local-dir s3://my-bucket/prefix/
+aws --endpoint-url "${S3}" s3 sync ./local-dir s3://my-bucket/prefix/
+```
+
+### MinIO client setup
+
+Installing `mc` CLI:
+
+```bash
+MINIO_INSTALL_DIR="${XDG_DATA_HOME:-${HOME}/.local/share}/mc"
+mkdir -p "${MINIO_INSTALL_DIR}"
+ls -alh "${MINIO_INSTALL_DIR}"
+curl --progress-bar -L https://dl.min.io/aistor/mc/release/linux-amd64/mc \
+    -o "${MINIO_INSTALL_DIR}/mc" \
+    && chmod +x "${MINIO_INSTALL_DIR}/mc"
+ln -s "${MINIO_INSTALL_DIR}/mc" "${HOME}/.local/bin/mc"
+```
+
+Bootstrap credentials for `mc` (run once if you do not already have a working key):
+
+```bash
+echo "s3.configure -apply -user ${S3_USER} -access_key ${S3_ACCESS_KEY} -secret_key ${S3_SECRET_KEY} -actions Admin" \
+    | docker exec -i sds-gateway-local-sfs-master weed shell -master=localhost:9333
+```
+
+Usage:
+
+```bash
+# install (choose one)
+# macOS:   brew install minio/stable/mc
+# linux:   https://min.io/docs/minio/linux/reference/minio-mc.html
+
+# configure an alias pointing to SeaweedFS S3 gateway
+mc alias set sfs "${S3_ENDPOINT}" "${S3_ACCESS_KEY}" "${S3_SECRET_KEY}" --api S3v4
+# Added `sfs` successfully.
+
+# verify alias
+mc alias ls
+# ...
+# sfs
+#   URL       : http://localhost:8333
+#   AccessKey : <access_key>
+#   SecretKey : <secret_key>
+#   API       : S3v4
+#   Path      : auto
+#   Src       : /home/user/.mc/config.json
+```
+
+Optional: temporary shell-only setup (no local alias file written):
+
+```bash
+export MC_HOST_sfs="http://${S3_ACCESS_KEY}:${S3_SECRET_KEY}@${S3_ENDPOINT#*://}"
+mc ls sfs
+```
+
+#### Common operations with MinIO client
+
+```bash
+# list buckets
+mc ls sfs
+
+# create a bucket
+mc mb sfs/main
+
+# upload a file
+mc cp docs/readme.md sfs/main/
+
+# list bucket contents
+mc ls sfs/main
+
+# download a file
+mc cp sfs/main/readme.md .
+
+# delete a file
+mc rm sfs/main/readme.md
+
+# delete a bucket (must be empty)
+mc rb sfs/main
+
+# sync a local directory to a bucket prefix
+mc mirror ./docs sfs/main/docs && mc ls sfs/main/docs
+# or more dangerously, include --overwrite:
+# mc mirror --overwrite ./docs sfs/main/docs
+
+# access it via the file browser (opens a browser)
+xdg-open http://localhost:8888/buckets/main/docs/
 ```
 
 ---
@@ -190,7 +323,9 @@ curl -X POST "http://localhost:8888/dest/dir/?cp.from=/source/path/file.pdf"
 
 ### Open the admin shell
 
-All maintenance operations go through `weed shell`. Always `unlock` before exiting.
+All maintenance operations go through `weed shell`.
+
+> [!IMPORTANT] Always `unlock` before exiting.
 
 ```bash
 docker exec -it sds-gateway-local-sfs-master weed shell -master=localhost:9333
@@ -212,8 +347,8 @@ curl "http://localhost:9333/vol/vacuum?garbageThreshold=0.4"
 
 ### Delete empty / orphaned volumes
 
-Volumes that contain no live data (e.g. left over from previous runs with missing metadata)
-can be removed. Run inside `weed shell`:
+Volumes that contain no live data (e.g. left over from previous runs with missing
+metadata) can be removed. Run inside `weed shell`:
 
 ```bash
 lock
@@ -221,8 +356,8 @@ volume.deleteEmpty -quietFor=24h -apply
 unlock
 ```
 
-`-quietFor=24h` skips volumes that have been written to within the last 24 hours, to avoid
-racing with active writes.
+`-quietFor=24h` skips volumes that have been written to within the last 24 hours, to
+avoid racing with active writes.
 
 ### Check volume filesystem integrity
 
@@ -344,16 +479,16 @@ docker exec sds-gateway-local-sfs-volume ping sds-gateway-local-sfs-master
 
 ### No free volumes error
 
-The default setup creates 8 volumes of 30 GB each. If you need more (e.g. many S3 buckets
-each use their own collection):
+The default setup creates 8 volumes of 30 GB each. If you need more (e.g. many S3
+buckets each use their own collection):
 
 ```bash
 # pre-allocate 4 more volumes
 curl "http://localhost:9333/vol/grow?count=4"
 ```
 
-Or reduce the volume size limit in the master command to allow more volumes from the same
-disk budget (requires restart):
+Or reduce the volume size limit in the master command to allow more volumes from the
+same disk budget (requires restart):
 
 ```bash
 # in compose.yaml master command, add:
