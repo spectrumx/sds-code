@@ -48,7 +48,7 @@ OPENSEARCH_USE_SSL: bool = env.bool("OPENSEARCH_USE_SSL", default=False)
 OPENSEARCH_VERIFY_CERTS: bool = env.bool("OPENSEARCH_VERIFY_CERTS", default=False)
 OPENSEARCH_CA_CERTS: str | None = env.str("OPENSEARCH_CA_CERTS", default=None)
 
-# MinIO configuration
+# S3-compatible object storage (SeaweedFS)
 STORAGES = {
     "default": {
         "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
@@ -57,15 +57,18 @@ STORAGES = {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
-MINIO_ENDPOINT_URL = env.str("MINIO_ENDPOINT_URL", default="minio:9000")
+# env var names kept for backward compatibility with existing deployments
+MINIO_ENDPOINT_URL = env.str(
+    "MINIO_ENDPOINT_URL", default="sds-gateway-local-sfs-s3:8333"
+)
 MINIO_STORAGE_USE_HTTPS = env.bool("MINIO_STORAGE_USE_HTTPS", default=False)
 
-AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="minioadmin")
-AWS_SECRET_ACCESS_KEY: str = env.str("AWS_SECRET_ACCESS_KEY", default="miniopassword")
+AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="admin")
+AWS_SECRET_ACCESS_KEY: str = env.str("AWS_SECRET_ACCESS_KEY", default="admin")
 AWS_STORAGE_BUCKET_NAME: str = env.str("AWS_STORAGE_BUCKET_NAME", default="spectrumx")
 AWS_S3_ENDPOINT_URL: str = env.str(
     "AWS_S3_ENDPOINT_URL",
-    default="http://minio:9000",
+    default="http://sds-gateway-local-sfs-s3:8333",
 )
 AWS_S3_REGION_NAME: str = "us-east-1"
 AWS_S3_SIGNATURE_VERSION: str = "s3v4"

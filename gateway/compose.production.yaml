@@ -44,8 +44,6 @@ services:
                 condition: service_started
             redis:
                 condition: service_started
-            minio:
-                condition: service_started
         volumes:
             - source: sds-gateway-prod-app-media
               target: /app/sds_gateway/media
@@ -78,7 +76,7 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         ports:
@@ -88,8 +86,7 @@ services:
         command: "/start"
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-network-prod # also carries SeaweedFS S3 traffic — see seaweedfs/compose.yaml
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:18000/ || exit 1"]
             interval: 30s
@@ -117,11 +114,9 @@ services:
         networks:
             - sds-network-prod
 
+    # DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
+    # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
     minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
         image: minio/minio:latest
         container_name: sds-gateway-prod-minio
         volumes:
@@ -258,15 +253,14 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/worker-start"
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-network-prod # also carries SeaweedFS S3 traffic
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -306,15 +300,14 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/beat-start"
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-network-prod # also carries SeaweedFS S3 traffic
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -349,7 +342,7 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/flower-start"
@@ -357,6 +350,5 @@ services:
         ports:
             - "15555:5555" # Flower web interface
         networks:
-            - sds-gateway-prod-minio-net
             - sds-gateway-prod-opensearch-net
-            - sds-network-prod
+            - sds-network-prod # also carries SeaweedFS S3 traffic

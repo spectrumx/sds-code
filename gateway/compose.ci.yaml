@@ -45,8 +45,6 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-            minio:
-                condition: service_healthy
         volumes:
             - sds-gateway-ci-uv-cache:/opt/uv-cache/
             - sds-gateway-ci-uv-venv-app:/opt/uv-venv/
@@ -74,7 +72,8 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/minio.env # legacy — kept during migration
+            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         # remember /entrypoint runs first
@@ -125,6 +124,7 @@ services:
         networks:
             - sds-network-ci
 
+    # DEPRECATED: kept during migration for data transfer. Remove after migration complete.
     minio:
         # main file storage for sds
         # minio uses rolling upgrades that are non-disruptive, so we can target latest
@@ -264,7 +264,8 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/minio.env # legacy — kept during migration
+            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/worker-start"
@@ -309,7 +310,8 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/minio.env # legacy — kept during migration
+            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/beat-start"
@@ -354,7 +356,8 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/minio.env # legacy — kept during migration
+            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/flower-start"
