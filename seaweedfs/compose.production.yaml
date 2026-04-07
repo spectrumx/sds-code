@@ -1,0 +1,156 @@
+# ⚠️ PRODUCTION COMPOSE FILE — SeaweedFS stack ⚠️
+# Container names and resources start with "sds-gateway-prod-" to avoid accidents.
+#
+# DATA STORAGE:
+#   Default: named Docker volumes (sds-gateway-prod-sfs-*).
+#   For multi-disk production setups, override with bind mounts in compose.override.yaml
+#   or replace the volume definitions with bind mount entries directly. See operations.md.
+#
+# NETWORK:
+#   sds-network-prod must be created before starting this stack.
+#   Run: docker network create sds-network-prod --driver=bridge
+
+volumes:
+  sds-gateway-prod-sfs-volume-data: {}
+  sds-gateway-prod-sfs-filer-data: {}
+
+networks:
+  sds-gateway-prod-seaweed-net:
+    driver: bridge
+  sds-network-prod:
+    external: true
+
+services:
+  sds-gateway-prod-sfs-master:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-prod-sfs-master
+    user: "${UID:-1000}:${GID:-1000}"
+    command: |
+      master
+          -ip=sds-gateway-prod-sfs-master
+          -ip.bind=0.0.0.0
+          -metricsPort=${SFS_MASTER_METRICS_PORT:-9324}
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-prod-seaweed-net
+    deploy:
+      placement:
+        max_replicas_per_node: 1
+
+  sds-gateway-prod-sfs-volume:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-prod-sfs-volume
+    user: "${UID:-1000}:${GID:-1000}"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null",
+        ]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    # for multi-disk: use -dir="/data1/volumes,/data2/volumes,..."
+    command: |
+      volume
+          -dir=/data/volumes
+          -ip.bind=0.0.0.0
+          -ip=sds-gateway-prod-sfs-volume
+          -master="sds-gateway-prod-sfs-master:${SFS_MASTER_PORT:-9333}"
+          -max=0
+          -metricsPort=${SFS_VOLUME_METRICS_PORT:-9325}
+          -port=${SFS_VOLUME_PORT:-8080}
+    depends_on:
+      - sds-gateway-prod-sfs-master
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - source: sds-gateway-prod-sfs-volume-data
+        target: /data/volumes
+        type: volume
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-prod-seaweed-net
+
+  sds-gateway-prod-sfs-filer:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-prod-sfs-filer
+    user: "${UID:-1000}:${GID:-1000}"
+    command: 'filer -ip=sds-gateway-prod-sfs-filer -master="sds-gateway-prod-sfs-master:${SFS_MASTER_PORT:-9333}" -ip.bind=0.0.0.0 -metricsPort=${SFS_FILER_METRICS_PORT:-9326}'
+    tty: true
+    stdin_open: true
+    depends_on:
+      - sds-gateway-prod-sfs-master
+      - sds-gateway-prod-sfs-volume
+    volumes:
+      - source: sds-gateway-prod-sfs-filer-data
+        target: /data/filer
+        type: volume
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-prod-seaweed-net
+    restart: unless-stopped
+
+  sds-gateway-prod-sfs-s3:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-prod-sfs-s3
+    user: "${UID:-1000}:${GID:-1000}"
+    command: 's3 -filer="sds-gateway-prod-sfs-filer:${SFS_FILER_PORT:-8888}" -ip.bind=0.0.0.0 -metricsPort=${SFS_S3_METRICS_PORT:-9327}'
+    depends_on:
+      - sds-gateway-prod-sfs-master
+      - sds-gateway-prod-sfs-volume
+      - sds-gateway-prod-sfs-filer
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
+        ]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    networks:
+      - sds-gateway-prod-seaweed-net
+      - sds-network-prod
+    restart: unless-stopped
+
+  sds-gateway-prod-sfs-webdav:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-prod-sfs-webdav
+    user: "${UID:-1000}:${GID:-1000}"
+    command: 'webdav -filer="sds-gateway-prod-sfs-filer:${SFS_FILER_PORT:-8888}"'
+    depends_on:
+      - sds-gateway-prod-sfs-master
+      - sds-gateway-prod-sfs-volume
+      - sds-gateway-prod-sfs-filer
+    networks:
+      - sds-gateway-prod-seaweed-net
+    restart: unless-stopped
+
+  sds-gateway-prod-sfs-prometheus:
+    image: docker.io/prom/prometheus:latest
+    container_name: sds-gateway-prod-sfs-prometheus
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command: "--web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yaml"
+    depends_on:
+      - sds-gateway-prod-sfs-s3
+    restart: unless-stopped
+    networks:
+      - sds-gateway-prod-seaweed-net

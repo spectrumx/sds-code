@@ -1,0 +1,124 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+# constants
+
+env_selection_script := "./scripts/env-selection.sh"
+
+# variables | run `just env` to see current values
+
+compose_file := shell(env_selection_script + ' $1', "compose_file")
+env := shell(env_selection_script + ' $1', "env")
+env_file := shell(env_selection_script + ' $1', "env_file")
+filer_container := shell(env_selection_script + ' $1', "filer_container")
+master_container := shell(env_selection_script + ' $1', "master_container")
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
+
+# show available recipes
+default:
+    @just --list
+
+# pulls and rebuilds the compose services with optional args
+[group('setup')]
+build *args:
+    @echo "Pulling and building sds-seaweedfs"
+    {{ docker_compose }} pull --ignore-buildable
+    {{ docker_compose }} build {{ args }}
+
+# runs a generic docker compose command e.g. `just dc ps`
+[group('utilities')]
+dc +args:
+    @echo "Running docker compose command: {{ args }}"
+    {{ docker_compose }} {{ args }}
+
+# sets up the data directories with correct ownership (local only)
+[group('setup')]
+data-setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "{{ env }}" != "local" ]]; then
+        echo "data-setup only needed for local; CI and production use volumes or bind mounts"
+        exit 0
+    fi
+    echo "Creating data directories..."
+    mkdir -p data/volumes data/filer/filerldb2
+    echo "Setting ownership to ${UID:-1000}:${GID:-1000}..."
+    chown -R "${UID:-1000}:${GID:-1000}" data/
+    echo "Done"
+
+# runs a full deploy (start services, configure credentials, create bucket)
+[group('setup')]
+deploy *args:
+    @echo "Deploying SeaweedFS stack for '{{ env }}' environment"
+    ./scripts/deploy.sh {{ args }}
+
+# stops and removes compose services
+[group('service')]
+down *args:
+    @echo "Stopping SeaweedFS"
+    {{ docker_compose }} down --remove-orphans {{ args }}
+
+# prints currently selected environment
+[group('utilities')]
+env:
+    @echo -e "\nSelected env:\n"
+    @echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
+    @echo -e "\tEnv file: \e[34m                '{{ env_file }}'\e[0m"
+    @echo -e "\tCompose file: \e[34m            '{{ compose_file }}'\e[0m"
+    @echo -e "\tDocker compose command: \e[34m  '{{ docker_compose }}'\e[0m"
+    @echo -e "\tFiler container: \e[34m         '{{ filer_container }}'\e[0m"
+    @echo -e "\tMaster container: \e[34m        '{{ master_container }}'\e[0m"
+
+# streams logs until interrupted
+[group('monitoring')]
+logs *args:
+    @echo "Showing SeaweedFS logs..."
+    {{ docker_compose }} logs --tail 10000 -f {{ args }} || true
+
+# prints all recent logs once
+[group('monitoring')]
+logs-once *args:
+    @echo "Showing SeaweedFS logs once..."
+    {{ docker_compose }} logs {{ args }}
+
+# rebuilds then restarts services and shows logs
+[group('service')]
+redeploy services='':
+    just build {{ services }}
+    just down {{ services }}
+    just up {{ services }}
+    just logs {{ services }}
+
+# restarts running compose services
+[group('service')]
+restart *args:
+    @echo "Restarting SeaweedFS"
+    {{ docker_compose }} restart {{ args }}
+
+# opens an interactive weed shell session
+[group('utilities')]
+shell:
+    @echo "Opening weed shell on '{{ filer_container }}' (master: {{ master_container }})"
+    docker exec -it {{ filer_container }} \
+        weed shell -master="{{ master_container }}:9333"
+
+# starts services in detached mode
+[group('service')]
+up *args:
+    #!/usr/bin/env bash
+    echo "Starting SeaweedFS in detached mode"
+    echo "Environment: '{{ env }}'"
+    echo "Compose file: '{{ compose_file }}'"
+    {{ docker_compose }} up --detach --remove-orphans {{ args }}
+
+# performs full teardown (removes data) — irreversible
+[confirm("This will destroy ALL SeaweedFS data. Are you sure?")]
+[group('service')]
+wipe:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just down --volumes
+    if [[ "{{ env }}" == "local" ]]; then
+        rm -rf data/volumes/* data/filer/*
+        echo "Local data directories cleared"
+    fi
+    echo "SeaweedFS data wiped"

@@ -8,17 +8,20 @@
 #   SDS_FORCE_SECRETS  - Set to 'true' to overwrite existing secrets (default: false)
 #   SDS_SKIP_SECRETS   - Set to 'true' to skip secret generation (default: false)
 #   SDS_SKIP_NETWORK   - Set to 'true' to skip network creation (default: false)
+#   SDS_SKIP_SFS       - Set to 'true' to skip SeaweedFS stack deployment (default: false)
 #   SDS_DETACH         - Set to 'true' to run in detached mode (default: true for prod)
 #
 # USAGE EXAMPLES:
 #   ./deploy.sh [OPTIONS] <local|production|ci>
 #   SDS_SKIP_SECRETS=true ./deploy.sh local
 #   SDS_FORCE_SECRETS=true SDS_DETACH=false ./deploy.sh production
+#   SDS_SKIP_SFS=true ./deploy.sh local
 
 set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+SFS_ROOT=$(cd "${PROJECT_ROOT}/../seaweedfs" 2>/dev/null && pwd || true)
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
@@ -31,16 +34,16 @@ function show_usage() {
     echo -e "\e[34mThis is a high level script that automates:\e[0m"
     echo "  1. Secret generation"
     echo "  2. Docker network creation"
-    echo "  3. Service deployment"
-    echo "  4. Database migrations"
-    echo "  5. Superuser creation (interactive)"
-    echo "  6. MinIO bucket creation"
-    echo "  7. SeaweedFS S3 credential setup and bucket creation"
+    echo "  3. SeaweedFS stack deployment (start + configure credentials + create bucket)"
+    echo "  4. Gateway service deployment"
+    echo "  5. Database migrations"
+    echo "  6. Superuser creation (interactive)"
     echo ""
     echo -e "\e[34mOPTIONS:\e[0m"
     echo "    -f, --force         Overwrite existing env files when generating secrets"
     echo "    -s, --skip-secrets  Skip secret generation (use existing secrets)"
     echo "    -n, --skip-network  Skip network creation"
+    echo "    --skip-sfs          Skip SeaweedFS stack deployment"
     echo "    -d, --detach        Run services in detached mode (default for prod)"
     echo "    -h, --help          Show this help message"
     echo ""
@@ -51,6 +54,7 @@ function show_usage() {
     echo "    SDS_FORCE_SECRETS   Overwrite existing secrets (true/false, default: false)"
     echo "    SDS_SKIP_SECRETS    Skip secret generation (true/false, default: false)"
     echo "    SDS_SKIP_NETWORK    Skip network creation (true/false, default: false)"
+    echo "    SDS_SKIP_SFS        Skip SeaweedFS deployment (true/false, default: false)"
     echo "    SDS_DETACH          Run in detached mode (true/false, default: true for prod)"
     echo ""
     echo "    Note: Command-line options take precedence over environment variables."
@@ -308,6 +312,9 @@ function parse_arguments() {
     if [[ "${SDS_SKIP_NETWORK:-}" == "true" ]]; then
         args_ref[skip_network]="true"
     fi
+    if [[ "${SDS_SKIP_SFS:-}" == "true" ]]; then
+        args_ref[skip_sfs]="true"
+    fi
     if [[ "${SDS_DETACH:-}" == "true" ]]; then
         args_ref[detach]="true"
     elif [[ "${SDS_DETACH:-}" == "false" ]]; then
@@ -327,6 +334,10 @@ function parse_arguments() {
                 ;;
             -n|--skip-network)
                 args_ref[skip_network]="true"
+                shift
+                ;;
+            --skip-sfs)
+                args_ref[skip_sfs]="true"
                 shift
                 ;;
             -d|--detach)
@@ -409,73 +420,32 @@ function setup_database() {
 
 }
 
-function create_minio_bucket() {
-    local env_type="$1"
-    local minio_env_file="${PROJECT_ROOT}/.envs/${env_type}/minio.env"
-
-    log_header "MinIO Bucket Setup"
-
-    if [[ ! -f "${minio_env_file}" ]]; then
-        log_error "MinIO environment file not found: ${minio_env_file}"
-        return 1
-    fi
-
-    local minio_user
-    local minio_password
-    minio_user=$(grep -E '^MINIO_ROOT_USER=' "${minio_env_file}" | cut -d'=' -f2)
-    minio_password=$(grep -E '^MINIO_ROOT_PASSWORD=' "${minio_env_file}" | cut -d'=' -f2)
-
-    if [[ -z "${minio_user}" || -z "${minio_password}" ]]; then
-        log_error "Failed to extract MinIO credentials from ${minio_env_file}"
-        return 1
-    fi
-
-    local alias_name="local"    # always "local", doesn't depend on env_type
-
-    just dc exec -it minio mc alias set "${alias_name}" "http://localhost:9000" "${minio_user}" "${minio_password}"
-    just dc exec -it minio mc mb --ignore-existing "${alias_name}/spectrumx"
-}
-
-function create_sfs_bucket() {
+function deploy_sfs_stack() {
     local env_type="$1"
     local sfs_env_file="${PROJECT_ROOT}/.envs/${env_type}/sfs.env"
 
-    log_header "SeaweedFS Bucket Setup"
+    log_header "SeaweedFS Stack Deployment"
 
-    if [[ ! -f "${sfs_env_file}" ]]; then
-        log_error "SeaweedFS environment file not found: ${sfs_env_file}"
-        return 1
-    fi
-
-    local access_key secret_key bucket_name
-    access_key=$(grep -E '^AWS_ACCESS_KEY_ID=' "${sfs_env_file}" | cut -d'=' -f2)
-    secret_key=$(grep -E '^AWS_SECRET_ACCESS_KEY=' "${sfs_env_file}" | cut -d'=' -f2)
-    bucket_name=$(grep -E '^AWS_STORAGE_BUCKET_NAME=' "${sfs_env_file}" | cut -d'=' -f2)
-
-    if [[ -z "${access_key}" || -z "${secret_key}" || -z "${bucket_name}" ]]; then
-        log_error "Failed to extract SFS credentials from ${sfs_env_file}"
-        return 1
-    fi
-
-    # container name follows the same sds-gateway-<env>-sfs-filer pattern
-    local filer_container="sds-gateway-${env_type}-sfs-filer"
-    if ! docker inspect "${filer_container}" &>/dev/null; then
-        log_warning "SFS filer container '${filer_container}' not found — skipping bucket setup"
-        log_msg "Start the SeaweedFS stack and re-run: create_sfs_bucket ${env_type}"
+    if [[ -z "${SFS_ROOT}" || ! -d "${SFS_ROOT}" ]]; then
+        log_warning "SeaweedFS directory not found at '${PROJECT_ROOT}/../seaweedfs' — skipping SFS deployment"
+        log_msg "Run the SFS stack manually from the seaweedfs/ directory before starting the gateway."
         return 0
     fi
 
-    log_msg "Configuring SFS S3 credentials for user '${access_key}'..."
-    docker exec "${filer_container}" weed shell \
-        -master="sds-gateway-${env_type}-sfs-master:9333" \
-        -run "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *"
+    if [[ ! -f "${SFS_ROOT}/scripts/deploy.sh" ]]; then
+        log_warning "SeaweedFS deploy script not found at '${SFS_ROOT}/scripts/deploy.sh' — skipping"
+        return 0
+    fi
 
-    log_msg "Creating SFS bucket '${bucket_name}'..."
-    docker exec "${filer_container}" weed shell \
-        -master="sds-gateway-${env_type}-sfs-master:9333" \
-        -run "s3.bucket.create -name ${bucket_name}"
+    # ensure the shared network exists before SFS references it as external (CI/prod)
+    create_docker_network "${env_type}"
 
-    log_success "SeaweedFS bucket '${bucket_name}' ready"
+    log_msg "Deploying SeaweedFS stack (env: ${env_type})..."
+    "${SFS_ROOT}/scripts/deploy.sh" \
+        --sfs-env "${sfs_env_file}" \
+        "${env_type}"
+
+    log_success "SeaweedFS stack deployed"
 }
 
 function finalize_deployment() {
@@ -491,7 +461,8 @@ function main() {
     declare -A args=(
         [force_secrets]="false"
         [skip_secrets]="false"
-        [skip_network]="true"   # usually works when skipped
+        [skip_network]="false"
+        [skip_sfs]="false"
         [detach]="false"
         [env_type]=""
     )
@@ -512,12 +483,16 @@ function main() {
 
     setup_prod_hostnames "${SCRIPT_DIR}" "${args[env_type]}"
 
+    if [[ "${args[skip_sfs]}" == "false" ]]; then
+        deploy_sfs_stack "${args[env_type]}"
+    else
+        log_msg "Skipping SeaweedFS stack deployment (--skip-sfs)"
+    fi
+
     build_app "${container_name}"
     first_start
 
     setup_database "${container_name}" "${args[env_type]}"
-    create_minio_bucket "${args[env_type]}"
-    create_sfs_bucket "${args[env_type]}"
     finalize_deployment "${args[env_type]}" "${args[detach]}"
 }
 
