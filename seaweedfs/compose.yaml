@@ -88,6 +88,8 @@ services:
                 -max=0
                 -metricsPort=${SFS_VOLUME_METRICS_PORT:-9325}
                 -port=${SFS_VOLUME_PORT:-8080}
+        # entrypoint: /bin/sh
+        # command: -c "while true; do sleep 30; done"
         depends_on:
             - sds-gateway-local-sfs-master
         tty: true
@@ -131,7 +133,7 @@ services:
             - sds-gateway-local-sfs-master
             - sds-gateway-local-sfs-volume
         volumes:
-            # persistence
+            # persistence: IMPORTANT: must be a parent of filer.toml's leveldb2.dir
             - source: ./data/filer
               target: /data/filer
               type: bind

@@ -36,6 +36,10 @@
 			"name": "jupyter",
 			"path": "./jupyter"
 		},
+		{
+			"name": "seaweedfs",
+			"path": "./seaweedfs"
+		},
 	],
 	"settings": {
 		"[python]": {
