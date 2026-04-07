@@ -45,8 +45,6 @@ services:
                 condition: service_healthy
             redis:
                 condition: service_healthy
-            minio:
-                condition: service_healthy
         volumes:
             - sds-gateway-local-uv-cache:/opt/uv-cache/
             - sds-gateway-local-uv-venv-app:/opt/uv-venv/
@@ -74,7 +72,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
+            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         # remember /entrypoint runs first
@@ -82,9 +80,8 @@ services:
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
-            - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-network-local # also carries SeaweedFS S3 traffic — see seaweedfs/compose.yaml
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
             interval: 30s
@@ -125,11 +122,9 @@ services:
         networks:
             - sds-network-local
 
+    # DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
+    # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
     minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
         image: minio/minio:latest
         container_name: sds-gateway-local-minio
         volumes:
@@ -264,14 +259,13 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
+            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/worker-start"
         networks:
-            - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-network-local # also carries SeaweedFS S3 traffic
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -309,14 +303,13 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
+            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/beat-start"
         networks:
-            - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-network-local # also carries SeaweedFS S3 traffic
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -354,16 +347,15 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
+            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/flower-start"
         ports:
             - "5555:5555" # Flower web interface
         networks:
-            - sds-gateway-local-minio-net
             - sds-gateway-local-opensearch-net
-            - sds-network-local
+            - sds-network-local # also carries SeaweedFS S3 traffic
 
     # ==========================
     # local development services
