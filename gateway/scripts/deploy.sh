@@ -35,6 +35,7 @@ function show_usage() {
     echo "  4. Database migrations"
     echo "  5. Superuser creation (interactive)"
     echo "  6. MinIO bucket creation"
+    echo "  7. SeaweedFS S3 credential setup and bucket creation"
     echo ""
     echo -e "\e[34mOPTIONS:\e[0m"
     echo "    -f, --force         Overwrite existing env files when generating secrets"
@@ -64,7 +65,7 @@ function show_usage() {
     echo -e "\e[34mNOTES:\e[0m"
     echo "    - For production, ensure prod-hostnames.env is configured first"
     echo "    - Superuser creation is interactive by default"
-    echo "    - MinIO bucket must be created manually via web UI (localhost:9001 or 19001)"
+    echo "    - SFS S3 credentials are configured automatically via weed shell"
     echo "    - Use 'just redeploy' for quick rebuilds after initial deploy"
     exit 0
 }
@@ -435,6 +436,48 @@ function create_minio_bucket() {
     just dc exec -it minio mc mb --ignore-existing "${alias_name}/spectrumx"
 }
 
+function create_sfs_bucket() {
+    local env_type="$1"
+    local sfs_env_file="${PROJECT_ROOT}/.envs/${env_type}/sfs.env"
+
+    log_header "SeaweedFS Bucket Setup"
+
+    if [[ ! -f "${sfs_env_file}" ]]; then
+        log_error "SeaweedFS environment file not found: ${sfs_env_file}"
+        return 1
+    fi
+
+    local access_key secret_key bucket_name
+    access_key=$(grep -E '^AWS_ACCESS_KEY_ID=' "${sfs_env_file}" | cut -d'=' -f2)
+    secret_key=$(grep -E '^AWS_SECRET_ACCESS_KEY=' "${sfs_env_file}" | cut -d'=' -f2)
+    bucket_name=$(grep -E '^AWS_STORAGE_BUCKET_NAME=' "${sfs_env_file}" | cut -d'=' -f2)
+
+    if [[ -z "${access_key}" || -z "${secret_key}" || -z "${bucket_name}" ]]; then
+        log_error "Failed to extract SFS credentials from ${sfs_env_file}"
+        return 1
+    fi
+
+    # container name follows the same sds-gateway-<env>-sfs-filer pattern
+    local filer_container="sds-gateway-${env_type}-sfs-filer"
+    if ! docker inspect "${filer_container}" &>/dev/null; then
+        log_warning "SFS filer container '${filer_container}' not found — skipping bucket setup"
+        log_msg "Start the SeaweedFS stack and re-run: create_sfs_bucket ${env_type}"
+        return 0
+    fi
+
+    log_msg "Configuring SFS S3 credentials for user '${access_key}'..."
+    docker exec "${filer_container}" weed shell \
+        -master="sds-gateway-${env_type}-sfs-master:9333" \
+        -run "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *"
+
+    log_msg "Creating SFS bucket '${bucket_name}'..."
+    docker exec "${filer_container}" weed shell \
+        -master="sds-gateway-${env_type}-sfs-master:9333" \
+        -run "s3.bucket.create -name ${bucket_name}"
+
+    log_success "SeaweedFS bucket '${bucket_name}' ready"
+}
+
 function finalize_deployment() {
     local env_type="$1"
     local detach="$2"
@@ -474,6 +517,7 @@ function main() {
 
     setup_database "${container_name}" "${args[env_type]}"
     create_minio_bucket "${args[env_type]}"
+    create_sfs_bucket "${args[env_type]}"
     finalize_deployment "${args[env_type]}" "${args[detach]}"
 }
 

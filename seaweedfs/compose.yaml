@@ -22,7 +22,7 @@ networks:
     sds-gateway-local-seaweed-net:
         driver: bridge
     sds-network-local:
-        external: true # defined in the compose.yaml of the gateway
+        external: true # shared with gateway — see gateway/compose.local.yaml
 
 services:
     sds-gateway-local-sfs-master:
@@ -54,6 +54,8 @@ services:
             #   target: /etc/seaweedfs/certs
             #   type: bind
             #   read_only: true
+        networks:
+            - sds-gateway-local-seaweed-net
         deploy:
             placement:
                 max_replicas_per_node: 1
@@ -118,6 +120,8 @@ services:
             # - /mnt/disk6/seaweedfs:/data6
             # - /mnt/disk7/seaweedfs:/data7
             # - /mnt/disk8/seaweedfs:/data8
+        networks:
+            - sds-gateway-local-seaweed-net
     sds-gateway-local-sfs-filer:
         image: docker.io/chrislusf/seaweedfs:4.17_large_disk
         container_name: sds-gateway-local-sfs-filer
@@ -143,8 +147,12 @@ services:
               target: /etc/seaweedfs/
               type: bind
               read_only: true
+        networks:
+            - sds-gateway-local-seaweed-net
         restart: unless-stopped
 
+    # S3-compatible endpoint for the gateway Django app.
+    # Set AWS_S3_ENDPOINT_URL and MINIO_ENDPOINT_URL to sds-gateway-local-sfs-s3:8333
     sds-gateway-local-sfs-s3:
         image: docker.io/chrislusf/seaweedfs:4.17_large_disk
         container_name: sds-gateway-local-sfs-s3
@@ -157,6 +165,20 @@ services:
             - sds-gateway-local-sfs-master
             - sds-gateway-local-sfs-volume
             - sds-gateway-local-sfs-filer
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 15s
+            timeout: 5s
+        networks:
+            - sds-gateway-local-seaweed-net
+            - sds-network-local
         restart: unless-stopped
 
     sds-gateway-local-sfs-webdav:
@@ -170,6 +192,8 @@ services:
             - sds-gateway-local-sfs-master
             - sds-gateway-local-sfs-volume
             - sds-gateway-local-sfs-filer
+        networks:
+            - sds-gateway-local-seaweed-net
         restart: unless-stopped
 
     sds-gateway-local-sfs-prometheus:
@@ -183,3 +207,5 @@ services:
         depends_on:
             - sds-gateway-local-sfs-s3
         restart: unless-stopped
+        networks:
+            - sds-gateway-local-seaweed-net
