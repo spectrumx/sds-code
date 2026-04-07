@@ -1,0 +1,175 @@
+# LOCAL COMPOSE FILE — SeaweedFS stack
+# Container names and resources start with "sds-gateway-local-" to avoid accidents.
+#
+# URLS (defaults):
+#   Cluster status:   http://localhost:9333
+#   Volume status:    http://localhost:8080/ui/index.html
+#   File browser:     http://localhost:8888
+#   S3 API:           http://localhost:8333
+#   WebDAV:           http://localhost:7333
+#   Prometheus:       http://localhost:9000/targets
+
+volumes:
+  sds-gateway-local-sfs-master-meta: {}
+
+networks:
+  sds-gateway-local-seaweed-net:
+    driver: bridge
+  sds-network-local:
+    name: sds-network-local
+    driver: bridge
+
+services:
+  sds-gateway-local-sfs-master:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-local-sfs-master
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - ${SFS_MASTER_PORT:-9333}:${SFS_MASTER_PORT:-9333}
+      - ${SFS_MASTER_GRPC_PORT:-19333}:${SFS_MASTER_GRPC_PORT:-19333}
+      - ${SFS_MASTER_METRICS_PORT:-9324}:${SFS_MASTER_METRICS_PORT:-9324}
+    command: |
+      master
+          -ip=sds-gateway-local-sfs-master
+          -ip.bind=0.0.0.0
+          -metricsPort=${SFS_MASTER_METRICS_PORT:-9324}
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-local-seaweed-net
+    deploy:
+      placement:
+        max_replicas_per_node: 1
+
+  sds-gateway-local-sfs-volume:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-local-sfs-volume
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - ${SFS_VOLUME_PORT:-8080}:${SFS_VOLUME_PORT:-8080}
+      - ${SFS_VOLUME_GRPC_PORT:-18080}:${SFS_VOLUME_GRPC_PORT:-18080}
+      - ${SFS_VOLUME_METRICS_PORT:-9325}:${SFS_VOLUME_METRICS_PORT:-9325}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null",
+        ]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 15s
+      timeout: 5s
+    command: |
+      volume
+          -dir=/data/volumes
+          -ip.bind=0.0.0.0
+          -ip=sds-gateway-local-sfs-volume
+          -master="sds-gateway-local-sfs-master:${SFS_MASTER_PORT:-9333}"
+          -max=0
+          -metricsPort=${SFS_VOLUME_METRICS_PORT:-9325}
+          -port=${SFS_VOLUME_PORT:-8080}
+    depends_on:
+      - sds-gateway-local-sfs-master
+    tty: true
+    restart: unless-stopped
+    volumes:
+      - source: ./data/volumes
+        target: /data/volumes
+        type: bind
+        read_only: false
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-local-seaweed-net
+
+  sds-gateway-local-sfs-filer:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-local-sfs-filer
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - ${SFS_FILER_PORT:-8888}:${SFS_FILER_PORT:-8888}
+      - ${SFS_FILER_GRPC_PORT:-18888}:${SFS_FILER_GRPC_PORT:-18888}
+      - ${SFS_FILER_METRICS_PORT:-9326}:${SFS_FILER_METRICS_PORT:-9326}
+    command: 'filer -ip=sds-gateway-local-sfs-filer -master="sds-gateway-local-sfs-master:${SFS_MASTER_PORT:-9333}" -ip.bind=0.0.0.0 -metricsPort=${SFS_FILER_METRICS_PORT:-9326}'
+    tty: true
+    stdin_open: true
+    depends_on:
+      - sds-gateway-local-sfs-master
+      - sds-gateway-local-sfs-volume
+    volumes:
+      - source: ./data/filer
+        target: /data/filer
+        type: bind
+        read_only: false
+      - source: ./config/
+        target: /etc/seaweedfs/
+        type: bind
+        read_only: true
+    networks:
+      - sds-gateway-local-seaweed-net
+    restart: unless-stopped
+
+  sds-gateway-local-sfs-s3:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-local-sfs-s3
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - ${SFS_S3_PORT:-8333}:${SFS_S3_PORT:-8333}
+      - ${SFS_S3_METRICS_PORT:-9327}:${SFS_S3_METRICS_PORT:-9327}
+    command: 's3 -filer="sds-gateway-local-sfs-filer:${SFS_FILER_PORT:-8888}" -ip.bind=0.0.0.0 -metricsPort=${SFS_S3_METRICS_PORT:-9327}'
+    depends_on:
+      - sds-gateway-local-sfs-master
+      - sds-gateway-local-sfs-volume
+      - sds-gateway-local-sfs-filer
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
+        ]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 15s
+      timeout: 5s
+    networks:
+      - sds-gateway-local-seaweed-net
+      - sds-network-local
+    restart: unless-stopped
+
+  sds-gateway-local-sfs-webdav:
+    image: docker.io/chrislusf/seaweedfs:4.17_large_disk
+    container_name: sds-gateway-local-sfs-webdav
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      - ${SFS_WEBDAV_PORT:-7333}:${SFS_WEBDAV_PORT:-7333}
+    command: 'webdav -filer="sds-gateway-local-sfs-filer:${SFS_FILER_PORT:-8888}"'
+    depends_on:
+      - sds-gateway-local-sfs-master
+      - sds-gateway-local-sfs-volume
+      - sds-gateway-local-sfs-filer
+    networks:
+      - sds-gateway-local-seaweed-net
+    restart: unless-stopped
+
+  sds-gateway-local-sfs-prometheus:
+    image: docker.io/prom/prometheus:latest
+    container_name: sds-gateway-local-sfs-prometheus
+    ports:
+      - ${SFS_PROMETHEUS_HOST_PORT:-9000}:${SFS_PROMETHEUS_CONTAINER_PORT:-9090}
+    volumes:
+      - ./prometheus:/etc/prometheus
+    command: "--web.enable-lifecycle --config.file=/etc/prometheus/prometheus.yaml"
+    depends_on:
+      - sds-gateway-local-sfs-s3
+    restart: unless-stopped
+    networks:
+      - sds-gateway-local-seaweed-net
