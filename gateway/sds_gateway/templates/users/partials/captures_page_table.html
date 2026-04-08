@@ -148,7 +148,9 @@
                                                 data-total-size="{{ cap.total_file_size|default:0 }}"
                                                 data-data-files-count="{{ cap.data_files_info.count|default:0 }}"
                                                 data-total-files-count="{{ cap.files|length|default:0 }}"
-                                                data-capture-start-epoch-sec="{{ cap.capture_start_epoch_sec|default:0 }}">Download</button>
+                                                data-capture-start-epoch-sec="{{ cap.capture_start_epoch_sec|default:0 }}">
+                                            Download
+                                        </button>
                                     </li>
                                     {% if cap.capture_type == 'drf' %}
                                         <li>

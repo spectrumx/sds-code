@@ -176,7 +176,6 @@ class PageLifecycleManager {
 		this.initializeDatasetModals();
 	}
 
-
 	/**
 	 * Single DownloadActionManager for document-wide .web-download-btn / SDK buttons (not per modal).
 	 */

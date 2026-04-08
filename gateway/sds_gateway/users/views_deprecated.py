@@ -3301,30 +3301,47 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
 
 
-def _parse_optional_time(raw_value: str | None, param_name: str) -> tuple[int | None, JsonResponse | None]:
-    """Parse optional start/end time. Returns (value, None) or (None, error_response)."""
+def _parse_optional_time(
+    raw_value: str | None, param_name: str
+) -> tuple[int | None, JsonResponse | None]:
+    """Parse optional start/end time.
+
+    Returns (value, None), or (None, error JsonResponse).
+    """
     if raw_value in (None, ""):
         return None, None
     try:
         value = int(raw_value)
     except (TypeError, ValueError):
         return None, JsonResponse(
-            {"success": False, "message": f"Invalid {param_name}; it must be an integer value."},
+            {
+                "success": False,
+                "message": f"Invalid {param_name}; it must be an integer value.",
+            },
             status=400,
         )
     if value < 0:
+        message = f"Invalid {param_name}; it must be greater than or equal to 0."
         return None, JsonResponse(
-            {"success": False, "message": f"Invalid {param_name}; it must be greater than or equal to 0."},
+            {
+                "success": False,
+                "message": message,
+            },
             status=400,
         )
     return value, None
 
 
-def _validate_time_range(start_time: int | None, end_time: int | None) -> JsonResponse | None:
+def _validate_time_range(
+    start_time: int | None, end_time: int | None
+) -> JsonResponse | None:
     """Return 400 JsonResponse if both provided and start >= end; else None."""
     if start_time is not None and end_time is not None and start_time >= end_time:
         return JsonResponse(
-            {"success": False, "message": "Invalid time range; start_time must be less than end_time."},
+            {
+                "success": False,
+                "message": "Invalid time range; start_time must be less than end_time.",
+            },
             status=400,
         )
     return None
@@ -3344,7 +3361,7 @@ class DownloadItemView(Auth0LoginRequiredMixin, View):
         ItemType.CAPTURE: Capture,
     }
 
-    def post(
+    def post(  # noqa: PLR0911
         self,
         request: HttpRequest,
         item_uuid: UUID,

@@ -587,7 +587,7 @@ class TestDownloadItemView:
     def test_unified_download_capture_with_time_filter_success(
         self, client: Client, owner: User
     ) -> None:
-        """Test capture download request with start_time/end_time passes bounds to task."""
+        """POST with start_time/end_time forwards bounds to the download task."""
         capture = Capture.objects.create(
             uuid=uuid.uuid4(),
             name="Test DRF Capture",
@@ -601,11 +601,11 @@ class TestDownloadItemView:
             "users:download_item",
             kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
         )
-        data = {"start_time": "1000", "end_time": "5000"}
+        start_ms = 1000
+        end_ms = 5000
+        data = {"start_time": str(start_ms), "end_time": str(end_ms)}
 
-        with patch(
-            "sds_gateway.users.views.send_item_files_email"
-        ) as mock_send_task:
+        with patch("sds_gateway.users.views.send_item_files_email") as mock_send_task:
             mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
             response = client.post(url, data)
 
@@ -615,8 +615,8 @@ class TestDownloadItemView:
         assert "download request accepted" in result["message"].lower()
         mock_send_task.delay.assert_called_once()
         call_kwargs = mock_send_task.delay.call_args[1]
-        assert call_kwargs["start_time"] == 1000
-        assert call_kwargs["end_time"] == 5000
+        assert call_kwargs["start_time"] == start_ms
+        assert call_kwargs["end_time"] == end_ms
 
     def test_unified_download_capture_without_time_filter(
         self, client: Client, owner: User
@@ -636,9 +636,7 @@ class TestDownloadItemView:
             kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
         )
 
-        with patch(
-            "sds_gateway.users.views.send_item_files_email"
-        ) as mock_send_task:
+        with patch("sds_gateway.users.views.send_item_files_email") as mock_send_task:
             mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
             response = client.post(url)
 
@@ -672,4 +670,7 @@ class TestDownloadItemView:
         assert response.status_code == status.HTTP_400_BAD_REQUEST
         result = response.json()
         assert result["success"] is False
-        assert "start_time" in result["message"].lower() or "time range" in result["message"].lower()
+        assert (
+            "start_time" in result["message"].lower()
+            or "time range" in result["message"].lower()
+        )

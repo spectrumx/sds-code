@@ -1,12 +1,15 @@
 import re
 
 from django.db.models import QuerySet
-
+from loguru import logger as log
 from opensearchpy.exceptions import NotFoundError as OpenSearchNotFoundError
-from sds_gateway.api_methods.models import CaptureType, Capture, File, DRF_RF_FILENAME_REGEX_STR
+
+from sds_gateway.api_methods.models import DRF_RF_FILENAME_REGEX_STR
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
-from loguru import logger as log
 
 # Digital RF spec: rf@SECONDS.MILLISECONDS.h5 (e.g. rf@1396379502.000.h5)
 # https://github.com/MITHaystack/digital_rf
@@ -55,14 +58,12 @@ def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[in
     try:
         response = client.get(index=index, id=capture_uuid)
     except OpenSearchNotFoundError as e:
-        raise ValueError(
-            f"Capture {capture_uuid} not found in OpenSearch index {index}"
-        ) from e
+        msg = f"Capture {capture_uuid} not found in OpenSearch index {index}"
+        raise ValueError(msg) from e
 
     if not response.get("found"):
-        raise ValueError(
-            f"Capture {capture_uuid} not found in OpenSearch index {index}"
-        )
+        msg = f"Capture {capture_uuid} not found in OpenSearch index {index}"
+        raise ValueError(msg)
 
     source = response.get("_source", {})
     search_props = source.get("search_props", {})
@@ -90,7 +91,7 @@ def filter_capture_data_files_selection_bounds(
     capture_type: CaptureType,
     capture: Capture,
     start_time: int,  # relative ms from start of capture (from UI)
-    end_time: int,    # relative ms from start of capture (from UI)
+    end_time: int,  # relative ms from start of capture (from UI)
 ) -> QuerySet[File]:
     """Filter the capture file selection bounds to the given start and end times."""
     _catch_capture_type_error(capture_type)
@@ -108,21 +109,27 @@ def filter_capture_data_files_selection_bounds(
         name__lte=end_file_name,
     ).order_by("name")
 
+
 def get_capture_files_with_temporal_filter(
     capture_type: CaptureType,
     capture: Capture,
-    start_time: int | None = None, # milliseconds since start of capture
+    start_time: int | None = None,  # milliseconds since start of capture
     end_time: int | None = None,
 ) -> QuerySet[File]:
     """Get the capture files with temporal filtering."""
     _catch_capture_type_error(capture_type)
 
     if start_time is None or end_time is None:
-        log.warning("Start or end time is None, returning all capture files without temporal filtering")
+        log.warning(
+            "Start or end time is None; returning all capture files without "
+            "temporal filtering"
+        )
         return get_capture_files(capture)
 
     # get non-data files
-    non_data_files = get_capture_files(capture).exclude(name__regex=DRF_RF_FILENAME_REGEX_STR)
+    non_data_files = get_capture_files(capture).exclude(
+        name__regex=DRF_RF_FILENAME_REGEX_STR
+    )
 
     # get data files with temporal filtering
     data_files = filter_capture_data_files_selection_bounds(

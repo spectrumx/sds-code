@@ -1,11 +1,13 @@
 import time
-
 from unittest.mock import patch
+
 from django.db.models import QuerySet
 from django.test import TestCase
 
-import sds_gateway.api_methods.helpers.temporal_filtering as temporal_filtering
-from sds_gateway.api_methods.tests.factories import CaptureFactory, DRFDataFileFactory, UserFactory
+from sds_gateway.api_methods.helpers import temporal_filtering
+from sds_gateway.api_methods.tests.factories import CaptureFactory
+from sds_gateway.api_methods.tests.factories import DRFDataFileFactory
+from sds_gateway.api_methods.tests.factories import UserFactory
 
 
 class TemporalFilteringTestCase(TestCase):
@@ -34,14 +36,16 @@ class TemporalFilteringTestCase(TestCase):
     def test_rf_filename_ms_conversion(self):
         for i in range(10):
             expected_ms = (self.now + i) * 1000
-            filename_to_ms = temporal_filtering.drf_rf_filename_to_ms(self.files[i].name)
+            filename_to_ms = temporal_filtering.drf_rf_filename_to_ms(
+                self.files[i].name
+            )
             assert filename_to_ms is not None
             assert filename_to_ms == expected_ms
 
             ms_to_filename = temporal_filtering.drf_rf_filename_from_ms(expected_ms)
             assert ms_to_filename is not None
             assert ms_to_filename == self.files[i].name
-    
+
     def test_get_capture_bounds(self):
         start_sec, end_sec = self._get_test_capture_bounds()
         # mock response, opensearch calls are tested in test_opensearch.py
@@ -54,7 +58,9 @@ class TemporalFilteringTestCase(TestCase):
                 }
             },
         }
-        with patch("sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client") as m:
+        with patch(
+            "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
+        ) as m:
             m.return_value.get.return_value = mock_response
             start_time, end_time = temporal_filtering.get_capture_bounds(
                 self.capture.capture_type, str(self.capture.uuid)
@@ -63,7 +69,7 @@ class TemporalFilteringTestCase(TestCase):
         assert end_time is not None
         assert start_time == start_sec
         assert end_time == end_sec
-    
+
     def test_get_file_cadence(self):
         start_sec, end_sec = self._get_test_capture_bounds()
         # mock response, opensearch calls are tested in test_opensearch.py
@@ -76,18 +82,23 @@ class TemporalFilteringTestCase(TestCase):
                 }
             },
         }
-        with patch("sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client") as m:
+        with patch(
+            "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
+        ) as m:
             m.return_value.get.return_value = mock_response
             file_cadence = temporal_filtering.get_file_cadence(
                 self.capture.capture_type, self.capture
             )
-            
+
             expected_cadence = max(
                 1, int((end_sec - start_sec) * 1000 / self.file_count)
             )
-            
+
             # duration_ms / DRF data file count (get_drf_data_files_stats total_count)
-            assert self.capture.get_drf_data_files_stats()["total_count"] == self.file_count
+            assert (
+                self.capture.get_drf_data_files_stats()["total_count"]
+                == self.file_count
+            )
             assert file_cadence == expected_cadence
 
     def test_file_filtering(self):
@@ -105,10 +116,14 @@ class TemporalFilteringTestCase(TestCase):
                 }
             },
         }
-        with patch("sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client") as m:
+        with patch(
+            "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
+        ) as m:
             m.return_value.get.return_value = mock_response
-            filtered_files = temporal_filtering.filter_capture_data_files_selection_bounds(
-                self.capture.capture_type, self.capture, start_ms, end_ms
+            filtered_files = (
+                temporal_filtering.filter_capture_data_files_selection_bounds(
+                    self.capture.capture_type, self.capture, start_ms, end_ms
+                )
             )
         assert isinstance(filtered_files, QuerySet)
         assert filtered_files.count() == expected_count

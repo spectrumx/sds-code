@@ -12,7 +12,7 @@ function msToHms(ms) {
 	const s = totalSec % 60;
 	const decimalMs = n % 1000;
 	const hms = [h, m, s].map((v) => String(v).padStart(2, "0")).join(":");
-	return hms + "." + String(decimalMs).padStart(3, "0");
+	return `${hms}.${String(decimalMs).padStart(3, "0")}`;
 }
 
 function formatUtcRange(startEpochSec, startMs, endMs) {
@@ -21,18 +21,8 @@ function formatUtcRange(startEpochSec, startMs, endMs) {
 	const endDate = new Date(startEpochSec * 1000 + endMs);
 	const pad2 = (x) => String(x).padStart(2, "0");
 	const fmt = (d) =>
-		pad2(d.getUTCHours()) +
-		":" +
-		pad2(d.getUTCMinutes()) +
-		":" +
-		pad2(d.getUTCSeconds()) +
-		" " +
-		pad2(d.getUTCMonth() + 1) +
-		"/" +
-		pad2(d.getUTCDate()) +
-		"/" +
-		d.getUTCFullYear();
-	return fmt(startDate) + " - " + fmt(endDate) + " (UTC)";
+		`${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())} ${pad2(d.getUTCMonth() + 1)}/${pad2(d.getUTCDate())}/${d.getUTCFullYear()}`;
+	return `${fmt(startDate)} - ${fmt(endDate)} (UTC)`;
 }
 
 /** Format ms from capture start as UTC string for display (Y-m-d H:i:s). */
@@ -40,27 +30,15 @@ function msToUtcString(captureStartEpochSec, ms) {
 	if (!Number.isFinite(captureStartEpochSec) || !Number.isFinite(ms)) return "";
 	const d = new Date(captureStartEpochSec * 1000 + ms);
 	const pad2 = (x) => String(x).padStart(2, "0");
-	return (
-		d.getUTCFullYear() +
-		"-" +
-		pad2(d.getUTCMonth() + 1) +
-		"-" +
-		pad2(d.getUTCDate()) +
-		" " +
-		pad2(d.getUTCHours()) +
-		":" +
-		pad2(d.getUTCMinutes()) +
-		":" +
-		pad2(d.getUTCSeconds())
-	);
+	return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`;
 }
 
 /** Parse UTC date string (Y-m-d H:i:s or Y-m-d H:i) to epoch ms. */
 function parseUtcStringToEpochMs(str) {
-	if (!str || !str.trim()) return NaN;
+	if (!str || !str.trim()) return Number.NaN;
 	const s = str.trim();
-	const d = new Date(s.endsWith("Z") ? s : s.replace(" ", "T") + "Z");
-	return Number.isFinite(d.getTime()) ? d.getTime() : NaN;
+	const d = new Date(s.endsWith("Z") ? s : `${s.replace(" ", "T")}Z`);
+	return Number.isFinite(d.getTime()) ? d.getTime() : Number.NaN;
 }
 
 class DownloadActionManager {
@@ -119,17 +97,17 @@ class DownloadActionManager {
 
 	/**
 	 * Initialize or update the capture download temporal slider. Call before
-     * showing the modal when opening for a capture with known bounds.
-     * @param {number} durationMs - Total capture duration in milliseconds
-     * @param {number} fileCadenceMs - File cadence in milliseconds (step)
-     * @param {Object} opts - Optional: { perDataFileSize, totalSize, dataFilesCount, totalFilesCount, dataFilesTotalSize, captureUuid, captureStartEpochSec }
-     */
+	 * showing the modal when opening for a capture with known bounds.
+	 * @param {number} durationMs - Total capture duration in milliseconds
+	 * @param {number} fileCadenceMs - File cadence in milliseconds (step)
+	 * @param {Object} opts - Optional: { perDataFileSize, totalSize, dataFilesCount, totalFilesCount, dataFilesTotalSize, captureUuid, captureStartEpochSec }
+	 */
 	initializeCaptureDownloadSlider(modalId, durationMs, fileCadenceMs, opts) {
 		const webDownloadModal = document.getElementById(modalId);
 		if (!webDownloadModal) return;
 
-		opts = opts || {};
-		const q = (id) => webDownloadModal.querySelector("#" + id);
+		const resolvedOpts = opts ?? {};
+		const q = (id) => webDownloadModal.querySelector(`#${id}`);
 		const sliderEl = q("temporalFilterSlider");
 		const rangeLabel = q("temporalFilterRangeLabel");
 		const totalFilesLabel = q("totalFilesLabel");
@@ -144,74 +122,98 @@ class DownloadActionManager {
 		const endDateTimeEntry = q("endDateTimeEntry");
 		const rangeHintEl = q("temporalRangeHint");
 		const sizeWarningEl = q("temporalFilterSizeWarning");
-		if (!sliderEl || typeof noUiSlider === 'undefined') return;
-		durationMs = Number(durationMs);
-		if (!Number.isFinite(durationMs) || durationMs < 0) durationMs = 0;
-		fileCadenceMs = Number(fileCadenceMs);
-		if (!Number.isFinite(fileCadenceMs) || fileCadenceMs < 1) fileCadenceMs = 1000;
-		const perDataFileSize = Number(opts.perDataFileSize) || 0;
-		const totalSize = Number(opts.totalSize) || 0;
-		const dataFilesCount = Number(opts.dataFilesCount) || 0;
-		const totalFilesCount = Number(opts.totalFilesCount) || 0;
-		let dataFilesTotalSize = Number(opts.dataFilesTotalSize);
+		if (!sliderEl || typeof noUiSlider === "undefined") return;
+		const resolvedDurationMs = (() => {
+			const n = Number(durationMs);
+			return !Number.isFinite(n) || n < 0 ? 0 : n;
+		})();
+		const resolvedFileCadenceMs = (() => {
+			const n = Number(fileCadenceMs);
+			return !Number.isFinite(n) || n < 1 ? 1000 : n;
+		})();
+		const perDataFileSize = Number(resolvedOpts.perDataFileSize) || 0;
+		const totalSize = Number(resolvedOpts.totalSize) || 0;
+		const dataFilesCount = Number(resolvedOpts.dataFilesCount) || 0;
+		const totalFilesCount = Number(resolvedOpts.totalFilesCount) || 0;
+		let dataFilesTotalSize = Number(resolvedOpts.dataFilesTotalSize);
 		if (!Number.isFinite(dataFilesTotalSize) || dataFilesTotalSize < 0) {
 			dataFilesTotalSize = perDataFileSize * dataFilesCount;
 		}
 		let metadataFilesTotalSize = totalSize - dataFilesTotalSize;
 		if (metadataFilesTotalSize < 0) metadataFilesTotalSize = 0;
 		const metadataFilesCount = Math.max(0, totalFilesCount - dataFilesCount);
-		const captureUuid = opts.captureUuid != null ? String(opts.captureUuid) : '';
-		const captureStartEpochSec = Number(opts.captureStartEpochSec);
+		const captureUuid =
+			resolvedOpts.captureUuid != null ? String(resolvedOpts.captureUuid) : "";
+		const captureStartEpochSec = Number(resolvedOpts.captureStartEpochSec);
 		if (totalSize > 0 && dataFilesTotalSize > totalSize) {
 			console.warn(
-				'[DownloadActionManager] data files total size exceeds total size (backend/query inconsistency).',
-				{ captureUuid: captureUuid || '(unknown)', totalSize, dataFilesTotalSize, perDataFileSize, dataFilesCount }
+				"[DownloadActionManager] data files total size exceeds total size (backend/query inconsistency).",
+				{
+					captureUuid: captureUuid || "(unknown)",
+					totalSize,
+					dataFilesTotalSize,
+					perDataFileSize,
+					dataFilesCount,
+				},
 			);
 			if (sizeWarningEl) {
-				sizeWarningEl.classList.remove('d-none');
+				sizeWarningEl.classList.remove("d-none");
 			}
 			dataFilesTotalSize = totalSize;
 			metadataFilesTotalSize = 0;
 		} else if (sizeWarningEl) {
-			sizeWarningEl.classList.add('d-none');
+			sizeWarningEl.classList.add("d-none");
 		}
 		if (webDownloadModal) {
-			webDownloadModal.dataset.durationMs = String(Math.round(durationMs));
-			webDownloadModal.dataset.fileCadenceMs = String(fileCadenceMs);
-			webDownloadModal.dataset.captureStartEpochSec = Number.isFinite(captureStartEpochSec) ? String(captureStartEpochSec) : '';
+			webDownloadModal.dataset.durationMs = String(
+				Math.round(resolvedDurationMs),
+			);
+			webDownloadModal.dataset.fileCadenceMs = String(resolvedFileCadenceMs);
+			webDownloadModal.dataset.captureStartEpochSec = Number.isFinite(
+				captureStartEpochSec,
+			)
+				? String(captureStartEpochSec)
+				: "";
 		}
-		if (rangeHintEl) rangeHintEl.textContent = '0 – ' + Math.round(durationMs) + ' ms';
+		if (rangeHintEl)
+			rangeHintEl.textContent = `0 – ${Math.round(resolvedDurationMs)} ms`;
 		if (sliderEl.noUiSlider) {
 			sliderEl.noUiSlider.destroy();
 		}
-		if (rangeLabel) rangeLabel.textContent = '—';
-		if (totalFilesLabel) totalFilesLabel.textContent = '0 files';
-		if (totalSizeLabel) totalSizeLabel.textContent = window.DOMUtils.formatFileSize(totalSize);
-		if (dateTimeLabel) dateTimeLabel.textContent = '—';
-		if (startTimeInput) startTimeInput.value = '';
-		if (endTimeInput) endTimeInput.value = '';
-		if (startTimeEntry) startTimeEntry.value = '';
-		if (endTimeEntry) endTimeEntry.value = '';
+		if (rangeLabel) rangeLabel.textContent = "—";
+		if (totalFilesLabel) totalFilesLabel.textContent = "0 files";
+		if (totalSizeLabel)
+			totalSizeLabel.textContent = window.DOMUtils.formatFileSize(totalSize);
+		if (dateTimeLabel) dateTimeLabel.textContent = "—";
+		if (startTimeInput) startTimeInput.value = "";
+		if (endTimeInput) endTimeInput.value = "";
+		if (startTimeEntry) startTimeEntry.value = "";
+		if (endTimeEntry) endTimeEntry.value = "";
 		const hasEpoch = Number.isFinite(captureStartEpochSec);
 		if (startDateTimeEntry) {
-			startDateTimeEntry.value = '';
+			startDateTimeEntry.value = "";
 			startDateTimeEntry.disabled = !hasEpoch;
 		}
 		if (endDateTimeEntry) {
-			endDateTimeEntry.value = '';
+			endDateTimeEntry.value = "";
 			endDateTimeEntry.disabled = !hasEpoch;
 		}
-		if (durationMs <= 0) return;
+		if (resolvedDurationMs <= 0) return;
 		let fpStart = null;
 		let fpEnd = null;
 		const epochStart = captureStartEpochSec * 1000;
-		const epochEnd = epochStart + durationMs;
-		if (hasEpoch && typeof flatpickr !== 'undefined' && startDateTimeEntry && endDateTimeEntry) {
+		const epochEnd = epochStart + resolvedDurationMs;
+		if (
+			hasEpoch &&
+			typeof flatpickr !== "undefined" &&
+			startDateTimeEntry &&
+			endDateTimeEntry
+		) {
 			const fpOpts = {
 				enableTime: true,
 				enableSeconds: true,
 				utc: true,
-				dateFormat: 'Y-m-d H:i:S',
+				dateFormat: "Y-m-d H:i:S",
 				time_24hr: true,
 				minDate: epochStart,
 				maxDate: epochEnd,
@@ -219,135 +221,209 @@ class DownloadActionManager {
 				static: true,
 				appendTo: webDownloadModal || undefined,
 			};
-			flatpickr(startDateTimeEntry, Object.assign({}, fpOpts, {
-				onChange: function() { syncFromDateTimeEntries(); }
-			}));
-			flatpickr(endDateTimeEntry, Object.assign({}, fpOpts, {
-				onChange: function() { syncFromDateTimeEntries(); }
-			}));
+			flatpickr(
+				startDateTimeEntry,
+				Object.assign({}, fpOpts, {
+					onChange: () => {
+						syncFromDateTimeEntries();
+					},
+				}),
+			);
+			flatpickr(
+				endDateTimeEntry,
+				Object.assign({}, fpOpts, {
+					onChange: () => {
+						syncFromDateTimeEntries();
+					},
+				}),
+			);
 			fpStart = startDateTimeEntry._flatpickr;
 			fpEnd = endDateTimeEntry._flatpickr;
 			startDateTimeEntry.disabled = false;
 			endDateTimeEntry.disabled = false;
 		}
 		noUiSlider.create(sliderEl, {
-			start: [0, durationMs],
+			start: [0, resolvedDurationMs],
 			connect: true,
-			step: fileCadenceMs,
-			range: { min: 0, max: durationMs },
+			step: resolvedFileCadenceMs,
+			range: { min: 0, max: resolvedDurationMs },
 		});
-		sliderEl.noUiSlider.on('update', function(values) {
+		sliderEl.noUiSlider.on("update", (values) => {
 			const startMs = Number(values[0]);
 			const endMs = Number(values[1]);
 			// the + 1 is to include the first file in the selection
 			// as file cadence is the time between files, not the time of the file
-			const filesInSelection = Math.round((endMs - startMs) / fileCadenceMs) + 1;
+			const filesInSelection =
+				Math.round((endMs - startMs) / resolvedFileCadenceMs) + 1;
 			if (rangeLabel) {
-				rangeLabel.textContent = msToHms(startMs) + ' - ' + msToHms(endMs);
+				rangeLabel.textContent = `${msToHms(startMs)} - ${msToHms(endMs)}`;
 			}
 			if (totalFilesLabel) {
-				totalFilesLabel.textContent = dataFilesCount > 0
-					? filesInSelection + ' of ' + dataFilesCount + ' files'
-					: filesInSelection + ' files';
+				totalFilesLabel.textContent =
+					dataFilesCount > 0
+						? `${filesInSelection} of ${dataFilesCount} files`
+						: `${filesInSelection} files`;
 			}
 			if (totalSizeLabel) {
 				totalSizeLabel.textContent = window.DOMUtils.formatFileSize(
-					(perDataFileSize * filesInSelection) + metadataFilesTotalSize
+					perDataFileSize * filesInSelection + metadataFilesTotalSize,
 				);
 			}
 			if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
-				dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, startMs, endMs);
+				dateTimeLabel.textContent = formatUtcRange(
+					captureStartEpochSec,
+					startMs,
+					endMs,
+				);
 			}
 			if (startTimeInput) startTimeInput.value = String(Math.round(startMs));
 			if (endTimeInput) endTimeInput.value = String(Math.round(endMs));
 			if (startTimeEntry) startTimeEntry.value = String(Math.round(startMs));
 			if (endTimeEntry) endTimeEntry.value = String(Math.round(endMs));
 			if (hasEpoch) {
-				if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart + startMs);
-				else if (startDateTimeEntry) startDateTimeEntry.value = msToUtcString(captureStartEpochSec, startMs);
-				if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochStart + endMs);
-				else if (endDateTimeEntry) endDateTimeEntry.value = msToUtcString(captureStartEpochSec, endMs);
+				if (fpStart && typeof fpStart.setDate === "function")
+					fpStart.setDate(epochStart + startMs);
+				else if (startDateTimeEntry)
+					startDateTimeEntry.value = msToUtcString(
+						captureStartEpochSec,
+						startMs,
+					);
+				if (fpEnd && typeof fpEnd.setDate === "function")
+					fpEnd.setDate(epochStart + endMs);
+				else if (endDateTimeEntry)
+					endDateTimeEntry.value = msToUtcString(captureStartEpochSec, endMs);
 			}
 		});
 		if (rangeLabel) {
-			rangeLabel.textContent = '0:00:00.000 - ' + msToHms(durationMs);
+			rangeLabel.textContent = `0:00:00.000 - ${msToHms(resolvedDurationMs)}`;
 		}
 		if (totalFilesLabel) {
-			totalFilesLabel.textContent = dataFilesCount > 0
-				? dataFilesCount + ' files'
-				: '0 files';
+			totalFilesLabel.textContent =
+				dataFilesCount > 0 ? `${dataFilesCount} files` : "0 files";
 		}
 		if (metadataFilesLabel) {
-			metadataFilesLabel.textContent = metadataFilesCount > 0
-				? metadataFilesCount + ' files'
-				: '0 files';
+			metadataFilesLabel.textContent =
+				metadataFilesCount > 0 ? `${metadataFilesCount} files` : "0 files";
 		}
 		if (dateTimeLabel && Number.isFinite(captureStartEpochSec)) {
-			dateTimeLabel.textContent = formatUtcRange(captureStartEpochSec, 0, durationMs);
+			dateTimeLabel.textContent = formatUtcRange(
+				captureStartEpochSec,
+				0,
+				resolvedDurationMs,
+			);
 		}
-		const startVal = '0';
-		const endVal = String(durationMs);
+		const startVal = "0";
+		const endVal = String(resolvedDurationMs);
 		if (startTimeInput) startTimeInput.value = startVal;
 		if (endTimeInput) endTimeInput.value = endVal;
 		if (startTimeEntry) startTimeEntry.value = startVal;
 		if (endTimeEntry) endTimeEntry.value = endVal;
 		if (hasEpoch && startDateTimeEntry && endDateTimeEntry) {
-			if (fpStart && typeof fpStart.setDate === 'function') fpStart.setDate(epochStart);
+			if (fpStart && typeof fpStart.setDate === "function")
+				fpStart.setDate(epochStart);
 			else startDateTimeEntry.value = msToUtcString(captureStartEpochSec, 0);
-			if (fpEnd && typeof fpEnd.setDate === 'function') fpEnd.setDate(epochEnd);
-			else endDateTimeEntry.value = msToUtcString(captureStartEpochSec, durationMs);
-			if (!fpStart) { startDateTimeEntry.disabled = false; endDateTimeEntry.disabled = false; }
+			if (fpEnd && typeof fpEnd.setDate === "function") fpEnd.setDate(epochEnd);
+			else
+				endDateTimeEntry.value = msToUtcString(
+					captureStartEpochSec,
+					resolvedDurationMs,
+				);
+			if (!fpStart) {
+				startDateTimeEntry.disabled = false;
+				endDateTimeEntry.disabled = false;
+			}
 		}
 
 		function syncSliderFromEntries() {
 			if (!sliderEl.noUiSlider || !startTimeEntry || !endTimeEntry) return;
 			const s = startTimeEntry.value.trim();
 			const e = endTimeEntry.value.trim();
-			let startMs = s === '' ? 0 : parseInt(s, 10);
-			let endMs = e === '' ? durationMs : parseInt(e, 10);
+			let startMs = s === "" ? 0 : Number.parseInt(s, 10);
+			let endMs = e === "" ? resolvedDurationMs : Number.parseInt(e, 10);
 			if (!Number.isFinite(startMs)) startMs = 0;
-			if (!Number.isFinite(endMs)) endMs = durationMs;
-			startMs = Math.max(0, Math.min(startMs, durationMs));
-			endMs = Math.max(0, Math.min(endMs, durationMs));
-			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			if (!Number.isFinite(endMs)) endMs = resolvedDurationMs;
+			startMs = Math.max(0, Math.min(startMs, resolvedDurationMs));
+			endMs = Math.max(0, Math.min(endMs, resolvedDurationMs));
+			if (startMs >= endMs)
+				endMs = Math.min(startMs + resolvedFileCadenceMs, resolvedDurationMs);
 			sliderEl.noUiSlider.set([startMs, endMs]);
 		}
 		function syncFromDateTimeEntries() {
-			if (!hasEpoch || !sliderEl.noUiSlider || !startDateTimeEntry || !endDateTimeEntry) return;
-			let startMs, endMs;
+			if (
+				!hasEpoch ||
+				!sliderEl.noUiSlider ||
+				!startDateTimeEntry ||
+				!endDateTimeEntry
+			)
+				return;
+			let startMs;
+			let endMs;
 			if (startDateTimeEntry._flatpickr && endDateTimeEntry._flatpickr) {
 				const dStart = startDateTimeEntry._flatpickr.selectedDates[0];
 				const dEnd = endDateTimeEntry._flatpickr.selectedDates[0];
 				startMs = dStart ? dStart.getTime() - epochStart : 0;
-				endMs = dEnd ? dEnd.getTime() - epochStart : durationMs;
+				endMs = dEnd ? dEnd.getTime() - epochStart : resolvedDurationMs;
 			} else {
-				startMs = parseUtcStringToEpochMs(startDateTimeEntry.value) - epochStart;
+				startMs =
+					parseUtcStringToEpochMs(startDateTimeEntry.value) - epochStart;
 				endMs = parseUtcStringToEpochMs(endDateTimeEntry.value) - epochStart;
 			}
 			if (Number.isNaN(startMs) || Number.isNaN(endMs)) return;
-			startMs = Math.max(0, Math.min(startMs, durationMs));
-			endMs = Math.max(0, Math.min(endMs, durationMs));
-			if (startMs >= endMs) endMs = Math.min(startMs + fileCadenceMs, durationMs);
+			startMs = Math.max(0, Math.min(startMs, resolvedDurationMs));
+			endMs = Math.max(0, Math.min(endMs, resolvedDurationMs));
+			if (startMs >= endMs)
+				endMs = Math.min(startMs + resolvedFileCadenceMs, resolvedDurationMs);
 			const cur = sliderEl.noUiSlider.get();
-			if (Math.round(Number(cur[0])) === Math.round(startMs) && Math.round(Number(cur[1])) === Math.round(endMs)) return;
+			if (
+				Math.round(Number(cur[0])) === Math.round(startMs) &&
+				Math.round(Number(cur[1])) === Math.round(endMs)
+			)
+				return;
 			sliderEl.noUiSlider.set([startMs, endMs]);
 		}
-		if (startTimeEntry) startTimeEntry.addEventListener('change', syncSliderFromEntries);
-		if (endTimeEntry) endTimeEntry.addEventListener('change', syncSliderFromEntries);
-		if (startDateTimeEntry && !startDateTimeEntry._flatpickr) startDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
-		if (endDateTimeEntry && !endDateTimeEntry._flatpickr) endDateTimeEntry.addEventListener('change', syncFromDateTimeEntries);
+		if (startTimeEntry)
+			startTimeEntry.addEventListener("change", syncSliderFromEntries);
+		if (endTimeEntry)
+			endTimeEntry.addEventListener("change", syncSliderFromEntries);
+		if (startDateTimeEntry && !startDateTimeEntry._flatpickr)
+			startDateTimeEntry.addEventListener("change", syncFromDateTimeEntries);
+		if (endDateTimeEntry && !endDateTimeEntry._flatpickr)
+			endDateTimeEntry.addEventListener("change", syncFromDateTimeEntries);
 	}
 
 	setTemporalSliderAttrs(modalId, button, itemUuid) {
 		// Initialize temporal slider from button data attributes (clears or builds slider)
-		let durationMs = parseInt(button.getAttribute("data-length-of-capture-ms"), 10);
-		let fileCadenceMs = parseInt(button.getAttribute("data-file-cadence-ms"), 10);
-		let perDataFileSize = parseFloat(button.getAttribute("data-per-data-file-size"));
-		let dataFilesCount = parseInt(button.getAttribute("data-data-files-count"), 10);
-		let dataFilesTotalSize = parseInt(button.getAttribute("data-total-data-file-size"), 10);
-		let totalSize = parseInt(button.getAttribute("data-total-size"), 10);
-		let totalFilesCount = parseInt(button.getAttribute("data-total-files-count"), 10);
-		let captureStartEpochSec = parseInt(button.getAttribute("data-capture-start-epoch-sec"), 10);
+		const durationMs = Number.parseInt(
+			button.getAttribute("data-length-of-capture-ms"),
+			10,
+		);
+		const fileCadenceMs = Number.parseInt(
+			button.getAttribute("data-file-cadence-ms"),
+			10,
+		);
+		const perDataFileSize = Number.parseFloat(
+			button.getAttribute("data-per-data-file-size"),
+		);
+		const dataFilesCount = Number.parseInt(
+			button.getAttribute("data-data-files-count"),
+			10,
+		);
+		const dataFilesTotalSize = Number.parseInt(
+			button.getAttribute("data-total-data-file-size"),
+			10,
+		);
+		const totalSize = Number.parseInt(
+			button.getAttribute("data-total-size"),
+			10,
+		);
+		const totalFilesCount = Number.parseInt(
+			button.getAttribute("data-total-files-count"),
+			10,
+		);
+		const captureStartEpochSec = Number.parseInt(
+			button.getAttribute("data-capture-start-epoch-sec"),
+			10,
+		);
 		this.initializeCaptureDownloadSlider(
 			modalId,
 			Number.isNaN(durationMs) ? 0 : durationMs,
@@ -357,9 +433,13 @@ class DownloadActionManager {
 				totalSize: Number.isNaN(totalSize) ? 0 : totalSize,
 				dataFilesCount: Number.isNaN(dataFilesCount) ? 0 : dataFilesCount,
 				totalFilesCount: Number.isNaN(totalFilesCount) ? 0 : totalFilesCount,
-				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize) ? undefined : dataFilesTotalSize,
+				dataFilesTotalSize: Number.isNaN(dataFilesTotalSize)
+					? undefined
+					: dataFilesTotalSize,
 				captureUuid: itemUuid || undefined,
-				captureStartEpochSec: Number.isNaN(captureStartEpochSec) ? undefined : captureStartEpochSec,
+				captureStartEpochSec: Number.isNaN(captureStartEpochSec)
+					? undefined
+					: captureStartEpochSec,
 			},
 		);
 	}
@@ -378,9 +458,10 @@ class DownloadActionManager {
 			const entryStart = startEntry.value.trim();
 			const entryEnd = endEntry.value.trim();
 			if (entryStart !== "" || entryEnd !== "") {
-				const durationMs = parseInt(modalEl.dataset.durationMs, 10);
-				const startMs = entryStart === "" ? 0 : parseInt(entryStart, 10);
-				const endMs = entryEnd === "" ? durationMs : parseInt(entryEnd, 10);
+				const durationMs = Number.parseInt(modalEl.dataset.durationMs, 10);
+				const startMs = entryStart === "" ? 0 : Number.parseInt(entryStart, 10);
+				const endMs =
+					entryEnd === "" ? durationMs : Number.parseInt(entryEnd, 10);
 				if (
 					!Number.isFinite(startMs) ||
 					!Number.isFinite(endMs) ||
@@ -389,7 +470,7 @@ class DownloadActionManager {
 					startMs >= endMs
 				) {
 					this.showToast(
-						"Please enter valid start/end times (0 ≤ start < end ≤ " + durationMs + " ms).",
+						`Please enter valid start/end times (0 ≤ start < end ≤ ${durationMs} ms).`,
 						"warning",
 					);
 					return;
@@ -399,9 +480,14 @@ class DownloadActionManager {
 			}
 		}
 
-		let body = {};
+		const body = {};
 		let isJson = true;
-		if (startTimeInput && endTimeInput && startTimeInput.value && endTimeInput.value) {
+		if (
+			startTimeInput &&
+			endTimeInput &&
+			startTimeInput.value &&
+			endTimeInput.value
+		) {
 			body.start_time = startTimeInput.value;
 			body.end_time = endTimeInput.value;
 			isJson = false;
@@ -424,7 +510,9 @@ class DownloadActionManager {
 		}
 
 		// Handle confirm download
-		const confirmBtn = document.getElementById(`confirmWebDownloadBtn-${itemUuid}`);
+		const confirmBtn = document.getElementById(
+			`confirmWebDownloadBtn-${itemUuid}`,
+		);
 		if (!confirmBtn) return;
 
 		// Remove any existing event listeners
@@ -446,7 +534,6 @@ class DownloadActionManager {
 			let body = {};
 			let isJson = false;
 			try {
-
 				if (itemType === "capture") {
 					const result = this.addTimeFilteringToFetchRequest(modalId);
 					body = result.body;
@@ -584,7 +671,7 @@ class DownloadActionManager {
 	 * @param {Object} item - Item object
 	 * @returns {boolean} Whether user can download
 	 */
-	canDownloadItem(item) {
+	canDownloadItem(_item) {
 		// Check basic download permission
 		if (!this.permissions.canDownload()) {
 			return false;
@@ -611,9 +698,7 @@ class DownloadActionManager {
 	 */
 	cleanup() {
 		// Remove event listeners and clean up any resources
-		const downloadButtons = document.querySelectorAll(
-			".web-download-btn",
-		);
+		const downloadButtons = document.querySelectorAll(".web-download-btn");
 		for (const button of downloadButtons) {
 			button.removeEventListener("click", this.initializeWebDownloadButtons);
 		}

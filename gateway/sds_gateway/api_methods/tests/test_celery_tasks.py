@@ -25,6 +25,7 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
 from sds_gateway.api_methods.models import ZipFileStatus
+from sds_gateway.api_methods.tasks import _get_item_files
 from sds_gateway.api_methods.tasks import acquire_user_lock
 from sds_gateway.api_methods.tasks import check_celery_task
 from sds_gateway.api_methods.tasks import check_disk_space_available
@@ -36,7 +37,6 @@ from sds_gateway.api_methods.tasks import format_file_size
 from sds_gateway.api_methods.tasks import get_user_task_status
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import release_user_lock
-from sds_gateway.api_methods.tasks import _get_item_files
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 
@@ -1270,7 +1270,7 @@ class TestCeleryTasks(TestCase):
             "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
         ) as m:
             m.return_value.get.return_value = mock_response
-            # Relative ms: 1000–4000 from capture start → absolute 2s–5s filenames
+            # Relative ms: 1000-4000 from capture start; absolute 2s-5s filenames
             result = _get_item_files(
                 self.user,
                 self.capture,
@@ -1279,10 +1279,12 @@ class TestCeleryTasks(TestCase):
                 end_time=4000,
             )
         names = [f.name for f in result]
-        # DRF files in [2s, 5s] inclusive (see filter_capture_data_files_selection_bounds)
+        # DRF files [2s,5s] inclusive; see filter_capture_data_files_selection_bounds
         expected_rf = [f"rf@{i}.000.h5" for i in range(2, 6)]
         rf_names = sorted(n for n in names if n.startswith("rf@"))
-        assert rf_names == expected_rf, f"Expected RF files {expected_rf}, got {rf_names}"
-        # Metadata / non-DRF capture files from setUp are still included in the download set
+        assert rf_names == expected_rf, (
+            f"Expected RF files {expected_rf}, got {rf_names}"
+        )
+        # Metadata and non-DRF files from setUp stay in the download set
         assert "test_file1.txt" in names
         assert "test_file2.txt" in names
