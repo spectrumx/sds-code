@@ -13,13 +13,13 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from django.core.files.base import ContentFile
-from faker import Faker as FakerInstance
 from factory import Faker as FactoryFaker
 from factory import LazyAttribute
 from factory import LazyFunction
-from factory import post_generation
 from factory import Sequence
+from factory import post_generation
 from factory.django import DjangoModelFactory
+from faker import Faker as FakerInstance
 
 from sds_gateway.api_methods.helpers.temporal_filtering import drf_rf_filename_from_ms
 from sds_gateway.api_methods.models import Capture
@@ -30,8 +30,9 @@ from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.tests.factories import UserFactory
 
-# Standalone Faker for LazyFunction callbacks (not factory_boy's FactoryFaker declaration)
+# Standalone Faker for LazyFunction callbacks (not FactoryFaker from factory_boy)
 _faker = FakerInstance()
+
 
 class DatasetFactory(DjangoModelFactory):
     """Factory for creating Dataset instances for testing.
@@ -237,26 +238,23 @@ class CaptureFactory(DjangoModelFactory):
 
     channel = FactoryFaker("word")
     capture_type = "drf"
-    top_level_dir = LazyFunction(
-        lambda: _faker.file_path(depth=2).replace("/", "_")
-    )
+    top_level_dir = LazyFunction(lambda: _faker.file_path(depth=2).replace("/", "_"))
     owner = FactoryFaker("subfactory", factory=UserFactory)
     name = FactoryFaker("slug")
     index_name = "captures-drf"
 
 
 class DRFDataFileFactory(DjangoModelFactory):
-    """Factory for creating DRF data file instances for testing.
-    
-    This factory creates realistic DRF data file objects that represent files stored in the system.
-    It generates test data for file metadata and creates a Django ContentFile for the actual file content.
-    
-    The factory creates files with realistic metadata including size, checksums, and proper file extensions.
-    It also handles the creation of the Django file field with test content.
+    """Factory for DRF data file instances used in tests.
+
+    Creates file metadata plus a Django ContentFile for content. Includes
+    checksums, sizes, and extensions; wires the file field for uploads.
     """
 
     uuid = FactoryFaker("uuid4")
-    directory = LazyAttribute(lambda obj: f"/files/{obj.owner.email}/{obj.capture.top_level_dir}/")
+    directory = LazyAttribute(
+        lambda obj: f"/files/{obj.owner.email}/{obj.capture.top_level_dir}/"
+    )
     name = Sequence(lambda n: drf_rf_filename_from_ms(1000 + n * 1000))
     media_type = "application/x-hdf5"
     permissions = "rw-r----"
@@ -275,8 +273,6 @@ class DRFDataFileFactory(DjangoModelFactory):
         else:
             content = b"test drf file content"
             self.file = ContentFile(content, name=self.name)
-    
-
 
     class Meta:
         model = File
@@ -316,7 +312,9 @@ class UserSharePermissionFactory(DjangoModelFactory):
 
     owner = FactoryFaker("subfactory", factory=UserFactory)
     shared_with = FactoryFaker("subfactory", factory=UserFactory)
-    item_type = FactoryFaker("random_element", elements=[ItemType.DATASET, ItemType.CAPTURE])
+    item_type = FactoryFaker(
+        "random_element", elements=[ItemType.DATASET, ItemType.CAPTURE]
+    )
     item_uuid = FactoryFaker("uuid4")
     is_enabled = True
     message = FactoryFaker("sentence", nb_words=5)

@@ -28,7 +28,7 @@ class DOMUtils {
 			v /= 1024;
 			i++;
 		}
-		return (i === 0 ? v : v.toFixed(2)) + " " + units[i];
+		return `${i === 0 ? v : v.toFixed(2)} ${units[i]}`;
 	}
 
 	/**
@@ -209,7 +209,7 @@ class DOMUtils {
 			try {
 				bootstrapModal.dispose();
 				bootstrapModal = null;
-			} catch (e) {
+			} catch (_e) {
 				// If disposal fails, force remove the instance
 				bootstrapModal = null;
 			}

@@ -23,7 +23,6 @@ const ComponentUtils = {
 		return div.innerHTML;
 	},
 
-
 	/**
 	 * Formats date for display with date and time on separate lines
 	 * @param {string} dateString - ISO date string or formatted date string

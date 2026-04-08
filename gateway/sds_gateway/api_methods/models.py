@@ -13,10 +13,10 @@ from typing import cast
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
 from django.db import models
-from django.db.models import Sum
 from django.db.models import Count
 from django.db.models import ProtectedError
 from django.db.models import QuerySet
+from django.db.models import Sum
 from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
@@ -423,7 +423,6 @@ class Capture(BaseModel):
             "owner": self.owner,
         }
 
-
     def get_drf_data_files_queryset(self) -> QuerySet[File]:
         """DRF data files (rf@*.h5) for this capture (M2M + FK)."""
         if self.capture_type != CaptureType.DigitalRF:
@@ -431,14 +430,20 @@ class Capture(BaseModel):
             return File.objects.none()
 
         # Local import avoids circular import (relationship_utils imports Capture).
-        from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
+        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
+            get_capture_files,
+        )
 
         return get_capture_files(self, include_deleted=False).filter(
             name__regex=DRF_RF_FILENAME_REGEX_STR,
         )
 
     def get_drf_data_files_stats(self) -> dict[str, int]:
-        """Count + total size in one query; cached per instance. File PK is ``uuid`` — use ``pk``."""
+        """
+        Count + total size in one query; cached per instance.
+
+        File primary key is ``uuid``; use ``pk`` in aggregates.
+        """
         if hasattr(self, "_drf_data_files_stats_cache"):
             return self._drf_data_files_stats_cache
 
