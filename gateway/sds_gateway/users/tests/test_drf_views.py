@@ -605,7 +605,8 @@ class TestDownloadItemView:
         end_ms = 5000
         data = {"start_time": str(start_ms), "end_time": str(end_ms)}
 
-        with patch("sds_gateway.users.views.send_item_files_email") as mock_send_task:
+        target = "sds_gateway.users.views.downloads.send_item_files_email"
+        with patch(target) as mock_send_task:
             mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
             response = client.post(url, data)
 
@@ -636,7 +637,8 @@ class TestDownloadItemView:
             kwargs={"item_type": ItemType.CAPTURE, "item_uuid": capture.uuid},
         )
 
-        with patch("sds_gateway.users.views.send_item_files_email") as mock_send_task:
+        target = "sds_gateway.users.views.downloads.send_item_files_email"
+        with patch(target) as mock_send_task:
             mock_send_task.delay.return_value = type("Result", (), {"id": "task-1"})()
             response = client.post(url)
 
