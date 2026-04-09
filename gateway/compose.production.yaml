@@ -113,6 +113,16 @@ services:
               read_only: true
         networks:
             - sds-network-prod
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://localhost/ || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     # DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
     # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
@@ -127,6 +137,16 @@ services:
         env_file:
             - ./.envs/production/minio.env
         restart: unless-stopped
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
         command: 'server /files --console-address ":9001"'
         networks:
             - sds-gateway-prod-minio-net
@@ -202,6 +222,16 @@ services:
             - ./.envs/production/postgres.env
         networks:
             - sds-gateway-prod-minio-net
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h localhost',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     redis:
         # used as caching layer for the gateway app
@@ -212,6 +242,12 @@ services:
             - sds-gateway-prod-redis-data:/data
         networks:
             - sds-network-prod
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
 
     # ===================
     # Celery services for background tasks
@@ -261,6 +297,16 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run celery -A config.celery_app inspect ping -d "celery@$$HOSTNAME" | grep -q "OK"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -308,6 +354,16 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run python -c "import pathlib,sys; ok=any((b\"beat\" in data) and ((b\"celery\" in data) or (b\"watchfiles\" in data)) for data in (path.read_bytes() for path in pathlib.Path(\"/proc\").glob(\"[0-9]*/cmdline\"))); sys.exit(0 if ok else 1)"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -352,3 +408,13 @@ services:
         networks:
             - sds-gateway-prod-opensearch-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run python -c "import sys,urllib.request; urllib.request.urlopen(\"http://127.0.0.1:5555/\", timeout=5); sys.exit(0)"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s

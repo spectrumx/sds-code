@@ -63,10 +63,17 @@ function setup_data_dirs() {
     mkdir -p "${SFS_ROOT}/data/volumes" "${SFS_ROOT}/data/filer/filerldb2"
 
     local uid gid
-    uid=$(id -u)
-    gid=$(id -g)
+    # uid=$(id -u)
+    # gid=$(id -g)
+    # matches the permissions inside the container
+    uid=1000
+    gid=1000
     log_msg "Setting ownership to ${uid}:${gid}..."
-    chown -R "${uid}:${gid}" "${SFS_ROOT}/data/"
+    sudo -p "Enter password to set ownership of data directories: " \
+         chown -R "${uid}:${gid}" "${SFS_ROOT}/data/volumes/" \
+         &&
+    sudo chown -R "${uid}:${gid}" "${SFS_ROOT}/data/"
+    sudo -k
     log_success "Data directories ready"
 }
 
@@ -150,9 +157,9 @@ function configure_s3_credentials() {
     log_header "Configuring S3 Credentials"
     log_msg "Configuring S3 identity '${access_key}' on cluster..."
 
-    docker exec "${filer_container}" weed shell \
-        -master="${master_container}:9333" \
-        -run "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *"
+    printf '%s\n' "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *" | \
+        docker exec -i "${filer_container}" weed shell \
+            -master="${master_container}:9333"
 
     log_success "S3 credentials configured"
 }
@@ -170,9 +177,9 @@ function create_bucket() {
     log_header "Creating S3 Bucket"
     log_msg "Creating bucket '${bucket_name}'..."
 
-    docker exec "${filer_container}" weed shell \
-        -master="${master_container}:9333" \
-        -run "s3.bucket.create -name ${bucket_name}"
+    printf '%s\n' "s3.bucket.create -name ${bucket_name}" | \
+        docker exec -i "${filer_container}" weed shell \
+            -master="${master_container}:9333"
 
     log_success "Bucket '${bucket_name}' ready"
 }

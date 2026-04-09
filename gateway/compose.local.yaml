@@ -23,10 +23,16 @@ networks:
     # for safety, all gateway local networks start with "sds-gateway-local-"
     sds-gateway-local-minio-net:
         driver: bridge
+        name: sds-gateway-local-minio-net
     sds-gateway-local-opensearch-net:
         driver: bridge
+        name: sds-gateway-local-opensearch-net
+    sds-gateway-local-postgres-net:
+        driver: bridge
+        name: sds-gateway-local-postgres-net
     sds-network-local:
-        # external: true # make it external if running with traefik on this machine
+        # externally defined in the seaweedfs compose file
+        external: true
         # should match traefik's network name
         name: sds-network-local
         driver: bridge
@@ -72,7 +78,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         # remember /entrypoint runs first
@@ -81,7 +87,9 @@ services:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
             - sds-gateway-local-opensearch-net
-            - sds-network-local # also carries SeaweedFS S3 traffic — see seaweedfs/compose.yaml
+            - sds-gateway-local-minio-net # TODO: deprecated, remove after migration complete
+            - sds-gateway-local-postgres-net
+            - sds-network-local
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
             interval: 30s
@@ -122,7 +130,7 @@ services:
         networks:
             - sds-network-local
 
-    # DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
+    # TODO: DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
     # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
     minio:
         image: minio/minio:latest
@@ -195,7 +203,7 @@ services:
         env_file:
             - ./.envs/local/postgres.env
         networks:
-            - sds-gateway-local-minio-net
+            - sds-gateway-local-postgres-net
         healthcheck:
             test:
                 [
@@ -259,13 +267,14 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/worker-start"
         networks:
             - sds-gateway-local-opensearch-net
-            - sds-network-local # also carries SeaweedFS S3 traffic
+            - sds-gateway-local-postgres-net
+            - sds-network-local
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -303,13 +312,14 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/beat-start"
         networks:
             - sds-gateway-local-opensearch-net
-            - sds-network-local # also carries SeaweedFS S3 traffic
+            - sds-gateway-local-postgres-net
+            - sds-network-local
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -347,7 +357,7 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/flower-start"
@@ -355,7 +365,8 @@ services:
             - "5555:5555" # Flower web interface
         networks:
             - sds-gateway-local-opensearch-net
-            - sds-network-local # also carries SeaweedFS S3 traffic
+            - sds-gateway-local-postgres-net
+            - sds-network-local
 
     # ==========================
     # local development services
