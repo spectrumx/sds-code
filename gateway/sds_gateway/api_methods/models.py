@@ -78,6 +78,7 @@ class ItemType(StrEnum):
 
     DATASET = "dataset"
     CAPTURE = "capture"
+    FILE = "file"
 
 
 class ProcessingType(StrEnum):
@@ -917,7 +918,7 @@ class UserSharePermission(BaseModel):
         (PermissionLevel.CO_OWNER, "Co-Owner"),
     ]
 
-    # The user who owns the item being shared
+    # The user who shared the item (owner of the share permission)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,

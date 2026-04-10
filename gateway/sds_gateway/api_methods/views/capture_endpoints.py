@@ -44,6 +44,7 @@ from sds_gateway.api_methods.helpers.search_captures import get_composite_captur
 from sds_gateway.api_methods.helpers.search_captures import search_captures
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import ProcessingType
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
@@ -57,6 +58,7 @@ from sds_gateway.api_methods.throttling import VisStreamThrottle
 from sds_gateway.api_methods.utils.asset_access_control import (
     user_has_access_to_capture,
 )
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
@@ -413,33 +415,6 @@ class CaptureViewSet(viewsets.ViewSet):
 
         return capture, processed_data
 
-    @extend_schema(
-        request=CapturePostSerializer,
-        responses={
-            201: CaptureGetSerializer,
-            400: OpenApiResponse(description="Bad Request"),
-            503: OpenApiResponse(description="OpenSearch service unavailable"),
-        },
-        examples=[
-            OpenApiExample(
-                "Example Capture Request",
-                summary="Capture Request Body",
-                value=example_schema.example_cap_creation_request,
-                request_only=True,
-            ),
-            OpenApiExample(
-                "Example Capture Response",
-                summary="Capture Response Body",
-                value=example_schema.example_cap_creation_response,
-                response_only=True,
-            ),
-        ],
-        description=(
-            "Create a capture object, connect files to the capture, "
-            "and index its metadata."
-        ),
-        summary="Create Capture",
-    )
     def _validate_create_request(
         self, request: Request
     ) -> tuple[Response | None, dict[str, Any] | None]:
@@ -538,6 +513,33 @@ class CaptureViewSet(viewsets.ViewSet):
         # Re-raise unexpected errors
         raise error
 
+    @extend_schema(
+        request=CapturePostSerializer,
+        responses={
+            201: CaptureGetSerializer,
+            400: OpenApiResponse(description="Bad Request"),
+            503: OpenApiResponse(description="OpenSearch service unavailable"),
+        },
+        examples=[
+            OpenApiExample(
+                "Example Capture Request",
+                summary="Capture Request Body",
+                value=example_schema.example_cap_creation_request,
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Example Capture Response",
+                summary="Capture Response Body",
+                value=example_schema.example_cap_creation_response,
+                response_only=True,
+            ),
+        ],
+        description=(
+            "Create a capture object, connect files to the capture, "
+            "and index its metadata."
+        ),
+        summary="Create Capture",
+    )
     def create(self, request: Request) -> Response:
         """Create a capture object, connecting files and indexing the metadata."""
         # Validate request
@@ -773,7 +775,7 @@ class CaptureViewSet(viewsets.ViewSet):
             captures = search_captures(
                 capture_type=capture_type,
                 metadata_filters=metadata_filters,
-                owner=cast("User", request.user),
+                request_user=cast("User", request.user),
             )
             return self._paginate_composite_captures(captures=captures, request=request)
         except (ValueError, TypeError) as err:
@@ -995,6 +997,25 @@ class CaptureViewSet(viewsets.ViewSet):
             owner=request.user,  # Require ownership for deletions
             is_deleted=False,
         )
+
+        bypass_share_guard = request.query_params.get("bypass_share_guard", False)
+
+        if check_if_shared(target_capture.uuid, ItemType.CAPTURE):
+            if not bypass_share_guard:
+                return Response(
+                    {"detail": (
+                        "Capture is shared and protected from deletion. "
+                        "If you wish to delete this capture anyway, "
+                        "please bypass the share guard by setting "
+                        "bypass_share_guard=True in the query parameters."
+                    )},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+            else:
+                log.warning(
+                    "Capture is shared. Bypassing share guard using setting "
+                    "bypass_share_guard=True in the query parameters."
+                )
 
         target_capture.soft_delete()
 

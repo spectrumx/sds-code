@@ -16,7 +16,12 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
+from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 
@@ -69,6 +74,8 @@ class DEPRECATEDPostProcessedDataSerializer(
 
 class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     owner = UserGetSerializer()
+    share_permissions = serializers.SerializerMethodField()
+    is_shared = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
@@ -81,6 +88,24 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
     post_processed_data = serializers.SerializerMethodField()
+    
+    def get_share_permissions(self, capture: Capture) -> list[UserSharePermission]:
+        """Get the share permissions for the capture."""
+        user_share_permissions = UserSharePermission.objects.filter(
+            item_uuid=capture.uuid,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        return UserSharePermissionSerializer(user_share_permissions, many=True).data
+
+    def get_is_shared(self, capture: Capture) -> bool:
+        """Get whether the capture is shared.
+
+        Returns:
+            True if the capture has enabled share permissions, False otherwise.
+        """
+        return check_if_shared(capture.uuid, ItemType.CAPTURE)
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
@@ -357,12 +382,14 @@ class CompositeCaptureSerializer(serializers.Serializer):
     deleted_at = serializers.DateTimeField(allow_null=True)
     is_deleted = serializers.BooleanField()
     is_public = serializers.BooleanField()
+    is_shared = serializers.SerializerMethodField()
     owner = UserGetSerializer()
 
     # Channel-specific fields
     channels = serializers.ListField(child=ChannelMetadataSerializer())
 
     # Computed fields
+    share_permissions = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     data_files_info = serializers.SerializerMethodField()
@@ -370,6 +397,24 @@ class CompositeCaptureSerializer(serializers.Serializer):
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
     capture_start_epoch_sec = serializers.SerializerMethodField()
+
+    def get_share_permissions(self, obj: dict[str, Any]) -> list[UserSharePermission]:
+        """Get the share permissions for the composite capture."""
+        user_share_permissions = UserSharePermission.objects.filter(
+            item_uuid=obj["uuid"],
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        return UserSharePermissionSerializer(user_share_permissions, many=True).data
+
+    def get_is_shared(self, obj: dict[str, Any]) -> bool:
+        """Get whether the composite capture is shared.
+
+        Returns:
+            True if the composite capture has enabled share permissions, False otherwise.
+        """
+        return check_if_shared(obj["uuid"], ItemType.CAPTURE)
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""

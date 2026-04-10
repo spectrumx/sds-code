@@ -13,6 +13,8 @@ from pydantic import Field
 from pydantic import field_validator
 
 from spectrumx.models.base import SDSModel
+from spectrumx.models.user import User
+from spectrumx.models.user import UserSharePermission
 
 
 class CaptureType(StrEnum):
@@ -39,9 +41,11 @@ _d_origin = "The origin of the capture"
 _d_top_level_dir = "The top-level directory for the capture files"
 _d_uuid = "The unique identifier for the capture"
 _d_capture_files = "Files associated to this capture"
-
+_d_owner = "The owner of the capture"
+_d_share_permissions = "The share permissions for the capture"
 _d_channel = "The channel associated with the capture. Only for RadioHound type."
 _d_scan_group = "The scan group associated with the capture. Only for Digital-RF type."
+_d_is_shared = "Whether the capture is shared"
 
 
 class CaptureFile(BaseModel):
@@ -73,6 +77,9 @@ class Capture(SDSModel):
         list[CaptureFile],
         Field(description=_d_capture_files, default_factory=list),
     ]
+    owner: Annotated[User, Field(description=_d_owner)]
+    share_permissions: Annotated[list[UserSharePermission], Field(description=_d_share_permissions, default_factory=list)]
+    is_shared: Annotated[bool, Field(description=_d_is_shared)]
 
     # optional fields
     created_at: Annotated[

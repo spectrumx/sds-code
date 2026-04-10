@@ -1,10 +1,11 @@
 """Capture access utility functions for the SDS Gateway API."""
 
 import logging
-
+from uuid import UUID4
 from django.db.models import Q
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
@@ -280,3 +281,73 @@ def get_accessible_captures_queryset(user):
     access_query |= dataset_shared_query
 
     return base_queryset.filter(access_query).distinct()
+
+
+def check_if_shared(item_uuid: UUID4, item_type: ItemType) -> bool:
+    """Check if an item is shared. by checking its is_shared field.
+
+    Returns:
+        True if the item is shared, False otherwise.
+    """
+    match item_type:
+        case ItemType.CAPTURE:
+            capture_uuids = Capture.objects.filter(uuid=item_uuid).values_list("uuid", flat=True)
+            dataset_uuids = Capture.objects.filter(uuid=item_uuid).values_list("datasets__uuid", flat=True)
+            return capture_is_shared(capture_uuids, dataset_uuids)
+        case ItemType.DATASET:
+            dataset_uuids = Dataset.objects.filter(uuid=item_uuid).values_list("uuid", flat=True)
+            return dataset_is_shared(dataset_uuids)
+        case ItemType.FILE:
+            return file_is_shared(File.objects.get(uuid=item_uuid))
+        case _:
+            raise ValueError(f"Invalid item type: {item_type}")
+
+
+def file_is_shared(file: File) -> bool:
+    """Check if a file is shared as part of a capture or dataset.
+
+    Returns:
+        True if the file is shared, False otherwise.
+    """
+
+    capture_uuids = file.captures.all().values_list("uuid", flat=True)
+    capture_dataset_uuids = file.captures.all().values_list("datasets__uuid", flat=True)
+    capture_shared = capture_is_shared(capture_uuids, capture_dataset_uuids)
+
+    dataset_uuids = file.datasets.all().values_list("uuid", flat=True)
+    dataset_shared = dataset_is_shared(dataset_uuids)
+
+    return capture_shared or dataset_shared
+
+
+def capture_is_shared(capture_uuids: list[UUID4], connected_dataset_uuids: list[UUID4]) -> bool:
+    """Check if a capture is shared directly of as part of a dataset. by checking its is_shared field.
+
+    Returns:
+        True if the capture is shared, False otherwise.
+    """
+    directly_shared = UserSharePermission.objects.filter(
+        item_uuid__in=capture_uuids,
+        item_type=ItemType.CAPTURE,
+        is_deleted=False,
+        is_enabled=True,
+    ).exists()
+    
+    # added post expansion, capture datasets field is now a M2M relationship
+    dataset_shared = dataset_is_shared(connected_dataset_uuids)
+
+    return directly_shared or dataset_shared
+
+
+def dataset_is_shared(dataset_uuids: list[UUID4]) -> bool:
+    """Check if a dataset is shared.
+
+    Returns:
+        True if the dataset is shared, False otherwise.
+    """
+    return UserSharePermission.objects.filter(
+        item_uuid__in=dataset_uuids,
+        item_type=ItemType.DATASET,
+        is_deleted=False,
+        is_enabled=True,
+    ).exists()
