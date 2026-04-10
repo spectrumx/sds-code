@@ -188,12 +188,12 @@ def _get_index_mapping(capture_type: CaptureType | None) -> dict[str, dict[str, 
 
 
 def get_capture_queryset(
-    owner: User,
+    request_user: User,
     capture_type: CaptureType | None,
 ) -> QuerySet[Capture]:
     """Get the capture queryset based on the capture type."""
     # Get captures accessible to the user using database-level filtering
-    capture_queryset = get_accessible_captures_queryset(owner)
+    capture_queryset = get_accessible_captures_queryset(request_user)
 
     # filter by capture type if provided
     if capture_type:
@@ -206,7 +206,7 @@ def get_capture_queryset(
 
 
 def search_captures(
-    owner: User,
+    request_user: User,
     capture_type: CaptureType | None = None,
     metadata_filters: list[dict[str, Any]] | None = None,
 ) -> QuerySet[Capture]:
@@ -224,7 +224,7 @@ def search_captures(
 
     capture_queryset: QuerySet[Capture] = get_capture_queryset(
         capture_type=capture_type,
-        owner=owner,
+        request_user=request_user,
     )
     metadata_queries: list[dict[str, Any]] = _build_os_metadata_query(
         capture_type=capture_type,
