@@ -31,7 +31,7 @@ networks:
         driver: bridge
         name: sds-gateway-local-postgres-net
     sds-network-local:
-        # externally defined in the seaweedfs compose file
+        # externally defined in traefik and/or in the seaweedfs compose file
         external: true
         # should match traefik's network name
         name: sds-network-local
@@ -80,6 +80,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
+            - ./.envs/local/minio.env
             - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
@@ -271,13 +272,16 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
+            - ./.envs/local/minio.env
             - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/worker-start"
         networks:
+            # additional networks are used for health checks
             - sds-gateway-local-opensearch-net
             - sds-gateway-local-postgres-net
+            - sds-gateway-local-minio-net
             - sds-network-local
 
     celery-beat:
@@ -318,6 +322,7 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
+            - ./.envs/local/minio.env
             - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
@@ -365,6 +370,7 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
+            - ./.envs/local/minio.env
             - ./.envs/local/sfs.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
