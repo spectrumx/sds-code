@@ -172,6 +172,7 @@ LOCAL_APPS: list[str] = [
     "sds_gateway.users",
     "sds_gateway.api_methods",
     "sds_gateway.visualizations",
+    "sds_gateway.monitoring",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/4.2/ref/settings/#installed-apps
@@ -428,6 +429,11 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
         "task": "sds_gateway.api_methods.tasks.cleanup_orphaned_zip_files",
         "schedule": crontab(hour=3, minute=0),  # Run daily at 3:00 AM
         "options": {"expires": 3600},  # Task expires after 1 hour
+    },
+    "monitor-services-health": {
+        "task": "sds_gateway.monitoring.tasks.monitor_services_health",
+        "schedule": crontab(minute="*/1"),
+        "options": {"expires": 50},
     },
 }
 

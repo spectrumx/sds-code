@@ -1,19 +1,36 @@
 """Context processors for the whole SDS Gateway project."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 from typing import Literal
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from django.db import OperationalError
+from django.db import ProgrammingError
 from django.http import HttpRequest
 
+logger = logging.getLogger(__name__)
 
-def app_settings(_request: HttpRequest) -> dict[str, bool | str]:
+
+def _latest_admin_monitoring_status() -> dict[str, Any] | None:
+    try:
+        from sds_gateway.monitoring.models import SystemHealthSnapshot  # noqa: PLC0415
+
+        return SystemHealthSnapshot.latest_snapshot_payload()
+    except (ImportError, LookupError, OperationalError, ProgrammingError):
+        logger.warning("failed to load admin monitoring status", exc_info=True)
+        return None
+
+
+def app_settings(_request: HttpRequest) -> dict[str, Any]:
     """Expose application-wide settings in templates."""
     return {
         "VISUALIZATIONS_ENABLED": settings.VISUALIZATIONS_ENABLED,
         "ADMIN_CONSOLE_ENV": settings.ADMIN_CONSOLE_ENV,
+        "ADMIN_MONITORING_STATUS": _latest_admin_monitoring_status(),
     }
 
 

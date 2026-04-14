@@ -12,5 +12,11 @@
 {% block branding %}
     <h1 id="site-name">
         <a href="{% url 'admin:index' %}">Django Administration · <span class="mono">{{ ADMIN_CONSOLE_ENV }}</span> · <span class="mono">{{ SDS_SITE_FQDN }}</span></a>
+        {% if ADMIN_MONITORING_STATUS %}
+            <span class="admin-monitoring-pill admin-monitoring-pill--{{ ADMIN_MONITORING_STATUS.overall_status }}"
+                  title="{% for child in ADMIN_MONITORING_STATUS.child_statuses %}{{ child.service_name }}: {{ child.status }}{% if not forloop.last %} | {% endif %}{% endfor %}">
+                overall: {{ ADMIN_MONITORING_STATUS.overall_status }}
+            </span>
+        {% endif %}
     </h1>
 {% endblock branding %}

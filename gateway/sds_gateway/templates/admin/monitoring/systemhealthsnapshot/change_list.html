@@ -1,0 +1,44 @@
+{% extends "admin/change_list.html" %}
+
+{% block content_title %}
+    <h1>Monitoring dashboard</h1>
+{% endblock content_title %}
+{% block result_list %}
+    {% if monitoring_dashboard.latest_snapshot %}
+        <div class="monitoring-panel">
+            <strong>Overall status:</strong>
+            {{ monitoring_dashboard.latest_snapshot.overall_status|upper }}
+            <span class="monitoring-muted">({{ monitoring_dashboard.latest_snapshot.checked_at }})</span>
+        </div>
+    {% endif %}
+    {% if monitoring_dashboard.trend_services %}
+        <div class="monitoring-panel">
+            <h2>Service trend (last checks)</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Service Name</th>
+                        <th>Service Host</th>
+                        <th>Service Port</th>
+                        <th>Latest status</th>
+                        <th>Uptime % (3h)</th>
+                        <th>Samples</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for service in monitoring_dashboard.trend_services %}
+                        <tr>
+                            <td>{{ service.service_name }}</td>
+                            <td>{{ service.host }}</td>
+                            <td>{{ service.port }}</td>
+                            <td>{{ service.latest_status|upper }}</td>
+                            <td>{{ service.uptime_percent_3h }}</td>
+                            <td>{{ service.samples }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+    {{ block.super }}
+{% endblock result_list %}
