@@ -76,7 +76,8 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         ports:
@@ -289,7 +290,8 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/worker-start"
@@ -346,7 +348,8 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/beat-start"
@@ -398,7 +401,8 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/production/minio.env
+            - ./.envs/production/sfs.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         command: "/flower-start"

@@ -19,6 +19,7 @@ networks:
     sds-network-local:
         name: sds-network-local
         driver: bridge
+        external: true
 
 services:
     sds-gateway-local-sfs-master:
