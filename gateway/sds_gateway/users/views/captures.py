@@ -719,6 +719,7 @@ class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
                     top_level_dir=capture.top_level_dir,
                     owner=user,
                     is_deleted=False,
+                    capture_type=capture.capture_type,
                 )
             )
             if capture.is_multi_channel
