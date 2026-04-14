@@ -1333,10 +1333,19 @@ class DatasetDetailsView(FileTreeMixin, View):
             # Get all files associated with the dataset
             files_queryset = self._get_dataset_files(dataset)
 
-            # Calculate statistics
+            # Calculate statistics (check both deprecated FK and M2M for capture links)
             total_files = files_queryset.count()
-            captures_count = files_queryset.filter(capture__isnull=False).count()
-            artifacts_count = files_queryset.filter(capture__isnull=True).count()
+            captures_count = (
+                files_queryset.filter(
+                    Q(capture__isnull=False) | Q(captures__isnull=False)
+                )
+                .distinct()
+                .count()
+            )
+            artifacts_count = files_queryset.filter(
+                capture__isnull=True,
+                captures__isnull=True,
+            ).count()
             total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
 
             base_dir = sanitize_path_rel_to_user(

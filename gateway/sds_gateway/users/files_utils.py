@@ -248,12 +248,13 @@ def add_root_items(request) -> list[Item]:
         ]
     )
 
-    # Add individual files that are not part of any capture
+    # Add individual files that are not part of any capture (check both FK and M2M)
     individual_files = get_filtered_files_queryset(
         File.objects.filter(
             owner=request.user,
             is_deleted=False,
             capture__isnull=True,
+            captures__isnull=True,
         )
     ).order_by("name")
 
@@ -575,12 +576,13 @@ def add_user_files(request, subpath: str = "") -> list[Item]:
     current_subpath = _normalize_path(subpath)
     user_root = _normalize_path(f"files/{request.user.email}")
 
-    # Get user files that are not part of any capture
+    # Get user files that are not part of any capture (check both FK and M2M)
     user_files = get_filtered_files_queryset(
         File.objects.filter(
             owner=request.user,
             is_deleted=False,
             capture__isnull=True,
+            captures__isnull=True,
         )
     )
 
