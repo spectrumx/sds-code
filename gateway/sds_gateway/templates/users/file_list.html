@@ -235,32 +235,6 @@
                                         </button>
                                     </div>
                                 </div>
-                                <!-- Add capture(s) to dataset (selection mode; wired by file-list.js) -->
-                                <div class="flex-shrink-0 me-2">
-                                    <div class="d-flex gap-2 align-items-center flex-nowrap">
-                                        <button type="button"
-                                                class="btn btn-outline-primary"
-                                                id="add-captures-to-dataset-btn"
-                                                aria-pressed="false"
-                                                title="Select captures to add to a dataset">
-                                            <i class="fas fa-folder-plus" aria-hidden="true"></i>
-                                            <span class="d-none d-md-inline ms-1">Add capture(s) to dataset</span>
-                                        </button>
-                                        <div id="add-to-dataset-mode-buttons" class="d-none d-flex gap-2">
-                                            <button type="button"
-                                                    class="btn btn-secondary"
-                                                    id="add-to-dataset-cancel-btn">Cancel</button>
-                                            <button type="button"
-                                                    class="btn btn-primary"
-                                                    id="add-to-dataset-add-btn"
-                                                    disabled
-                                                    title="Select at least one capture to add to a dataset"
-                                                    aria-label="Add to dataset — select at least one capture first">
-                                                Add
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
                                 <!-- Upload Button Group -->
                                 <div class="flex-shrink-0">
                                     <div class="input-group">
@@ -415,10 +389,13 @@
     {% include "users/partials/capture_modal.html" %}
     <!-- Quick Add to Dataset Modal (single or multiple captures) -->
     {% include "users/partials/quick_add_to_dataset_modal.html" %}
-    <!-- Visualization Selection Modal -->
-    {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
-    <!-- Web Download Modal -->
-    {% include "users/partials/web_download_modal.html" %}
+    <!-- Per-capture Share and Download modals -->
+    {% for cap in captures %}
+        {% if cap.capture %}
+            {% include "users/partials/share_modal.html" with item=cap.capture item_type="capture" %}
+            {% include "users/partials/web_download_modal.html" with item=cap.capture item_type="capture" %}
+        {% endif %}
+    {% endfor %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}

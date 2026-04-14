@@ -20,10 +20,14 @@ from .captures import API_CAPTURES_LIMIT
 from .captures import CapturesAPIView
 from .captures import KeywordAutocompleteAPIView
 from .captures import ListCapturesView
+from .captures import QuickAddCaptureToDatasetView
+from .captures import UserDatasetsForQuickAddView
 from .captures import _get_captures_for_template  # Exported for tests
 from .captures import keyword_autocomplete_api_view
+from .captures import quick_add_capture_to_dataset_view
 from .captures import user_capture_list_view
 from .captures import user_captures_api_view
+from .captures import user_datasets_for_quick_add_view
 
 # Dataset views
 from .datasets import DatasetDetailsView
@@ -108,6 +112,7 @@ __all__ = [
     "ListDatasetsView",
     "ListFilesView",
     "NewAPIKeyView",
+    "QuickAddCaptureToDatasetView",
     "RenderHTMLFragmentView",
     "RevokeAPIKeyView",
     "SPXDACDatasetAltView",
@@ -117,6 +122,7 @@ __all__ = [
     "ShareOperationError",
     "TemporaryZipDownloadView",
     "UploadCaptureView",
+    "UserDatasetsForQuickAddView",
     "UserDetailView",
     "UserRedirectView",
     "UserUpdateView",
@@ -127,6 +133,7 @@ __all__ = [
     "home_page_view",
     "keyword_autocomplete_api_view",
     "new_api_key_view",
+    "quick_add_capture_to_dataset_view",
     "render_html_fragment_view",
     "revoke_api_key_view",
     "spx_dac_dataset_alt_view",
@@ -137,6 +144,7 @@ __all__ = [
     "user_dataset_details_view",
     "user_dataset_list_view",
     "user_dataset_versioning_view",
+    "user_datasets_for_quick_add_view",
     "user_detail_view",
     "user_download_item_view",
     "user_file_detail_view",

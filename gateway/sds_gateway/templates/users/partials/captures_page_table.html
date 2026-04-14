@@ -6,7 +6,29 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" />
 <!-- Search Results -->
 <div id="search-results">
-    <div class="d-flex justify-content-end align-items-baseline">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        <!-- Add capture(s) to dataset (selection mode; wired by file-list.js) -->
+        <div class="d-flex gap-2 align-items-center">
+            <button type="button"
+                    class="btn btn-primary btn-sm"
+                    id="add-captures-to-dataset-btn"
+                    aria-pressed="false"
+                    title="Select captures to add to a dataset">
+                <i class="fas fa-check-square" aria-hidden="true"></i>
+                <span class="ms-1">Select</span>
+            </button>
+            <div id="add-to-dataset-mode-buttons" class="d-none d-flex gap-2">
+                <button type="button"
+                        class="btn btn-secondary btn-sm"
+                        id="add-to-dataset-cancel-btn">Cancel</button>
+                <button type="button"
+                        class="btn btn-primary btn-sm"
+                        id="add-to-dataset-add-btn"
+                        disabled
+                        title="Select at least one capture to add to a dataset"
+                        aria-label="Add to dataset — select at least one capture first">Add to Dataset</button>
+            </div>
+        </div>
         <span id="results-count" aria-live="polite" role="status">
             {% if captures %}
                 {{ captures|length }} capture{{ captures|length|pluralize }} found

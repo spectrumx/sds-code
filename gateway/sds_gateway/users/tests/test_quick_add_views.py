@@ -11,6 +11,7 @@ from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
@@ -518,3 +519,42 @@ class TestUserDatasetsForQuickAddView:
         )
         assert entry is not None
         assert entry["name"] == "Unnamed"
+
+    # ---------- FINAL dataset exclusion ----------
+
+    def test_excludes_owned_final_dataset(self, client: Client, owner: User):
+        """Owned datasets with FINAL status must not appear in the dropdown."""
+        final_ds = DatasetFactory(
+            owner=owner,
+            is_public=False,
+            status=DatasetStatus.FINAL,
+            keywords=None,
+        )
+        client.force_login(owner)
+        response = self._get(client)
+
+        uuids = [d["uuid"] for d in response.json()["datasets"]]
+        assert str(final_ds.uuid) not in uuids
+
+    def test_excludes_shared_final_dataset(
+        self, client: Client, owner: User, other_user: User
+    ):
+        """Shared datasets with FINAL status must not appear in the dropdown."""
+        final_ds = DatasetFactory(
+            owner=other_user,
+            is_public=False,
+            status=DatasetStatus.FINAL,
+            keywords=None,
+        )
+        UserSharePermission.objects.create(
+            owner=other_user,
+            shared_with=owner,
+            item_type=ItemType.DATASET,
+            item_uuid=final_ds.uuid,
+            permission_level=PermissionLevel.CONTRIBUTOR,
+        )
+        client.force_login(owner)
+        response = self._get(client)
+
+        uuids = [d["uuid"] for d in response.json()["datasets"]]
+        assert str(final_ds.uuid) not in uuids

@@ -3228,6 +3228,7 @@ class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
         user = cast("User", request.user)
         owned = (
             user.datasets.filter(is_deleted=False, is_public=False)
+            .exclude(status=DatasetStatus.FINAL)
             .order_by("name")
             .values("uuid", "name")
         )
@@ -3248,6 +3249,7 @@ class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
                 uuid__in=shared_uuids, is_deleted=False, is_public=False
             )
             .exclude(owner=user)
+            .exclude(status=DatasetStatus.FINAL)
             .order_by("name")
             .values("uuid", "name")
         )

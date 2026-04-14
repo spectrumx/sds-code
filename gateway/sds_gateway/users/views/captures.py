@@ -1,20 +1,30 @@
+import json
+from dataclasses import dataclass
+from itertools import chain
 from typing import Any
+from uuid import UUID
 
 from django.core.paginator import Page
 from django.core.paginator import Paginator
 from django.db import DatabaseError
 from django.db.models import Q
 from django.db.models.query import QuerySet
+from django.db.utils import IntegrityError
+from django.db.utils import OperationalError
 from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views import View
 from loguru import logger as log
+from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import Keyword
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.capture_serializers import (
@@ -583,3 +593,234 @@ class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
 
 
 keyword_autocomplete_api_view = KeywordAutocompleteAPIView.as_view()
+
+
+# ---------------------------------------------------------------------------
+# Quick-add captures to dataset
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AddToDatasetReport:
+    """Result of adding capture(s) to a dataset."""
+
+    added: list[UUID]
+    skipped: list[UUID]
+    errors: list[str]
+
+
+def _get_dataset_editable_by_user(
+    user: User, dataset_uuid: UUID | str
+) -> tuple["Dataset | None", tuple[str, int] | None]:
+    """
+    Validate that the dataset exists, is editable (not deleted/public/final),
+    and the user has permission to edit or add assets.
+
+    Returns (dataset, None) on success, (None, (error_message, status_code)) on failure.
+    """
+    uuid_val = (
+        dataset_uuid if isinstance(dataset_uuid, UUID) else UUID(str(dataset_uuid))
+    )
+
+    if not user_has_access_to_item(user, uuid_val, ItemType.DATASET):
+        return (None, ("Dataset not found or access denied.", 404))
+
+    dataset = Dataset.objects.filter(uuid=uuid_val, is_deleted=False).first()
+    if not dataset:
+        return (None, ("Dataset not found or access denied.", 404))
+
+    if dataset.status == DatasetStatus.FINAL or dataset.is_public:
+        return (None, ("This dataset is published and cannot be edited.", 403))
+
+    if not UserSharePermission.user_can_edit_dataset(
+        user, uuid_val, ItemType.DATASET
+    ) and not UserSharePermission.user_can_add_assets(user, uuid_val, ItemType.DATASET):
+        return (None, ("You don't have permission to edit this dataset.", 403))
+
+    return (dataset, None)
+
+
+class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
+    """
+    Quick-add view: add a single capture (and all its channels if multi-channel)
+    owned by the user to a dataset the user can modify.
+    Expects POST with JSON body:
+    {"dataset_uuid": "<uuid>", "capture_uuid": "<uuid>"}
+    """
+
+    def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        data, error = self._parse_json(request)
+        if error:
+            return error
+        assert data is not None
+
+        dataset_uuid, err = self._validate_uuid(
+            data.get("dataset_uuid"), "dataset_uuid"
+        )
+        if err:
+            return err
+        capture_uuid, err = self._validate_uuid(
+            data.get("capture_uuid"), "capture_uuid"
+        )
+        if err:
+            return err
+        assert dataset_uuid is not None
+        assert capture_uuid is not None
+
+        capture = Capture.objects.filter(
+            uuid=capture_uuid,
+            owner=request.user,
+            is_deleted=False,
+        ).first()
+        if not capture:
+            return JsonResponse(
+                {"error": "Capture not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        dataset, err = _get_dataset_editable_by_user(
+            request.user,  # type: ignore[arg-type]
+            dataset_uuid,
+        )
+        if err:
+            message, status_code = err
+            return JsonResponse({"error": message}, status=status_code)
+        assert dataset is not None
+
+        report = self._add_capture_to_dataset_with_report(
+            capture=capture,
+            dataset=dataset,
+            user=request.user,  # type: ignore[arg-type]
+        )
+        return JsonResponse(
+            {
+                "success": True,
+                "added": [str(u) for u in report.added],
+                "skipped": [str(u) for u in report.skipped],
+                "errors": report.errors,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def _add_capture_to_dataset_with_report(
+        self,
+        capture: Capture,
+        dataset: Dataset,
+        user: User,
+    ) -> AddToDatasetReport:
+        """Add a capture (and its multi-channel siblings) to a dataset."""
+        added: list[UUID] = []
+        skipped: list[UUID] = []
+        errors: list[str] = []
+
+        candidates = (
+            list(
+                Capture.objects.filter(
+                    top_level_dir=capture.top_level_dir,
+                    owner=user,
+                    is_deleted=False,
+                )
+            )
+            if capture.is_multi_channel
+            else [capture]
+        )
+
+        existing_pks = set(
+            dataset.captures.filter(pk__in=[c.pk for c in candidates]).values_list(
+                "pk", flat=True
+            )
+        )
+
+        for c in candidates:
+            if c.pk in existing_pks:
+                skipped.append(c.uuid)
+                continue
+            try:
+                dataset.captures.add(c)
+                added.append(c.uuid)
+            except (OperationalError, IntegrityError, Exception) as e:  # noqa: BLE001
+                errors.append(f"{c.uuid}: {e}")
+
+        return AddToDatasetReport(added=added, skipped=skipped, errors=errors)
+
+    def _parse_json(
+        self, request: HttpRequest
+    ) -> tuple[dict[str, Any] | None, JsonResponse | None]:
+        if not request.content_type or "application/json" not in request.content_type:
+            return None, JsonResponse(
+                {"error": "Content-Type must be application/json"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            data = json.loads(request.body)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None, JsonResponse(
+                {"error": "Invalid JSON body"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not isinstance(data, dict):
+            return None, JsonResponse(
+                {"error": "Request body must be a JSON object"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return data, None
+
+    def _validate_uuid(
+        self, value: Any, field_name: str = "uuid"
+    ) -> tuple[UUID | None, JsonResponse | None]:
+        if value is None:
+            return None, JsonResponse(
+                {"error": f"{field_name} is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            return UUID(value.strip()), None
+        except (AttributeError, ValueError, TypeError):
+            return None, JsonResponse(
+                {"error": f"Invalid {field_name}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
+quick_add_capture_to_dataset_view = QuickAddCaptureToDatasetView.as_view()
+
+
+class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):
+    """Return JSON list of datasets the user can add captures to (quick-add modal)."""
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> JsonResponse:
+        user: User = request.user  # type: ignore[assignment]
+        owned = (
+            user.datasets.filter(is_deleted=False, is_public=False)
+            .exclude(status=DatasetStatus.FINAL)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        shared_uuids = list(
+            UserSharePermission.objects.filter(
+                shared_with=user,
+                item_type=ItemType.DATASET,
+                is_deleted=False,
+                is_enabled=True,
+                permission_level__in=[
+                    PermissionLevel.CO_OWNER,
+                    PermissionLevel.CONTRIBUTOR,
+                ],
+            ).values_list("item_uuid", flat=True)
+        )
+        shared = (
+            Dataset.objects.filter(
+                uuid__in=shared_uuids, is_deleted=False, is_public=False
+            )
+            .exclude(owner=user)
+            .exclude(status=DatasetStatus.FINAL)
+            .order_by("name")
+            .values("uuid", "name")
+        )
+        datasets = [
+            {"uuid": str(d["uuid"]), "name": (d["name"] or "Unnamed")}
+            for d in chain(owned, shared)
+        ]
+        return JsonResponse({"datasets": datasets})
+
+
+user_datasets_for_quick_add_view = UserDatasetsForQuickAddView.as_view()
