@@ -8,8 +8,8 @@ from typing import Literal
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
-from django.db import OperationalError
-from django.db import ProgrammingError
+from django.db.utils import OperationalError
+from django.db.utils import ProgrammingError
 from django.http import HttpRequest
 
 logger = logging.getLogger(__name__)
