@@ -29,7 +29,8 @@ body.admin-env-local #header a:visited {
 .admin-monitoring-pill {
 	display: inline-block;
 	margin-left: 1rem;
-	padding: 0.2rem 8rem;
+	padding: 0.2rem 0.8rem;
+	white-space: nowrap;
 	border-radius: 999px;
 	font-size: 1rem;
 	font-weight: 600;
