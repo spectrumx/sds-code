@@ -2,7 +2,7 @@
 
 import pytest
 from django.conf import settings
-from django.db import OperationalError
+from django.db.utils import OperationalError
 from django.test import RequestFactory
 
 from sds_gateway.context_processors import (
