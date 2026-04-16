@@ -9,6 +9,7 @@ from typing import cast
 
 import ijson
 from django.db import transaction
+from django.db.models import ProtectedError
 from django.db.models import QuerySet
 from django.http import FileResponse
 from django.http import Http404
@@ -34,6 +35,11 @@ from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
+from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
+    bypass_share_guard_from_request,
+    resolve_asset_shared_deletion,
+    revoke_share_permissions,
+)
 from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
@@ -46,6 +52,7 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import ProcessingType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
@@ -967,6 +974,92 @@ class CaptureViewSet(viewsets.ViewSet):
         serializer = CaptureGetSerializer(target_capture)
         return Response(serializer.data)
 
+    @action(detail=True, methods=["put"])
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Share permissions revoked successfully"),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        description="Revoke all share permissions for a capture.",
+        summary="Revoke Capture Share Permissions",
+    )
+    def revoke_share_permissions(self, request: Request, pk: str | None = None) -> Response:
+        """Revoke all share permissions for a capture."""
+        if pk is None:
+            return Response(
+                {"detail": "Capture UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_capture = get_object_or_404(Capture, pk=pk, owner=request.user, is_deleted=False)
+        
+        revoked = revoke_share_permissions(
+            item_type=ItemType.CAPTURE,
+            item_uuid=target_capture.uuid,
+        )
+        if not revoked:
+            return Response(
+                {"detail": "Failed to revoke share permissions."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data={
+                "message": "Share permissions revoked successfully",
+            },
+        )
+
+    @action(detail=True, methods=["put"])
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Capture UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Capture detached from all datasets successfully"),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        description="Detach a capture from all connected datasets.",
+        summary="Detach Capture from All Connected Datasets",
+    )
+    def detach_from_datasets(self, request: Request, pk: str | None = None) -> Response:
+        """Detach a capture from all datasets."""
+        if pk is None:
+            return Response(
+                {"detail": "Capture UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_capture = get_object_or_404(Capture, pk=pk, owner=request.user, is_deleted=False)
+        
+        # clear the deprecated FK relationship
+        #TODO: remove after contraction migration
+        target_capture.dataset = None
+        target_capture.datasets.clear()
+        target_capture.save()
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data={
+                "message": "Capture detached from all connected datasets successfully",
+            },
+        )
+
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -998,30 +1091,25 @@ class CaptureViewSet(viewsets.ViewSet):
             is_deleted=False,
         )
 
-        bypass_share_guard = request.query_params.get("bypass_share_guard", False)
+        is_shared = check_if_shared(target_capture.uuid, ItemType.CAPTURE)
 
-        if check_if_shared(target_capture.uuid, ItemType.CAPTURE):
-            if not bypass_share_guard:
-                return Response(
-                    {"detail": (
-                        "Capture is shared and protected from deletion. "
-                        "If you wish to delete this capture anyway, "
-                        "please bypass the share guard by setting "
-                        "bypass_share_guard=True in the query parameters."
-                    )},
-                    status=status.HTTP_403_FORBIDDEN,
-                )
-            else:
-                log.warning(
-                    "Capture is shared. Bypassing share guard using setting "
-                    "bypass_share_guard=True in the query parameters."
-                )
+        if is_shared:
+            return Response(
+                {"detail": (
+                    "Capture is shared and cannot be deleted. "
+                    "If you wish to delete this capture anyway, please "
+                    "un-share this capture first. OR run the revoke_share_permissions "
+                    "method to un-share and then run the delete method."
+                )},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
-        target_capture.soft_delete()
-
-        # set these properties on OpenSearch document
-        opensearch_client = get_opensearch_client()
         try:
+            target_capture.soft_delete()
+
+            # set these properties on OpenSearch document
+            opensearch_client = get_opensearch_client()
+            
             opensearch_client.update(
                 index=target_capture.index_name,
                 id=target_capture.uuid,
@@ -1032,12 +1120,17 @@ class CaptureViewSet(viewsets.ViewSet):
                     },
                 },
             )
+        except ProtectedError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         except os_exceptions.NotFoundError:
             log.info(
                 f"OpenSearch document for capture '{target_capture.uuid}' "
                 "not found during soft delete: ignoring missing document.",
             )
-
+            
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
 

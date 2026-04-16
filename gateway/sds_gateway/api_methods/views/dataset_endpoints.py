@@ -13,7 +13,13 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
+    bypass_share_guard_from_request,
+    resolve_asset_shared_deletion,
+)
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import user_has_access_to_item
@@ -118,3 +124,99 @@ class DatasetViewSet(ViewSet):
         serializer = FileGetSerializer(paginated_files, many=True)
 
         return paginator.get_paginated_response(serializer.data)
+
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Dataset UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            204: OpenApiResponse(description="No Content"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description="Revoke all share permissions for a dataset.",
+        summary="Revoke Dataset Share Permissions",
+    )
+    @action(detail=True, methods=["put"], url_path="revoke-share-permissions", url_name="revoke-share-permissions")
+    def revoke_share_permissions(self, request: Request, pk: str | None = None) -> Response:
+        """Revoke all share permissions for a dataset."""
+        if pk is None:
+            return Response(
+                {"detail": "Dataset UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_dataset = get_object_or_404(
+            Dataset,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+        
+        revoked = revoke_share_permissions(
+            item_type=ItemType.DATASET,
+            item_uuid=target_dataset.uuid,
+        )
+        
+        if not revoked:
+            return Response(
+                {"detail": "Failed to revoke share permissions."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(
+            status=status.HTTP_200_OK,
+            data={
+                "message": "Share permissions revoked successfully",
+            },
+        )
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Dataset UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            204: OpenApiResponse(description="No Content"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description="Delete a dataset from the server.",
+        summary="Delete Dataset",
+    )
+    @action(detail=True, methods=["delete"], url_path="", url_name="delete")
+    def delete(self, request: Request, pk: str | None = None) -> Response:
+        """Delete a dataset from the server."""
+        if pk is None:
+            return Response(
+                {"detail": "Dataset UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_dataset = get_object_or_404(
+            Dataset,
+            pk=pk,
+            owner=request.user,
+            is_deleted=False,
+        )
+        
+        is_shared, _ = check_if_shared(
+            target_dataset.uuid, ItemType.DATASET
+        )
+        
+        if is_shared:
+            return Response(
+                {"detail": "Dataset is shared and cannot be deleted."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        target_dataset.soft_delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
