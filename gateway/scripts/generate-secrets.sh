@@ -2,8 +2,9 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-EXAMPLE_DIR="${PROJECT_ROOT}/.envs/example"
+GATEWAY_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+SFS_ROOT=$(cd "${GATEWAY_ROOT}/../seaweedfs" && pwd)
+EXAMPLE_DIR="${GATEWAY_ROOT}/.envs/example"
 MINIO_ROOT_USER="minioadmin"
 MINIO_ROOT_PASSWORD=""
 SFS_ACCESS_KEY_ID=""
@@ -11,7 +12,7 @@ SFS_SECRET_ACCESS_KEY=""
 SFS_ENDPOINT_URL=""
 SFS_S3_ENDPOINT_URL=""
 
-usage() {
+function usage() {
     cat << EOF
 Usage: ${0} [OPTIONS] <local|production|ci>
 
@@ -38,7 +39,7 @@ EOF
     exit 0
 }
 
-configure_object_store_defaults() {
+function configure_object_store_defaults() {
     local env_type="$1"
 
     if [[ -n "${SFS_ENDPOINT_URL}" ]]; then
@@ -75,17 +76,17 @@ configure_object_store_defaults() {
     MINIO_ROOT_PASSWORD=$(generate_secret 40)
 }
 
-generate_secret() {
+function generate_secret() {
     local length="${1:-40}"
     openssl rand -base64 48 | tr -d "=+/" | cut -c1-"${length}"
 }
 
-generate_django_secret_key() {
+function generate_django_secret_key() {
     # Django needs 50+ chars with special characters
     openssl rand -base64 64 | tr -d "\n"
 }
 
-process_env_file() {
+function process_env_file() {
     local template="$1"
     local output="$2"
     local env_type="$3"
@@ -113,17 +114,17 @@ process_env_file() {
     # generate secrets based on environment type
     if [[ "${env_type}" == "ci" ]]; then
         # CI: use predictable but acceptable secrets for ephemeral environments
-        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=ci-django-secret-key-insecure-for-testing-only}"
-        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=ci-admin/}"
-        content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=ci-flower-pass}"
-        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=ci-svi-api-key-01234567890123456789abcde}"   # 40 chars
-        content="${content//MINIO_ROOT_PASSWORD=<GENERATED MINIO ROOT PASSWORD>/MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}}"
-        content="${content//AWS_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/AWS_SECRET_ACCESS_KEY=ci-minio-secret}"
-        content="${content//MINIO_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
-        content="${content//POSTGRES_PASSWORD=your-specific-password/POSTGRES_PASSWORD=ci-postgres-pass}"
         content="${content//:your-specific-password@/:ci-postgres-pass@}"
+        content="${content//AWS_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/AWS_SECRET_ACCESS_KEY=ci-minio-secret}"
+        content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=ci-flower-pass}"
+        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=ci-admin/}"
+        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=ci-django-secret-key-insecure-for-testing-only}"
+        content="${content//MINIO_ROOT_PASSWORD=<GENERATED MINIO ROOT PASSWORD>/MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}}"
+        content="${content//MINIO_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
         content="${content//OPENSEARCH_INITIAL_ADMIN_PASSWORD=/OPENSEARCH_INITIAL_ADMIN_PASSWORD=CiAdmin123!}"
         content="${content//OPENSEARCH_PASSWORD=/OPENSEARCH_PASSWORD=CiDjango123!}"
+        content="${content//POSTGRES_PASSWORD=your-specific-password/POSTGRES_PASSWORD=ci-postgres-pass}"
+        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=ci-svi-api-key-01234567890123456789abcde}"   # 40 chars
     else
         # local/production: generate random secure secrets
         local django_secret_key django_admin_url flower_pass postgres_pass opensearch_admin_pass opensearch_user_pass svi_api_key
@@ -135,46 +136,71 @@ process_env_file() {
         opensearch_user_pass=$(generate_secret 32)
         svi_api_key=$(generate_secret 40)
 
-        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=${django_secret_key}}"
-        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=${django_admin_url}}"
-        content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=${flower_pass}}"
-        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=${svi_api_key}}"
-        content="${content//MINIO_ROOT_PASSWORD=<GENERATED MINIO ROOT PASSWORD>/MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}}"
-        content="${content//AWS_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
-        content="${content//MINIO_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
-        content="${content//POSTGRES_PASSWORD=your-specific-password/POSTGRES_PASSWORD=${postgres_pass}}"
         content="${content//:your-specific-password@/:${postgres_pass}@}"
+        content="${content//AWS_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
+        content="${content//CELERY_FLOWER_PASSWORD=/CELERY_FLOWER_PASSWORD=${flower_pass}}"
+        content="${content//DJANGO_ADMIN_URL=/DJANGO_ADMIN_URL=${django_admin_url}}"
+        content="${content//DJANGO_SECRET_KEY=/DJANGO_SECRET_KEY=${django_secret_key}}"
+        content="${content//MINIO_ROOT_PASSWORD=<GENERATED MINIO ROOT PASSWORD>/MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}}"
+        content="${content//MINIO_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
         content="${content//OPENSEARCH_INITIAL_ADMIN_PASSWORD=/OPENSEARCH_INITIAL_ADMIN_PASSWORD=${opensearch_admin_pass}}"
         content="${content//OPENSEARCH_PASSWORD=/OPENSEARCH_PASSWORD=${opensearch_user_pass}}"
+        content="${content//POSTGRES_PASSWORD=your-specific-password/POSTGRES_PASSWORD=${postgres_pass}}"
+        content="${content//SVI_SERVER_API_KEY=/SVI_SERVER_API_KEY=${svi_api_key}}"
     fi
 
     # set WEB_CONCURRENCY based on CPU cores (applies to all environments)
     content="${content//WEB_CONCURRENCY=4/WEB_CONCURRENCY=${web_concurrency}}"
 
     if [[ "${filename}" == "sfs.env" ]]; then
-        content="${content//SFS_ACCESS_KEY_ID=admin/SFS_ACCESS_KEY_ID=${SFS_ACCESS_KEY_ID}}"
-        content="${content//SFS_SECRET_ACCESS_KEY=admin/SFS_SECRET_ACCESS_KEY=${SFS_SECRET_ACCESS_KEY}}"
-        content="${content//SFS_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-sfs-s3:8333/SFS_S3_ENDPOINT_URL=${SFS_S3_ENDPOINT_URL}}"
-        content="${content//SFS_ENDPOINT_URL=sds-gateway-local-sfs-s3:8333/SFS_ENDPOINT_URL=${SFS_ENDPOINT_URL}}"
+        content="${content//AWS_ACCESS_KEY_ID=admin/AWS_ACCESS_KEY_ID=${SFS_ACCESS_KEY_ID}}"
+        content="${content//AWS_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-sfs-s3:8333/AWS_S3_ENDPOINT_URL=${SFS_S3_ENDPOINT_URL}}"
+        content="${content//AWS_SECRET_ACCESS_KEY=admin/AWS_SECRET_ACCESS_KEY=${SFS_SECRET_ACCESS_KEY}}"
         content="${content//MINIO_ACCESS_KEY_ID=minioadmin/MINIO_ACCESS_KEY_ID=${MINIO_ROOT_USER}}"
         content="${content//MINIO_SECRET_ACCESS_KEY=<SAME AS MINIO_ROOT_PASSWORD>/MINIO_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD}}"
-        content="${content//AWS_ACCESS_KEY_ID=admin/AWS_ACCESS_KEY_ID=${SFS_ACCESS_KEY_ID}}"
-        content="${content//AWS_SECRET_ACCESS_KEY=admin/AWS_SECRET_ACCESS_KEY=${SFS_SECRET_ACCESS_KEY}}"
-        content="${content//AWS_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-sfs-s3:8333/AWS_S3_ENDPOINT_URL=${SFS_S3_ENDPOINT_URL}}"
+        content="${content//SFS_ACCESS_KEY_ID=admin/SFS_ACCESS_KEY_ID=${SFS_ACCESS_KEY_ID}}"
+        content="${content//SFS_ENDPOINT_URL=sds-gateway-local-sfs-s3:8333/SFS_ENDPOINT_URL=${SFS_ENDPOINT_URL}}"
+        content="${content//SFS_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-sfs-s3:8333/SFS_S3_ENDPOINT_URL=${SFS_S3_ENDPOINT_URL}}"
+        content="${content//SFS_SECRET_ACCESS_KEY=admin/SFS_SECRET_ACCESS_KEY=${SFS_SECRET_ACCESS_KEY}}"
     fi
 
     if [[ "${filename}" == "minio.env" ]]; then
-        content="${content//MINIO_ROOT_USER=minioadmin/MINIO_ROOT_USER=${MINIO_ROOT_USER}}"
-        content="${content//MINIO_ACCESS_KEY_ID=minioadmin/MINIO_ACCESS_KEY_ID=${MINIO_ROOT_USER}}"
         content="${content//AWS_ACCESS_KEY_ID=minioadmin/AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER}}"
+        content="${content//MINIO_ACCESS_KEY_ID=minioadmin/MINIO_ACCESS_KEY_ID=${MINIO_ROOT_USER}}"
+        content="${content//MINIO_ROOT_USER=minioadmin/MINIO_ROOT_USER=${MINIO_ROOT_USER}}"
     fi
 
     # write to output
     mkdir -p "$(dirname "${output}")"
     echo "${content}" > "${output}"
+    chmod 600 "${output}"
 }
 
-main() {
+function generate_seaweedfs_env_file() {
+    local sfs_dir="${GATEWAY_ROOT}/../seaweedfs"
+    local sfs_env_example="${sfs_dir}/.envs/example/sfs.env"
+    if ! [ -f "${sfs_env_example}" ]; then
+        echo "ERROR: SeaweedFS env template not found at ${sfs_env_example}" >&2
+        return 1
+    fi
+    process_env_file "${sfs_env_example}" "${1}" "${2}" "${3}"
+    chmod 600 "${1}"
+}
+
+function set_permissions() {
+    declare -a env_dirs
+    env_dirs=(
+        "${GATEWAY_ROOT}/.envs"
+        "${SFS_ROOT}/.envs"
+    )
+    for dir in "${env_dirs[@]}"; do
+        if [ -d "${dir}" ]; then
+            find "${dir}" -type f -name "*.env" -exec chmod --changes 600 {} \;
+        fi
+    done
+}
+
+function main() {
     local force="false"
     local env_type=""
 
@@ -206,7 +232,8 @@ main() {
 
     echo "🔐 Generating secrets for '${env_type}' environment..."
 
-    local target_dir="${PROJECT_ROOT}/.envs/${env_type}"
+    local target_dir_gwy="${GATEWAY_ROOT}/.envs/${env_type}"
+    local target_dir_sfs="${SFS_ROOT}/.envs/${env_type}"
 
     # process each env file from examples
     for template in "${EXAMPLE_DIR}"/*.env; do
@@ -218,7 +245,7 @@ main() {
             if [[ "${env_type}" == "production" ]]; then
                 # use prod-example for production django.env
                 if [[ "${filename}" == "django.prod-example.env" ]]; then
-                    process_env_file "${template}" "${target_dir}/django.env" "${env_type}" "${force}"
+                    process_env_file "${template}" "${target_dir_gwy}/django.env" "${env_type}" "${force}"
                 fi
             fi
             continue
@@ -229,18 +256,21 @@ main() {
             continue
         fi
 
-        local output="${target_dir}/${filename}"
+        local output="${target_dir_gwy}/${filename}"
         process_env_file "${template}" "${output}" "${env_type}" "${force}"
     done
 
+    generate_seaweedfs_env_file "${target_dir_sfs}/sfs.env" "${env_type}" "${force}"
+    set_permissions
+
     echo ""
-    echo "✅ Secrets generated successfully in ${target_dir}/"
+    echo "✅ Secrets generated successfully in ${target_dir_gwy}/"
     echo ""
     echo "Next steps:"
     if [[ "${env_type}" == "ci" ]]; then
         echo "  - Review generated secrets (safe for ephemeral CI usage)"
     else
-        echo "  - Review and customize ${target_dir}/*.env as needed"
+        echo "  - Review and customize ${target_dir_gwy}/*.env as needed"
         echo "  - Set additional optional vars (AUTH0, SENTRY, etc.)"
     fi
     echo "  - Use 'just env' to check the environment setup"

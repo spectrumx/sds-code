@@ -146,7 +146,6 @@ dev-setup:
 [group('utilities')]
 env:
     #!/usr/bin/env bash
-    set -euo pipefail
     echo -e "\nSelected env:\n"
     echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
     echo -e "\tEnvironment file: \e[34m        '{{ env_file }}'\e[0m"
