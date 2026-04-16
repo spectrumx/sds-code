@@ -23,6 +23,8 @@ from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 
+from tests.conftest import get_capture_detach_from_datasets_url
+from tests.conftest import get_capture_revoke_share_permissions_url
 from tests.conftest import get_captures_endpoint
 from tests.conftest import get_content_check_endpoint
 from tests.conftest import get_files_endpoint
@@ -42,6 +44,16 @@ MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channe
 TEST_STATE_PERSISTENCE: bool = False  # don't persist upload state in tests
 
 
+def _gateway_capture_sharing_fields() -> dict[str, Any]:
+    """Owner and sharing fields the gateway includes on capture payloads."""
+    return {
+        "owner": {"id": 1, "email": "test@example.com", "name": "Test User"},
+        "is_shared": False,
+        "share_permissions": [],
+        "datasets": [],
+    }
+
+
 @pytest.fixture
 def sample_capture_uuid() -> UUID4:
     """Returns a sample capture UUID for testing."""
@@ -52,6 +64,7 @@ def sample_capture_uuid() -> UUID4:
 def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
     """Returns sample capture data for testing."""
     return {
+        **_gateway_capture_sharing_fields(),
         "capture_props": {"sample": "props"},
         "capture_type": CaptureType.DigitalRF.value,
         "created_at": datetime.now(UTC).isoformat(),
@@ -78,6 +91,7 @@ def sample_capture_data(sample_capture_uuid: UUID4) -> dict[str, Any]:
 def _build_drf_capture_payload(**overrides: object) -> dict[str, object]:
     """Creates a DRF capture payload similar to what the gateway returns."""
     base_payload: dict[str, object] = {
+        **_gateway_capture_sharing_fields(),
         "capture_props": {"sample_rate": 1.0},
         "capture_type": CaptureType.DigitalRF.value,
         "channel": "channel-0",
@@ -135,6 +149,7 @@ def test_create_capture(client: Client, responses: responses.RequestsMock) -> No
 
     # Mock response
     mocked_capture_response = {
+        **_gateway_capture_sharing_fields(),
         "uuid": capture_uuid.hex,
         "capture_type": capture_type.value,
         "top_level_dir": str(top_level_dir),
@@ -523,6 +538,7 @@ def test_upload_multichannel_drf_capture_success(
     # Mock capture creation endpoints
     for _, (channel, uuid) in enumerate(zip(channels, capture_uuids, strict=False)):
         mocked_response = {
+            **_gateway_capture_sharing_fields(),
             "uuid": uuid.hex,
             "capture_type": CaptureType.DigitalRF.value,
             "top_level_dir": "/test/multichannel",
@@ -605,6 +621,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         url=get_captures_endpoint(client, capture_id=existing_uuid.hex),
         status=200,
         json={
+            **_gateway_capture_sharing_fields(),
             "uuid": str(existing_uuid),
             "top_level_dir": "/test/multichannel",
             "capture_type": CaptureType.DigitalRF.value,
@@ -622,6 +639,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         url=get_captures_endpoint(client),
         status=201,
         json={
+            **_gateway_capture_sharing_fields(),
             "uuid": str(new_uuid),
             "top_level_dir": "/test/multichannel",
             "capture_type": CaptureType.DigitalRF.value,
@@ -682,6 +700,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
         url=get_captures_endpoint(client),
         status=201,
         json={
+            **_gateway_capture_sharing_fields(),
             "uuid": first_uuid.hex,
             "capture_type": CaptureType.DigitalRF.value,
             "top_level_dir": "/test/multichannel",
@@ -788,6 +807,29 @@ def test_delete_capture(client: Client, responses: responses.RequestsMock) -> No
     )
 
 
+def test_delete_capture_bypass_share_guard(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Deleting with bypass_share_guard sends the query param."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    base_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    responses.add(
+        method=responses.DELETE,
+        url=f"{base_url}?bypass_share_guard=true",
+        status=204,
+    )
+
+    result = client.captures.delete(
+        capture_uuid=capture_uuid,
+        bypass_share_guard=True,
+    )
+
+    assert result is True
+    assert len(responses.calls) == 1
+    assert "bypass_share_guard=true" in responses.calls[0].request.url
+
+
 def test_delete_capture_dry_run(client: Client) -> None:
     """Test deleting a capture in dry run mode."""
     # ARRANGE
@@ -799,6 +841,130 @@ def test_delete_capture_dry_run(client: Client) -> None:
 
     # ASSERT
     assert result is True  # Dry run should simulate success
+
+
+def test_revoke_capture_share_permissions(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """PUT revoke-share-permissions on a capture."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    revoke_url = get_capture_revoke_share_permissions_url(
+        client, capture_id=capture_uuid.hex
+    )
+    responses.add(
+        method=responses.PUT,
+        url=revoke_url,
+        status=200,
+        json={"message": "Share permissions revoked successfully"},
+    )
+
+    assert client.captures.revoke_share_permissions(capture_uuid) is True
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[0].request.url == revoke_url
+
+
+def test_detach_capture_from_datasets(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """PUT detach-from-datasets on a capture."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    detach_url = get_capture_detach_from_datasets_url(
+        client, capture_id=capture_uuid.hex
+    )
+    responses.add(
+        method=responses.PUT,
+        url=detach_url,
+        status=200,
+        json={"message": "Capture detached from all connected datasets successfully"},
+    )
+
+    assert client.captures.detach_from_datasets(capture_uuid) is True
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[0].request.url == detach_url
+
+
+def test_delete_after_revoking_share(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Revoke then delete issues PUT then DELETE."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    revoke_url = get_capture_revoke_share_permissions_url(
+        client, capture_id=capture_uuid.hex
+    )
+    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    responses.add(
+        method=responses.PUT,
+        url=revoke_url,
+        status=200,
+        json={"message": "ok"},
+    )
+    responses.add(
+        method=responses.DELETE,
+        url=delete_url,
+        status=204,
+    )
+
+    assert client.captures.delete_after_revoking_share(capture_uuid) is True
+    assert len(responses.calls) == 2
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[1].request.method == "DELETE"
+
+
+def test_delete_after_detaching_from_datasets(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Detach then delete issues PUT then DELETE."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    detach_url = get_capture_detach_from_datasets_url(
+        client, capture_id=capture_uuid.hex
+    )
+    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    responses.add(
+        method=responses.PUT,
+        url=detach_url,
+        status=200,
+        json={"message": "ok"},
+    )
+    responses.add(
+        method=responses.DELETE,
+        url=delete_url,
+        status=204,
+    )
+
+    assert client.captures.delete_after_detaching_from_datasets(capture_uuid) is True
+    assert len(responses.calls) == 2
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[1].request.method == "DELETE"
+
+
+def test_delete_with_revoke_and_detach(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Revoke, detach, then delete."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    revoke_url = get_capture_revoke_share_permissions_url(
+        client, capture_id=capture_uuid.hex
+    )
+    detach_url = get_capture_detach_from_datasets_url(
+        client, capture_id=capture_uuid.hex
+    )
+    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    responses.add(method=responses.PUT, url=revoke_url, status=200, json={"message": "ok"})
+    responses.add(method=responses.PUT, url=detach_url, status=200, json={"message": "ok"})
+    responses.add(method=responses.DELETE, url=delete_url, status=204)
+
+    assert client.captures.delete_with_revoke_and_detach(capture_uuid) is True
+    assert len(responses.calls) == 3
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[1].request.method == "PUT"
+    assert responses.calls[2].request.method == "DELETE"
 
 
 def test_search_captures_freq_range(
@@ -982,6 +1148,7 @@ def test_create_capture_with_name(
 
     # Mock response
     mocked_capture_response = {
+        **_gateway_capture_sharing_fields(),
         "uuid": capture_uuid.hex,
         "capture_type": capture_type.value,
         "top_level_dir": str(top_level_dir),
@@ -1107,6 +1274,7 @@ def test_upload_capture_with_name_success(
 
     # Mock capture creation
     mocked_capture_response = {
+        **_gateway_capture_sharing_fields(),
         "uuid": capture_uuid.hex,
         "capture_type": CaptureType.DigitalRF.value,
         "top_level_dir": "/test/upload/success",

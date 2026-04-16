@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import uuid
 
-if TYPE_CHECKING:
-    import uuid
+from loguru import logger as log
 
+from spectrumx.gateway import GatewayClient
 from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
-
-if TYPE_CHECKING:
-    from spectrumx.gateway import GatewayClient
 
 
 class DatasetAPI:
@@ -56,3 +53,51 @@ class DatasetAPI:
         )
 
         return pagination
+
+    def delete(
+        self,
+        dataset_uuid: uuid.UUID,
+        *,
+        bypass_share_guard: bool = False,
+    ) -> bool:
+        """Deletes a dataset from SDS by its UUID.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to delete.
+            bypass_share_guard: If True, request unshare then delete when the dataset
+                is shared (gateway ``bypass_share_guard`` query param).
+        Returns:
+            True if the dataset was deleted successfully, or if in dry run mode.
+        """
+        if self.verbose:
+            log.debug(f"Deleting dataset with UUID {dataset_uuid}")
+
+        if self.dry_run:
+            log.debug(f"Dry run enabled: would delete dataset {dataset_uuid}")
+            return True
+
+        self.gateway.delete_dataset(
+            dataset_uuid=dataset_uuid,
+            bypass_share_guard=bypass_share_guard,
+        )
+        if self.verbose:
+            log.debug(f"Dataset deleted with UUID {dataset_uuid}")
+        return True
+
+    def revoke_share_permissions(self, dataset_uuid: uuid.UUID) -> bool:
+        """Revoke all direct share permissions on this dataset (owner-only).
+
+        Use this (or the web portal) before :meth:`delete` when the dataset is shared.
+        """
+        if self.verbose:
+            log.debug(f"Revoking share permissions for dataset {dataset_uuid}")
+        if self.dry_run:
+            log.debug("Dry run enabled: would revoke dataset share permissions")
+            return True
+        self.gateway.revoke_dataset_share_permissions(dataset_uuid=dataset_uuid)
+        return True
+
+    def delete_after_revoking_share(self, dataset_uuid: uuid.UUID) -> bool:
+        """Revoke direct shares, then delete the dataset."""
+        self.revoke_share_permissions(dataset_uuid)
+        return self.delete(dataset_uuid)

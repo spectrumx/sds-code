@@ -379,6 +379,42 @@ def test_delete_file_success(client: Client) -> None:
 
 
 @responses.activate
+def test_delete_file_bypass_share_guard(client: Client) -> None:
+    """DELETE with bypass_share_guard includes the query param."""
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False
+    responses.add(
+        responses.GET,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test_file.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+    responses.add(
+        responses.DELETE,
+        f"{get_files_endpoint(client)}{test_uuid_hex}/?bypass_share_guard=true",
+        status=204,
+    )
+
+    result = delete_file(
+        client=client, file_uuid=test_uuid, bypass_share_guard=True
+    )
+
+    assert result is True
+    assert "bypass_share_guard=true" in responses.calls[1].request.url
+
+
+@responses.activate
 def test_delete_file_str_uuid(client: Client) -> None:
     """Test file deletion with string UUID."""
     # ARRANGE

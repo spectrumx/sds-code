@@ -248,6 +248,48 @@ def get_files_endpoint(client: Client) -> str:
     return client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/"
 
 
+def get_datasets_endpoint(
+    client: Client,
+    dataset_id: str | None = None,
+) -> str:
+    """Returns the endpoint for datasets."""
+    base_endpoint = client.base_url + f"/api/{API_TARGET_VERSION}/assets/datasets/"
+    if dataset_id:
+        return base_endpoint + f"{dataset_id}/"
+    return base_endpoint
+
+
+def get_capture_revoke_share_permissions_url(
+    client: Client, capture_id: str
+) -> str:
+    """URL for PUT revoke-share-permissions on a capture (matches DRF @action path)."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/captures/{capture_id}/"
+        + "revoke-share-permissions/"
+    )
+
+
+def get_capture_detach_from_datasets_url(client: Client, capture_id: str) -> str:
+    """URL for PUT detach-from-datasets on a capture."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/captures/{capture_id}/"
+        + "detach-from-datasets/"
+    )
+
+
+def get_dataset_revoke_share_permissions_url(
+    client: Client, dataset_id: str
+) -> str:
+    """URL for PUT revoke-share-permissions on a dataset."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/datasets/{dataset_id}/"
+        + "revoke-share-permissions/"
+    )
+
+
 def get_content_check_endpoint(client: Client) -> str:
     """Returns the endpoint for the content check API."""
     return (

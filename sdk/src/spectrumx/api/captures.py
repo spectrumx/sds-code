@@ -19,6 +19,7 @@ from spectrumx.errors import CaptureError
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
+from spectrumx.models.user import User
 from spectrumx.utils import log_user_warning
 
 if TYPE_CHECKING:
@@ -117,6 +118,10 @@ class CaptureAPI:
                 top_level_dir=top_level_dir,
                 uuid=uuid4(),
                 files=[],
+                datasets=[],
+                owner=User(name="Dry run", email="dry-run@local.invalid"),
+                share_permissions=[],
+                is_shared=False,
                 created_at=datetime.now(UTC),
             )
         capture_raw = self.gateway.create_capture(
@@ -225,11 +230,18 @@ class CaptureAPI:
             log.debug(f"Capture read with UUID {capture.uuid}")
         return capture
 
-    def delete(self, capture_uuid: uuid.UUID) -> bool:
+    def delete(
+        self,
+        capture_uuid: uuid.UUID,
+        *,
+        bypass_share_guard: bool = False,
+    ) -> bool:
         """Deletes a capture from SDS by its UUID.
 
         Args:
             capture_uuid:   The UUID of the capture to delete.
+            bypass_share_guard: If True, request unshare/detach then delete when the
+                capture is shared (gateway ``bypass_share_guard`` query param).
         Returns:
             True if the capture was deleted successfully, or if in dry run mode.
         Raises:
@@ -242,10 +254,55 @@ class CaptureAPI:
         if self.dry_run:
             log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
             return True
-        self.gateway.delete_capture(capture_uuid=capture_uuid)
+        self.gateway.delete_capture(
+            capture_uuid=capture_uuid,
+            bypass_share_guard=bypass_share_guard,
+        )
         if self.verbose:
             log.debug(f"Capture deleted with UUID {capture_uuid}")
         return True
+
+    def revoke_share_permissions(self, capture_uuid: uuid.UUID) -> bool:
+        """Revoke all direct share permissions on this capture (owner-only).
+
+        Use this (or the web portal) before :meth:`delete` when the capture is shared.
+        """
+        if self.verbose:
+            log.debug(f"Revoking share permissions for capture {capture_uuid}")
+        if self.dry_run:
+            log.debug("Dry run enabled: would revoke capture share permissions")
+            return True
+        self.gateway.revoke_capture_share_permissions(capture_uuid=capture_uuid)
+        return True
+
+    def detach_from_datasets(self, capture_uuid: uuid.UUID) -> bool:
+        """Remove this capture from all datasets (owner-only).
+
+        Use before :meth:`delete` when the capture is still linked to datasets.
+        """
+        if self.verbose:
+            log.debug(f"Detaching capture {capture_uuid} from datasets")
+        if self.dry_run:
+            log.debug("Dry run enabled: would detach capture from datasets")
+            return True
+        self.gateway.detach_capture_from_datasets(capture_uuid=capture_uuid)
+        return True
+
+    def delete_after_revoking_share(self, capture_uuid: uuid.UUID) -> bool:
+        """Revoke direct shares, then delete the capture."""
+        self.revoke_share_permissions(capture_uuid)
+        return self.delete(capture_uuid)
+
+    def delete_after_detaching_from_datasets(self, capture_uuid: uuid.UUID) -> bool:
+        """Detach from all datasets, then delete the capture."""
+        self.detach_from_datasets(capture_uuid)
+        return self.delete(capture_uuid)
+
+    def delete_with_revoke_and_detach(self, capture_uuid: uuid.UUID) -> bool:
+        """Revoke direct shares, detach from datasets, then delete the capture."""
+        self.revoke_share_permissions(capture_uuid)
+        self.detach_from_datasets(capture_uuid)
+        return self.delete(capture_uuid)
 
     def advanced_search(
         self: CaptureAPI,
@@ -358,5 +415,9 @@ def _generate_capture(capture_type: CaptureType) -> Capture:
         top_level_dir=PurePosixPath("/"),
         uuid=uuid4(),
         files=[],
+        datasets=[],
+        owner=User(name="Dry run", email="dry-run@local.invalid"),
+        share_permissions=[],
+        is_shared=False,
         created_at=datetime.now(UTC),
     )

@@ -176,18 +176,28 @@ class Client:
 
         return self._sds_files.get_file(client=self, file_uuid=file_uuid)
 
-    def delete_file(self, file_uuid: UUID4 | str) -> bool:
+    def delete_file(
+        self,
+        file_uuid: UUID4 | str,
+        *,
+        bypass_share_guard: bool = False,
+    ) -> bool:
         """Deletes a file from SDS by its UUID.
 
         Args:
             file_uuid: The UUID of the file to delete.
+            bypass_share_guard: If True, request detach from indirect shares then delete.
         Returns:
             True if the file was deleted successfully,
             or if in dry run mode (simulating success).
         Raises:
             SDSError: If the file couldn't be deleted.
         """
-        return self._sds_files.delete_file(client=self, file_uuid=file_uuid)
+        return self._sds_files.delete_file(
+            client=self,
+            file_uuid=file_uuid,
+            bypass_share_guard=bypass_share_guard,
+        )
 
     def download(
         self,

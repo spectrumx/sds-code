@@ -37,7 +37,15 @@ class Endpoints(StrEnum):
 
     AUTH = "/auth"
     CAPTURES = "/assets/captures"
+    CAPTURE_DETACH_FROM_DATASETS = "/assets/captures/{uuid}/detach-from-datasets"
+    CAPTURE_REVOKE_SHARE_PERMISSIONS = (
+        "/assets/captures/{uuid}/revoke-share-permissions"
+    )
+    DATASETS = "/assets/datasets"
     DATASET_FILES = "/assets/datasets/{uuid}/files"
+    DATASET_REVOKE_SHARE_PERMISSIONS = (
+        "/assets/datasets/{uuid}/revoke-share-permissions"
+    )
     EXPERIMENTS = "/assets/experiments"
     FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
     FILE_DOWNLOAD = "/assets/files/{uuid}/download"
@@ -410,22 +418,34 @@ class GatewayClient:
         content: bytes | Any = response.content
         return content
 
-    def delete_file_by_id(self, uuid: str, *, verbose: bool = False) -> bool:
+    def delete_file_by_id(
+        self,
+        uuid: str,
+        *,
+        verbose: bool = False,
+        bypass_share_guard: bool = False,
+    ) -> bool:
         """Deletes a file from the SDS API by its UUID.
 
         Args:
             uuid: The UUID of the file to delete as a hex string.
             verbose: Whether to log the request.
+            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
+                gateway may detach indirect shares then delete (see API docs).
         Returns:
             True if the file was deleted successfully.
         Raises:
             FileError: If the file could not be deleted.
         """
+        extra: dict[str, Any] = {}
+        if bypass_share_guard:
+            extra["params"] = {"bypass_share_guard": "true"}
         response = self._request(
             method=HTTPMethods.DELETE,
             endpoint=Endpoints.FILES,
             asset_id=uuid,
             verbose=verbose,
+            **extra,
         )
 
         network.success_or_raise(response, ContextException=FileError)
@@ -577,26 +597,138 @@ class GatewayClient:
         content: bytes | Any = response.content
         return content
 
-    def delete_capture(self, *, capture_uuid: uuid.UUID) -> None:
+    def delete_capture(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+        bypass_share_guard: bool = False,
+    ) -> None:
         """Deletes a capture from SDS by its UUID.
 
         Args:
             capture_uuid: The UUID of the capture to delete.
+            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
+                gateway may unshare / detach then delete (see API docs).
         Raises:
-            GatewayError: If the deletion request fails.
+            CaptureError: If the deletion request fails.
         """
         endpoint = f"{Endpoints.CAPTURES}/{capture_uuid.hex}"
         if self.verbose:
             log.debug(f"Sending DELETE request to {endpoint}")
 
+        extra: dict[str, Any] = {}
+        if bypass_share_guard:
+            extra["params"] = {"bypass_share_guard": "true"}
         response = self._request(
             method=HTTPMethods.DELETE,
             endpoint=Endpoints.CAPTURES,
             asset_id=capture_uuid.hex,
+            **extra,
         )
         network.success_or_raise(response, ContextException=CaptureError)
         if self.verbose:
             log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
+
+    def revoke_capture_share_permissions(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Revoke all direct share permissions on a capture (owner-only API).
+
+        Args:
+            capture_uuid: UUID of the capture.
+        Returns:
+            Raw response body (typically JSON with a success message).
+        Raises:
+            CaptureError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.PUT,
+            endpoint=Endpoints.CAPTURE_REVOKE_SHARE_PERMISSIONS,
+            endpoint_args={"uuid": capture_uuid.hex},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=CaptureError)
+        return response.content
+
+    def detach_capture_from_datasets(
+        self,
+        *,
+        capture_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Detach a capture from all datasets (owner-only API).
+
+        Args:
+            capture_uuid: UUID of the capture.
+        Returns:
+            Raw response body (typically JSON with a success message).
+        Raises:
+            CaptureError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.PUT,
+            endpoint=Endpoints.CAPTURE_DETACH_FROM_DATASETS,
+            endpoint_args={"uuid": capture_uuid.hex},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=CaptureError)
+        return response.content
+
+    def delete_dataset(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        bypass_share_guard: bool = False,
+        verbose: bool = False,
+    ) -> None:
+        """Deletes a dataset from SDS by its UUID.
+
+        Args:
+            dataset_uuid: The UUID of the dataset to delete.
+            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
+                gateway may unshare then delete (see API docs).
+            verbose: Whether to log the request.
+        Raises:
+            DatasetError: If the deletion request fails.
+        """
+        extra: dict[str, Any] = {}
+        if bypass_share_guard:
+            extra["params"] = {"bypass_share_guard": "true"}
+        response = self._request(
+            method=HTTPMethods.DELETE,
+            endpoint=Endpoints.DATASETS,
+            asset_id=dataset_uuid.hex,
+            verbose=verbose,
+            **extra,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
+
+    def revoke_dataset_share_permissions(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Revoke all direct share permissions on a dataset (owner-only API).
+
+        Args:
+            dataset_uuid: UUID of the dataset.
+        Returns:
+            Raw response body (typically JSON with a success message).
+        Raises:
+            DatasetError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.PUT,
+            endpoint=Endpoints.DATASET_REVOKE_SHARE_PERMISSIONS,
+            endpoint_args={"uuid": dataset_uuid.hex},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
+        return response.content
 
     def get_dataset_files(
         self,
