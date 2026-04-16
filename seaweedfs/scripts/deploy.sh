@@ -23,7 +23,6 @@ SFS_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 source "${SCRIPT_DIR}/common.sh"
 
 readonly DEFAULT_MAX_WAIT=60
-readonly SFS_IMAGE="docker.io/chrislusf/seaweedfs:4.17_large_disk"
 
 function show_usage() {
     echo -e "Usage: ${0} [OPTIONS] <local|production|ci>"
@@ -47,7 +46,7 @@ function show_usage() {
     echo -e "\e[34mEXAMPLES:\e[0m"
     echo "    ${0} local"
     echo "    ${0} ci"
-    echo "    ${0} --sfs-env ../gateway/.envs/production/sfs.env production"
+    echo "    ${0} --sfs-env .envs/production/sfs.env production"
     echo ""
     exit 0
 }
@@ -77,35 +76,13 @@ function setup_data_dirs() {
     log_success "Data directories ready"
 }
 
-function get_compose_file() {
-    local env_type="$1"
-    case "${env_type}" in
-        production) echo "compose.production.yaml" ;;
-        ci)         echo "compose.ci.yaml" ;;
-        local)      echo "compose.local.yaml" ;;
-    esac
-}
-
-function get_docker_compose_cmd() {
-    local env_type="$1"
-    local compose_file
-    compose_file=$(get_compose_file "${env_type}")
-    echo "COMPOSE_FILE=${compose_file} docker compose --env-file ${SFS_ROOT}/.env"
-}
-
-function start_sfs_stack() {
-    local env_type="$1"
-    local dc_cmd
-    dc_cmd=$(get_docker_compose_cmd "${env_type}")
-
-    log_header "Starting SeaweedFS Stack"
-
-    log_msg "Pulling images..."
-    (cd "${SFS_ROOT}" && eval "${dc_cmd} pull --ignore-buildable") || true
-
-    log_msg "Starting services..."
-    (cd "${SFS_ROOT}" && eval "${dc_cmd} up --detach --remove-orphans")
-    log_success "SeaweedFS services started"
+function start_stack() {
+    log_header "Starting SFS stack"
+    log_msg "Starting stack..."
+    {
+        just build
+        just up
+    } &>/dev/null &
 }
 
 function env_prefix() {
@@ -242,10 +219,6 @@ function parse_arguments() {
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --sfs-env)
-                args_ref[sfs_env_file]="${2:-}"
-                shift 2
-                ;;
             --skip-setup)
                 args_ref[skip_setup]="true"
                 shift
@@ -268,17 +241,22 @@ function parse_arguments() {
         log_error "Environment type required (local, production, or ci)"
         show_usage
     fi
+}
 
-    # default credentials file if not specified
-    if [[ -z "${args_ref[sfs_env_file]}" ]]; then
-        args_ref[sfs_env_file]="${SFS_ROOT}/.envs/${args_ref[env_type]}/sfs.env"
+function assert_selected_env() {
+    local env_type="$1"
+    local selected_env="$(just env | awk -F"'" '/Environment:/{print $2}')"
+    if [[ "${env_type}" != "${selected_env}" ]]; then
+        log_error "Selected environment >${selected_env}< does not match argument >${env_type}<"
+        log_msg "If you are attempting to run e.g. a CI env locally, tear down your local stack,"
+        log_msg "then run the deploy script with CI=1, e.g.:\n\n\tCI=1 ${0} ci\n"
+        exit 1
     fi
 }
 
 function main() {
     declare -A args=(
         [env_type]=""
-        [sfs_env_file]=""
         [skip_setup]="false"
     )
 
@@ -287,14 +265,15 @@ function main() {
     cd "${SFS_ROOT}"
     log_header "SeaweedFS Deployment - ${args[env_type]} environment"
 
+    assert_selected_env "${args[env_type]}"
     setup_prod_hostnames "${args[env_type]}"
     setup_data_dirs "${args[env_type]}"
-    start_sfs_stack "${args[env_type]}"
+    start_stack "${args[env_type]}"
     wait_for_s3_health "${args[env_type]}" "${DEFAULT_MAX_WAIT}"
 
     if [[ "${args[skip_setup]}" == "false" ]]; then
         local creds
-        creds=$(load_credentials "${args[sfs_env_file]}")
+        creds=$(just load_credentials)
         local access_key secret_key bucket_name
         access_key=$(echo "${creds}" | sed -n '1p')
         secret_key=$(echo "${creds}" | sed -n '2p')

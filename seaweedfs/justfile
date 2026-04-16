@@ -57,6 +57,39 @@ down *args:
     @echo "Stopping SeaweedFS"
     {{ docker_compose }} down --remove-orphans {{ args }}
 
+[group('setup')]
+load_credentials *args:
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    # args=("{{ args }}")
+    env="{{ env }}"
+    sfs_env_file="../gateway/.envs/${env}/sfs.env"
+    if [[ ! -f "${sfs_env_file}" ]]; then
+        echo "Error: SeaweedFS credentials file not found at ${sfs_env_file}" >&2
+        echo "Please run 'just generate-secrets' to create it." >&2
+        exit 1
+    fi
+    env_file_gateway=$(realpath ${sfs_env_file})
+    echo "Loading credentials from ${env_file_gateway}..." >&2
+
+    if [[ ! -f "${env_file_gateway}" ]]; then
+        echo "Credentials file not found: ${env_file_gateway}" >&2
+        exit 1
+    fi
+
+    access_key=$(grep -E '^SFS_ACCESS_KEY_ID=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    secret_key=$(grep -E '^SFS_SECRET_ACCESS_KEY=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    bucket_name=$(grep -E '^SFS_STORAGE_BUCKET_NAME=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+
+    if [[ -z "${access_key}" || -z "${secret_key}" || -z "${bucket_name}" ]]; then
+        echo "Missing required credentials in ${env_file_gateway}. Expected:" >&2
+        echo -e "\tSFS_ACCESS_KEY_ID, SFS_SECRET_ACCESS_KEY, SFS_STORAGE_BUCKET_NAME" >&2
+        exit 1
+    fi
+
+    printf '%s\n%s\n%s' "${access_key}" "${secret_key}" "${bucket_name}"
+
 # prints currently selected environment
 [group('utilities')]
 env:
