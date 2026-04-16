@@ -26,6 +26,8 @@ from .utils.opensearch_client import get_opensearch_client
 
 if TYPE_CHECKING:
     from sds_gateway.users.models import User
+    from sds_gateway.api_methods.utils.asset_access_control import get_connected_asset_ids
+    from sds_gateway.api_methods.utils.asset_access_control import disconnect_assets
 
 log = logging.getLogger(__name__)
 
@@ -254,21 +256,30 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     Raises:
         ProtectedError if the file is associated with a capture or dataset.
     """
+    connected_asset_ids = get_connected_asset_ids(
+        item_uuid=instance.uuid,
+        item_type=ItemType.FILE,
+    )
+
     associations: list[str] = []
     if instance.capture and not instance.capture.is_deleted:
         associations.append(f"capture ({instance.capture.uuid})")
-    if instance.captures.filter(
-        is_deleted=False
-    ).exists():  # TODO: remove this after migration (expand -> contract)
-        associations.append(f"captures ({instance.captures.count()})")
+    if connected_asset_ids["captures"]:
+        associations.append(
+            f"captures ({len(connected_asset_ids['captures'])}): "
+            f"{', '.join(connected_asset_ids['captures'])}"
+        )
     if instance.dataset and not instance.dataset.is_deleted:
         associations.append(f"dataset ({instance.dataset.uuid})")
-    if instance.datasets.filter(
-        is_deleted=False
-    ).exists():  # TODO: remove this after migration (expand -> contract)
-        associations.append(f"datasets ({instance.datasets.count()})")
+    if connected_asset_ids["datasets"]:
+        associations.append(
+            f"datasets ({len(connected_asset_ids['datasets'])}): "
+            f"{', '.join(connected_asset_ids['datasets'])}"
+        )
+
     if not associations:
         return
+
     msg = (
         f"Cannot delete file '{instance.name}': it is "
         f"associated with {' and '.join(associations)}."
@@ -352,6 +363,17 @@ class Capture(BaseModel):
             # Extract the last part of the path as the default name
             self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
         super().save(*args, **kwargs)
+   
+    def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
+        """Hard delete this record after checking for blockers."""
+        raise_if_capture_deletion_is_blocked(instance=self)
+        return super().delete(*args, **kwargs)
+
+    def soft_delete(self) -> None:
+        """Soft delete this record after checking for blockers."""
+        raise_if_capture_deletion_is_blocked(instance=self)
+        disconnect_assets(item=self, item_type=ItemType.CAPTURE)
+        return super().soft_delete()
 
     @property
     def center_frequency_ghz(self) -> float | None:
@@ -650,6 +672,47 @@ class Capture(BaseModel):
             return None
 
 
+def raise_if_capture_deletion_is_blocked(instance: Capture) -> None:
+    """Raises an error if the file passed can't be deleted.
+
+    Raises:
+        ProtectedError if the capture is associated with a dataset.
+    """
+    connected_asset_ids = get_connected_asset_ids(
+        item_uuid=instance.uuid,
+        item_type=ItemType.CAPTURE,
+    )
+
+    associations: list[str] = []
+    # Note: deprecated FK relationship is not checked here
+    # since data is already migrated and we are just returning related assets.
+    if connected_asset_ids["datasets"]:
+        associations.append(
+            f"datasets ({len(connected_asset_ids['datasets'])}): "
+            f"{', '.join(connected_asset_ids['datasets'])}"
+        )
+    
+    if not associations:
+        return
+    
+    msg = (
+        f"Cannot delete capture '{instance.name}': it is "
+        f"associated with {' and '.join(associations)}."
+        " Delete the associated object(s) first or "
+        "remove the capture from the datasets it is part of."
+    )
+    raise ProtectedError(msg, protected_objects={instance})
+
+
+@receiver(pre_delete, sender=Capture)
+def prevent_capture_deletion(sender, instance: Capture, **kwargs) -> None:
+    """Prevents deletion of captures associated with datasets.
+
+    Version to cover bulk deletions from querysets.
+    """
+    raise_if_capture_deletion_is_blocked(instance=instance)
+
+
 class Keyword(BaseModel):
     """
     Model for user-entered keywords that can be associated with datasets.
@@ -776,6 +839,11 @@ class Dataset(BaseModel):
                     raise ValueError(msg)
 
         super().save(*args, **kwargs)
+
+    def soft_delete(self) -> None:
+        """Soft delete this record after checking for blockers."""
+        disconnect_assets(item=self, item_type=ItemType.DATASET)
+        return super().soft_delete()
 
     @classmethod
     def from_db(cls, db, field_names, values):

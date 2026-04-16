@@ -6,6 +6,7 @@ from typing import cast
 
 from django.db.models import CharField
 from django.db.models import F as FExpression
+from django.db.models import ProtectedError
 from django.db.models import Value as WrappedValue
 from django.db.models.functions import Concat
 from django.http import HttpResponse
@@ -28,16 +29,21 @@ from rest_framework.viewsets import ViewSet
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.download_file import download_file
-from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
+    bypass_share_guard_from_request,
+    resolve_asset_shared_deletion,
+)
+from sds_gateway.api_methods.models import File, ItemType
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.asset_access_control import (
+    check_if_shared,
     get_accessible_files_queryset,
+    user_has_access_to_file,
 )
-from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -436,7 +442,14 @@ class FileViewSet(ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        target_file.soft_delete()
+        
+        try:
+            target_file.soft_delete()
+        except ProtectedError as e:
+            return Response(
+                {"detail": str(e)},
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
