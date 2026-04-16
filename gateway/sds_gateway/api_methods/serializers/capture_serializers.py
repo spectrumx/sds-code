@@ -19,9 +19,11 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.utils.asset_access_control import get_connected_asset_ids
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 
@@ -80,6 +82,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     files = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     data_files_info = serializers.SerializerMethodField()
+    datasets = DatasetGetSerializer(many=True)
     center_frequency_ghz = serializers.SerializerMethodField()
     sample_rate_mhz = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()

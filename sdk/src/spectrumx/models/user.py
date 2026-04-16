@@ -1,6 +1,8 @@
 from typing import Annotated
 from enum import StrEnum
 
+from pydantic import AliasChoices
+from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import UUID4
 
@@ -37,12 +39,24 @@ class PermissionLevel(StrEnum):
 class User(SDSModel):
     """A user in SDS."""
 
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
+
     name: Annotated[str, Field(description=_d_name)]
     email: Annotated[str, Field(description=_d_email)]
+    django_user_id: Annotated[
+        int | None,
+        Field(
+            default=None,
+            description="Gateway user primary key when present",
+            validation_alias=AliasChoices("id", "django_user_id"),
+        ),
+    ] = None
 
 
 class UserSharePermission(SDSModel):
     """A user share permission in SDS."""
+
+    model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     item_type: Annotated[ItemType, Field(description=_d_item_type)]
     item_uuid: Annotated[UUID4, Field(description=_d_item_uuid)]

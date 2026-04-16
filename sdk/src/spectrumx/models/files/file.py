@@ -14,6 +14,11 @@ from spectrumx import utils
 from spectrumx.models.base import SDSModel
 from spectrumx.models.files.permission import PermissionRepresentation
 from spectrumx.models.files.permission import UnixPermissionStr
+from spectrumx.models.user import UserSharePermission
+from spectrumx.models.user import User
+from pydantic import UUID4
+from spectrumx.models.datasets import Dataset
+from spectrumx.models.captures import Capture
 
 
 class File(SDSModel):
@@ -56,6 +61,11 @@ class File(SDSModel):
     _is_downloading: bool = False
     _is_uploading: bool = False
     contents_lock: RLockT = Field(default_factory=RLock, exclude=True)
+
+    # ownership and access level information
+    owner: User | None = None
+    captures: list[Capture] | None = None
+    datasets: list[Dataset] | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
