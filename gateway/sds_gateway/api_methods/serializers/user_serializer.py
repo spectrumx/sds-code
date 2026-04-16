@@ -12,6 +12,8 @@ class UserGetSerializer(serializers.ModelSerializer[User]):
         fields = ["id", "email", "name"]
 
 class UserSharePermissionSerializer(serializers.ModelSerializer[UserSharePermission]):
+    shared_with = UserGetSerializer(read_only=True)
+
     class Meta:
         model = UserSharePermission
         fields = ["item_type", "item_uuid", "shared_with", "permission_level"]

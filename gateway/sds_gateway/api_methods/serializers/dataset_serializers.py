@@ -6,6 +6,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
 
 READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
 
@@ -16,10 +17,12 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     created_at = serializers.DateTimeField(
         format=READABLE_ISO_DATE_TIME, read_only=True
     )
+    is_shared = serializers.SerializerMethodField()
     is_shared_with_me = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     shared_users = serializers.SerializerMethodField()
+    share_permissions = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     owner_email = serializers.SerializerMethodField()
     permission_level = serializers.SerializerMethodField()
@@ -114,6 +117,20 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
                 )
 
         return shared_users
+
+    def get_share_permissions(self, obj):
+        """Get the user share permissions for the dataset."""
+        user_share_permissions = UserSharePermission.objects.filter(
+            item_type=ItemType.DATASET,
+            item_uuid=obj.uuid,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        return UserSharePermissionSerializer(user_share_permissions, many=True).data
+    
+    def get_is_shared(self, obj):
+        """Check if the dataset is shared."""
+        return check_if_shared(obj.uuid, ItemType.DATASET)
 
     def get_owner_name(self, obj):
         """Get the owner's display name."""

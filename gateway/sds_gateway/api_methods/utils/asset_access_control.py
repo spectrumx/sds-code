@@ -10,9 +10,7 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
-from sds_gateway.api_methods.utils.relationship_utils import get_file_captures
-from sds_gateway.api_methods.utils.relationship_utils import get_file_datasets
+import sds_gateway.api_methods.utils.relationship_utils as relationship_utils
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
     )
 
     # Use centralized function to get datasets (handles both M2M and FK)
-    capture_datasets = get_capture_datasets(capture, include_deleted=False)
+    capture_datasets = relationship_utils.get_capture_datasets(capture, include_deleted=False)
 
     # Check if any dataset is owned by user or in shared_datasets
     user_has_access_to_dataset = any(
@@ -72,7 +70,7 @@ def user_has_access_to_file(user, file: File) -> bool:
     ).values_list("item_uuid", flat=True)
 
     # Use centralized function to get captures (handles both M2M and FK)
-    file_captures = get_file_captures(file, include_deleted=False)
+    file_captures = relationship_utils.get_file_captures(file, include_deleted=False)
 
     # Check if file's captures are accessible (directly shared, owned by user)
     user_has_access_to_capture = any(
@@ -83,7 +81,7 @@ def user_has_access_to_file(user, file: File) -> bool:
     # Check if file's captures are in shared datasets (nested relationship)
     if not user_has_access_to_capture:
         for capture in file_captures:
-            capture_datasets = get_capture_datasets(capture, include_deleted=False)
+            capture_datasets = relationship_utils.get_capture_datasets(capture, include_deleted=False)
             if any(
                 dataset.owner == user or dataset.uuid in shared_datasets
                 for dataset in capture_datasets
@@ -92,7 +90,7 @@ def user_has_access_to_file(user, file: File) -> bool:
                 break
 
     # Use centralized function to get datasets (handles both M2M and FK)
-    file_datasets = get_file_datasets(file, include_deleted=False)
+    file_datasets = relationship_utils.get_file_datasets(file, include_deleted=False)
     user_has_access_to_dataset = any(
         dataset.owner == user or dataset.uuid in shared_datasets
         for dataset in file_datasets
@@ -284,70 +282,119 @@ def get_accessible_captures_queryset(user):
 
 
 def check_if_shared(item_uuid: UUID4, item_type: ItemType) -> bool:
-    """Check if an item is shared. by checking its is_shared field.
-
-    Returns:
-        True if the item is shared, False otherwise.
     """
-    match item_type:
-        case ItemType.CAPTURE:
-            capture_uuids = Capture.objects.filter(uuid=item_uuid).values_list("uuid", flat=True)
-            dataset_uuids = Capture.objects.filter(uuid=item_uuid).values_list("datasets__uuid", flat=True)
-            return capture_is_shared(capture_uuids, dataset_uuids)
-        case ItemType.DATASET:
-            dataset_uuids = Dataset.objects.filter(uuid=item_uuid).values_list("uuid", flat=True)
-            return dataset_is_shared(dataset_uuids)
-        case ItemType.FILE:
-            return file_is_shared(File.objects.get(uuid=item_uuid))
-        case _:
-            raise ValueError(f"Invalid item type: {item_type}")
-
-
-def file_is_shared(file: File) -> bool:
-    """Check if a file is shared as part of a capture or dataset.
+    Check if an item is shared directly, 
+    i.e. the item has UserSharePermission records associated with it.
 
     Returns:
-        True if the file is shared, False otherwise.
-    """
-
-    capture_uuids = file.captures.all().values_list("uuid", flat=True)
-    capture_dataset_uuids = file.captures.all().values_list("datasets__uuid", flat=True)
-    capture_shared = capture_is_shared(capture_uuids, capture_dataset_uuids)
-
-    dataset_uuids = file.datasets.all().values_list("uuid", flat=True)
-    dataset_shared = dataset_is_shared(dataset_uuids)
-
-    return capture_shared or dataset_shared
-
-
-def capture_is_shared(capture_uuids: list[UUID4], connected_dataset_uuids: list[UUID4]) -> bool:
-    """Check if a capture is shared directly of as part of a dataset. by checking its is_shared field.
-
-    Returns:
-        True if the capture is shared, False otherwise.
-    """
-    directly_shared = UserSharePermission.objects.filter(
-        item_uuid__in=capture_uuids,
-        item_type=ItemType.CAPTURE,
-        is_deleted=False,
-        is_enabled=True,
-    ).exists()
-    
-    # added post expansion, capture datasets field is now a M2M relationship
-    dataset_shared = dataset_is_shared(connected_dataset_uuids)
-
-    return directly_shared or dataset_shared
-
-
-def dataset_is_shared(dataset_uuids: list[UUID4]) -> bool:
-    """Check if a dataset is shared.
-
-    Returns:
-        True if the dataset is shared, False otherwise.
+        True if the item is shared, False otherwise, and the dictionary of inherited shared asset IDs.
     """
     return UserSharePermission.objects.filter(
-        item_uuid__in=dataset_uuids,
-        item_type=ItemType.DATASET,
+        item_uuid=item_uuid,
+        item_type=item_type,
         is_deleted=False,
         is_enabled=True,
     ).exists()
+
+def get_connected_asset_ids(item_uuid: UUID4, item_type: ItemType) -> dict[str, list[UUID4]]:
+    """
+    Get the IDs of all assets that are connected to the given item.
+    """
+    if item_type == ItemType.CAPTURE:
+        dataset_uuids = Capture.objects.get(
+            uuid=item_uuid
+        ).datasets.filter(
+            is_deleted=False
+        ).values_list("uuid", flat=True)
+        
+        return {
+            "datasets": list(dataset_uuids),
+        }
+    elif item_type == ItemType.FILE:
+        capture_uuids = File.objects.get(
+            uuid=item_uuid
+        ).captures.filter(
+            is_deleted=False
+        ).values_list("uuid", flat=True)
+        
+        dataset_uuids = File.objects.get(
+            uuid=item_uuid
+        ).datasets.filter(
+            is_deleted=False
+        ).values_list("uuid", flat=True)
+        
+        return { "datasets": list(dataset_uuids), "captures": list(capture_uuids) }
+    else:
+        raise ValueError(f"Invalid item type: {item_type}")
+
+def revoke_share_permissions(
+    *,
+    item_type: ItemType,
+    item_uuid: UUID4,
+) -> bool:
+    """Revoke all share permissions for an item."""
+    share_permissions = UserSharePermission.objects.filter(
+        item_uuid=item_uuid,
+        item_type=item_type,
+        is_deleted=False,
+        is_enabled=True,
+    )
+
+    # disable share permissions
+    share_permissions.update(
+        is_enabled=False,
+        is_individual_share=False,
+    )
+    # clear share groups
+    share_permissions.share_groups.clear()
+
+    return True
+
+def disconnect_files_from_capture(capture: Capture) -> None:
+    """Disconnects all files from a capture.
+    
+    Args:
+        capture: The capture to disconnect files from.
+    """
+    all_current_files = relationship_utils.get_capture_files(
+        capture, include_deleted=True
+    )  # Include deleted for cleanup
+    
+    # update M2M AND FK relationships
+    # TODO: remove FK after contraction
+    all_current_files.update(capture=None, captures=None)
+
+def disconnect_files_from_dataset(dataset: Dataset) -> None:
+    """Disconnects all files from a dataset."""
+    all_current_files = relationship_utils.get_dataset_artifact_files(
+        dataset, include_deleted=True
+    )  # Include deleted for cleanup
+    
+    # update M2M AND FK relationships
+    # TODO: remove FK after contraction
+    all_current_files.update(dataset=None, datasets=None)
+
+def disconnect_captures_from_dataset(dataset: Dataset) -> None:
+    """Disconnects all captures from a dataset."""
+    all_current_captures = relationship_utils.get_dataset_captures(
+        dataset, include_deleted=True
+    )  # Include deleted for cleanup
+    
+    # update M2M AND FK relationships
+    # TODO: remove FK after contraction
+    all_current_captures.update(dataset=None, datasets=None)
+
+def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
+    """Disconnects all assets from an item.
+    
+    Args:
+        item: The item to disconnect assets from.
+        item_type: The type of item to disconnect assets from.
+    """
+    if item_type == ItemType.DATASET:
+        disconnect_files_from_dataset(item)
+        disconnect_captures_from_dataset(item)
+    elif item_type == ItemType.CAPTURE:
+        disconnect_files_from_capture(item)
+    else:
+        raise ValueError(f"Invalid item type: {item_type}")

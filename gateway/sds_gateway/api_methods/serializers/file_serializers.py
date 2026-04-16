@@ -13,6 +13,9 @@ from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSe
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UUID4
 
 BAD_REQUEST = 400
 CONFLICT = 409
@@ -20,6 +23,8 @@ CONFLICT = 409
 
 class FileGetSerializer(serializers.ModelSerializer[File]):
     owner = UserGetSerializer()
+    datasets = DatasetGetSerializer(many=True)
+    captures = CaptureGetSerializer(many=True)
     dataset = DatasetGetSerializer()
     capture = CaptureGetSerializer()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
