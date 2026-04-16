@@ -130,6 +130,16 @@ services:
                   selinux: z
         networks:
             - sds-network-local
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://localhost/healthz || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     # TODO: DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
     # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
@@ -279,6 +289,16 @@ services:
             - sds-gateway-local-postgres-net
             - sds-gateway-local-minio-net
             - sds-network-local
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run celery -A config.celery_app inspect ping -d "celery@$$HOSTNAME" | grep -q "OK"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -325,6 +345,16 @@ services:
             - sds-gateway-local-opensearch-net
             - sds-gateway-local-postgres-net
             - sds-network-local
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run python -c "import pathlib,sys; ok=any((b\"beat\" in data) and ((b\"celery\" in data) or (b\"watchfiles\" in data)) for data in (path.read_bytes() for path in pathlib.Path(\"/proc\").glob(\"[0-9]*/cmdline\"))); sys.exit(0 if ok else 1)"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -373,6 +403,16 @@ services:
             - sds-gateway-local-opensearch-net
             - sds-gateway-local-postgres-net
             - sds-network-local
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'curl -f --header "Authorization: Basic $(echo -n "$$CELERY_FLOWER_USER:$$CELERY_FLOWER_PASSWORD" | base64)" http://localhost:5555/api/workers || exit 1',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     # ==========================
     # local development services
@@ -404,6 +444,16 @@ services:
                 - action: sync
                   path: ./
                   target: /app/
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "const http=require(\"http\"); const req=http.get(\"http://127.0.0.1:3000\", res => process.exit(res.statusCode < 500 ? 0 : 1)); req.on(\"error\", () => process.exit(1)); req.setTimeout(5000, () => { req.destroy(); process.exit(1); });"',
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 45s
 
     mailhog:
         # email testing service for local development
@@ -414,3 +464,13 @@ services:
             - "8025:8025" # Web UI
         networks:
             - sds-network-local
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://localhost:8025/api/v2/messages || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
