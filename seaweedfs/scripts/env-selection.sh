@@ -36,6 +36,9 @@ function is_ci_env() {
 function get_target_value() {
     local target="$1"
     local env_type="$2"
+    local local_env_file=".envs/local/sfs.env"
+    local production_env_file=".envs/production/sfs.env"
+    local ci_env_file=".envs/ci/sfs.env"
     local value=""
 
     case "${target}" in
@@ -50,7 +53,21 @@ function get_target_value() {
             esac
             ;;
         env_file)
-            value=".env"
+            case "${env_type}" in
+                ci)
+                    value="${ci_env_file}"
+                    ;;
+                local)
+                    value="${local_env_file}"
+                    ;;
+                production)
+                    value="${production_env_file}"
+                    ;;
+                *)
+                    printf 'unsupported environment type: %s\n' "${env_type}" >&2
+                    exit 1
+                    ;;
+            esac
             ;;
         filer_container)
             case "${env_type}" in
