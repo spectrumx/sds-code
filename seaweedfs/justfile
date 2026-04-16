@@ -111,11 +111,21 @@ up *args:
     {{ docker_compose }} up --detach --remove-orphans {{ args }}
 
 # performs full teardown (removes data) — irreversible
-[confirm("This will destroy ALL SeaweedFS data. Are you sure?")]
+[confirm("This will destroy ALL SeaweedFS data. Are you sure? [y/N]")]
 [group('service')]
 wipe:
     #!/usr/bin/env bash
     set -euo pipefail
+    host=$(hostname)
+    echo -e "This will wipe ALL SeaweedFS data in env=\e[31m{{ env }}\e[0m and hostname=\e[31m${host}\e[0m"
+    echo "This includes Docker-managed volumes in this SeaweedFS stack, "
+    echo -e "\tand if env=local it will also delete local data directories.\n"
+    echo -e "\e[31mThis action is IRREVERSIBLE. Type this machine's hostname to confirm:\e[0m"
+    read -r confirmation
+    if [[ "${confirmation}" != "${host}" ]]; then
+        echo "Aborting."
+        exit 1
+    fi
     just down --volumes
     if [[ "{{ env }}" == "local" ]]; then
         rm -rf data/volumes/* data/filer/*
