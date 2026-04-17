@@ -17,13 +17,13 @@ from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
-from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.serializers.user_serializer import (
+    UserSharePermissionSerializer,
+)
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
-from sds_gateway.api_methods.utils.asset_access_control import get_connected_asset_ids
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 
@@ -91,7 +91,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
     post_processed_data = serializers.SerializerMethodField()
-    
+
     def get_share_permissions(self, capture: Capture) -> list[UserSharePermission]:
         """Get the share permissions for the capture."""
         user_share_permissions = UserSharePermission.objects.filter(
@@ -415,7 +415,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
         """Get whether the composite capture is shared.
 
         Returns:
-            True if the composite capture has enabled share permissions, False otherwise.
+            True if the composite capture has enabled share permissions,
+            False otherwise.
         """
         return check_if_shared(obj["uuid"], ItemType.CAPTURE)
 

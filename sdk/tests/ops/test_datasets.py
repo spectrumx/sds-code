@@ -4,13 +4,18 @@
 from __future__ import annotations
 
 import uuid as uuidlib
+from typing import TYPE_CHECKING
 
 import responses
-from spectrumx.client import Client
+
 from tests.conftest import get_dataset_revoke_share_permissions_url
 from tests.conftest import get_datasets_endpoint
 
+if TYPE_CHECKING:
+    from spectrumx.client import Client
+
 DRY_RUN = False
+_EXPECTED_TWO_HTTP_CALLS = 2
 
 
 @responses.activate
@@ -107,6 +112,6 @@ def test_delete_dataset_after_revoking_share(
     responses.add(method=responses.DELETE, url=delete_url, status=204)
 
     assert client.datasets.delete_after_revoking_share(dataset_uuid) is True
-    assert len(responses.calls) == 2
+    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[1].request.method == "DELETE"

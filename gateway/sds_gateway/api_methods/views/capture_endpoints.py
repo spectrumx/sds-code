@@ -32,13 +32,11 @@ from rest_framework.response import Response
 
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
+    revoke_share_permissions,
+)
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
-)
-from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
-    bypass_share_guard_from_request,
-    resolve_asset_shared_deletion,
-    revoke_share_permissions,
 )
 from sds_gateway.api_methods.helpers.index_handling import UnknownIndexError
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
@@ -52,7 +50,6 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import ProcessingType
-from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CapturePostSerializer,
@@ -62,13 +59,15 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 )
 from sds_gateway.api_methods.tasks import start_capture_post_processing
 from sds_gateway.api_methods.throttling import VisStreamThrottle
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.asset_access_control import (
     user_has_access_to_capture,
 )
-from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
-from sds_gateway.api_methods.utils.relationship_utils import detach_item_from_all_datasets
+from sds_gateway.api_methods.utils.relationship_utils import (
+    detach_item_from_all_datasets,
+)
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
@@ -994,15 +993,19 @@ class CaptureViewSet(viewsets.ViewSet):
         description="Revoke all share permissions for a capture.",
         summary="Revoke Capture Share Permissions",
     )
-    def revoke_share_permissions(self, request: Request, pk: str | None = None) -> Response:
+    def revoke_share_permissions(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Revoke all share permissions for a capture."""
         if pk is None:
             return Response(
                 {"detail": "Capture UUID is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        target_capture = get_object_or_404(Capture, pk=pk, owner=request.user, is_deleted=False)
-        
+        target_capture = get_object_or_404(
+            Capture, pk=pk, owner=request.user, is_deleted=False
+        )
+
         revoked = revoke_share_permissions(
             item_type=ItemType.CAPTURE,
             item_uuid=target_capture.uuid,
@@ -1032,7 +1035,9 @@ class CaptureViewSet(viewsets.ViewSet):
             ),
         ],
         responses={
-            200: OpenApiResponse(description="Capture detached from all datasets successfully"),
+            200: OpenApiResponse(
+                description="Capture detached from all datasets successfully"
+            ),
             400: OpenApiResponse(description="Bad Request"),
             500: OpenApiResponse(description="Internal Server Error"),
         },
@@ -1046,7 +1051,9 @@ class CaptureViewSet(viewsets.ViewSet):
                 {"detail": "Capture UUID is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        target_capture = get_object_or_404(Capture, pk=pk, owner=request.user, is_deleted=False)
+        target_capture = get_object_or_404(
+            Capture, pk=pk, owner=request.user, is_deleted=False
+        )
         detach_item_from_all_datasets(target_capture)
 
         return Response(
@@ -1091,12 +1098,15 @@ class CaptureViewSet(viewsets.ViewSet):
 
         if is_shared:
             return Response(
-                {"detail": (
-                    "Capture is shared and cannot be deleted. "
-                    "If you wish to delete this capture anyway, please "
-                    "un-share this capture first. OR run the revoke_share_permissions "
-                    "method to un-share and then run the delete method."
-                )},
+                {
+                    "detail": (
+                        "Capture is shared and cannot be deleted. "
+                        "If you wish to delete this capture anyway, please "
+                        "un-share this capture first. OR run the "
+                        "revoke_share_permissions method to un-share and then run "
+                        "the delete method."
+                    )
+                },
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -1105,7 +1115,7 @@ class CaptureViewSet(viewsets.ViewSet):
 
             # set these properties on OpenSearch document
             opensearch_client = get_opensearch_client()
-            
+
             opensearch_client.update(
                 index=target_capture.index_name,
                 id=target_capture.uuid,
@@ -1126,7 +1136,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 f"OpenSearch document for capture '{target_capture.uuid}' "
                 "not found during soft delete: ignoring missing document.",
             )
-            
+
         # return status for soft deletion
         return Response(status=status.HTTP_204_NO_CONTENT)
 

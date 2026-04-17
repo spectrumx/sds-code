@@ -196,6 +196,7 @@ def detach_file_from_datasets(
     client._gateway.detach_file_from_datasets(file_uuid=uuid_to_detach)
     return True
 
+
 def delete_file(
     client: Client,
     file_uuid: UUID4 | str,

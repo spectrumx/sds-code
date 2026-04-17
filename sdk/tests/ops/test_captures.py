@@ -39,6 +39,8 @@ log.trace("Placeholder log to avoid reimporting or resolving unused import warni
 
 # globally toggles dry run mode in case we want to run these under an integration mode.
 DRY_RUN: bool = False
+_EXPECTED_TWO_HTTP_CALLS: int = 2
+_EXPECTED_THREE_HTTP_CALLS: int = 3
 
 MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channel tests
 TEST_STATE_PERSISTENCE: bool = False  # don't persist upload state in tests
@@ -910,7 +912,7 @@ def test_delete_after_revoking_share(
     )
 
     assert client.captures.delete_after_revoking_share(capture_uuid) is True
-    assert len(responses.calls) == 2
+    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[1].request.method == "DELETE"
 
@@ -938,7 +940,7 @@ def test_delete_after_detaching_from_datasets(
     )
 
     assert client.captures.delete_after_detaching_from_datasets(capture_uuid) is True
-    assert len(responses.calls) == 2
+    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[1].request.method == "DELETE"
 
@@ -956,12 +958,16 @@ def test_delete_with_revoke_and_detach(
         client, capture_id=capture_uuid.hex
     )
     delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
-    responses.add(method=responses.PUT, url=revoke_url, status=200, json={"message": "ok"})
-    responses.add(method=responses.PUT, url=detach_url, status=200, json={"message": "ok"})
+    responses.add(
+        method=responses.PUT, url=revoke_url, status=200, json={"message": "ok"}
+    )
+    responses.add(
+        method=responses.PUT, url=detach_url, status=200, json={"message": "ok"}
+    )
     responses.add(method=responses.DELETE, url=delete_url, status=204)
 
     assert client.captures.delete_with_revoke_and_detach(capture_uuid) is True
-    assert len(responses.calls) == 3
+    assert len(responses.calls) == _EXPECTED_THREE_HTTP_CALLS
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[1].request.method == "PUT"
     assert responses.calls[2].request.method == "DELETE"

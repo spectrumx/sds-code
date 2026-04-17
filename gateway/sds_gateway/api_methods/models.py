@@ -26,8 +26,6 @@ from .utils.opensearch_client import get_opensearch_client
 
 if TYPE_CHECKING:
     from sds_gateway.users.models import User
-    from sds_gateway.api_methods.utils.asset_access_control import get_connected_asset_ids
-    from sds_gateway.api_methods.utils.asset_access_control import disconnect_assets
 
 log = logging.getLogger(__name__)
 
@@ -256,6 +254,10 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     Raises:
         ProtectedError if the file is associated with a capture or dataset.
     """
+    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+        get_connected_asset_ids,
+    )
+
     connected_asset_ids = get_connected_asset_ids(
         item_uuid=instance.uuid,
         item_type=ItemType.FILE,
@@ -363,7 +365,7 @@ class Capture(BaseModel):
             # Extract the last part of the path as the default name
             self.name = Path(self.top_level_dir).name or self.top_level_dir.strip("/")
         super().save(*args, **kwargs)
-   
+
     def delete(self, *args, **kwargs) -> tuple[int, dict[str, int]]:
         """Hard delete this record after checking for blockers."""
         raise_if_capture_deletion_is_blocked(instance=self)
@@ -371,6 +373,10 @@ class Capture(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
+        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+            disconnect_assets,
+        )
+
         raise_if_capture_deletion_is_blocked(instance=self)
         disconnect_assets(item=self, item_type=ItemType.CAPTURE)
         return super().soft_delete()
@@ -678,6 +684,10 @@ def raise_if_capture_deletion_is_blocked(instance: Capture) -> None:
     Raises:
         ProtectedError if the capture is associated with a dataset.
     """
+    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+        get_connected_asset_ids,
+    )
+
     connected_asset_ids = get_connected_asset_ids(
         item_uuid=instance.uuid,
         item_type=ItemType.CAPTURE,
@@ -691,10 +701,10 @@ def raise_if_capture_deletion_is_blocked(instance: Capture) -> None:
             f"datasets ({len(connected_asset_ids['datasets'])}): "
             f"{', '.join(connected_asset_ids['datasets'])}"
         )
-    
+
     if not associations:
         return
-    
+
     msg = (
         f"Cannot delete capture '{instance.name}': it is "
         f"associated with {' and '.join(associations)}."
@@ -842,6 +852,10 @@ class Dataset(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
+        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+            disconnect_assets,
+        )
+
         disconnect_assets(item=self, item_type=ItemType.DATASET)
         return super().soft_delete()
 

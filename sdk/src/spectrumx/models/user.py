@@ -1,13 +1,12 @@
-from typing import Annotated
 from enum import StrEnum
+from typing import Annotated
 
+from pydantic import UUID4
 from pydantic import AliasChoices
 from pydantic import ConfigDict
 from pydantic import Field
-from pydantic import UUID4
 
 from spectrumx.models.base import SDSModel
-
 
 _d_name = "The name of the user"
 _d_email = "The email of the user"

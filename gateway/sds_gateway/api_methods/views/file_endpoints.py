@@ -29,22 +29,19 @@ from rest_framework.viewsets import ViewSet
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.download_file import download_file
-from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
-    bypass_share_guard_from_request,
-    resolve_asset_shared_deletion,
-)
-from sds_gateway.api_methods.models import File, ItemType
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
 )
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.asset_access_control import (
-    check_if_shared,
     get_accessible_files_queryset,
-    user_has_access_to_file,
 )
-from sds_gateway.api_methods.utils.relationship_utils import detach_item_from_all_datasets
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.relationship_utils import (
+    detach_item_from_all_datasets,
+)
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -413,7 +410,6 @@ class FileViewSet(ViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
     @action(detail=True, methods=["put"])
     @extend_schema(
         parameters=[
@@ -426,7 +422,9 @@ class FileViewSet(ViewSet):
             ),
         ],
         responses={
-            200: OpenApiResponse(description="File detached from all datasets successfully"),
+            200: OpenApiResponse(
+                description="File detached from all datasets successfully"
+            ),
             400: OpenApiResponse(description="Bad Request"),
             500: OpenApiResponse(description="Internal Server Error"),
         },
@@ -440,7 +438,9 @@ class FileViewSet(ViewSet):
                 {"detail": "File UUID is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        target_file = get_object_or_404(File, pk=pk, owner=request.user, is_deleted=False)
+        target_file = get_object_or_404(
+            File, pk=pk, owner=request.user, is_deleted=False
+        )
         detach_item_from_all_datasets(target_file)
 
         return Response(
@@ -480,7 +480,7 @@ class FileViewSet(ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        
+
         try:
             target_file.soft_delete()
         except ProtectedError as e:
