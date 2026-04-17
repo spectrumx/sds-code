@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+import json
+import uuid
+from typing import Any
 
 from loguru import logger as log
 
+from spectrumx.gateway import GatewayClient
+from spectrumx.models.datasets import Dataset
 from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
@@ -31,6 +35,61 @@ class DatasetAPI:
         self.dry_run = dry_run
         self.gateway = gateway
         self.verbose = verbose
+
+    def get(self, dataset_uuid: uuid.UUID) -> Dataset:
+        """Load dataset metadata, captures, and artifact files from SDS.
+
+        Captures are returned in the same grouped shape as the capture list API
+        (one entry per logical multi-channel capture where applicable). For every
+        file in the dataset (including capture-linked files), use :meth:`get_files`
+        instead, which calls the paginated dataset files manifest endpoint.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: returning an empty Dataset shell")
+            return Dataset(uuid=dataset_uuid)
+
+        raw = self.gateway.get_dataset(
+            dataset_uuid=dataset_uuid,
+            verbose=self.verbose,
+        )
+        return Dataset.model_validate_json(raw)
+
+    def list_captures(self, dataset_uuid: uuid.UUID) -> list[dict[str, Any]]:
+        """Return capture payloads linked to the dataset (raw JSON objects).
+
+        Use this when you need composite capture fields (for example ``channels``)
+        without coercing through :class:`~spectrumx.models.datasets.DatasetCapture`.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: returning an empty capture list")
+            return []
+
+        raw = self.gateway.get_dataset(
+            dataset_uuid=dataset_uuid,
+            verbose=self.verbose,
+        )
+        data = json.loads(raw)
+        captures = data.get("captures")
+        return list(captures) if isinstance(captures, list) else []
+
+    def list_artifact_files(self, dataset_uuid: uuid.UUID) -> list[dict[str, Any]]:
+        """Return file rows linked directly to the dataset (artifacts), as JSON dicts.
+
+        These are the same objects embedded on :meth:`get` under the ``files`` key.
+        For the full downloadable manifest (captures plus artifacts), use
+        :meth:`get_files`.
+        """
+        if self.dry_run:
+            log_user("Dry run enabled: returning an empty artifact file list")
+            return []
+
+        raw = self.gateway.get_dataset(
+            dataset_uuid=dataset_uuid,
+            verbose=self.verbose,
+        )
+        data = json.loads(raw)
+        files = data.get("files")
+        return list(files) if isinstance(files, list) else []
 
     def get_files(
         self,

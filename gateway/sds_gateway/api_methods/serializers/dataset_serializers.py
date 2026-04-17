@@ -6,15 +6,30 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.user_serializer import (
-    UserSharePermissionSerializer,
-)
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.helpers.search_captures import group_captures_by_top_level_dir
+from sds_gateway.api_methods.serializers.capture_serializers import build_composite_capture_data
+from sds_gateway.api_methods.serializers.capture_serializers import serialize_capture_or_composite
+from sds_gateway.api_methods.serializers.file_serializers import FileArtifactSummarySerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.utils.relationship_utils import get_dataset_artifact_files
+from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
 
 READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
 
 
+class DatasetSummarySerializer(serializers.ModelSerializer[Dataset]):
+    """Minimal dataset shape for capture ``datasets`` when breaking serializer cycles."""
+
+    class Meta:
+        model = Dataset
+        fields = ["uuid", "name", "version", "status", "is_public"]
+
+
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
+    owner = UserGetSerializer(read_only=True)
     authors = serializers.SerializerMethodField()
     keywords = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
@@ -26,6 +41,8 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     status_display = serializers.CharField(source="get_status_display", read_only=True)
     shared_users = serializers.SerializerMethodField()
     share_permissions = serializers.SerializerMethodField()
+    captures = serializers.SerializerMethodField()
+    files = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     owner_email = serializers.SerializerMethodField()
     permission_level = serializers.SerializerMethodField()
@@ -130,6 +147,51 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             is_enabled=True,
         )
         return UserSharePermissionSerializer(user_share_permissions, many=True).data
+    
+    def get_files(self, obj: Dataset) -> list[dict]:
+        """Get the files for the dataset.
+
+        Returns:
+            A list of serialized file objects
+        """
+        non_deleted_files = get_dataset_artifact_files(
+            obj,
+            include_deleted=False,
+        )
+        serializer = FileArtifactSummarySerializer(
+            non_deleted_files,
+            many=True,
+            context=self.context,
+        )
+        return serializer.data
+    
+    def get_captures(self, obj: Dataset) -> list[dict]:
+        """Get captures for the dataset, one entry per logical capture (list API semantics).
+
+        Multi-channel uploads share ``top_level_dir``; those rows are merged into a
+        single composite payload like :func:`get_composite_captures`.
+        """
+        non_deleted_captures = get_dataset_captures(
+            obj,
+            include_deleted=False,
+        )
+        grouped = group_captures_by_top_level_dir(list(non_deleted_captures))
+        composite_captures: list[dict] = []
+        capture_context = {
+            **(self.context or {}),
+            "omit_nested_dataset_graph": True,
+        }
+        for capture_list in grouped.values():
+            if len(capture_list) > 1:
+                composite_captures.append(build_composite_capture_data(capture_list))
+            else:
+                composite_captures.append(
+                    serialize_capture_or_composite(
+                        capture_list[0],
+                        context=capture_context,
+                    )
+                )
+        return composite_captures
 
     def get_is_shared(self, obj):
         """Check if the dataset is shared."""

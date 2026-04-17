@@ -117,6 +117,18 @@ class DatasetEndpointsTestCase(TestCase):
             if permission.pk:
                 permission.delete()
 
+    def test_retrieve_dataset_success(self):
+        """GET dataset detail returns metadata, captures, and artifact files."""
+        url = reverse("api:datasets-detail", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        body = response.json()
+        assert body["uuid"] == str(self.dataset.uuid)
+        assert "captures" in body
+        assert "files" in body
+        assert isinstance(body["captures"], list)
+        assert isinstance(body["files"], list)
+
     def test_get_dataset_files_success(self):
         """Test successful dataset files manifest retrieval."""
         # Create test files associated with the dataset with MinIO mocking

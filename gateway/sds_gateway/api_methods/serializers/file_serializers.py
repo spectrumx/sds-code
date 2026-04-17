@@ -18,6 +18,20 @@ BAD_REQUEST = 400
 CONFLICT = 409
 
 
+class FileArtifactSummarySerializer(serializers.ModelSerializer[File]):
+    """Subset of file fields for nested dataset payloads (avoids recursive graphs)."""
+
+    class Meta:
+        model = File
+        fields = (
+            "uuid",
+            "name",
+            "directory",
+            "media_type",
+            "size",
+        )
+
+
 class FileGetSerializer(serializers.ModelSerializer[File]):
     owner = UserGetSerializer()
     datasets = DatasetGetSerializer(many=True)

@@ -17,6 +17,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.asset_access_control import (
@@ -36,6 +37,58 @@ class DatasetViewSet(ViewSet):
     def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
         """Get all files associated with a dataset."""
         return get_dataset_files_including_captures(dataset, include_deleted=False)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Dataset UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="Dataset metadata, captures, and artifact files"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Not Found"),
+        },
+        description=(
+            "Return dataset metadata with captures (one row per logical capture, "
+            "including composite multi-channel) and artifact files linked directly to the dataset."
+        ),
+        summary="Retrieve Dataset",
+    )
+    def retrieve(self, request: Request, pk: str | None = None) -> Response:
+        """Return serialized dataset including captures and direct (artifact) files."""
+        if pk is None:
+            return Response(
+                {"detail": "Dataset UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_dataset = get_object_or_404(
+            Dataset,
+            pk=pk,
+            is_deleted=False,
+        )
+
+        assert isinstance(request.user, User), (
+            "Expected request.user to be an instance of the custom User model"
+        )
+        if not user_has_access_to_item(
+            request.user, target_dataset.uuid, ItemType.DATASET
+        ):
+            return Response(
+                {"detail": "You do not have permission to access this dataset."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        serializer = DatasetGetSerializer(
+            target_dataset,
+            context={"request": request},
+        )
+        return Response(serializer.data)
 
     @extend_schema(
         parameters=[
