@@ -8,6 +8,7 @@ During expansion: Functions return union of M2M + FK relationships
 During contraction: Update these functions to only return M2M relationships
 """
 
+from django.db import transaction
 from django.db.models import QuerySet
 
 from sds_gateway.api_methods.models import Capture
@@ -302,3 +303,11 @@ def get_capture_datasets(
     # Combine both querysets
     datasets_union = datasets_m2m.union(datasets_fk)
     return union_to_queryset(datasets_union, Dataset)
+
+
+@transaction.atomic
+def detach_item_from_all_datasets(item: Capture | File) -> None:
+    """Clear deprecated dataset FK and M2M links for a single capture or file."""
+    item.dataset = None
+    item.datasets.clear()
+    item.save()

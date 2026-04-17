@@ -44,6 +44,7 @@ from sds_gateway.api_methods.utils.asset_access_control import (
     get_accessible_files_queryset,
     user_has_access_to_file,
 )
+from sds_gateway.api_methods.utils.relationship_utils import detach_item_from_all_datasets
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -411,6 +412,43 @@ class FileViewSet(ViewSet):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    @action(detail=True, methods=["put"])
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="File UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        responses={
+            200: OpenApiResponse(description="File detached from all datasets successfully"),
+            400: OpenApiResponse(description="Bad Request"),
+            500: OpenApiResponse(description="Internal Server Error"),
+        },
+        description="Detach a file from all datasets.",
+        summary="Detach File from All Connected Datasets",
+    )
+    def detach_from_datasets(self, request: Request, pk: str | None = None) -> Response:
+        """Detach a file from all datasets."""
+        if pk is None:
+            return Response(
+                {"detail": "File UUID is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        target_file = get_object_or_404(File, pk=pk, owner=request.user, is_deleted=False)
+        detach_item_from_all_datasets(target_file)
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data={
+                "message": "File detached from all connected datasets successfully",
+            },
+        )
 
     @extend_schema(
         parameters=[

@@ -175,6 +175,27 @@ def upload_file(
     return __upload_file_mux(client=client, file_instance=file_instance)
 
 
+def detach_file_from_datasets(
+    client: Client,
+    file_uuid: UUID4 | str,
+) -> bool:
+    """Detach a file from every dataset it is linked to (owner-only).
+
+    Clears the file's deprecated ``dataset`` FK and ``datasets`` M2M on the gateway.
+    """
+    uuid_to_detach: UUID4 = (
+        uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
+    )
+
+    if client.dry_run:
+        log_user(
+            f"Dry run enabled: would detach file {uuid_to_detach.hex} from datasets"
+        )
+        return True
+
+    client._gateway.detach_file_from_datasets(file_uuid=uuid_to_detach)
+    return True
+
 def delete_file(
     client: Client,
     file_uuid: UUID4 | str,

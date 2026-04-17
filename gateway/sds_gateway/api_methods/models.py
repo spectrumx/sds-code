@@ -283,7 +283,7 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     msg = (
         f"Cannot delete file '{instance.name}': it is "
         f"associated with {' and '.join(associations)}."
-        " Delete the associated object(s) first."
+        " Delete (or remove from) the associated object(s) first."
     )
     raise ProtectedError(msg, protected_objects={instance})
 

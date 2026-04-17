@@ -48,6 +48,7 @@ class Endpoints(StrEnum):
     )
     EXPERIMENTS = "/assets/experiments"
     FILE_CONTENTS_CHECK = "/assets/utils/check_contents_exist"
+    FILE_DETACH_FROM_DATASETS = "/assets/files/{uuid}/detach-from-datasets"
     FILE_DOWNLOAD = "/assets/files/{uuid}/download"
     FILES = "/assets/files"
     SEARCH = "/search"
@@ -417,6 +418,30 @@ class GatewayClient:
         network.success_or_raise(response=response, ContextException=FileError)
         content: bytes | Any = response.content
         return content
+
+    def detach_file_from_datasets(
+        self,
+        *,
+        file_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Detach a file from all datasets (owner-only API).
+
+        Args:
+            file_uuid: UUID of the file.
+        Returns:
+            Raw response body (typically JSON with a success message).
+        Raises:
+            FileError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.PUT,
+            endpoint=Endpoints.FILE_DETACH_FROM_DATASETS,
+            endpoint_args={"uuid": file_uuid.hex},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=FileError)
+        return response.content
 
     def delete_file_by_id(
         self,

@@ -22,6 +22,7 @@ from spectrumx.ops.files import get_file_permissions
 from spectrumx.ops.files import is_valid_file
 
 from tests.conftest import get_content_check_endpoint
+from tests.conftest import get_file_detach_from_datasets_url
 from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
@@ -330,6 +331,33 @@ def test_download_file_to_path(
     # cleanup
     expected_path.unlink(missing_ok=False)
     parent_dir.rmdir()
+
+
+@responses.activate
+def test_detach_file_from_datasets_success(client: Client) -> None:
+    """PUT detach-from-datasets uses the dedicated action URL."""
+    file_uuid = uuidlib.uuid4()
+    client.dry_run = False
+    detach_url = get_file_detach_from_datasets_url(client, file_id=file_uuid.hex)
+    responses.add(
+        responses.PUT,
+        detach_url,
+        status=200,
+        json={
+            "message": "File detached from all connected datasets successfully",
+        },
+    )
+
+    assert client.detach_file_from_datasets(file_uuid=file_uuid) is True
+    assert len(responses.calls) == 1
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[0].request.url == detach_url
+
+
+def test_detach_file_from_datasets_dry_run(client: Client) -> None:
+    """Dry run does not call the gateway."""
+    client.dry_run = True
+    assert client.detach_file_from_datasets(file_uuid=uuidlib.uuid4()) is True
 
 
 @responses.activate

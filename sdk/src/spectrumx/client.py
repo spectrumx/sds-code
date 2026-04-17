@@ -199,6 +199,13 @@ class Client:
             bypass_share_guard=bypass_share_guard,
         )
 
+    def detach_file_from_datasets(self, file_uuid: UUID4 | str) -> bool:
+        """Detach a file from all datasets it is associated with (owner-only)."""
+        return self._sds_files.detach_file_from_datasets(
+            client=self,
+            file_uuid=file_uuid,
+        )
+
     def download(
         self,
         *,

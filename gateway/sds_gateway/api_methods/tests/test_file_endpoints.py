@@ -22,6 +22,7 @@ from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
+from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.api_methods.tests.factories import MockMinIOContext
 from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.api_methods.tests.factories import create_file_with_minio_mock
@@ -579,3 +580,21 @@ class FileTestCases(APITestCase):
         assert data["count"] == 1, (
             f"Expected 1 file (excluding disabled shared), got {data['count']}"
         )
+
+    def test_detach_file_from_datasets(self) -> None:
+        """PUT detach-from-datasets clears FK and M2M dataset links."""
+        dataset = DatasetFactory(owner=self.user)
+        self.file.datasets.add(dataset)
+        self.file.dataset = dataset
+        self.file.save()
+
+        url = reverse("api:files-detach-from-datasets", args=[str(self.file.uuid)])
+        response = self.client.put(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.json()["message"] == (
+            "File detached from all connected datasets successfully"
+        )
+        self.file.refresh_from_db()
+        assert self.file.dataset is None
+        assert not self.file.datasets.exists()
