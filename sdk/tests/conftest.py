@@ -279,6 +279,15 @@ def get_capture_detach_from_datasets_url(client: Client, capture_id: str) -> str
     )
 
 
+def get_file_detach_from_datasets_url(client: Client, file_id: str) -> str:
+    """URL for PUT detach-from-datasets on a file."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/"
+        + "detach-from-datasets/"
+    )
+
+
 def get_dataset_revoke_share_permissions_url(
     client: Client, dataset_id: str
 ) -> str:

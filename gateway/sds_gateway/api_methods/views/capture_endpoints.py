@@ -68,6 +68,7 @@ from sds_gateway.api_methods.utils.asset_access_control import (
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import detach_item_from_all_datasets
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
@@ -1046,12 +1047,7 @@ class CaptureViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         target_capture = get_object_or_404(Capture, pk=pk, owner=request.user, is_deleted=False)
-        
-        # clear the deprecated FK relationship
-        #TODO: remove after contraction migration
-        target_capture.dataset = None
-        target_capture.datasets.clear()
-        target_capture.save()
+        detach_item_from_all_datasets(target_capture)
 
         return Response(
             status=status.HTTP_200_OK,
