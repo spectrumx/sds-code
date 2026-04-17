@@ -17,6 +17,7 @@ from spectrumx.errors import SDSError
 from spectrumx.errors import process_upload_results
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureType
+from spectrumx.models.datasets import Dataset
 from spectrumx.ops.pagination import Paginator
 
 from . import __version__
@@ -498,6 +499,26 @@ class Client:
             overwrite=overwrite,
             verbose=verbose,
         )
+
+    def get_dataset(self, dataset_uuid: UUID4 | str) -> Dataset:
+        """Fetch dataset metadata, captures, and artifact files from SDS."""
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+        return self.datasets.get(dataset_uuid)
+
+    def list_dataset_captures(self, dataset_uuid: UUID4 | str) -> list[dict[str, Any]]:
+        """List captures linked to a dataset (raw dicts; supports composite payloads)."""
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+        return self.datasets.list_captures(dataset_uuid)
+
+    def list_dataset_artifact_files(
+        self, dataset_uuid: UUID4 | str
+    ) -> list[dict[str, Any]]:
+        """List files linked directly to the dataset (not the full download manifest)."""
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+        return self.datasets.list_artifact_files(dataset_uuid)
 
     def _upload_deprecated(
         self,

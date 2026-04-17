@@ -17,11 +17,15 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
+from sds_gateway.api_methods.serializers.dataset_serializers import DatasetSummarySerializer
+from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import (
     UserSharePermissionSerializer,
 )
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.utils.asset_access_control import get_connected_asset_ids
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 
@@ -80,7 +84,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     files = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     data_files_info = serializers.SerializerMethodField()
-    datasets = DatasetGetSerializer(many=True)
+    datasets = serializers.SerializerMethodField()
     center_frequency_ghz = serializers.SerializerMethodField()
     sample_rate_mhz = serializers.SerializerMethodField()
     length_of_capture_ms = serializers.SerializerMethodField()
@@ -89,6 +93,13 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
     post_processed_data = serializers.SerializerMethodField()
+    
+    def get_datasets(self, capture: Capture) -> list[dict[str, Any]]:
+        """Datasets linked to this capture; shallow when serializing under dataset detail."""
+        qs = get_capture_datasets(capture, include_deleted=False)
+        if self.context.get("omit_nested_dataset_graph"):
+            return DatasetSummarySerializer(qs, many=True, context=self.context).data
+        return DatasetGetSerializer(qs, many=True, context=self.context).data
 
     def get_share_permissions(self, capture: Capture) -> list[UserSharePermission]:
         """Get the share permissions for the capture."""

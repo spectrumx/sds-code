@@ -735,6 +735,31 @@ class GatewayClient:
         network.success_or_raise(response, ContextException=DatasetError)
         return response.content
 
+    def get_dataset(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Fetch dataset metadata including captures and direct (artifact) files.
+
+        Args:
+            dataset_uuid: UUID of the dataset.
+            verbose: Whether to log the request.
+        Returns:
+            JSON body from the gateway.
+        Raises:
+            DatasetError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.GET,
+            endpoint=Endpoints.DATASETS,
+            asset_id=dataset_uuid.hex,
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
+        return response.content
+
     def get_dataset_files(
         self,
         *,
