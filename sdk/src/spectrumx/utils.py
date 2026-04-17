@@ -18,10 +18,6 @@ from loguru import logger as log
 from tqdm import auto as auto_tqdm
 from tqdm import tqdm
 
-from spectrumx.models.user import ItemType
-from spectrumx.models.captures import Capture
-from spectrumx.models.datasets import Dataset
-
 if TYPE_CHECKING:
     from collections.abc import Iterable
 

@@ -13,17 +13,15 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
-from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
-    bypass_share_guard_from_request,
-    resolve_asset_shared_deletion,
-)
-from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.models import Dataset
-from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.utils.asset_access_control import (
+    revoke_share_permissions as revoke_item_share_permissions,
+)
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
@@ -125,7 +123,6 @@ class DatasetViewSet(ViewSet):
 
         return paginator.get_paginated_response(serializer.data)
 
-
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -143,8 +140,15 @@ class DatasetViewSet(ViewSet):
         description="Revoke all share permissions for a dataset.",
         summary="Revoke Dataset Share Permissions",
     )
-    @action(detail=True, methods=["put"], url_path="revoke-share-permissions", url_name="revoke-share-permissions")
-    def revoke_share_permissions(self, request: Request, pk: str | None = None) -> Response:
+    @action(
+        detail=True,
+        methods=["put"],
+        url_path="revoke-share-permissions",
+        url_name="revoke-share-permissions",
+    )
+    def revoke_share_permissions(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Revoke all share permissions for a dataset."""
         if pk is None:
             return Response(
@@ -157,12 +161,12 @@ class DatasetViewSet(ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        
-        revoked = revoke_share_permissions(
+
+        revoked = revoke_item_share_permissions(
             item_type=ItemType.DATASET,
             item_uuid=target_dataset.uuid,
         )
-        
+
         if not revoked:
             return Response(
                 {"detail": "Failed to revoke share permissions."},
@@ -206,11 +210,9 @@ class DatasetViewSet(ViewSet):
             owner=request.user,
             is_deleted=False,
         )
-        
-        is_shared, _ = check_if_shared(
-            target_dataset.uuid, ItemType.DATASET
-        )
-        
+
+        is_shared, _ = check_if_shared(target_dataset.uuid, ItemType.DATASET)
+
         if is_shared:
             return Response(
                 {"detail": "Dataset is shared and cannot be deleted."},
@@ -219,4 +221,3 @@ class DatasetViewSet(ViewSet):
 
         target_dataset.soft_delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
-

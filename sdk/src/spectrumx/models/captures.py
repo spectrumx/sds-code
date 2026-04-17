@@ -14,9 +14,9 @@ from pydantic import Field
 from pydantic import field_validator
 
 from spectrumx.models.base import SDSModel
+from spectrumx.models.datasets import Dataset
 from spectrumx.models.user import User
 from spectrumx.models.user import UserSharePermission
-from spectrumx.models.datasets import Dataset
 
 
 class CaptureType(StrEnum):
@@ -82,9 +82,14 @@ class Capture(SDSModel):
         list[CaptureFile],
         Field(description=_d_capture_files, default_factory=list),
     ]
-    datasets: Annotated[list[Dataset], Field(description=_d_datasets, default_factory=list)]
+    datasets: Annotated[
+        list[Dataset], Field(description=_d_datasets, default_factory=list)
+    ]
     owner: Annotated[User, Field(description=_d_owner)]
-    share_permissions: Annotated[list[UserSharePermission], Field(description=_d_share_permissions, default_factory=list)]
+    share_permissions: Annotated[
+        list[UserSharePermission],
+        Field(description=_d_share_permissions, default_factory=list),
+    ]
     is_shared: Annotated[bool, Field(description=_d_is_shared)]
 
     # optional fields

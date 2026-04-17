@@ -11,6 +11,7 @@ class UserGetSerializer(serializers.ModelSerializer[User]):
         model = User
         fields = ["id", "email", "name"]
 
+
 class UserSharePermissionSerializer(serializers.ModelSerializer[UserSharePermission]):
     shared_with = UserGetSerializer(read_only=True)
 

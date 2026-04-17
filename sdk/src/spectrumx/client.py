@@ -186,7 +186,8 @@ class Client:
 
         Args:
             file_uuid: The UUID of the file to delete.
-            bypass_share_guard: If True, request detach from indirect shares then delete.
+            bypass_share_guard: If True, request detach from indirect shares then
+                delete.
         Returns:
             True if the file was deleted successfully,
             or if in dry run mode (simulating success).

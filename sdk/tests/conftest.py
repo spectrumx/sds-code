@@ -259,9 +259,7 @@ def get_datasets_endpoint(
     return base_endpoint
 
 
-def get_capture_revoke_share_permissions_url(
-    client: Client, capture_id: str
-) -> str:
+def get_capture_revoke_share_permissions_url(client: Client, capture_id: str) -> str:
     """URL for PUT revoke-share-permissions on a capture (matches DRF @action path)."""
     return (
         client.base_url
@@ -288,9 +286,7 @@ def get_file_detach_from_datasets_url(client: Client, file_id: str) -> str:
     )
 
 
-def get_dataset_revoke_share_permissions_url(
-    client: Client, dataset_id: str
-) -> str:
+def get_dataset_revoke_share_permissions_url(client: Client, dataset_id: str) -> str:
     """URL for PUT revoke-share-permissions on a dataset."""
     return (
         client.base_url

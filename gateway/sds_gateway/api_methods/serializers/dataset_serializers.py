@@ -6,7 +6,10 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
+from sds_gateway.api_methods.serializers.user_serializer import (
+    UserSharePermissionSerializer,
+)
+from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 
 READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
 
@@ -127,7 +130,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             is_enabled=True,
         )
         return UserSharePermissionSerializer(user_share_permissions, many=True).data
-    
+
     def get_is_shared(self, obj):
         """Check if the dataset is shared."""
         return check_if_shared(obj.uuid, ItemType.DATASET)

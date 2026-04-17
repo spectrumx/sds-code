@@ -434,9 +434,7 @@ def test_delete_file_bypass_share_guard(client: Client) -> None:
         status=204,
     )
 
-    result = delete_file(
-        client=client, file_uuid=test_uuid, bypass_share_guard=True
-    )
+    result = delete_file(client=client, file_uuid=test_uuid, bypass_share_guard=True)
 
     assert result is True
     assert "bypass_share_guard=true" in responses.calls[1].request.url

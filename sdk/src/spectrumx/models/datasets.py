@@ -7,8 +7,8 @@ from pydantic import UUID4
 from pydantic import BaseModel
 from pydantic import ConfigDict
 
-from spectrumx.models.user import UserSharePermission
 from spectrumx.models.user import User
+from spectrumx.models.user import UserSharePermission
 
 
 class Dataset(BaseModel):

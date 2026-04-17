@@ -12,13 +12,11 @@ from pydantic import Field
 
 from spectrumx import utils
 from spectrumx.models.base import SDSModel
+from spectrumx.models.captures import Capture
+from spectrumx.models.datasets import Dataset
 from spectrumx.models.files.permission import PermissionRepresentation
 from spectrumx.models.files.permission import UnixPermissionStr
-from spectrumx.models.user import UserSharePermission
 from spectrumx.models.user import User
-from pydantic import UUID4
-from spectrumx.models.datasets import Dataset
-from spectrumx.models.captures import Capture
 
 
 class File(SDSModel):

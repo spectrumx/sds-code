@@ -2,6 +2,7 @@
 
 import logging
 from uuid import UUID4
+
 from django.db.models import Q
 
 from sds_gateway.api_methods.models import Capture
@@ -10,7 +11,7 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
-import sds_gateway.api_methods.utils.relationship_utils as relationship_utils
+from sds_gateway.api_methods.utils import relationship_utils
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,9 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
     )
 
     # Use centralized function to get datasets (handles both M2M and FK)
-    capture_datasets = relationship_utils.get_capture_datasets(capture, include_deleted=False)
+    capture_datasets = relationship_utils.get_capture_datasets(
+        capture, include_deleted=False
+    )
 
     # Check if any dataset is owned by user or in shared_datasets
     user_has_access_to_dataset = any(
@@ -81,7 +84,9 @@ def user_has_access_to_file(user, file: File) -> bool:
     # Check if file's captures are in shared datasets (nested relationship)
     if not user_has_access_to_capture:
         for capture in file_captures:
-            capture_datasets = relationship_utils.get_capture_datasets(capture, include_deleted=False)
+            capture_datasets = relationship_utils.get_capture_datasets(
+                capture, include_deleted=False
+            )
             if any(
                 dataset.owner == user or dataset.uuid in shared_datasets
                 for dataset in capture_datasets
@@ -283,11 +288,11 @@ def get_accessible_captures_queryset(user):
 
 def check_if_shared(item_uuid: UUID4, item_type: ItemType) -> bool:
     """
-    Check if an item is shared directly, 
+    Check if an item is shared directly,
     i.e. the item has UserSharePermission records associated with it.
 
     Returns:
-        True if the item is shared, False otherwise, and the dictionary of inherited shared asset IDs.
+        True if the item is shared, False otherwise.
     """
     return UserSharePermission.objects.filter(
         item_uuid=item_uuid,
@@ -296,36 +301,40 @@ def check_if_shared(item_uuid: UUID4, item_type: ItemType) -> bool:
         is_enabled=True,
     ).exists()
 
-def get_connected_asset_ids(item_uuid: UUID4, item_type: ItemType) -> dict[str, list[UUID4]]:
+
+def get_connected_asset_ids(
+    item_uuid: UUID4, item_type: ItemType
+) -> dict[str, list[UUID4]]:
     """
     Get the IDs of all assets that are connected to the given item.
     """
     if item_type == ItemType.CAPTURE:
-        dataset_uuids = Capture.objects.get(
-            uuid=item_uuid
-        ).datasets.filter(
-            is_deleted=False
-        ).values_list("uuid", flat=True)
-        
+        dataset_uuids = (
+            Capture.objects.get(uuid=item_uuid)
+            .datasets.filter(is_deleted=False)
+            .values_list("uuid", flat=True)
+        )
+
         return {
             "datasets": list(dataset_uuids),
         }
-    elif item_type == ItemType.FILE:
-        capture_uuids = File.objects.get(
-            uuid=item_uuid
-        ).captures.filter(
-            is_deleted=False
-        ).values_list("uuid", flat=True)
-        
-        dataset_uuids = File.objects.get(
-            uuid=item_uuid
-        ).datasets.filter(
-            is_deleted=False
-        ).values_list("uuid", flat=True)
-        
-        return { "datasets": list(dataset_uuids), "captures": list(capture_uuids) }
-    else:
-        raise ValueError(f"Invalid item type: {item_type}")
+    if item_type == ItemType.FILE:
+        capture_uuids = (
+            File.objects.get(uuid=item_uuid)
+            .captures.filter(is_deleted=False)
+            .values_list("uuid", flat=True)
+        )
+
+        dataset_uuids = (
+            File.objects.get(uuid=item_uuid)
+            .datasets.filter(is_deleted=False)
+            .values_list("uuid", flat=True)
+        )
+
+        return {"datasets": list(dataset_uuids), "captures": list(capture_uuids)}
+    err_msg = f"Invalid item type: {item_type}"
+    raise ValueError(err_msg)
+
 
 def revoke_share_permissions(
     *,
@@ -350,43 +359,47 @@ def revoke_share_permissions(
 
     return True
 
+
 def disconnect_files_from_capture(capture: Capture) -> None:
     """Disconnects all files from a capture.
-    
+
     Args:
         capture: The capture to disconnect files from.
     """
     all_current_files = relationship_utils.get_capture_files(
         capture, include_deleted=True
     )  # Include deleted for cleanup
-    
+
     # update M2M AND FK relationships
     # TODO: remove FK after contraction
     all_current_files.update(capture=None, captures=None)
+
 
 def disconnect_files_from_dataset(dataset: Dataset) -> None:
     """Disconnects all files from a dataset."""
     all_current_files = relationship_utils.get_dataset_artifact_files(
         dataset, include_deleted=True
     )  # Include deleted for cleanup
-    
+
     # update M2M AND FK relationships
     # TODO: remove FK after contraction
     all_current_files.update(dataset=None, datasets=None)
+
 
 def disconnect_captures_from_dataset(dataset: Dataset) -> None:
     """Disconnects all captures from a dataset."""
     all_current_captures = relationship_utils.get_dataset_captures(
         dataset, include_deleted=True
     )  # Include deleted for cleanup
-    
+
     # update M2M AND FK relationships
     # TODO: remove FK after contraction
     all_current_captures.update(dataset=None, datasets=None)
 
+
 def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
     """Disconnects all assets from an item.
-    
+
     Args:
         item: The item to disconnect assets from.
         item_type: The type of item to disconnect assets from.
@@ -397,4 +410,5 @@ def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
     elif item_type == ItemType.CAPTURE:
         disconnect_files_from_capture(item)
     else:
-        raise ValueError(f"Invalid item type: {item_type}")
+        err_msg = f"Invalid item type: {item_type}"
+        raise ValueError(err_msg)
