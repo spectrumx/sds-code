@@ -10,7 +10,6 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
-from pydantic import UUID4
 
 from loguru import logger as log
 from pydantic import ValidationError
@@ -116,7 +115,7 @@ class CaptureAPI:
                 origin=CaptureOrigin.User,
                 scan_group=uuid.UUID(scan_group) if scan_group else None,
                 top_level_dir=top_level_dir,
-                uuid=uuid4(),
+                uuid=uuid.uuid4(),
                 files=[],
                 datasets=[],
                 owner=User(name="Dry run", email="dry-run@local.invalid"),
@@ -406,7 +405,7 @@ def _generate_capture(capture_type: CaptureType) -> Capture:
         scan_group=None,
         origin=CaptureOrigin.User,
         top_level_dir=PurePosixPath("/"),
-        uuid=uuid4(),
+        uuid=uuid.uuid4(),
         files=[],
         datasets=[],
         owner=User(name="Dry run", email="dry-run@local.invalid"),

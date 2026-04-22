@@ -1,9 +1,9 @@
 """Capture access utility functions for the SDS Gateway API."""
 
 import logging
-from pydantic import UUID4
 
 from django.db.models import Q
+from pydantic import UUID4
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset

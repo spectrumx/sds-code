@@ -812,7 +812,7 @@ def test_delete_capture(client: Client, responses: responses.RequestsMock) -> No
 def test_delete_capture_bypass_share_guard(
     client: Client, responses: responses.RequestsMock
 ) -> None:
-    """Deleting with bypass_share_guard revokes, detaches, then DELETE (no query param)."""
+    """bypass_share_guard: revoke, detach, DELETE (no bypass query param)."""
     client.dry_run = DRY_RUN
     capture_uuid = uuidlib.uuid4()
     revoke_url = get_capture_revoke_share_permissions_url(

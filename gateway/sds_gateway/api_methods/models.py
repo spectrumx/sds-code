@@ -26,15 +26,6 @@ from .utils.opensearch_client import get_opensearch_client
 
 if TYPE_CHECKING:
     from sds_gateway.users.models import User
-    from sds_gateway.api_methods.utils.asset_access_control import (
-        disconnect_assets,
-    )
-    from sds_gateway.api_methods.utils.relationship_utils import (
-        get_capture_files,
-    )
-    from sds_gateway.api_methods.utils.asset_access_control import (
-        get_connected_asset_ids,
-    )
 
 log = logging.getLogger(__name__)
 
@@ -263,6 +254,9 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     Raises:
         ProtectedError if the file is associated with a capture or dataset.
     """
+    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+        get_connected_asset_ids,
+    )
 
     connected_asset_ids = get_connected_asset_ids(
         item_uuid=instance.uuid,
@@ -379,6 +373,9 @@ class Capture(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
+        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+            disconnect_assets,
+        )
 
         raise_if_capture_deletion_is_blocked(instance=self)
         disconnect_assets(item=self, item_type=ItemType.CAPTURE)
@@ -457,6 +454,10 @@ class Capture(BaseModel):
 
     def get_drf_data_files_queryset(self) -> QuerySet[File]:
         """DRF data files (rf@*.h5) for this capture (M2M + FK)."""
+        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
+            get_capture_files,
+        )
+
         if self.capture_type != CaptureType.DigitalRF:
             log.warning("Capture %s is not a DigitalRF capture", self.uuid)
             return File.objects.none()
@@ -682,6 +683,9 @@ def raise_if_capture_deletion_is_blocked(instance: Capture) -> None:
     Raises:
         ProtectedError if the capture is associated with a dataset.
     """
+    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+        get_connected_asset_ids,
+    )
 
     connected_asset_ids = get_connected_asset_ids(
         item_uuid=instance.uuid,
@@ -847,6 +851,9 @@ class Dataset(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
+        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+            disconnect_assets,
+        )
 
         disconnect_assets(item=self, item_type=ItemType.DATASET)
         return super().soft_delete()

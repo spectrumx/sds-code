@@ -711,7 +711,7 @@ def test_capture_deletion(
 def test_capture_deletion_with_bypass_share_guard(
     integration_client: Client, drf_sample_top_level_dir: Path
 ) -> None:
-    """Same as capture deletion but uses SDK ``bypass_share_guard`` (extra PUTs first)."""
+    """Like capture deletion, with ``bypass_share_guard`` (extra PUTs first)."""
 
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,

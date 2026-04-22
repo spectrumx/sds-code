@@ -106,4 +106,3 @@ class DatasetAPI:
             return True
         self.gateway.revoke_dataset_share_permissions(dataset_uuid=dataset_uuid)
         return True
-

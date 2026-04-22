@@ -196,8 +196,7 @@ class Client:
         """
         if bypass_share_guard:
             log.debug(
-                f"Bypassing share guard for file {file_uuid} "
-                "by detaching from datasets"
+                f"Bypassing share guard for file {file_uuid} by detaching from datasets"
             )
             self.detach_file_from_datasets(file_uuid=file_uuid)
 
