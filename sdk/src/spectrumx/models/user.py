@@ -2,7 +2,6 @@ from enum import StrEnum
 from typing import Annotated
 
 from pydantic import UUID4
-from pydantic import AliasChoices
 from pydantic import ConfigDict
 from pydantic import Field
 

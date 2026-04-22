@@ -27,6 +27,8 @@ from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
+_EXPECTED_THREE_HTTP_CALLS: int = 3
+
 
 def _download_file_endpoint(client: Client, file_id: str) -> str:
     """Returns the endpoint for downloading a file."""
@@ -408,7 +410,7 @@ def test_delete_file_success(client: Client) -> None:
 
 @responses.activate
 def test_delete_file_bypass_share_guard(client: Client) -> None:
-    """delete_file with bypass_share_guard detaches then GET+DELETE (no bypass param)."""
+    """bypass_share_guard: detach, then GET + DELETE (no bypass query param)."""
     test_uuid = uuidlib.uuid4()
     test_uuid_hex = test_uuid.hex
     client.dry_run = False
@@ -445,7 +447,7 @@ def test_delete_file_bypass_share_guard(client: Client) -> None:
     result = client.delete_file(file_uuid=test_uuid, bypass_share_guard=True)
 
     assert result is True
-    assert len(responses.calls) == 3
+    assert len(responses.calls) == _EXPECTED_THREE_HTTP_CALLS
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[0].request.url == detach_url
     assert responses.calls[1].request.method == "GET"

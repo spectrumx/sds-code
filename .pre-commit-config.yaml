@@ -3,6 +3,8 @@ default_stages: [pre-commit]
 
 default_language_version:
     python: python3.13
+    # markdownlint-cli 0.48+ depends on string-width using RegExp `v` (Unicode sets); needs Node 20+.
+    node: "22.14.0"
 
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks

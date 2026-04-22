@@ -13,9 +13,8 @@
         + New file attributes: `owner`, `captures`, `datasets`
         + New capture attributes: `owner`, `is_shared`, `is_shared_with_me`, `share_permissions`
         + New dataset attributes: `owner`, `is_shared`, `share_permissions`, `datasets`
-    
-    + [**Added new models for User and UserSharePermission**](https://github.com/spectrumx/sds-code/pull/275): This allows for visibility into the users and share permissions connected to assets.
 
+    + [**Added new models for User and UserSharePermission**](https://github.com/spectrumx/sds-code/pull/275): This allows for visibility into the users and share permissions connected to assets.
 
 ## `0.1.17` - 2025-12-20
 

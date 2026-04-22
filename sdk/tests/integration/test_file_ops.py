@@ -792,7 +792,7 @@ def test_delete_file_integration(
 def test_delete_file_with_bypass_share_guard_integration(
     integration_client: Client, temp_file_with_text_contents: Path
 ) -> None:
-    """Upload then delete with ``bypass_share_guard=True`` (detach PUT then normal delete)."""
+    """Upload then delete with ``bypass_share_guard=True`` (detach, then delete)."""
 
     integration_client.dry_run = False
     temp_file_path = temp_file_with_text_contents
