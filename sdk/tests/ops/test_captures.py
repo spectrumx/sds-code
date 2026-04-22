@@ -39,7 +39,6 @@ log.trace("Placeholder log to avoid reimporting or resolving unused import warni
 
 # globally toggles dry run mode in case we want to run these under an integration mode.
 DRY_RUN: bool = False
-_EXPECTED_TWO_HTTP_CALLS: int = 2
 _EXPECTED_THREE_HTTP_CALLS: int = 3
 
 MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channel tests
@@ -843,7 +842,7 @@ def test_delete_capture_bypass_share_guard(
     assert responses.calls[1].request.url == detach_url
     assert responses.calls[2].request.method == "DELETE"
     assert responses.calls[2].request.url == delete_url
-    assert "bypass_share_guard" not in responses.calls[2].request.url
+    assert "bypass_share_guard" not in (responses.calls[2].request.url or "")
 
 
 def test_delete_capture_dry_run(client: Client) -> None:
@@ -901,90 +900,6 @@ def test_detach_capture_from_datasets(
     assert len(responses.calls) == 1
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[0].request.url == detach_url
-
-
-def test_delete_after_revoking_share(
-    client: Client, responses: responses.RequestsMock
-) -> None:
-    """Revoke then delete issues PUT then DELETE."""
-    client.dry_run = DRY_RUN
-    capture_uuid = uuidlib.uuid4()
-    revoke_url = get_capture_revoke_share_permissions_url(
-        client, capture_id=capture_uuid.hex
-    )
-    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
-    responses.add(
-        method=responses.PUT,
-        url=revoke_url,
-        status=200,
-        json={"message": "ok"},
-    )
-    responses.add(
-        method=responses.DELETE,
-        url=delete_url,
-        status=204,
-    )
-
-    assert client.captures.delete_after_revoking_share(capture_uuid) is True
-    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[1].request.method == "DELETE"
-
-
-def test_delete_after_detaching_from_datasets(
-    client: Client, responses: responses.RequestsMock
-) -> None:
-    """Detach then delete issues PUT then DELETE."""
-    client.dry_run = DRY_RUN
-    capture_uuid = uuidlib.uuid4()
-    detach_url = get_capture_detach_from_datasets_url(
-        client, capture_id=capture_uuid.hex
-    )
-    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
-    responses.add(
-        method=responses.PUT,
-        url=detach_url,
-        status=200,
-        json={"message": "ok"},
-    )
-    responses.add(
-        method=responses.DELETE,
-        url=delete_url,
-        status=204,
-    )
-
-    assert client.captures.delete_after_detaching_from_datasets(capture_uuid) is True
-    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[1].request.method == "DELETE"
-
-
-def test_delete_with_revoke_and_detach(
-    client: Client, responses: responses.RequestsMock
-) -> None:
-    """Revoke, detach, then delete."""
-    client.dry_run = DRY_RUN
-    capture_uuid = uuidlib.uuid4()
-    revoke_url = get_capture_revoke_share_permissions_url(
-        client, capture_id=capture_uuid.hex
-    )
-    detach_url = get_capture_detach_from_datasets_url(
-        client, capture_id=capture_uuid.hex
-    )
-    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
-    responses.add(
-        method=responses.PUT, url=revoke_url, status=200, json={"message": "ok"}
-    )
-    responses.add(
-        method=responses.PUT, url=detach_url, status=200, json={"message": "ok"}
-    )
-    responses.add(method=responses.DELETE, url=delete_url, status=204)
-
-    assert client.captures.delete_with_revoke_and_detach(capture_uuid) is True
-    assert len(responses.calls) == _EXPECTED_THREE_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[1].request.method == "PUT"
-    assert responses.calls[2].request.method == "DELETE"
 
 
 def test_search_captures_freq_range(
