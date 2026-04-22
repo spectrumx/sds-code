@@ -408,36 +408,49 @@ def test_delete_file_success(client: Client) -> None:
 
 @responses.activate
 def test_delete_file_bypass_share_guard(client: Client) -> None:
-    """DELETE with bypass_share_guard includes the query param."""
+    """delete_file with bypass_share_guard detaches then GET+DELETE (no bypass param)."""
     test_uuid = uuidlib.uuid4()
     test_uuid_hex = test_uuid.hex
     client.dry_run = False
+    detach_url = get_file_detach_from_datasets_url(client, file_id=test_uuid_hex)
+    file_json = {
+        "uuid": test_uuid_hex,
+        "name": "test_file.txt",
+        "media_type": "text/plain",
+        "size": 100,
+        "directory": "/test/",
+        "permissions": "rw-r--r--",
+        "created_at": "2024-12-01T12:00:00Z",
+        "updated_at": "2024-12-01T12:00:00Z",
+        "expiration_date": "2026-12-01T12:00:00Z",
+    }
+    responses.add(
+        responses.PUT,
+        detach_url,
+        status=200,
+        json={"message": "File detached from all connected datasets successfully"},
+    )
     responses.add(
         responses.GET,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
         status=200,
-        json={
-            "uuid": test_uuid_hex,
-            "name": "test_file.txt",
-            "media_type": "text/plain",
-            "size": 100,
-            "directory": "/test/",
-            "permissions": "rw-r--r--",
-            "created_at": "2024-12-01T12:00:00Z",
-            "updated_at": "2024-12-01T12:00:00Z",
-            "expiration_date": "2026-12-01T12:00:00Z",
-        },
+        json=file_json,
     )
     responses.add(
         responses.DELETE,
-        f"{get_files_endpoint(client)}{test_uuid_hex}/?bypass_share_guard=true",
+        f"{get_files_endpoint(client)}{test_uuid_hex}/",
         status=204,
     )
 
-    result = delete_file(client=client, file_uuid=test_uuid, bypass_share_guard=True)
+    result = client.delete_file(file_uuid=test_uuid, bypass_share_guard=True)
 
     assert result is True
-    assert "bypass_share_guard=true" in responses.calls[1].request.url
+    assert len(responses.calls) == 3
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[0].request.url == detach_url
+    assert responses.calls[1].request.method == "GET"
+    assert responses.calls[2].request.method == "DELETE"
+    assert "bypass_share_guard" not in responses.calls[2].request.url
 
 
 @responses.activate

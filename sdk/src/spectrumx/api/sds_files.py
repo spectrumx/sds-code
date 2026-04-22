@@ -200,16 +200,12 @@ def detach_file_from_datasets(
 def delete_file(
     client: Client,
     file_uuid: UUID4 | str,
-    *,
-    bypass_share_guard: bool = False,
 ) -> bool:
     """Deletes a file from SDS by its UUID.
 
     Args:
         client: The client instance.
         file_uuid: The UUID of the file to delete.
-        bypass_share_guard: If True, request detach from indirect shares then delete
-            (gateway ``bypass_share_guard`` query param).
     Returns:
         True if the file was deleted successfully,
         or if in dry run mode (simulating success).
@@ -237,7 +233,6 @@ def delete_file(
 
     if client._gateway.delete_file_by_id(
         uuid=uuid_to_delete.hex,
-        bypass_share_guard=bypass_share_guard,
     ):
         if checksum:
             __cleanup_persisted_uploads_for_deleted_file(checksum=checksum)

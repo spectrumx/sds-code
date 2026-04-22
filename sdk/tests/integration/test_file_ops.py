@@ -782,6 +782,45 @@ def test_delete_file_integration(
     argvalues=[
         [
             *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_delete_file_with_bypass_share_guard_integration(
+    integration_client: Client, temp_file_with_text_contents: Path
+) -> None:
+    """Upload then delete with ``bypass_share_guard=True`` (detach PUT then normal delete)."""
+
+    integration_client.dry_run = False
+    temp_file_path = temp_file_with_text_contents
+    temp_file_path.write_text("This is a test file to be deleted", encoding="utf-8")
+    sds_path = Path(f"/test-delete-file-bypass-{get_random_line(8)}")
+    uploaded_file = integration_client.upload_file(
+        local_file=temp_file_path, sds_path=sds_path
+    )
+    file_uuid = uploaded_file.uuid
+    assert file_uuid is not None
+
+    delete_result = integration_client.delete_file(
+        file_uuid=file_uuid,
+        bypass_share_guard=True,
+    )
+    assert delete_result is True, "File deletion should return True"
+    with pytest.raises(FileError):
+        integration_client.get_file(file_uuid=file_uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_deletion(),
         ]

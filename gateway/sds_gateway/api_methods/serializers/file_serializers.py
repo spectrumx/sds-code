@@ -35,24 +35,7 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
 
     class Meta:
         model = File
-        fields = (
-            "bucket_name",
-            "capture",
-            "created_at",
-            "dataset",
-            "directory",
-            "expiration_date",
-            "file",
-            "media_type",
-            "name",
-            "owner",
-            "permissions",
-            "size",
-            "sum_blake3",
-            "updated_at",
-            "user_directory",
-            "uuid",
-        )
+        fields = "__all__"
 
 
 class FilePostSerializer(serializers.ModelSerializer[File]):

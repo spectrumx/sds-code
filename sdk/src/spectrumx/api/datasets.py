@@ -68,8 +68,8 @@ class DatasetAPI:
 
         Args:
             dataset_uuid: The UUID of the dataset to delete.
-            bypass_share_guard: If True, request unshare then delete when the dataset
-                is shared (gateway ``bypass_share_guard`` query param).
+            bypass_share_guard: If True, call :meth:`revoke_share_permissions` before
+                deleting (SDK-only; the DELETE request has no bypass query parameter).
         Returns:
             True if the dataset was deleted successfully, or if in dry run mode.
         """
@@ -80,9 +80,15 @@ class DatasetAPI:
             log.debug(f"Dry run enabled: would delete dataset {dataset_uuid}")
             return True
 
+        if bypass_share_guard:
+            log.debug(
+                f"Bypassing share guard for dataset {dataset_uuid} "
+                "by revoking share permissions"
+            )
+            self.revoke_share_permissions(dataset_uuid=dataset_uuid)
+
         self.gateway.delete_dataset(
             dataset_uuid=dataset_uuid,
-            bypass_share_guard=bypass_share_guard,
         )
         if self.verbose:
             log.debug(f"Dataset deleted with UUID {dataset_uuid}")
@@ -101,7 +107,3 @@ class DatasetAPI:
         self.gateway.revoke_dataset_share_permissions(dataset_uuid=dataset_uuid)
         return True
 
-    def delete_after_revoking_share(self, dataset_uuid: UUID) -> bool:
-        """Revoke direct shares, then delete the dataset."""
-        self.revoke_share_permissions(dataset_uuid)
-        return self.delete(dataset_uuid)

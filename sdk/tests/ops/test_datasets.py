@@ -40,15 +40,20 @@ def test_delete_dataset(client: Client, responses: responses.RequestsMock) -> No
 def test_delete_dataset_bypass_share_guard(
     client: Client, responses: responses.RequestsMock
 ) -> None:
-    """DELETE with bypass_share_guard sends the query param."""
+    """Deleting with bypass_share_guard revokes then DELETE (no query param)."""
     client.dry_run = DRY_RUN
     dataset_uuid = uuidlib.uuid4()
-    base_url = get_datasets_endpoint(client, dataset_id=dataset_uuid.hex)
-    responses.add(
-        method=responses.DELETE,
-        url=f"{base_url}?bypass_share_guard=true",
-        status=204,
+    revoke_url = get_dataset_revoke_share_permissions_url(
+        client, dataset_id=dataset_uuid.hex
     )
+    delete_url = get_datasets_endpoint(client, dataset_id=dataset_uuid.hex)
+    responses.add(
+        method=responses.PUT,
+        url=revoke_url,
+        status=200,
+        json={"message": "ok"},
+    )
+    responses.add(method=responses.DELETE, url=delete_url, status=204)
 
     result = client.datasets.delete(
         dataset_uuid=dataset_uuid,
@@ -56,7 +61,12 @@ def test_delete_dataset_bypass_share_guard(
     )
 
     assert result is True
-    assert "bypass_share_guard=true" in responses.calls[0].request.url
+    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
+    assert responses.calls[0].request.method == "PUT"
+    assert responses.calls[0].request.url == revoke_url
+    assert responses.calls[1].request.method == "DELETE"
+    assert responses.calls[1].request.url == delete_url
+    assert "bypass_share_guard" not in responses.calls[1].request.url
 
 
 def test_delete_dataset_dry_run(client: Client) -> None:

@@ -448,29 +448,22 @@ class GatewayClient:
         uuid: str,
         *,
         verbose: bool = False,
-        bypass_share_guard: bool = False,
     ) -> bool:
         """Deletes a file from the SDS API by its UUID.
 
         Args:
             uuid: The UUID of the file to delete as a hex string.
             verbose: Whether to log the request.
-            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
-                gateway may detach indirect shares then delete (see API docs).
         Returns:
             True if the file was deleted successfully.
         Raises:
             FileError: If the file could not be deleted.
         """
-        extra: dict[str, Any] = {}
-        if bypass_share_guard:
-            extra["params"] = {"bypass_share_guard": "true"}
         response = self._request(
             method=HTTPMethods.DELETE,
             endpoint=Endpoints.FILES,
             asset_id=uuid,
             verbose=verbose,
-            **extra,
         )
 
         network.success_or_raise(response, ContextException=FileError)
@@ -626,14 +619,11 @@ class GatewayClient:
         self,
         *,
         capture_uuid: uuid.UUID,
-        bypass_share_guard: bool = False,
     ) -> None:
         """Deletes a capture from SDS by its UUID.
 
         Args:
             capture_uuid: The UUID of the capture to delete.
-            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
-                gateway may unshare / detach then delete (see API docs).
         Raises:
             CaptureError: If the deletion request fails.
         """
@@ -641,14 +631,10 @@ class GatewayClient:
         if self.verbose:
             log.debug(f"Sending DELETE request to {endpoint}")
 
-        extra: dict[str, Any] = {}
-        if bypass_share_guard:
-            extra["params"] = {"bypass_share_guard": "true"}
         response = self._request(
             method=HTTPMethods.DELETE,
             endpoint=Endpoints.CAPTURES,
             asset_id=capture_uuid.hex,
-            **extra,
         )
         network.success_or_raise(response, ContextException=CaptureError)
         if self.verbose:
@@ -706,28 +692,21 @@ class GatewayClient:
         self,
         *,
         dataset_uuid: uuid.UUID,
-        bypass_share_guard: bool = False,
         verbose: bool = False,
     ) -> None:
         """Deletes a dataset from SDS by its UUID.
 
         Args:
             dataset_uuid: The UUID of the dataset to delete.
-            bypass_share_guard: If True, send ``bypass_share_guard=true`` so the
-                gateway may unshare then delete (see API docs).
             verbose: Whether to log the request.
         Raises:
             DatasetError: If the deletion request fails.
         """
-        extra: dict[str, Any] = {}
-        if bypass_share_guard:
-            extra["params"] = {"bypass_share_guard": "true"}
         response = self._request(
             method=HTTPMethods.DELETE,
             endpoint=Endpoints.DATASETS,
             asset_id=dataset_uuid.hex,
             verbose=verbose,
-            **extra,
         )
         network.success_or_raise(response, ContextException=DatasetError)
 

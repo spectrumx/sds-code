@@ -410,7 +410,11 @@ class FileViewSet(ViewSet):
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=["put"])
+    @action(
+        detail=True,
+        methods=["put"],
+        url_path="detach-from-datasets",
+    )
     @extend_schema(
         parameters=[
             OpenApiParameter(
