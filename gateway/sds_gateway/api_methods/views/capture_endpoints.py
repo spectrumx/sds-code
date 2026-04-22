@@ -974,7 +974,11 @@ class CaptureViewSet(viewsets.ViewSet):
         serializer = CaptureGetSerializer(target_capture)
         return Response(serializer.data)
 
-    @action(detail=True, methods=["put"])
+    @action(
+        detail=True,
+        methods=["put"],
+        url_path="revoke-share-permissions",
+    )
     @extend_schema(
         parameters=[
             OpenApiParameter(
@@ -1023,7 +1027,11 @@ class CaptureViewSet(viewsets.ViewSet):
             },
         )
 
-    @action(detail=True, methods=["put"])
+    @action(
+        detail=True,
+        methods=["put"],
+        url_path="detach-from-datasets",
+    )
     @extend_schema(
         parameters=[
             OpenApiParameter(

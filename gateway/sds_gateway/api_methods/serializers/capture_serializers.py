@@ -403,8 +403,11 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     def get_share_permissions(self, obj: dict[str, Any]) -> list[UserSharePermission]:
         """Get the share permissions for the composite capture."""
+        capture_uuid = obj.get("uuid")
+        if capture_uuid is None:
+            return []
         user_share_permissions = UserSharePermission.objects.filter(
-            item_uuid=obj["uuid"],
+            item_uuid=capture_uuid,
             item_type=ItemType.CAPTURE,
             is_deleted=False,
             is_enabled=True,
@@ -418,7 +421,10 @@ class CompositeCaptureSerializer(serializers.Serializer):
             True if the composite capture has enabled share permissions,
             False otherwise.
         """
-        return check_if_shared(obj["uuid"], ItemType.CAPTURE)
+        capture_uuid = obj.get("uuid")
+        if capture_uuid is None:
+            return False
+        return check_if_shared(capture_uuid, ItemType.CAPTURE)
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""

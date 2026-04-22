@@ -196,8 +196,7 @@ class DatasetViewSet(ViewSet):
         description="Delete a dataset from the server.",
         summary="Delete Dataset",
     )
-    @action(detail=True, methods=["delete"], url_path="", url_name="delete")
-    def delete(self, request: Request, pk: str | None = None) -> Response:
+    def destroy(self, request: Request, pk: str | None = None) -> Response:
         """Delete a dataset from the server."""
         if pk is None:
             return Response(
@@ -211,7 +210,7 @@ class DatasetViewSet(ViewSet):
             is_deleted=False,
         )
 
-        is_shared, _ = check_if_shared(target_dataset.uuid, ItemType.DATASET)
+        is_shared = check_if_shared(target_dataset.uuid, ItemType.DATASET)
 
         if is_shared:
             return Response(

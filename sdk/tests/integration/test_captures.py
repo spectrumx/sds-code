@@ -703,6 +703,48 @@ def test_capture_deletion(
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.capture_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_deletion_with_bypass_share_guard(
+    integration_client: Client, drf_sample_top_level_dir: Path
+) -> None:
+    """Same as capture deletion but uses SDK ``bypass_share_guard`` (extra PUTs first)."""
+
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        capture_type=CaptureType.DigitalRF,
+        channel=cap_data.drf_channel,
+    )
+    assert capture.uuid is not None, "UUID of new capture should not be None"
+    result = integration_client.captures.delete(
+        capture_uuid=capture.uuid,
+        bypass_share_guard=True,
+    )
+    assert result is True, "Capture deletion should return True"
+    with pytest.raises(CaptureError):
+        integration_client.captures.read(
+            capture_uuid=capture.uuid,
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
             *PassthruEndpoints.capture_search(),
         ]
     ],

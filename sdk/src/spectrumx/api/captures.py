@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING
 from typing import Any
-from uuid import uuid4
+from pydantic import UUID4
 
 from loguru import logger as log
 from pydantic import ValidationError
@@ -240,8 +240,9 @@ class CaptureAPI:
 
         Args:
             capture_uuid:   The UUID of the capture to delete.
-            bypass_share_guard: If True, request unshare/detach then delete when the
-                capture is shared (gateway ``bypass_share_guard`` query param).
+            bypass_share_guard: If True, call :meth:`revoke_share_permissions` and
+                :meth:`detach_from_datasets` before deleting (SDK-only; the DELETE
+                request has no bypass query parameter).
         Returns:
             True if the capture was deleted successfully, or if in dry run mode.
         Raises:
@@ -254,9 +255,17 @@ class CaptureAPI:
         if self.dry_run:
             log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
             return True
+
+        if bypass_share_guard:
+            log.debug(
+                f"Bypassing share guard for capture {capture_uuid} "
+                "by revoking share permissions and detaching from datasets"
+            )
+            self.revoke_share_permissions(capture_uuid=capture_uuid)
+            self.detach_from_datasets(capture_uuid=capture_uuid)
+
         self.gateway.delete_capture(
             capture_uuid=capture_uuid,
-            bypass_share_guard=bypass_share_guard,
         )
         if self.verbose:
             log.debug(f"Capture deleted with UUID {capture_uuid}")
@@ -287,22 +296,6 @@ class CaptureAPI:
             return True
         self.gateway.detach_capture_from_datasets(capture_uuid=capture_uuid)
         return True
-
-    def delete_after_revoking_share(self, capture_uuid: uuid.UUID) -> bool:
-        """Revoke direct shares, then delete the capture."""
-        self.revoke_share_permissions(capture_uuid)
-        return self.delete(capture_uuid)
-
-    def delete_after_detaching_from_datasets(self, capture_uuid: uuid.UUID) -> bool:
-        """Detach from all datasets, then delete the capture."""
-        self.detach_from_datasets(capture_uuid)
-        return self.delete(capture_uuid)
-
-    def delete_with_revoke_and_detach(self, capture_uuid: uuid.UUID) -> bool:
-        """Revoke direct shares, detach from datasets, then delete the capture."""
-        self.revoke_share_permissions(capture_uuid)
-        self.detach_from_datasets(capture_uuid)
-        return self.delete(capture_uuid)
 
     def advanced_search(
         self: CaptureAPI,

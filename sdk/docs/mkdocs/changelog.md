@@ -2,6 +2,21 @@
 
 ## `0.1.18` - YYYY-MM-DD
 
++ Features:
+    + [**Added `delete` and `revoke_share_permissions` methods for datasets**](https://github.com/spectrumx/sds-code/pull/275): this allows users to (soft) delete datasets in the SDS through the SDK and revoke ALL share permissions from datasets if needed before deletion or in general.
+    + [**Added `revoke_share_permissions` and `detach_from_datasets` methods to captures**](https://github.com/spectrumx/sds-code/pull/275): this gives users the ability to revoke share permissions or detach captures from connected datasets when they need to delete a capture.
+    + [**Added `detach_from_datasets` methods to files**](https://github.com/spectrumx/sds-code/pull/275): this gives users the ability to detach files from connected datasets when they need to delete them. Note: Files CANNOT be detached from captures. Delete a the parent capture FIRST to delete the file.
+    + [**Added `bypass_share_guard` parameter to `delete` method on datasets, captures, and files**](https://github.com/spectrumx/sds-code/pull/275): when `bypass_share_guard` is true, detachment/share revocation methods will run before the asset is deleted to avoid errors and allow a single method call to delete entangled assets.
+
++ Observability:
+    + [**Added additional fields displaying ownership, share permission, and asset connection information to SDK models**](https://github.com/spectrumx/sds-code/pull/275): this allows users to see more relevant information when retrieving or listing assets like whether they are shared, who they are shared with, who owns them, and what other assets the target is attached to (like files to captures and datasets).
+        + New file attributes: `owner`, `captures`, `datasets`
+        + New capture attributes: `owner`, `is_shared`, `is_shared_with_me`, `share_permissions`
+        + New dataset attributes: `owner`, `is_shared`, `share_permissions`, `datasets`
+    
+    + [**Added new models for User and UserSharePermission**](https://github.com/spectrumx/sds-code/pull/275): This allows for visibility into the users and share permissions connected to assets.
+
+
 ## `0.1.17` - 2025-12-20
 
 + Fixes:

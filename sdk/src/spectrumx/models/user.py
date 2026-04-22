@@ -42,14 +42,6 @@ class User(SDSModel):
 
     name: Annotated[str, Field(description=_d_name)]
     email: Annotated[str, Field(description=_d_email)]
-    django_user_id: Annotated[
-        int | None,
-        Field(
-            default=None,
-            description="Gateway user primary key when present",
-            validation_alias=AliasChoices("id", "django_user_id"),
-        ),
-    ] = None
 
 
 class UserSharePermission(SDSModel):

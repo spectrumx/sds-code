@@ -1,7 +1,7 @@
 """Capture access utility functions for the SDS Gateway API."""
 
 import logging
-from uuid import UUID4
+from pydantic import UUID4
 
 from django.db.models import Q
 
@@ -349,13 +349,13 @@ def revoke_share_permissions(
         is_enabled=True,
     )
 
-    # disable share permissions
+    UserSharePermission.share_groups.through.objects.filter(
+        usersharepermission_id__in=share_permissions.values_list("pk", flat=True),
+    ).delete()
     share_permissions.update(
         is_enabled=False,
         is_individual_share=False,
     )
-    # clear share groups
-    share_permissions.share_groups.clear()
 
     return True
 
@@ -363,38 +363,34 @@ def revoke_share_permissions(
 def disconnect_files_from_capture(capture: Capture) -> None:
     """Disconnects all files from a capture.
 
+    Clears ``File.captures`` (M2M) and deprecated ``File.capture`` (FK).
+
     Args:
         capture: The capture to disconnect files from.
     """
-    all_current_files = relationship_utils.get_capture_files(
-        capture, include_deleted=True
-    )  # Include deleted for cleanup
-
-    # update M2M AND FK relationships
+    File.captures.through.objects.filter(capture_id=capture.pk).delete()
     # TODO: remove FK after contraction
-    all_current_files.update(capture=None, captures=None)
+    File.objects.filter(capture=capture).update(capture=None)
 
 
 def disconnect_files_from_dataset(dataset: Dataset) -> None:
-    """Disconnects all files from a dataset."""
-    all_current_files = relationship_utils.get_dataset_artifact_files(
-        dataset, include_deleted=True
-    )  # Include deleted for cleanup
+    """Disconnects all files from a dataset.
 
-    # update M2M AND FK relationships
+    Clears ``File.datasets`` (M2M) and deprecated ``File.dataset`` (FK).
+    """
+    File.datasets.through.objects.filter(dataset_id=dataset.pk).delete()
     # TODO: remove FK after contraction
-    all_current_files.update(dataset=None, datasets=None)
+    File.objects.filter(dataset=dataset).update(dataset=None)
 
 
 def disconnect_captures_from_dataset(dataset: Dataset) -> None:
-    """Disconnects all captures from a dataset."""
-    all_current_captures = relationship_utils.get_dataset_captures(
-        dataset, include_deleted=True
-    )  # Include deleted for cleanup
+    """Disconnects all captures from a dataset.
 
-    # update M2M AND FK relationships
+    Clears ``Capture.datasets`` (M2M) and deprecated ``Capture.dataset`` (FK).
+    """
+    Capture.datasets.through.objects.filter(dataset_id=dataset.pk).delete()
     # TODO: remove FK after contraction
-    all_current_captures.update(dataset=None, datasets=None)
+    Capture.objects.filter(dataset=dataset).update(dataset=None)
 
 
 def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
