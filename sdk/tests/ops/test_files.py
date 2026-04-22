@@ -452,7 +452,7 @@ def test_delete_file_bypass_share_guard(client: Client) -> None:
     assert responses.calls[0].request.url == detach_url
     assert responses.calls[1].request.method == "GET"
     assert responses.calls[2].request.method == "DELETE"
-    assert "bypass_share_guard" not in responses.calls[2].request.url
+    assert "bypass_share_guard" not in (responses.calls[2].request.url or "")
 
 
 @responses.activate

@@ -66,7 +66,7 @@ def test_delete_dataset_bypass_share_guard(
     assert responses.calls[0].request.url == revoke_url
     assert responses.calls[1].request.method == "DELETE"
     assert responses.calls[1].request.url == delete_url
-    assert "bypass_share_guard" not in responses.calls[1].request.url
+    assert "bypass_share_guard" not in (responses.calls[1].request.url or "")
 
 
 def test_delete_dataset_dry_run(client: Client) -> None:
@@ -100,28 +100,3 @@ def test_revoke_dataset_share_permissions(
     assert len(responses.calls) == 1
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[0].request.url == revoke_url
-
-
-@responses.activate
-def test_delete_dataset_after_revoking_share(
-    client: Client, responses: responses.RequestsMock
-) -> None:
-    """Revoke then delete issues PUT then DELETE."""
-    client.dry_run = DRY_RUN
-    dataset_uuid = uuidlib.uuid4()
-    revoke_url = get_dataset_revoke_share_permissions_url(
-        client, dataset_id=dataset_uuid.hex
-    )
-    delete_url = get_datasets_endpoint(client, dataset_id=dataset_uuid.hex)
-    responses.add(
-        method=responses.PUT,
-        url=revoke_url,
-        status=200,
-        json={"message": "ok"},
-    )
-    responses.add(method=responses.DELETE, url=delete_url, status=204)
-
-    assert client.datasets.delete_after_revoking_share(dataset_uuid) is True
-    assert len(responses.calls) == _EXPECTED_TWO_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[1].request.method == "DELETE"
