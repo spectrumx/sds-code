@@ -8,6 +8,7 @@ import tempfile
 import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
+from unittest.mock import PropertyMock
 from unittest.mock import patch
 
 from celery.exceptions import SoftTimeLimitExceeded
@@ -1257,19 +1258,20 @@ class TestCeleryTasks(TestCase):
                 sum_blake3="a" * 64,
             )
         # Link to capture via FK (get_capture_files uses both M2M and FK)
-        mock_response = {
-            "found": True,
-            "_source": {
-                "search_props": {
-                    "start_time": epoch_start_sec,
-                    "end_time": epoch_end_sec,
-                }
-            },
-        }
-        with patch(
-            "sds_gateway.api_methods.helpers.temporal_filtering.get_opensearch_client"
-        ) as m:
-            m.return_value.get.return_value = mock_response
+        with (
+            patch.object(
+                Capture,
+                "start_time",
+                new_callable=PropertyMock,
+                return_value=epoch_start_sec,
+            ),
+            patch.object(
+                Capture,
+                "end_time",
+                new_callable=PropertyMock,
+                return_value=epoch_end_sec,
+            ),
+        ):
             # Relative ms: 1000-4000 from capture start; absolute 2s-5s filenames
             result = _get_item_files(
                 self.user,
@@ -1279,7 +1281,7 @@ class TestCeleryTasks(TestCase):
                 end_time=4000,
             )
         names = [f.name for f in result]
-        # DRF files [2s,5s] inclusive; see filter_capture_data_files_selection_bounds
+        # DRF files [2s,5s] inclusive; see get_capture_files_with_temporal_filter
         expected_rf = [f"rf@{i}.000.h5" for i in range(2, 6)]
         rf_names = sorted(n for n in names if n.startswith("rf@"))
         assert rf_names == expected_rf, (

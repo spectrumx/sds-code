@@ -2,13 +2,11 @@ import re
 
 from django.db.models import QuerySet
 from loguru import logger as log
-from opensearchpy.exceptions import NotFoundError as OpenSearchNotFoundError
 
 from sds_gateway.api_methods.models import DRF_RF_FILENAME_REGEX_STR
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
-from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 # Digital RF spec: rf@SECONDS.MILLISECONDS.h5 (e.g. rf@1396379502.000.h5)
@@ -24,23 +22,6 @@ def drf_rf_filename_from_ms(ms: int) -> str:
     return f"rf@{ms // 1000}.{ms % 1000:03d}.h5"
 
 
-def drf_rf_filename_to_ms(file_name: str) -> int | None:
-    """
-    Parse DRF rf data filename to milliseconds.
-    Handles rf@SECONDS.MILLISECONDS.h5; fractional part padded to 3 digits.
-    """
-    name = file_name.strip()
-    match = DRF_RF_FILENAME_PATTERN.match(name)
-    if not match:
-        return None
-    try:
-        seconds = int(match.group(1))
-        frac = match.group(2).ljust(3, "0")[:3]
-        return seconds * 1000 + int(frac)
-    except (ValueError, TypeError):
-        return None
-
-
 def _catch_capture_type_error(capture_type: CaptureType) -> None:
     if capture_type != CaptureType.DigitalRF:
         msg = "Only DigitalRF captures are supported for temporal filtering."
@@ -48,55 +29,17 @@ def _catch_capture_type_error(capture_type: CaptureType) -> None:
         raise ValueError(msg)
 
 
-def get_capture_bounds(capture_type: CaptureType, capture_uuid: str) -> tuple[int, int]:
-    """Get start and end bounds for capture from opensearch."""
-    _catch_capture_type_error(capture_type)
-
-    client = get_opensearch_client()
-    index = f"captures-{capture_type}"
-
-    try:
-        response = client.get(index=index, id=capture_uuid)
-    except OpenSearchNotFoundError as e:
-        msg = f"Capture {capture_uuid} not found in OpenSearch index {index}"
-        raise ValueError(msg) from e
-
-    if not response.get("found"):
-        msg = f"Capture {capture_uuid} not found in OpenSearch index {index}"
-        raise ValueError(msg)
-
-    source = response.get("_source", {})
-    search_props = source.get("search_props", {})
-    start_time = search_props.get("start_time", 0)
-    end_time = search_props.get("end_time", 0)
-    return start_time, end_time
-
-
-def get_file_cadence(capture_type: CaptureType, capture: Capture) -> int:
-    """Get the file cadence in milliseconds. OpenSearch bounds are in seconds."""
-    _catch_capture_type_error(capture_type)
-
-    capture_uuid = str(capture.uuid)
-    start_time, end_time = get_capture_bounds(capture_type, capture_uuid)
-
-    count = capture.get_drf_data_files_stats()["total_count"]
-    if count == 0:
-        return 0
-    duration_sec = end_time - start_time
-    duration_ms = duration_sec * 1000
-    return max(1, int(duration_ms / count))
-
-
-def filter_capture_data_files_selection_bounds(
-    capture_type: CaptureType,
+def _filter_capture_data_files_selection_bounds(
     capture: Capture,
     start_time: int,  # relative ms from start of capture (from UI)
     end_time: int,  # relative ms from start of capture (from UI)
 ) -> QuerySet[File]:
     """Filter the capture file selection bounds to the given start and end times."""
-    _catch_capture_type_error(capture_type)
-    epoch_start_sec, _ = get_capture_bounds(capture_type, str(capture.uuid))
-    epoch_start_ms = epoch_start_sec * 1000
+    if capture.start_time is None:
+        msg = f"Capture {capture.uuid} has no indexed start_time for temporal filtering"
+        raise ValueError(msg)
+
+    epoch_start_ms = capture.start_time * 1000
     start_ms = epoch_start_ms + start_time
     end_ms = epoch_start_ms + end_time
 
@@ -132,8 +75,8 @@ def get_capture_files_with_temporal_filter(
     )
 
     # get data files with temporal filtering
-    data_files = filter_capture_data_files_selection_bounds(
-        capture_type, capture, start_time, end_time
+    data_files = _filter_capture_data_files_selection_bounds(
+        capture, start_time, end_time
     )
 
     # return all files
