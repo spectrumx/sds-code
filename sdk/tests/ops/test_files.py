@@ -5,14 +5,14 @@ import json
 import sys
 import tempfile
 import uuid as uuidlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from pathlib import PurePosixPath
 
 import pytest
 import responses
 from spectrumx import Client
-from spectrumx.api.sds_files import delete_file
+from spectrumx.api.sds_files import delete_file, list_files
 from spectrumx.errors import FileError
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import (
@@ -104,6 +104,15 @@ def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> No
     client.dry_run = False  # to test the actual request
     file_sample = client.get_file(file_uuid=uuid.hex)
     assert file_sample.uuid == uuid, f"Expected UUID {uuid}, got {file_sample.uuid}"
+
+
+def test_list_files_start_end_must_be_paired(client: Client) -> None:
+    """Omitting one of ``start_time`` / ``end_time`` raises before any request."""
+    t = datetime(2024, 6, 27, 14, 0, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="both set or both omitted"):
+        list_files(client=client, sds_path="/", start_time=t, end_time=None)
+    with pytest.raises(ValueError, match="both set or both omitted"):
+        list_files(client=client, sds_path="/", start_time=None, end_time=t)
 
 
 def test_file_get_returns_valid(

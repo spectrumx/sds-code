@@ -1,7 +1,10 @@
 """Integration tests for file operations on SDS."""
 
+import logging
 import time
 import uuid
+from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from pathlib import PurePosixPath
 from unittest.mock import patch
@@ -17,6 +20,8 @@ from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import PassthruEndpoints
+from tests.integration.test_captures import _upload_drf_capture_test_assets
+from tests.integration.test_captures import drf_channel
 from tests.test_utils import disable_ssl_warnings
 
 BLAKE3_HEX_LEN: int = 64
@@ -732,6 +737,97 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     argvalues=[
         [
             *PassthruEndpoints.authentication(),
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+        ]
+    ],
+    indirect=True,
+)
+def test_list_files_temporal_rf_narrows_digital_rf_chunks(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> None:
+    """Temporal bounds narrow ``rf@*.h5`` listings; non-RF names in the dir stay listed."""
+    if not drf_sample_top_level_dir.is_dir():
+        pytest.skip(
+            "Digital RF sample tree missing; cannot test temporal RF listing."
+        )
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+    rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
+    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
+    end = datetime.fromtimestamp(1719499740, tz=timezone.utc)
+    all_rf = {
+        f.name
+        for f in integration_client.list_files(sds_path=rf_dir)
+        if f.name.startswith("rf@")
+    }
+    narrow_rf = {
+        f.name
+        for f in integration_client.list_files(
+            sds_path=rf_dir,
+            start_time=start,
+            end_time=end,
+        )
+        if f.name.startswith("rf@")
+    }
+    assert len(all_rf) == 16, f"Expected 16 RF chunks under {rf_dir}, got {all_rf!r}"
+    assert narrow_rf == {"rf@1719499740.000.h5"}
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+        ]
+    ],
+    indirect=True,
+)
+def test_list_files_temporal_non_rf_directory_warns(
+    caplog: pytest.LogCaptureFixture,
+    integration_client: Client,
+    temp_file_tree: Path,
+) -> None:
+    """API warns when temporal params are used on a tree with no RF data files."""
+    caplog.set_level(logging.WARNING)
+    random_subdir_name = get_random_line(10, include_punctuation=False)
+    sds_path = PurePosixPath("/test-tree-temporal-warn") / random_subdir_name
+    results = integration_client.upload(
+        local_path=temp_file_tree,
+        sds_path=sds_path,
+        verbose=False,
+    )
+    failures = [result for result in results if not result]
+    assert not failures, f"Upload failed: {failures}"
+    start = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    end = datetime(2020, 1, 2, tzinfo=timezone.utc)
+    listed = list(
+        integration_client.list_files(
+            sds_path=sds_path,
+            start_time=start,
+            end_time=end,
+        )
+    )
+    assert len(listed) > 0
+    assert any("RF data" in r.getMessage() for r in caplog.records), (
+        f"expected server warning in logs; got {caplog.records!r}"
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_detach_from_datasets(),

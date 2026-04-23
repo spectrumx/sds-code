@@ -1,5 +1,10 @@
 """Tests for the paginator module."""
 
+# ruff: noqa: SLF001
+# pyright: reportPrivateUsage=false
+
+import json
+import logging
 import uuid
 from collections.abc import Generator
 from unittest.mock import MagicMock
@@ -9,6 +14,7 @@ import pytest
 from loguru import logger as log  # noqa: F401
 from spectrumx.gateway import GatewayClient
 from spectrumx.models.files import File
+from spectrumx.ops import files as sx_files
 from spectrumx.ops.pagination import Paginator
 
 
@@ -362,3 +368,28 @@ def _get_raw_page(
     raw_page_suffix = "]}"
     raw_page_str = raw_page_prefix + ",".join(first_page_results) + raw_page_suffix
     return raw_page_str.encode()
+
+
+def test_paginator_logs_api_warnings_on_first_page(
+    caplog: pytest.LogCaptureFixture,
+    gateway: GatewayClient,
+) -> None:
+    """Server ``warnings`` on the first JSON page are forwarded via ``log_user_warning``."""
+    caplog.set_level(logging.WARNING)
+    warn_msg = "Temporal filtering is only supported for RF dirs"
+    one = sx_files.generate_sample_file(uuid.uuid4())
+    body: dict[str, object] = {
+        "count": 1,
+        "results": [json.loads(one.model_dump_json())],
+        "warnings": [warn_msg],
+    }
+    gateway.list_files.return_value = json.dumps(body).encode()
+    paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        list_method=gateway.list_files,
+        list_kwargs={"sds_path": "/only-text"},
+        dry_run=False,
+    )
+    assert len(paginator) == 1
+    assert any(warn_msg in r.getMessage() for r in caplog.records)
