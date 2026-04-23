@@ -48,6 +48,7 @@ _d_share_permissions = "The share permissions for the capture"
 _d_channel = "The channel associated with the capture. Only for RadioHound type."
 _d_scan_group = "The scan group associated with the capture. Only for Digital-RF type."
 _d_is_shared = "Whether the capture is shared"
+_d_is_shared_with_me = "Whether the capture is shared with the current user"
 _d_datasets = "Datasets this capture is associated with"
 
 
@@ -91,6 +92,7 @@ class Capture(SDSModel):
         Field(description=_d_share_permissions, default_factory=list),
     ]
     is_shared: Annotated[bool, Field(description=_d_is_shared)]
+    is_shared_with_me: Annotated[bool, Field(description=_d_is_shared_with_me)]
 
     # optional fields
     created_at: Annotated[
