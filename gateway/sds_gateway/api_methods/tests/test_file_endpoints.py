@@ -3,6 +3,8 @@
 import time
 import uuid
 from collections.abc import Mapping
+from datetime import datetime
+from datetime import timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
@@ -201,6 +203,7 @@ class FileTestCases(APITestCase):
             self.list_url,
             data={"path": self.file.directory},
         )
+        assert response.data.get("warnings") == []
         results = response.data.get("results")
         assert len(results) == 0, f"Expected no files to be returned, got {results}"
 
@@ -265,6 +268,7 @@ class FileTestCases(APITestCase):
             f"Expected 200, got {response.status_code}"
         )
         response = response.data
+        assert response.get("warnings") == []
         assert "results" in response, (
             f"Expected a paginated response with 'results', got: {response}"
         )
@@ -441,6 +445,73 @@ class FileTestCases(APITestCase):
         # Verify 403 response
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
+    def test_list_files_with_temporal_params(self) -> None:
+        """Temporal query params keep non-RF files and only RF data files in time bounds."""
+        base_sec = 1_000_000
+        for offset in (0, 1, 2, 5):
+            create_db_file(
+                owner=self.user,
+                extras={
+                    "directory": self.sds_path,
+                    "name": f"rf@{base_sec + offset}.000.h5",
+                    "media_type": "application/x-hdf5",
+                },
+            )
+
+        path = str(self.file.directory)
+        # Absolute epoch ms from ISO datetimes; bounds include rf@(base+1)..rf@(base+2).
+        start_iso = datetime.fromtimestamp(
+            base_sec + 1, tz=timezone.utc
+        ).isoformat()
+        end_iso = datetime.fromtimestamp(
+            base_sec + 2, tz=timezone.utc
+        ).isoformat()
+        response = self.client.get(
+            self.list_url,
+            {
+                "path": path,
+                "start_time": start_iso,
+                "end_time": end_iso,
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["warnings"] == []
+        names = {row["name"] for row in data["results"]}
+        assert self.file.name in names
+        assert {f"rf@{base_sec + 1}.000.h5", f"rf@{base_sec + 2}.000.h5"} <= names
+        assert f"rf@{base_sec}.000.h5" not in names
+        assert f"rf@{base_sec + 5}.000.h5" not in names
+
+    def test_list_files_includes_warnings_key(self) -> None:
+        """Paginated list responses always include ``warnings`` (possibly empty)."""
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "warnings" in data
+        assert data["warnings"] == []
+
+    def test_list_files_directory_temporal_params_without_rf_data_includes_warning(
+        self,
+    ) -> None:
+        """start_time/end_time on dirs with no RF data: full listing + warning."""
+        path = str(self.file.directory)
+        response = self.client.get(
+            self.list_url,
+            {
+                "path": path,
+                "start_time": "2020-01-01T00:00:00",
+                "end_time": "2020-01-02T00:00:00",
+            },
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert "warnings" in data
+        assert len(data["warnings"]) == 1
+        assert "RF data" in data["warnings"][0]
+        assert data["count"] >= 1
+        assert len(data["results"]) >= 1
+
     def test_list_files_includes_shared_files(self) -> None:
         """Test that list files includes files from shared captures/datasets."""
 
@@ -483,6 +554,7 @@ class FileTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
+        assert data.get("warnings") == []
         # Should have the original file plus the shared one
         expected_count = 2  # Original file + shared file
         assert data["count"] == expected_count, (
@@ -592,6 +664,7 @@ class FileTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
+        assert data.get("warnings") == []
         # Should only have the original file, not the shared one
         assert data["count"] == 1, (
             f"Expected 1 file (excluding disabled shared), got {data['count']}"

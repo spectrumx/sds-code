@@ -1238,9 +1238,9 @@ class TestCeleryTasks(TestCase):
     def test_get_item_files_with_temporal_bounds_returns_expected_rf_subset(self):
         """
         Task-level test: start_time/end_time flow into _get_item_files.
-        For DigitalRF captures, ``get_capture_files_with_temporal_filter`` returns
-        non-DRF capture files (metadata) plus DRF files in the selected time range
-        (temporal_filtering details are unit-tested in test_temporal_filtering.py).
+        For DigitalRF captures, ``get_capture_files_with_temporal_filter`` (and
+        ``filter_files_by_temporal_bounds``) returns non-DRF capture files (metadata)
+        plus DRF files in the selected time range (see test_temporal_filtering.py).
         """
         # Create DRF-named files for self.capture (epoch 1s..5s)
         epoch_start_sec = 1

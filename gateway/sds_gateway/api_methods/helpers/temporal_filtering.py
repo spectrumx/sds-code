@@ -22,35 +22,16 @@ def drf_rf_filename_from_ms(ms: int) -> str:
     return f"rf@{ms // 1000}.{ms % 1000:03d}.h5"
 
 
-def _catch_capture_type_error(capture_type: CaptureType) -> None:
+def _catch_value_errors(capture_type: CaptureType, capture: Capture) -> None:
+
     if capture_type != CaptureType.DigitalRF:
         msg = "Only DigitalRF captures are supported for temporal filtering."
         log.error(msg)
         raise ValueError(msg)
-
-
-def _filter_capture_data_files_selection_bounds(
-    capture: Capture,
-    start_time: int,  # relative ms from start of capture (from UI)
-    end_time: int,  # relative ms from start of capture (from UI)
-) -> QuerySet[File]:
-    """Filter the capture file selection bounds to the given start and end times."""
+    
     if capture.start_time is None:
         msg = f"Capture {capture.uuid} has no indexed start_time for temporal filtering"
         raise ValueError(msg)
-
-    epoch_start_ms = capture.start_time * 1000
-    start_ms = epoch_start_ms + start_time
-    end_ms = epoch_start_ms + end_time
-
-    start_file_name = drf_rf_filename_from_ms(start_ms)
-    end_file_name = drf_rf_filename_from_ms(end_ms)
-
-    data_files = capture.get_drf_data_files_queryset()
-    return data_files.filter(
-        name__gte=start_file_name,
-        name__lte=end_file_name,
-    ).order_by("name")
 
 
 def get_capture_files_with_temporal_filter(
@@ -60,24 +41,51 @@ def get_capture_files_with_temporal_filter(
     end_time: int | None = None,
 ) -> QuerySet[File]:
     """Get the capture files with temporal filtering."""
-    _catch_capture_type_error(capture_type)
+    _catch_value_errors(capture_type, capture)
+    
+    capture_files = get_capture_files(capture)
 
     if start_time is None or end_time is None:
         log.warning(
             "Start or end time is None; returning all capture files without "
             "temporal filtering"
         )
-        return get_capture_files(capture)
+        return capture_files
 
+    epoch_start_ms = capture.start_time * 1000
+    start_ms = epoch_start_ms + start_time
+    end_ms = epoch_start_ms + end_time
+
+    return filter_files_by_temporal_bounds(
+        capture_files,
+        start_ms,
+        end_ms,
+    )
+
+
+def filter_files_by_temporal_bounds(
+    files: QuerySet[File],
+    start_time: int,
+    end_time: int,
+) -> QuerySet[File]:
+    """Filter files by temporal bounds."""
+    
     # get non-data files
-    non_data_files = get_capture_files(capture).exclude(
+    non_data_files = files.exclude(
         name__regex=DRF_RF_FILENAME_REGEX_STR
     )
 
-    # get data files with temporal filtering
-    data_files = _filter_capture_data_files_selection_bounds(
-        capture, start_time, end_time
+    unfiltered_data_files = files.filter(
+        name__regex=DRF_RF_FILENAME_REGEX_STR
     )
 
+    start_file_name = drf_rf_filename_from_ms(start_time)
+    end_file_name = drf_rf_filename_from_ms(end_time)
+
+    filtered_data_files = unfiltered_data_files.filter(
+        name__gte=start_file_name,
+        name__lte=end_file_name,
+    ).order_by("name")
+
     # return all files
-    return non_data_files.union(data_files)
+    return non_data_files.union(filtered_data_files)

@@ -1,6 +1,7 @@
 """Client for the SpectrumX Data System."""
 
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
@@ -207,6 +208,8 @@ class Client:
         self,
         *,
         from_sds_path: PurePosixPath | Path | str | None = None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         to_local_path: Path | str,
         files_to_download: list[File] | Paginator[File] | None = None,
         skip_contents: bool = False,
@@ -217,6 +220,10 @@ class Client:
 
         Args:
             from_sds_path:  The virtual directory on SDS to download files from.
+            start_time:     The start time to filter DRF capture files by
+            (optional, only applicable to DRF capture files).
+            end_time:       The end time to filter DRF capture files by
+            (optional, only applicable to DRF capture files).
             to_local_path:  The local path to save the downloaded files to.
             files_to_download:  A paginator or list (in dry run mode) of files to
                 download. If not provided, all files in the directory will be
@@ -242,6 +249,8 @@ class Client:
         self._prepare_download_directory(to_local_path)
         files_to_download = self._get_files_to_download(
             from_sds_path=from_sds_path,
+            start_time=start_time,
+            end_time=end_time,
             files_to_download=files_to_download,
             verbose=verbose,
         )
@@ -267,6 +276,8 @@ class Client:
         self,
         *,
         from_sds_path: PurePosixPath | None,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
         files_to_download: list[File] | Paginator[File] | None,
         verbose: bool,
     ) -> list[File] | Paginator[File]:
@@ -280,7 +291,11 @@ class Client:
             log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
         else:
             if from_sds_path is not None:
-                files_to_download = self.list_files(sds_path=from_sds_path)
+                files_to_download = self.list_files(
+                    sds_path=from_sds_path,
+                    start_time=start_time,
+                    end_time=end_time,
+                )
             elif files_to_download is None:
                 error_msg = (
                     "Either a path in the SDS or a paginator/list of files "
@@ -397,18 +412,29 @@ class Client:
         return local_file_path.is_relative_to(to_local_path)
 
     def list_files(
-        self, sds_path: PurePosixPath | Path | str, *, verbose: bool = False
+        self,
+        sds_path: PurePosixPath | Path | str,
+        start_time: datetime | None = None,
+        end_time: datetime | None = None,
+        verbose: bool = False,
     ) -> Paginator[File]:
         """Lists files in a given SDS path.
 
         Args:
             sds_path: The virtual directory on SDS to list files from.
+            start_time: Optional inclusive lower time bound for ``rf@*.h5`` files
+                (naive datetimes are treated as UTC). Requires ``end_time``.
+            end_time: Optional inclusive upper time bound; requires ``start_time``.
             verbose:  Show network requests and other info.
         Returns:
             A paginator for the files in the given SDS path.
         """
         return self._sds_files.list_files(
-            client=self, sds_path=sds_path, verbose=verbose
+            client=self,
+            sds_path=sds_path,
+            start_time=start_time,
+            end_time=end_time,
+            verbose=verbose,
         )
 
     def download_file(
