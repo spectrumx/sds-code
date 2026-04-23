@@ -535,7 +535,7 @@ class Capture(BaseModel):
 
             if response["hits"]["total"]["value"] > 0:
                 source = response["hits"]["hits"][0]["_source"]
-                return self._extract_frequency_metadata_from_source(source)
+                return self._extract_metadata_from_source(source)
 
             log.warning("No OpenSearch data found for capture %s", self.uuid)
 
