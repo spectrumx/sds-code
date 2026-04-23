@@ -32,9 +32,6 @@ from rest_framework.response import Response
 
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
-from sds_gateway.api_methods.helpers.deletion_policy_helpers import (
-    revoke_share_permissions,
-)
 from sds_gateway.api_methods.helpers.extract_drf_metadata import (
     validate_metadata_by_channel,
 )
@@ -60,6 +57,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 from sds_gateway.api_methods.tasks import start_capture_post_processing
 from sds_gateway.api_methods.throttling import VisStreamThrottle
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
+from sds_gateway.api_methods.utils.asset_access_control import revoke_share_permissions
 from sds_gateway.api_methods.utils.asset_access_control import (
     user_has_access_to_capture,
 )
