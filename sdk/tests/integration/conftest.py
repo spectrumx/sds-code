@@ -166,6 +166,39 @@ class PassthruEndpoints:
         ]
 
     @staticmethod
+    def capture_revoke_share_permissions() -> list[Pattern[str]]:
+        """Passthrough for capture revoke-share-permissions (PUT)."""
+        return [
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}"
+                rf"{Endpoints.CAPTURES}/{uuid_v4_regex}/revoke-share-permissions/?$"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
+    def capture_detach_from_datasets() -> list[Pattern[str]]:
+        """Passthrough for capture detach-from-datasets (PUT)."""
+        return [
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}"
+                rf"{Endpoints.CAPTURES}/{uuid_v4_regex}/detach-from-datasets/?$"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
+    def file_detach_from_datasets() -> list[Pattern[str]]:
+        """Passthrough for file detach-from-datasets (PUT)."""
+        return [
+            re.compile(
+                rf"{hostname_and_port}{API_PATH}{API_TARGET_VERSION}"
+                rf"{Endpoints.FILES}/{uuid_v4_regex}/detach-from-datasets/?$"
+            )
+            for hostname_and_port in passthru_hostnames
+        ]
+
+    @staticmethod
     def all_passthru() -> list[str | Pattern[str]]:
         """Returns all passthru endpoints for debugging."""
         return (

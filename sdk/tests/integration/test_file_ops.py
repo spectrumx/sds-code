@@ -719,6 +719,34 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
         [
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.file_detach_from_datasets(),
+            *PassthruEndpoints.file_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_detach_file_from_datasets(
+    integration_client: Client,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Owner can detach a file from all datasets (noop if none linked)."""
+    sds_path = PurePosixPath("/")
+    local_file = construct_file(temp_file_with_text_contents, sds_path=sds_path)
+    uploaded = integration_client.upload_file(local_file=local_file, sds_path=sds_path)
+    assert uploaded.uuid is not None
+    assert integration_client.detach_file_from_datasets(file_uuid=uploaded.uuid) is True
+    integration_client.delete_file(file_uuid=uploaded.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_deletion(),
         ]
