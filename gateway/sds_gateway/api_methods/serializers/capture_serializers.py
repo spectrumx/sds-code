@@ -1,10 +1,13 @@
 """Capture serializers for the SDS Gateway API methods."""
 
 import logging
+from datetime import datetime
+from datetime import timezone
 from typing import Any
 from typing import cast
 
 from django.db.models import Sum
+from django.utils import timezone as django_timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
@@ -27,6 +30,18 @@ from sds_gateway.api_methods.serializers.user_serializer import (
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
+
+
+def _epoch_sec_to_iso_utc_z(epoch_sec: int) -> str:
+    """Format OpenSearch epoch seconds as an ISO 8601 UTC string with ``Z`` suffix."""
+    dt = datetime.fromtimestamp(epoch_sec, tz=timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def _epoch_sec_to_local_display(epoch_sec: int) -> str:
+    """Human-readable local time (same pattern as ``formatted_created_at``)."""
+    dt = datetime.fromtimestamp(epoch_sec, tz=timezone.utc)
+    return django_timezone.localtime(dt).strftime("%m/%d/%Y %I:%M:%S %p")
 
 
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
@@ -91,6 +106,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
     capture_start_epoch_sec = serializers.SerializerMethodField()
+    capture_start_iso_utc = serializers.SerializerMethodField()
+    capture_end_iso_utc = serializers.SerializerMethodField()
+    capture_start_display = serializers.SerializerMethodField()
+    capture_end_display = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
     capture_type_display = serializers.SerializerMethodField()
     post_processed_data = serializers.SerializerMethodField()
@@ -202,7 +221,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """Capture length in milliseconds (OpenSearch bounds are seconds)."""
         if capture.end_time is None or capture.start_time is None:
             return None
-
+        
         return (capture.end_time - capture.start_time) * 1000
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
@@ -214,6 +233,38 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_capture_start_epoch_sec(self, capture: Capture) -> int | None:
         """Capture start as Unix epoch seconds. None if not in OpenSearch."""
         return capture.start_time
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_start_iso_utc(self, capture: Capture) -> str | None:
+        """Indexed capture start as ISO 8601 UTC (``Z``). None if unavailable."""
+        if capture.start_time is None:
+            return None
+
+        return _epoch_sec_to_iso_utc_z(capture.start_time)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_end_iso_utc(self, capture: Capture) -> str | None:
+        """Indexed capture end as ISO 8601 UTC (``Z``). None if unavailable."""
+        if capture.end_time is None:
+            return None
+
+        return _epoch_sec_to_iso_utc_z(capture.end_time)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_start_display(self, capture: Capture) -> str | None:
+        """Indexed capture start in the active timezone for display."""
+        if capture.start_time is None:
+            return None
+
+        return _epoch_sec_to_local_display(capture.start_time)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_end_display(self, capture: Capture) -> str | None:
+        """Indexed capture end in the active timezone for display."""
+        if capture.end_time is None:
+            return None
+
+        return _epoch_sec_to_local_display(capture.end_time)
 
     @extend_schema_field(serializers.DictField)
     def get_capture_props(self, capture: Capture) -> dict[str, Any]:
@@ -381,6 +432,22 @@ class ChannelMetadataSerializer(serializers.Serializer):
     channel_metadata = serializers.DictField()
 
 
+class CompositeChannelEntrySerializer(serializers.Serializer):
+    """One channel in a composite capture, including per-channel index bounds."""
+
+    channel = serializers.CharField()
+    uuid = serializers.UUIDField()
+    channel_metadata = serializers.DictField()
+    capture_start_epoch_sec = serializers.IntegerField(allow_null=True, required=False)
+    capture_end_epoch_sec = serializers.IntegerField(allow_null=True, required=False)
+    capture_start_iso_utc = serializers.CharField(allow_null=True, required=False)
+    capture_end_iso_utc = serializers.CharField(allow_null=True, required=False)
+    capture_start_display = serializers.CharField(allow_null=True, required=False)
+    capture_end_display = serializers.CharField(allow_null=True, required=False)
+    length_of_capture_ms = serializers.IntegerField(allow_null=True, required=False)
+    file_cadence_ms = serializers.IntegerField(allow_null=True, required=False)
+
+
 class CompositeCaptureSerializer(serializers.Serializer):
     """Serializer for composite captures that contain multiple channels."""
 
@@ -400,8 +467,8 @@ class CompositeCaptureSerializer(serializers.Serializer):
     is_shared = serializers.SerializerMethodField()
     owner = UserGetSerializer()
 
-    # Channel-specific fields
-    channels = serializers.ListField(child=ChannelMetadataSerializer())
+    # Channel-specific fields (enriched with OpenSearch bounds per channel)
+    channels = serializers.SerializerMethodField()
 
     # Computed fields
     share_permissions = serializers.SerializerMethodField()
@@ -412,6 +479,81 @@ class CompositeCaptureSerializer(serializers.Serializer):
     length_of_capture_ms = serializers.SerializerMethodField()
     file_cadence_ms = serializers.SerializerMethodField()
     capture_start_epoch_sec = serializers.SerializerMethodField()
+    capture_start_iso_utc = serializers.SerializerMethodField()
+    capture_end_iso_utc = serializers.SerializerMethodField()
+    capture_start_display = serializers.SerializerMethodField()
+    capture_end_display = serializers.SerializerMethodField()
+
+    def _enriched_channels(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
+        """Per-channel rows with OpenSearch bounds (each channel may differ)."""
+        key = str(obj.get("uuid", ""))
+        if not hasattr(self, "_enriched_channels_cache"):
+            self._enriched_channels_cache: dict[str, list[dict[str, Any]]] = {}
+        if key not in self._enriched_channels_cache:
+            out: list[dict[str, Any]] = []
+            for ch in obj.get("channels") or []:
+                entry: dict[str, Any] = {
+                    "channel": ch["channel"],
+                    "uuid": ch["uuid"],
+                    "channel_metadata": ch.get("channel_metadata", {}),
+                }
+                try:
+                    capture = Capture.objects.get(uuid=ch["uuid"])
+                    start_sec, end_sec = get_capture_bounds(
+                        capture.capture_type, str(capture.uuid)
+                    )
+                except (
+                    ValueError,
+                    IndexError,
+                    KeyError,
+                    Capture.DoesNotExist,
+                ):
+                    entry["capture_start_epoch_sec"] = None
+                    entry["capture_end_epoch_sec"] = None
+                    entry["capture_start_iso_utc"] = None
+                    entry["capture_end_iso_utc"] = None
+                    entry["capture_start_display"] = None
+                    entry["capture_end_display"] = None
+                    entry["length_of_capture_ms"] = None
+                    entry["file_cadence_ms"] = None
+                else:
+                    entry["capture_start_epoch_sec"] = start_sec
+                    entry["capture_end_epoch_sec"] = end_sec
+                    entry["capture_start_iso_utc"] = _epoch_sec_to_iso_utc_z(start_sec)
+                    entry["capture_end_iso_utc"] = _epoch_sec_to_iso_utc_z(end_sec)
+                    entry["capture_start_display"] = _epoch_sec_to_local_display(
+                        start_sec
+                    )
+                    entry["capture_end_display"] = _epoch_sec_to_local_display(end_sec)
+                    entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
+                    try:
+                        entry["file_cadence_ms"] = get_file_cadence(
+                            capture.capture_type, capture
+                        )
+                    except (ValueError, IndexError, KeyError):
+                        entry["file_cadence_ms"] = None
+                out.append(entry)
+            self._enriched_channels_cache[key] = out
+        return self._enriched_channels_cache[key]
+
+    def _composite_envelope_bounds(
+        self,
+        obj: dict[str, Any],
+    ) -> tuple[int, int] | None:
+        """Earliest channel start and latest channel end (seconds), for composite summary."""
+        pairs = [
+            (row["capture_start_epoch_sec"], row["capture_end_epoch_sec"])
+            for row in self._enriched_channels(obj)
+            if row.get("capture_start_epoch_sec") is not None
+            and row.get("capture_end_epoch_sec") is not None
+        ]
+        if not pairs:
+            return None
+        return min(s for s, _ in pairs), max(e for _, e in pairs)
+
+    @extend_schema_field(CompositeChannelEntrySerializer(many=True))
+    def get_channels(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
+        return self._enriched_channels(obj)
 
     def get_share_permissions(self, obj: dict[str, Any]) -> list[UserSharePermission]:
         """Get the share permissions for the composite capture."""
@@ -441,7 +583,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
         all_files = []
-        for channel_data in obj["channels"]:
+        for channel_data in obj.get("channels") or []:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
             non_deleted_files = get_capture_files(capture, include_deleted=False)
@@ -459,7 +601,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
             return None
 
         total_size = 0
-        for channel_data in obj["channels"]:
+        for channel_data in obj.get("channels") or []:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
             all_files = get_capture_files(capture, include_deleted=False)
@@ -487,7 +629,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
         total_count = 0
         total_size = 0
-        for channel_data in obj["channels"]:
+        for channel_data in obj.get("channels") or []:
             capture_uuid = channel_data["uuid"]
             capture = Capture.objects.get(uuid=capture_uuid)
             stats = capture.get_drf_data_files_stats()
@@ -512,35 +654,65 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_length_of_capture_ms(self, obj: dict[str, Any]) -> int | None:
-        """Use first channel's bounds for composite capture duration."""
-        channels = obj.get("channels") or []
-        if not channels:
+        """Span from earliest channel start to latest channel end (milliseconds)."""
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
             return None
-
-        capture = Capture.objects.get(uuid=channels[0]["uuid"])
-        if capture.end_time is None or capture.start_time is None:
-            return None
-        return (capture.end_time - capture.start_time) * 1000
+        start_time, end_time = bounds
+        return (end_time - start_time) * 1000
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_file_cadence_ms(self, obj: dict[str, Any]) -> int | None:
-        """Use first channel's file cadence for composite capture."""
-        channels = obj.get("channels") or []
-        if not channels:
+        """Mean file cadence across channels (each channel may differ)."""
+        cadences = [
+            row["file_cadence_ms"]
+            for row in self._enriched_channels(obj)
+            if row.get("file_cadence_ms") is not None
+        ]
+        if not cadences:
             return None
-
-        capture = Capture.objects.get(uuid=channels[0]["uuid"])
-        return capture.file_cadence
+        return int(round(sum(cadences) / len(cadences)))
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_capture_start_epoch_sec(self, obj: dict[str, Any]) -> int | None:
-        """Use first channel's start time for composite capture."""
-        channels = obj.get("channels") or []
-        if not channels:
+        """Earliest indexed start among channels (epoch seconds)."""
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
             return None
+        start_time, _ = bounds
+        return start_time
 
-        capture = Capture.objects.get(uuid=channels[0]["uuid"])
-        return capture.start_time
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_start_iso_utc(self, obj: dict[str, Any]) -> str | None:
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
+            return None
+        start_sec, _ = bounds
+        return _epoch_sec_to_iso_utc_z(start_sec)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_end_iso_utc(self, obj: dict[str, Any]) -> str | None:
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
+            return None
+        _, end_sec = bounds
+        return _epoch_sec_to_iso_utc_z(end_sec)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_start_display(self, obj: dict[str, Any]) -> str | None:
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
+            return None
+        start_sec, _ = bounds
+        return _epoch_sec_to_local_display(start_sec)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_capture_end_display(self, obj: dict[str, Any]) -> str | None:
+        bounds = self._composite_envelope_bounds(obj)
+        if bounds is None:
+            return None
+        _, end_sec = bounds
+        return _epoch_sec_to_local_display(end_sec)
 
 
 def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:

@@ -50,6 +50,16 @@ _d_scan_group = "The scan group associated with the capture. Only for Digital-RF
 _d_is_shared = "Whether the capture is shared"
 _d_is_shared_with_me = "Whether the capture is shared with the current user"
 _d_datasets = "Datasets this capture is associated with"
+_d_capture_start_iso_utc = (
+    "Indexed capture start from OpenSearch as ISO 8601 UTC (when available)"
+)
+_d_capture_end_iso_utc = "Indexed capture end from OpenSearch as ISO 8601 UTC"
+_d_capture_start_display = (
+    "Indexed capture start formatted for display (server/local timezone)"
+)
+_d_capture_end_display = (
+    "Indexed capture end formatted for display (server/local timezone)"
+)
 
 
 class CaptureFile(BaseModel):
@@ -105,6 +115,22 @@ class Capture(SDSModel):
         str | None, Field(max_length=255, description=_d_channel, default=None)
     ]
     scan_group: Annotated[UUID4 | None, Field(description=_d_scan_group, default=None)]
+    capture_start_iso_utc: Annotated[
+        str | None,
+        Field(description=_d_capture_start_iso_utc, default=None),
+    ]
+    capture_end_iso_utc: Annotated[
+        str | None,
+        Field(description=_d_capture_end_iso_utc, default=None),
+    ]
+    capture_start_display: Annotated[
+        str | None,
+        Field(description=_d_capture_start_display, default=None),
+    ]
+    capture_end_display: Annotated[
+        str | None,
+        Field(description=_d_capture_end_display, default=None),
+    ]
 
     @field_validator("capture_props", mode="before")
     @classmethod

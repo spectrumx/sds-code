@@ -201,6 +201,7 @@ file_list_response_example_schema = {
     "count": 105,
     "next": "http://localhost:8000/api/latest/assets/files/?page=2&page_size=3",
     "previous": None,
+    "warnings": [],
     "results": [
         {
             "bucket_name": "spectrumx",

@@ -264,21 +264,33 @@ class GatewayClient:
         sds_path: PurePosixPath | Path | str,
         page: int = 1,
         page_size: int = 30,
+        start_time: str | None = None,
+        end_time: str | None = None,
         verbose: bool = False,
     ) -> bytes:
         """Lists files from the SDS API.
 
+        Args:
+            start_time: Optional ISO 8601 instant (UTC recommended) for RF temporal
+                lower bound; must be paired with ``end_time``.
+            end_time: Optional ISO 8601 instant for RF temporal upper bound.
+
         Returns:
             The response content from SDS Gateway.
         """
+        params: dict[str, str | int] = {
+            "page": page,
+            "page_size": page_size,
+            "path": str(sds_path),
+        }
+        if start_time is not None:
+            params["start_time"] = start_time
+        if end_time is not None:
+            params["end_time"] = end_time
         response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.FILES,
-            params={
-                "page": page,
-                "page_size": page_size,
-                "path": str(sds_path),
-            },
+            params=params,
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=FileError)

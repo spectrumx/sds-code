@@ -1,10 +1,13 @@
 """File operations endpoints for the SDS Gateway API."""
 
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import cast
 
 from django.db.models import CharField
+from django.db.models import QuerySet
 from django.db.models import F as FExpression
 from django.db.models import ProtectedError
 from django.db.models import Value as WrappedValue
@@ -29,7 +32,9 @@ from rest_framework.viewsets import ViewSet
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.download_file import download_file
+from sds_gateway.api_methods.helpers.temporal_filtering import filter_files_by_temporal_bounds
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import DRF_RF_FILENAME_REGEX_STR
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
 )
@@ -58,6 +63,17 @@ class FilePagination(PageNumberPagination):
 class FileViewSet(ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _paginated_list_response(
+        paginator: FilePagination,
+        serializer_data: Any,
+        warnings: list[str],
+    ) -> Response:
+        """Build paginated file list JSON with a always-present ``warnings`` key."""
+        response = paginator.get_paginated_response(serializer_data)
+        response.data["warnings"] = warnings
+        return response
 
     @extend_schema(
         request=FilePostSerializer,
@@ -195,6 +211,18 @@ class FileViewSet(ViewSet):
         serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
+
+    def _datetime_string_to_milliseconds(self, datetime_string: str) -> int:
+        """Converts a datetime string to milliseconds since start of capture."""
+        parsed = datetime.fromisoformat(datetime_string)
+        return int(parsed.timestamp() * 1000)
+
+    def _check_files_includes_rf_data(self, files: QuerySet[File]) -> bool:
+        """Checks if the files include RF data."""
+        return files.filter(
+            name__regex=DRF_RF_FILENAME_REGEX_STR
+        ).exists()
+
     @extend_schema(
         responses={
             200: FileGetSerializer,
@@ -218,6 +246,25 @@ class FileViewSet(ViewSet):
                 description=(
                     "The first part of the path to retrieve files from, "
                     "or an exact file match (directory + name)."
+                ),
+            ),
+            OpenApiParameter(
+                name="start_time",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "ISO 8601 datetime; converted to ms for temporal filtering of "
+                    "RF data files when the listing includes Digital RF ``.h5`` data."
+                ),
+            ),
+            OpenApiParameter(
+                name="end_time",
+                type=OpenApiTypes.DATETIME,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description=(
+                    "ISO 8601 datetime; paired with start_time for RF temporal bounds."
                 ),
             ),
             OpenApiParameter(
@@ -246,6 +293,20 @@ class FileViewSet(ViewSet):
         it will retrieve the most recent one that matches that path.
         Wildcards are not yet supported.
         """
+        # warnings to be returned in the response
+        warnings = []
+
+        # Get optional temporal filtering parameters
+        # time passed as datetime string, need to convert
+        # to milliseconds since start of capture
+        start_time = request.GET.get("start_time", None)
+        end_time = request.GET.get("end_time", None)
+        if start_time:
+            start_time = self._datetime_string_to_milliseconds(start_time)
+
+        if end_time:
+            end_time = self._datetime_string_to_milliseconds(end_time)
+
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name
 
@@ -259,7 +320,7 @@ class FileViewSet(ViewSet):
                 all_valid_user_files, request=request
             )
             serializer = FileGetSerializer(paginated_files, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            return self._paginated_list_response(paginator, serializer.data, warnings)
 
         # For specific paths, use the existing path-based filtering logic
         user_rel_path = sanitize_path_rel_to_user(
@@ -296,7 +357,9 @@ class FileViewSet(ViewSet):
                 serializer = FileGetSerializer(paginated_files, many=True)
 
                 # despite being a single result, we return it paginated for consistency
-                return paginator.get_paginated_response(serializer.data)
+                return self._paginated_list_response(
+                    paginator, serializer.data, warnings
+                )
             log.debug(
                 "No exact match found for "
                 f"{inferred_user_rel_path!s} and name {basename}",
@@ -306,6 +369,28 @@ class FileViewSet(ViewSet):
         files_matching_dir = all_valid_user_files.filter(
             directory__startswith=str(user_rel_path),
         )
+
+        if self._check_files_includes_rf_data(files_matching_dir):
+            if start_time is not None and end_time is not None:
+                files_matching_dir = filter_files_by_temporal_bounds(
+                    files_matching_dir,
+                    start_time,
+                    end_time,
+                )
+            elif start_time is not None or end_time is not None:
+                msg = (
+                    "Both start_time and end_time are required for temporal filtering "
+                    "when listing Digital RF data."
+                )
+                log.warning(msg)
+                warnings.append(msg)
+        elif start_time or end_time:
+            msg = (
+                "Temporal filtering is only supported "
+                "for file directories that include RF data"
+            )
+            log.warning(msg)
+            warnings.append(msg)
 
         files_matching_dir = files_matching_dir.annotate(
             path=Concat(
@@ -334,7 +419,7 @@ class FileViewSet(ViewSet):
             f"user files for path {user_rel_path!s} - returning {len(serializer.data)}",
         )
 
-        return paginator.get_paginated_response(serializer.data)
+        return self._paginated_list_response(paginator, serializer.data, warnings)
 
     @extend_schema(
         parameters=[

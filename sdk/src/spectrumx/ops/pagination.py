@@ -302,7 +302,11 @@ def main() -> None:  # pragma: no cover
             api_key="does-not-matter-in-dry-run",
         ),
         list_method=lambda **kwargs: b'{"count": 25, "results": []}',  # Mock response
-        list_kwargs={"sds_path": "/path/to/files"},
+        list_kwargs={
+            "sds_path": "/path/to/files",
+            "start_time": None,
+            "end_time": None,
+        },
         page_size=10,
         dry_run=True,  # in dry-run this should always generate 2.5 pages
         verbose=True,

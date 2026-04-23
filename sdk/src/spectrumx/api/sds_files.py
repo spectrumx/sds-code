@@ -6,6 +6,8 @@
 import os
 import tempfile
 import uuid
+from datetime import datetime
+from datetime import timezone
 from enum import Enum
 from enum import auto
 from multiprocessing.synchronize import RLock
@@ -25,6 +27,15 @@ from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
+
+
+def _file_list_time_query_param(value: datetime) -> str:
+    """Format a datetime for Gateway file list temporal query params (ISO 8601, UTC)."""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    else:
+        value = value.astimezone(timezone.utc)
+    return value.isoformat()
 
 
 class FileUploadMode(Enum):
@@ -109,29 +120,46 @@ def list_files(
     *,
     client: Client,
     sds_path: PurePosixPath | Path | str,
+    start_time: datetime | None = None,
+    end_time: datetime | None = None,
     verbose: bool = False,
 ) -> Paginator[File]:
     """Lists files in a given SDS path.
 
     Args:
         sds_path: The virtual directory on SDS to list files from.
+        start_time: When set, lower bound for Digital RF data files (UTC-aligned ISO
+            sent to the API). Must be used together with ``end_time``.
+        end_time: Upper bound for Digital RF data files, paired with ``start_time``.
     Returns:
         A paginator for the files in the given SDS path.
     """
+    if (start_time is None) ^ (end_time is None):
+        msg = "start_time and end_time must both be set or both omitted."
+        raise ValueError(msg)
     sds_path = PurePosixPath(sds_path)
+    start_q: str | None = (
+        _file_list_time_query_param(start_time) if start_time is not None else None
+    )
+    end_q: str | None = (
+        _file_list_time_query_param(end_time) if end_time is not None else None
+    )
     if client.dry_run:
         log_user("Dry run enabled: files will be simulated")
     pagination: Paginator[File] = Paginator(
         gateway=client._gateway,
         Entry=File,
         list_method=client._gateway.list_files,
-        list_kwargs={"sds_path": sds_path},
+        list_kwargs={
+            "sds_path": sds_path,
+            "start_time": start_q,
+            "end_time": end_q,
+        },
         dry_run=client.dry_run,
         verbose=verbose,
     )
 
     return pagination
-
 
 def upload_file(
     *,
