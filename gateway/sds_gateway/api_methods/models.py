@@ -384,8 +384,8 @@ class Capture(BaseModel):
     @property
     def center_frequency_ghz(self) -> float | None:
         """Get center frequency in GHz from OpenSearch."""
-        frequency_data = self.get_opensearch_frequency_metadata()
-        center_freq_hz = frequency_data.get("center_frequency")
+        opensearch_metadata = self.get_opensearch_metadata()
+        center_freq_hz = opensearch_metadata.get("center_frequency")
         if center_freq_hz:
             return center_freq_hz / 1e9
         return None
@@ -393,11 +393,26 @@ class Capture(BaseModel):
     @property
     def sample_rate_mhz(self) -> float | None:
         """Get sample rate in MHz from OpenSearch."""
-        frequency_data = self.get_opensearch_frequency_metadata()
-        sample_rate_hz = frequency_data.get("sample_rate")
+        opensearch_metadata = self.get_opensearch_metadata()
+        sample_rate_hz = opensearch_metadata.get("sample_rate")
         if sample_rate_hz:
             return sample_rate_hz / 1e6
         return None
+
+    @property
+    def start_time(self) -> int | None:
+        """Get the start time of the capture in milliseconds."""
+        return self.get_opensearch_metadata().get("start_time")
+
+    @property
+    def end_time(self) -> int | None:
+        """Get the end time of the capture in milliseconds."""
+        return self.get_opensearch_metadata().get("end_time")
+
+    @property
+    def file_cadence(self) -> int | None:
+        """Get the file cadence of the capture in milliseconds."""
+        return self.get_opensearch_metadata().get("file_cadence")
 
     @property
     def is_multi_channel(self) -> bool:
@@ -483,7 +498,7 @@ class Capture(BaseModel):
         }
         return self._drf_data_files_stats_cache
 
-    def get_opensearch_frequency_metadata(self) -> dict[str, Any]:
+    def get_opensearch_metadata(self) -> dict[str, Any]:
         """
         Query OpenSearch for frequency metadata for this specific capture.
 
@@ -529,9 +544,7 @@ class Capture(BaseModel):
 
         return {}
 
-    def _extract_frequency_metadata_from_source(
-        self, source: dict[str, Any]
-    ) -> dict[str, Any]:
+    def _extract_metadata_from_source(self, source: dict[str, Any]) -> dict[str, Any]:
         """Extract frequency metadata from OpenSearch source data."""
 
         search_props = source.get("search_props", {})
@@ -540,6 +553,7 @@ class Capture(BaseModel):
         # Try search_props first (preferred)
         center_frequency = search_props.get("center_frequency")
         sample_rate = search_props.get("sample_rate")
+        file_cadence = None
 
         # If search_props missing, try to read from capture_props directly
         if not center_frequency or not sample_rate:
@@ -556,6 +570,7 @@ class Capture(BaseModel):
                     sample_rate=sample_rate,
                     capture_uuid=str(self.uuid),
                 )
+                file_cadence = self._extract_drf_file_cadence_from_source(source)
             elif self.capture_type == CaptureType.RadioHound:
                 center_frequency, sample_rate = _extract_radiohound_capture_props(
                     capture_props=capture_props,
@@ -568,7 +583,29 @@ class Capture(BaseModel):
             "sample_rate": sample_rate,
             "frequency_min": search_props.get("frequency_min"),
             "frequency_max": search_props.get("frequency_max"),
+            "start_time": search_props.get("start_time", None),
+            "end_time": search_props.get("end_time", None),
+            "file_cadence": file_cadence,
         }
+
+    def _extract_drf_file_cadence_from_source(
+        self, source: dict[str, Any]
+    ) -> int | None:
+        """Extract file cadence from OpenSearch source data."""
+        count = self.get_drf_data_files_stats()["total_count"]
+        start_time = source.get("start_time")
+        end_time = source.get("end_time")
+
+        if start_time is None or end_time is None:
+            log.warning("Start or end time not found for DRF capture %s", self.uuid)
+            return None
+
+        if count == 0:
+            return None
+
+        duration_sec = end_time - start_time
+        duration_ms = duration_sec * 1000
+        return max(1, int(duration_ms / count))
 
     @classmethod
     def bulk_load_frequency_metadata(
