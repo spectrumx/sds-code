@@ -700,6 +700,44 @@ def test_capture_deletion(
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
+            *PassthruEndpoints.capture_revoke_share_permissions(),
+            *PassthruEndpoints.capture_detach_from_datasets(),
+            *PassthruEndpoints.capture_deletion(),
+        ]
+    ],
+    indirect=True,
+)
+def test_capture_revoke_share_and_detach_from_datasets(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> None:
+    """Owner can revoke capture shares and detach from datasets before delete."""
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+    capture = integration_client.captures.create(
+        top_level_dir=cap_data.capture_top_level,
+        channel=cap_data.drf_channel,
+        capture_type=CaptureType.DigitalRF,
+    )
+    assert capture.uuid is not None
+    assert integration_client.captures.revoke_share_permissions(capture.uuid) is True
+    assert integration_client.captures.detach_from_datasets(capture.uuid) is True
+    integration_client.captures.delete(capture_uuid=capture.uuid)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_capture_test")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.capture_creation(),
             *PassthruEndpoints.capture_search(),
         ]
     ],
