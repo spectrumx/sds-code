@@ -18,6 +18,7 @@ from spectrumx.errors import Unset
 from spectrumx.gateway import GatewayClient
 from spectrumx.models import SDSModel
 from spectrumx.ops import files
+from spectrumx.utils import log_user_warning
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -275,6 +276,12 @@ class Paginator(Generic[T]):
         if not isinstance(self._current_page_data, dict):  # pragma: no cover
             msg = "Failed to load page data: expected a dictionary from JSON."
             raise TypeError(msg)
+        if not self._has_fetched:
+            raw_warnings = self._current_page_data.get("warnings")
+            if isinstance(raw_warnings, list):
+                for w in raw_warnings:
+                    if isinstance(w, str) and w:
+                        log_user_warning(w)
         if "count" in self._current_page_data:
             self._total_matches = self._current_page_data["count"]
         self._current_page_entries = (
