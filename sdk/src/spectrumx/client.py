@@ -179,27 +179,17 @@ class Client:
     def delete_file(
         self,
         file_uuid: UUID4 | str,
-        *,
-        bypass_share_guard: bool = False,
     ) -> bool:
         """Deletes a file from SDS by its UUID.
 
         Args:
             file_uuid: The UUID of the file to delete.
-            bypass_share_guard: If True, call :meth:`detach_file_from_datasets` before
-                deleting (SDK-only; the DELETE request has no bypass query parameter).
         Returns:
             True if the file was deleted successfully,
             or if in dry run mode (simulating success).
         Raises:
             SDSError: If the file couldn't be deleted.
         """
-        if bypass_share_guard:
-            log.debug(
-                f"Bypassing share guard for file {file_uuid} by detaching from datasets"
-            )
-            self.detach_file_from_datasets(file_uuid=file_uuid)
-
         return self._sds_files.delete_file(
             client=self,
             file_uuid=file_uuid,

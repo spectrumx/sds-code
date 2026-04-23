@@ -301,6 +301,22 @@ class FileTestCases(APITestCase):
         assert response.data["name"] == updated_file_name, response.data
         assert "test_directory_2" in response.data["directory"], response.data
 
+    def test_delete_file_rejected_when_linked_to_dataset(self) -> None:
+        """DELETE fails with 403 when the file is linked to a dataset (M2M)."""
+        dataset = DatasetFactory(owner=self.user)
+        self.file.datasets.add(dataset)
+        try:
+            response = self.client.delete(
+                reverse("api:files-detail", args=[self.file.uuid])
+            )
+            assert response.status_code == status.HTTP_403_FORBIDDEN
+            detail = str(response.data["detail"])
+            assert "Cannot delete file" in detail
+            assert "associated" in detail.lower() or "dataset" in detail.lower()
+        finally:
+            self.file.datasets.remove(dataset)
+            dataset.delete()
+
     def test_delete_file(self) -> None:
         """Make sure the file is deleted."""
 

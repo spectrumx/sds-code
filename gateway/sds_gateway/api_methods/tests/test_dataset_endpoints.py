@@ -75,6 +75,22 @@ class DatasetEndpointsTestCase(TestCase):
             if user.pk:
                 user.delete()
 
+    def test_delete_dataset_rejected_when_shared(self) -> None:
+        """DELETE fails with 403 if the dataset has active user share permissions."""
+        peer = UserFactory()
+        self.created_users.append(peer)
+        share_permission = UserSharePermission.objects.create(
+            owner=self.user,
+            shared_with=peer,
+            item_type=ItemType.DATASET,
+            item_uuid=self.dataset.uuid,
+        )
+        self.created_share_permissions.append(share_permission)
+        url = reverse("api:datasets-detail", kwargs={"pk": str(self.dataset.uuid)})
+        response = self.client.delete(url)
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "shared" in str(response.data["detail"]).lower()
+
     def _disassociate_files(self):
         """Disassociate files from datasets and captures."""
         for file_obj in self.created_files:

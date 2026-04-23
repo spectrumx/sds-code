@@ -232,16 +232,11 @@ class CaptureAPI:
     def delete(
         self,
         capture_uuid: uuid.UUID,
-        *,
-        bypass_share_guard: bool = False,
     ) -> bool:
         """Deletes a capture from SDS by its UUID.
 
         Args:
             capture_uuid:   The UUID of the capture to delete.
-            bypass_share_guard: If True, call :meth:`revoke_share_permissions` and
-                :meth:`detach_from_datasets` before deleting (SDK-only; the DELETE
-                request has no bypass query parameter).
         Returns:
             True if the capture was deleted successfully, or if in dry run mode.
         Raises:
@@ -254,14 +249,6 @@ class CaptureAPI:
         if self.dry_run:
             log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
             return True
-
-        if bypass_share_guard:
-            log.debug(
-                f"Bypassing share guard for capture {capture_uuid} "
-                "by revoking share permissions and detaching from datasets"
-            )
-            self.revoke_share_permissions(capture_uuid=capture_uuid)
-            self.detach_from_datasets(capture_uuid=capture_uuid)
 
         self.gateway.delete_capture(
             capture_uuid=capture_uuid,

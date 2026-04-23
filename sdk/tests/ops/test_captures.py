@@ -18,6 +18,7 @@ from uuid import uuid4
 import pytest
 from loguru import logger as log
 from spectrumx.api.captures import CaptureAPI
+from spectrumx.errors import CaptureError
 from spectrumx.errors import SDSError
 from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
@@ -39,7 +40,6 @@ log.trace("Placeholder log to avoid reimporting or resolving unused import warni
 
 # globally toggles dry run mode in case we want to run these under an integration mode.
 DRY_RUN: bool = False
-_EXPECTED_THREE_HTTP_CALLS: int = 3
 
 MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channel tests
 TEST_STATE_PERSISTENCE: bool = False  # don't persist upload state in tests
@@ -808,41 +808,44 @@ def test_delete_capture(client: Client, responses: responses.RequestsMock) -> No
     )
 
 
-def test_delete_capture_bypass_share_guard(
+def test_delete_capture_raises_when_gateway_rejects_shared(
     client: Client, responses: responses.RequestsMock
 ) -> None:
-    """bypass_share_guard: revoke, detach, DELETE (no bypass query param)."""
+    """DELETE fails with 400 when the capture is still shared (gateway message)."""
     client.dry_run = DRY_RUN
     capture_uuid = uuidlib.uuid4()
-    revoke_url = get_capture_revoke_share_permissions_url(
-        client, capture_id=capture_uuid.hex
-    )
-    detach_url = get_capture_detach_from_datasets_url(
-        client, capture_id=capture_uuid.hex
-    )
     delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    err_msg = "Cannot delete capture: revoke share permissions first."
     responses.add(
-        method=responses.PUT, url=revoke_url, status=200, json={"message": "ok"}
+        method=responses.DELETE,
+        url=delete_url,
+        status=400,
+        json={"detail": err_msg},
     )
+    with pytest.raises(CaptureError) as exc_info:
+        client.captures.delete(capture_uuid=capture_uuid)
+    assert err_msg in str(exc_info.value)
+    assert len(responses.calls) == 1
+
+
+def test_delete_capture_raises_when_gateway_rejects_dataset_attachment(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """DELETE fails with 400 when the capture is still linked to datasets."""
+    client.dry_run = DRY_RUN
+    capture_uuid = uuidlib.uuid4()
+    delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
+    err_msg = "Cannot delete capture: detach from datasets first."
     responses.add(
-        method=responses.PUT, url=detach_url, status=200, json={"message": "ok"}
+        method=responses.DELETE,
+        url=delete_url,
+        status=400,
+        json={"detail": err_msg},
     )
-    responses.add(method=responses.DELETE, url=delete_url, status=204)
-
-    result = client.captures.delete(
-        capture_uuid=capture_uuid,
-        bypass_share_guard=True,
-    )
-
-    assert result is True
-    assert len(responses.calls) == _EXPECTED_THREE_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[0].request.url == revoke_url
-    assert responses.calls[1].request.method == "PUT"
-    assert responses.calls[1].request.url == detach_url
-    assert responses.calls[2].request.method == "DELETE"
-    assert responses.calls[2].request.url == delete_url
-    assert "bypass_share_guard" not in (responses.calls[2].request.url or "")
+    with pytest.raises(CaptureError) as exc_info:
+        client.captures.delete(capture_uuid=capture_uuid)
+    assert err_msg in str(exc_info.value)
+    assert len(responses.calls) == 1
 
 
 def test_delete_capture_dry_run(client: Client) -> None:
