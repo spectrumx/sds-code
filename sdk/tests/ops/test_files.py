@@ -14,6 +14,7 @@ import responses
 from loguru import logger as log
 from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
+from spectrumx.errors import FileError
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import (
     _load_undesired_globs,  # pyright: ignore[reportPrivateUsage]
@@ -26,8 +27,6 @@ from tests.conftest import get_file_detach_from_datasets_url
 from tests.conftest import get_files_endpoint
 
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
-
-_EXPECTED_THREE_HTTP_CALLS: int = 3
 
 
 def _download_file_endpoint(client: Client, file_id: str) -> str:
@@ -409,12 +408,13 @@ def test_delete_file_success(client: Client) -> None:
 
 
 @responses.activate
-def test_delete_file_bypass_share_guard(client: Client) -> None:
-    """bypass_share_guard: detach, then GET + DELETE (no bypass query param)."""
+def test_delete_file_raises_when_gateway_rejects_due_to_datasets_or_sharing(
+    client: Client,
+) -> None:
+    """GET then DELETE: gateway returns 400 when delete is blocked (share/dataset)."""
     test_uuid = uuidlib.uuid4()
     test_uuid_hex = test_uuid.hex
     client.dry_run = False
-    detach_url = get_file_detach_from_datasets_url(client, file_id=test_uuid_hex)
     file_json = {
         "uuid": test_uuid_hex,
         "name": "test_file.txt",
@@ -426,12 +426,7 @@ def test_delete_file_bypass_share_guard(client: Client) -> None:
         "updated_at": "2024-12-01T12:00:00Z",
         "expiration_date": "2026-12-01T12:00:00Z",
     }
-    responses.add(
-        responses.PUT,
-        detach_url,
-        status=200,
-        json={"message": "File detached from all connected datasets successfully"},
-    )
+    err_msg = "Cannot delete file: detach from datasets or revoke shares first."
     responses.add(
         responses.GET,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
@@ -441,18 +436,15 @@ def test_delete_file_bypass_share_guard(client: Client) -> None:
     responses.add(
         responses.DELETE,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
-        status=204,
+        status=400,
+        json={"detail": err_msg},
     )
-
-    result = client.delete_file(file_uuid=test_uuid, bypass_share_guard=True)
-
-    assert result is True
-    assert len(responses.calls) == _EXPECTED_THREE_HTTP_CALLS
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[0].request.url == detach_url
-    assert responses.calls[1].request.method == "GET"
-    assert responses.calls[2].request.method == "DELETE"
-    assert "bypass_share_guard" not in (responses.calls[2].request.url or "")
+    num_reqs = 2
+    with pytest.raises(FileError) as exc_info:
+        delete_file(client=client, file_uuid=test_uuid)
+    assert err_msg in str(exc_info.value)
+    assert len(responses.calls) == num_reqs
+    assert responses.calls[1].request.method == "DELETE"
 
 
 @responses.activate

@@ -25,6 +25,7 @@ from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
 )
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
@@ -1082,6 +1083,55 @@ class CaptureTestCases(APITestCase):
         """Test deleting a capture returns 204."""
         response = self.client.delete(self.detail_url(self.drf_capture_v0.uuid))
         assert response.status_code == status.HTTP_204_NO_CONTENT
+
+    def test_delete_capture_rejected_when_shared(self) -> None:
+        """DELETE must fail with 403 while the capture has active share permissions."""
+        other = User.objects.create_user(
+            email="other-capture-shared-delete@example.com",
+            password=TEST_USER_PASSWORD,
+            name="Other User",
+        )
+        capture = Capture.objects.create(
+            owner=self.user,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch_share_block_delete",
+            index_name=f"{self.test_index_prefix}-drf",
+            top_level_dir=_normalize_top_level_dir("share-block-capture-delete"),
+        )
+        UserSharePermission.objects.create(
+            owner=self.user,
+            shared_with=other,
+            item_type=ItemType.CAPTURE,
+            item_uuid=capture.uuid,
+        )
+        response = self.client.delete(self.detail_url(str(capture.uuid)))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "shared" in str(response.data["detail"]).lower()
+        capture.refresh_from_db()
+        assert capture.is_deleted is False
+        other.delete()
+
+    def test_delete_capture_rejected_when_linked_to_dataset(self) -> None:
+        """DELETE must fail with 403 while the capture is linked to a dataset (M2M)."""
+        capture = Capture.objects.create(
+            owner=self.user,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch_dataset_block_delete",
+            index_name=f"{self.test_index_prefix}-drf",
+            top_level_dir=_normalize_top_level_dir("dataset-block-capture-delete"),
+        )
+        dataset = Dataset.objects.create(
+            name="dataset-blocking-capture-deletion",
+            owner=self.user,
+        )
+        capture.datasets.add(dataset)
+        response = self.client.delete(self.detail_url(str(capture.uuid)))
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert "dataset" in str(response.data["detail"]).lower()
+        capture.refresh_from_db()
+        assert capture.is_deleted is False
+        capture.datasets.clear()
+        dataset.delete()
 
     def test_soft_delete_capture_deletes_share_permissions(self) -> None:
         """
