@@ -177,28 +177,37 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_length_of_capture_ms(self, capture: Capture) -> int | None:
         """Capture length in milliseconds (OpenSearch bounds are seconds)."""
+        if capture.capture_type != CaptureType.DigitalRF:
+            return None
+
         try:
             start_time, end_time = get_capture_bounds(
                 capture.capture_type, str(capture.uuid)
             )
             return (end_time - start_time) * 1000
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_file_cadence_ms(self, capture: Capture) -> int | None:
         """Get the file cadence in milliseconds. None if not indexed in OpenSearch."""
+        if capture.capture_type != CaptureType.DigitalRF:
+            return None
+
         try:
             return get_file_cadence(capture.capture_type, capture)
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_capture_start_epoch_sec(self, capture: Capture) -> int | None:
         """Capture start as Unix epoch seconds. None if not in OpenSearch."""
+        if capture.capture_type != CaptureType.DigitalRF:
+            return None
+
         try:
             start_time, _ = get_capture_bounds(capture.capture_type, str(capture.uuid))
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
         else:
             return start_time
@@ -502,7 +511,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     def get_length_of_capture_ms(self, obj: dict[str, Any]) -> int | None:
         """Use first channel's bounds for composite capture duration."""
         channels = obj.get("channels") or []
-        if not channels:
+        if not channels or obj["capture_type"] != CaptureType.DigitalRF:
             return None
         try:
             capture = Capture.objects.get(uuid=channels[0]["uuid"])
@@ -510,31 +519,31 @@ class CompositeCaptureSerializer(serializers.Serializer):
                 capture.capture_type, str(capture.uuid)
             )
             return (end_time - start_time) * 1000
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_file_cadence_ms(self, obj: dict[str, Any]) -> int | None:
         """Use first channel's file cadence for composite capture."""
         channels = obj.get("channels") or []
-        if not channels:
+        if not channels or obj["capture_type"] != CaptureType.DigitalRF:
             return None
         try:
             capture = Capture.objects.get(uuid=channels[0]["uuid"])
             return get_file_cadence(capture.capture_type, capture)
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_capture_start_epoch_sec(self, obj: dict[str, Any]) -> int | None:
         """Use first channel's start time for composite capture."""
         channels = obj.get("channels") or []
-        if not channels:
+        if not channels or obj["capture_type"] != CaptureType.DigitalRF:
             return None
         try:
             capture = Capture.objects.get(uuid=channels[0]["uuid"])
             start_time, _ = get_capture_bounds(capture.capture_type, str(capture.uuid))
-        except (ValueError, IndexError, KeyError):
+        except ValueError:
             return None
         else:
             return start_time
