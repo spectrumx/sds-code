@@ -7,6 +7,7 @@ import json
 import logging
 import uuid
 from collections.abc import Generator
+from pathlib import PurePosixPath
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -105,6 +106,57 @@ def test_paginator_dry_run_ingest_list_files(gateway: GatewayClient) -> None:
         assert test_yield_count == expected_yield, (
             f"Expected {expected_yield} files, got {test_yield_count}"
         )
+
+
+def test_paginator_preserves_temporal_kwargs_across_pages(
+    gateway: GatewayClient
+) -> None:
+    """
+    ``start_time`` / ``end_time`` in ``list_kwargs`` 
+    are sent on every ``list_files`` call.
+    """
+    one = sx_files.generate_sample_file(uuid.uuid4())
+    two = sx_files.generate_sample_file(uuid.uuid4())
+    three = sx_files.generate_sample_file(uuid.uuid4())
+    start_iso = "2024-06-27T14:09:00+00:00"
+    end_iso = "2024-06-27T14:11:00+00:00"
+    recorded: list[dict[str, object]] = []
+
+    def side_effect(**kwargs: object) -> bytes:
+        recorded.append(dict(kwargs))
+        page = kwargs["page"]
+        if page == 1:
+            results = [
+                json.loads(one.model_dump_json()),
+                json.loads(two.model_dump_json()),
+            ]
+        else:
+            results = [json.loads(three.model_dump_json())]
+        body = {"count": 3, "results": results}
+        return json.dumps(body).encode()
+
+    gateway.list_files.side_effect = side_effect
+
+    paginator = Paginator[File](
+        Entry=File,
+        gateway=gateway,
+        list_method=gateway.list_files,
+        list_kwargs={
+            "sds_path": PurePosixPath("/drf"),
+            "start_time": start_iso,
+            "end_time": end_iso,
+        },
+        page_size=2,
+        dry_run=False,
+    )
+
+    consumed = list(paginator)
+    assert len(consumed) == 3
+    assert len(recorded) == 2
+    for call_kw in recorded:
+        assert call_kw["start_time"] == start_iso
+        assert call_kw["end_time"] == end_iso
+        assert call_kw["sds_path"] == PurePosixPath("/drf")
 
 
 def test_paginator_dry_run_ingest_get_dataset_files(gateway: GatewayClient) -> None:

@@ -5,14 +5,21 @@ import json
 import sys
 import tempfile
 import uuid as uuidlib
-from datetime import datetime, timezone
+from datetime import datetime
+from datetime import timedelta
+from datetime import timezone
 from pathlib import Path
 from pathlib import PurePosixPath
+from unittest.mock import patch
 
 import pytest
 import responses
 from spectrumx import Client
-from spectrumx.api.sds_files import delete_file, list_files
+from spectrumx.api.sds_files import delete_file
+from spectrumx.api.sds_files import list_files
+from spectrumx.api.sds_files import (
+    _file_list_time_query_param,  # noqa: SLF001
+)
 from spectrumx.errors import FileError
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.ops.files import (
@@ -109,10 +116,77 @@ def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> No
 def test_list_files_start_end_must_be_paired(client: Client) -> None:
     """Omitting one of ``start_time`` / ``end_time`` raises before any request."""
     t = datetime(2024, 6, 27, 14, 0, tzinfo=timezone.utc)
-    with pytest.raises(ValueError, match="both set or both omitted"):
+    with pytest.raises(ValueError, match="both be set or both omitted"):
         list_files(client=client, sds_path="/", start_time=t, end_time=None)
-    with pytest.raises(ValueError, match="both set or both omitted"):
+    with pytest.raises(ValueError, match="both be set or both omitted"):
         list_files(client=client, sds_path="/", start_time=None, end_time=t)
+
+
+def test_file_list_time_query_param_naive_treated_as_utc() -> None:
+    """Naive datetimes are interpreted as UTC for query strings."""
+    naive = datetime(2024, 6, 27, 14, 9, 0)
+    out = _file_list_time_query_param(naive)
+    assert out.endswith("+00:00")
+    assert "2024-06-27T14:09:00" in out
+
+
+def test_file_list_time_query_param_converts_non_utc_to_utc() -> None:
+    """Aware datetimes are formatted in UTC (same instant)."""
+    eastern = timezone(timedelta(hours=-5))
+    local = datetime(2024, 6, 27, 9, 9, 0, tzinfo=eastern)
+    out = _file_list_time_query_param(local)
+    assert "2024-06-27T14:09:00" in out
+    assert out.endswith("+00:00")
+
+
+def test_list_files_passes_iso_temporal_params_to_gateway(client: Client) -> None:
+    """Temporal bounds are forwarded to ``gateway.list_files`` as ISO strings."""
+    client.dry_run = False
+    start = datetime(2024, 6, 27, 14, 9, 0, tzinfo=timezone.utc)
+    end = datetime(2024, 6, 27, 14, 10, 0, tzinfo=timezone.utc)
+    expected_start = _file_list_time_query_param(start)
+    expected_end = _file_list_time_query_param(end)
+    empty_page = b'{"count": 0, "results": []}'
+
+    with patch.object(client._gateway, "list_files", return_value=empty_page) as m:
+        paginator = list_files(
+            client=client,
+            sds_path=PurePosixPath("/drf/dir"),
+            start_time=start,
+            end_time=end,
+        )
+        list(paginator)
+
+    m.assert_called()
+    for call in m.call_args_list:
+        kw = call.kwargs
+        assert kw["start_time"] == expected_start
+        assert kw["end_time"] == expected_end
+        assert kw["sds_path"] == PurePosixPath("/drf/dir")
+
+
+def test_client_download_forwards_temporal_bounds_to_list_files(
+    client: Client, tmp_path: Path
+) -> None:
+    """``Client.download(..., start_time=, end_time=)`` lists with the same bounds."""
+    client.dry_run = False
+    start = datetime(2024, 6, 27, 14, 9, 0, tzinfo=timezone.utc)
+    end = datetime(2024, 6, 27, 14, 11, 0, tzinfo=timezone.utc)
+    sds = PurePosixPath("/capture/rf")
+
+    with patch.object(client, "list_files", return_value=[]) as m_list:
+        client.download(
+            from_sds_path=sds,
+            start_time=start,
+            end_time=end,
+            to_local_path=tmp_path,
+            verbose=False,
+        )
+
+    m_list.assert_called_once()
+    assert m_list.call_args.kwargs["sds_path"] == sds
+    assert m_list.call_args.kwargs["start_time"] == start
+    assert m_list.call_args.kwargs["end_time"] == end
 
 
 def test_file_get_returns_valid(
