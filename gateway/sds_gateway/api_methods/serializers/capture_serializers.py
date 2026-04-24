@@ -1,8 +1,8 @@
 """Capture serializers for the SDS Gateway API methods."""
 
 import logging
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from typing import Any
 from typing import cast
 
@@ -34,13 +34,13 @@ from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
 def _epoch_sec_to_iso_utc_z(epoch_sec: int) -> str:
     """Format OpenSearch epoch seconds as an ISO 8601 UTC string with ``Z`` suffix."""
-    dt = datetime.fromtimestamp(epoch_sec, tz=timezone.utc)
+    dt = datetime.fromtimestamp(epoch_sec, tz=UTC)
     return dt.isoformat().replace("+00:00", "Z")
 
 
 def _epoch_sec_to_local_display(epoch_sec: int) -> str:
     """Human-readable local time (same pattern as ``formatted_created_at``)."""
-    dt = datetime.fromtimestamp(epoch_sec, tz=timezone.utc)
+    dt = datetime.fromtimestamp(epoch_sec, tz=UTC)
     return django_timezone.localtime(dt).strftime("%m/%d/%Y %I:%M:%S %p")
 
 
@@ -221,7 +221,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """Capture length in milliseconds (OpenSearch bounds are seconds)."""
         if capture.end_time is None or capture.start_time is None:
             return None
-        
+
         return (capture.end_time - capture.start_time) * 1000
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
@@ -499,15 +499,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
                 }
                 try:
                     capture = Capture.objects.get(uuid=ch["uuid"])
-                    start_sec, end_sec = get_capture_bounds(
-                        capture.capture_type, str(capture.uuid)
-                    )
-                except (
-                    ValueError,
-                    IndexError,
-                    KeyError,
-                    Capture.DoesNotExist,
-                ):
+                except Capture.DoesNotExist:
                     entry["capture_start_epoch_sec"] = None
                     entry["capture_end_epoch_sec"] = None
                     entry["capture_start_iso_utc"] = None
@@ -517,21 +509,36 @@ class CompositeCaptureSerializer(serializers.Serializer):
                     entry["length_of_capture_ms"] = None
                     entry["file_cadence_ms"] = None
                 else:
+                    # Per-channel bounds/cadence from ``Capture`` (``get_opensearch_metadata``).
+                    start_sec = capture.start_time
+                    end_sec = capture.end_time
                     entry["capture_start_epoch_sec"] = start_sec
                     entry["capture_end_epoch_sec"] = end_sec
-                    entry["capture_start_iso_utc"] = _epoch_sec_to_iso_utc_z(start_sec)
-                    entry["capture_end_iso_utc"] = _epoch_sec_to_iso_utc_z(end_sec)
-                    entry["capture_start_display"] = _epoch_sec_to_local_display(
-                        start_sec
+                    entry["capture_start_iso_utc"] = (
+                        _epoch_sec_to_iso_utc_z(start_sec)
+                        if start_sec is not None
+                        else None
                     )
-                    entry["capture_end_display"] = _epoch_sec_to_local_display(end_sec)
-                    entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
-                    try:
-                        entry["file_cadence_ms"] = get_file_cadence(
-                            capture.capture_type, capture
-                        )
-                    except (ValueError, IndexError, KeyError):
-                        entry["file_cadence_ms"] = None
+                    entry["capture_end_iso_utc"] = (
+                        _epoch_sec_to_iso_utc_z(end_sec)
+                        if end_sec is not None
+                        else None
+                    )
+                    entry["capture_start_display"] = (
+                        _epoch_sec_to_local_display(start_sec)
+                        if start_sec is not None
+                        else None
+                    )
+                    entry["capture_end_display"] = (
+                        _epoch_sec_to_local_display(end_sec)
+                        if end_sec is not None
+                        else None
+                    )
+                    if start_sec is None or end_sec is None:
+                        entry["length_of_capture_ms"] = None
+                    else:
+                        entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
+                    entry["file_cadence_ms"] = capture.file_cadence
                 out.append(entry)
             self._enriched_channels_cache[key] = out
         return self._enriched_channels_cache[key]
