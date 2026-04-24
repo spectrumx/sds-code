@@ -26,7 +26,8 @@ def test_monitoring_dashboard_changelist_is_available(client) -> None:
         checked_at=timezone.now(),
         overall_status=HealthStatus.DEGRADED,
         child_statuses={
-            "seaweedfs": HealthStatus.HEALTHY,
+            # TODO: review after integrating seaweedfs
+            # "seaweedfs": HealthStatus.HEALTHY,  # noqa: ERA001
             "minio": HealthStatus.DOWN,
             "postgres": HealthStatus.HEALTHY,
         },
