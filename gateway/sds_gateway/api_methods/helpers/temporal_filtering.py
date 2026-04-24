@@ -28,7 +28,7 @@ def _catch_value_errors(capture_type: CaptureType, capture: Capture) -> None:
         msg = "Only DigitalRF captures are supported for temporal filtering."
         log.error(msg)
         raise ValueError(msg)
-    
+
     if capture.start_time is None:
         msg = f"Capture {capture.uuid} has no indexed start_time for temporal filtering"
         raise ValueError(msg)
@@ -42,7 +42,7 @@ def get_capture_files_with_temporal_filter(
 ) -> QuerySet[File]:
     """Get the capture files with temporal filtering."""
     _catch_value_errors(capture_type, capture)
-    
+
     capture_files = get_capture_files(capture)
 
     if start_time is None or end_time is None:
@@ -69,15 +69,11 @@ def filter_files_by_temporal_bounds(
     end_time: int,
 ) -> QuerySet[File]:
     """Filter files by temporal bounds."""
-    
-    # get non-data files
-    non_data_files = files.exclude(
-        name__regex=DRF_RF_FILENAME_REGEX_STR
-    )
 
-    unfiltered_data_files = files.filter(
-        name__regex=DRF_RF_FILENAME_REGEX_STR
-    )
+    # get non-data files
+    non_data_files = files.exclude(name__regex=DRF_RF_FILENAME_REGEX_STR)
+
+    unfiltered_data_files = files.filter(name__regex=DRF_RF_FILENAME_REGEX_STR)
 
     start_file_name = drf_rf_filename_from_ms(start_time)
     end_file_name = drf_rf_filename_from_ms(end_time)

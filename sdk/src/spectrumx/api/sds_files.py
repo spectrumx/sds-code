@@ -6,8 +6,8 @@
 import os
 import tempfile
 import uuid
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from enum import Enum
 from enum import auto
 from multiprocessing.synchronize import RLock
@@ -31,10 +31,7 @@ log.trace("Placeholder log to avoid reimporting or resolving unused import warni
 
 def _file_list_time_query_param(value: datetime) -> str:
     """Format a datetime for Gateway file list temporal query params (ISO 8601, UTC)."""
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
-    else:
-        value = value.astimezone(timezone.utc)
+    value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
     return value.isoformat()
 
 
@@ -160,6 +157,7 @@ def list_files(
     )
 
     return pagination
+
 
 def upload_file(
     *,

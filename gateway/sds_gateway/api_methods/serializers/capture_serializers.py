@@ -115,7 +115,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     post_processed_data = serializers.SerializerMethodField()
 
     def get_datasets(self, capture: Capture) -> list[dict[str, Any]]:
-        """Datasets linked to this capture; shallow when serializing under dataset detail."""
+        """Datasets linked to this capture; shallow under dataset detail."""
         qs = get_capture_datasets(capture, include_deleted=False)
         if self.context.get("omit_nested_dataset_graph"):
             return DatasetSummarySerializer(qs, many=True, context=self.context).data
@@ -509,7 +509,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
                     entry["length_of_capture_ms"] = None
                     entry["file_cadence_ms"] = None
                 else:
-                    # Per-channel bounds/cadence from ``Capture`` (``get_opensearch_metadata``).
+                    # Per-channel bounds/cadence (Capture.get_opensearch_metadata).
                     start_sec = capture.start_time
                     end_sec = capture.end_time
                     entry["capture_start_epoch_sec"] = start_sec
@@ -547,7 +547,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         self,
         obj: dict[str, Any],
     ) -> tuple[int, int] | None:
-        """Earliest channel start and latest channel end (seconds), for composite summary."""
+        """Earliest channel start and latest channel end (seconds)."""
         pairs = [
             (row["capture_start_epoch_sec"], row["capture_end_epoch_sec"])
             for row in self._enriched_channels(obj)
@@ -678,7 +678,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
         ]
         if not cadences:
             return None
-        return int(round(sum(cadences) / len(cadences)))
+        return round(sum(cadences) / len(cadences))
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_capture_start_epoch_sec(self, obj: dict[str, Any]) -> int | None:

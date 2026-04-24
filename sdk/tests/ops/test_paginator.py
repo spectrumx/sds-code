@@ -109,10 +109,10 @@ def test_paginator_dry_run_ingest_list_files(gateway: GatewayClient) -> None:
 
 
 def test_paginator_preserves_temporal_kwargs_across_pages(
-    gateway: GatewayClient
+    gateway: GatewayClient,
 ) -> None:
     """
-    ``start_time`` / ``end_time`` in ``list_kwargs`` 
+    ``start_time`` / ``end_time`` in ``list_kwargs``
     are sent on every ``list_files`` call.
     """
     one = sx_files.generate_sample_file(uuid.uuid4())
@@ -151,8 +151,10 @@ def test_paginator_preserves_temporal_kwargs_across_pages(
     )
 
     consumed = list(paginator)
-    assert len(consumed) == 3
-    assert len(recorded) == 2
+    expected_items = 3
+    expected_pages = 2
+    assert len(consumed) == expected_items
+    assert len(recorded) == expected_pages
     for call_kw in recorded:
         assert call_kw["start_time"] == start_iso
         assert call_kw["end_time"] == end_iso
@@ -426,7 +428,7 @@ def test_paginator_logs_api_warnings_on_first_page(
     caplog: pytest.LogCaptureFixture,
     gateway: GatewayClient,
 ) -> None:
-    """Server ``warnings`` on the first JSON page are forwarded via ``log_user_warning``."""
+    """First-page ``warnings`` in JSON are forwarded via ``log_user_warning``."""
     caplog.set_level(logging.WARNING)
     warn_msg = "Temporal filtering is only supported for RF dirs"
     one = sx_files.generate_sample_file(uuid.uuid4())

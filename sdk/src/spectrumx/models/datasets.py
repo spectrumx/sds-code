@@ -21,6 +21,7 @@ class DatasetFile(BaseModel):
     directory: str | None = None
     media_type: str | None = None
 
+
 class DatasetCapture(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -31,6 +32,7 @@ class DatasetCapture(BaseModel):
     origin: CaptureOrigin | None = None
     top_level_dir: str | None = None
     owner: User | None = None
+
 
 class Dataset(BaseModel):
     """A dataset in SDS."""

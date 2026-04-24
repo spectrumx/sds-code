@@ -57,7 +57,7 @@ class CompositeCaptureSerializationTests(TestCase):
     """Serializer-level tests with OpenSearch and index helpers mocked."""
 
     def test_distinct_channel_metadata_preserved(self) -> None:
-        """Per-channel ``retrieve_indexed_metadata`` payloads stay on each channel row."""
+        """Per-channel indexed metadata payloads stay on each channel row."""
         cap0, cap1 = _two_drf_captures_same_group()
 
         def fake_retrieve(capture: Capture) -> dict:
@@ -91,7 +91,7 @@ class CompositeCaptureSerializationTests(TestCase):
         )
 
     def test_distinct_opensearch_times_cadence_and_envelope(self) -> None:
-        """Each channel keeps its own bounds/cadence; top-level fields use min start / max end."""
+        """Per-channel bounds/cadence; top-level uses min start and max end."""
         cap0, cap1 = _two_drf_captures_same_group()
 
         meta_by_uuid = {
@@ -142,7 +142,7 @@ class CompositeCaptureSerializationTests(TestCase):
         assert out["file_cadence_ms"] == 600
 
     def test_channel_with_incomplete_bounds_excluded_from_envelope(self) -> None:
-        """Channels missing start or end do not contribute to composite envelope; length null."""
+        """Incomplete channel bounds are excluded from the composite envelope."""
         cap0, cap1 = _two_drf_captures_same_group()
 
         def opensearch_by_instance(self: Capture) -> dict:

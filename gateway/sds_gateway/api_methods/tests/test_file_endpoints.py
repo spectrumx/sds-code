@@ -3,8 +3,8 @@
 import time
 import uuid
 from collections.abc import Mapping
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
@@ -446,7 +446,7 @@ class FileTestCases(APITestCase):
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_list_files_with_temporal_params(self) -> None:
-        """Temporal query params keep non-RF files and only RF data files in time bounds."""
+        """Temporal params keep non-RF files; RF listings respect time bounds."""
         base_sec = 1_000_000
         for offset in (0, 1, 2, 5):
             create_db_file(
@@ -460,12 +460,8 @@ class FileTestCases(APITestCase):
 
         path = str(self.file.directory)
         # Absolute epoch ms from ISO datetimes; bounds include rf@(base+1)..rf@(base+2).
-        start_iso = datetime.fromtimestamp(
-            base_sec + 1, tz=timezone.utc
-        ).isoformat()
-        end_iso = datetime.fromtimestamp(
-            base_sec + 2, tz=timezone.utc
-        ).isoformat()
+        start_iso = datetime.fromtimestamp(base_sec + 1, tz=UTC).isoformat()
+        end_iso = datetime.fromtimestamp(base_sec + 2, tz=UTC).isoformat()
         response = self.client.get(
             self.list_url,
             {
