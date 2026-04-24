@@ -401,12 +401,12 @@ class Capture(BaseModel):
 
     @property
     def start_time(self) -> int | None:
-        """Get the start time of the capture in milliseconds."""
+        """Get the start time of the capture in unix seconds."""
         return self.get_opensearch_metadata().get("start_time")
 
     @property
     def end_time(self) -> int | None:
-        """Get the end time of the capture in milliseconds."""
+        """Get the end time of the capture in unix seconds."""
         return self.get_opensearch_metadata().get("end_time")
 
     @property
@@ -502,10 +502,17 @@ class Capture(BaseModel):
         """
         Query OpenSearch for frequency metadata for this specific capture.
 
+        The result is cached on the instance (``_opensearch_metadata_cache``) so
+        repeated access from properties and serializers reuses a single
+        response within the lifetime of this ``Capture`` object.
+
         Returns:
             dict: Frequency metadata (center_frequency, sample_rate, etc.)
         """
+        if hasattr(self, "_opensearch_metadata_cache"):
+            return self._opensearch_metadata_cache
 
+        result: dict[str, Any] = {}
         try:
             client = get_opensearch_client()
 
@@ -535,14 +542,15 @@ class Capture(BaseModel):
 
             if response["hits"]["total"]["value"] > 0:
                 source = response["hits"]["hits"][0]["_source"]
-                return self._extract_metadata_from_source(source)
-
-            log.warning("No OpenSearch data found for capture %s", self.uuid)
+                result = self._extract_metadata_from_source(source)
+            else:
+                log.warning("No OpenSearch data found for capture %s", self.uuid)
 
         except Exception:
             log.exception("Error querying OpenSearch for capture %s", self.uuid)
 
-        return {}
+        self._opensearch_metadata_cache = result
+        return self._opensearch_metadata_cache
 
     def _extract_metadata_from_source(self, source: dict[str, Any]) -> dict[str, Any]:
         """Extract frequency metadata from OpenSearch source data."""
@@ -553,7 +561,7 @@ class Capture(BaseModel):
         # Try search_props first (preferred)
         center_frequency = search_props.get("center_frequency")
         sample_rate = search_props.get("sample_rate")
-        file_cadence = None
+        file_cadence = self._extract_drf_file_cadence_from_search_props(search_props)
 
         # If search_props missing, try to read from capture_props directly
         if not center_frequency or not sample_rate:
@@ -570,7 +578,6 @@ class Capture(BaseModel):
                     sample_rate=sample_rate,
                     capture_uuid=str(self.uuid),
                 )
-                file_cadence = self._extract_drf_file_cadence_from_source(source)
             elif self.capture_type == CaptureType.RadioHound:
                 center_frequency, sample_rate = _extract_radiohound_capture_props(
                     capture_props=capture_props,
@@ -588,13 +595,13 @@ class Capture(BaseModel):
             "file_cadence": file_cadence,
         }
 
-    def _extract_drf_file_cadence_from_source(
-        self, source: dict[str, Any]
+    def _extract_drf_file_cadence_from_search_props(
+        self, search_props: dict[str, Any]
     ) -> int | None:
-        """Extract file cadence from OpenSearch source data."""
+        """Extract file cadence (in milliseconds) from OpenSearch source data."""
         count = self.get_drf_data_files_stats()["total_count"]
-        start_time = source.get("start_time")
-        end_time = source.get("end_time")
+        start_time = search_props.get("start_time")
+        end_time = search_props.get("end_time")
 
         if start_time is None or end_time is None:
             log.warning("Start or end time not found for DRF capture %s", self.uuid)
