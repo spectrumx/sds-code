@@ -14,11 +14,6 @@ from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
 
-if TYPE_CHECKING:
-    from uuid import UUID
-
-    from spectrumx.gateway import GatewayClient
-
 
 class DatasetAPI:
     gateway: GatewayClient
@@ -93,7 +88,7 @@ class DatasetAPI:
 
     def get_files(
         self,
-        dataset_uuid: UUID,
+        dataset_uuid: uuid.UUID,
     ) -> Paginator[File]:
         """Get files in the dataset as a paginator.
 
@@ -119,7 +114,7 @@ class DatasetAPI:
 
     def delete(
         self,
-        dataset_uuid: UUID,
+        dataset_uuid: uuid.UUID,
     ) -> bool:
         """Deletes a dataset from SDS by its UUID.
 
@@ -142,7 +137,7 @@ class DatasetAPI:
             log.debug(f"Dataset deleted with UUID {dataset_uuid}")
         return True
 
-    def revoke_share_permissions(self, dataset_uuid: UUID) -> bool:
+    def revoke_share_permissions(self, dataset_uuid: uuid.UUID) -> bool:
         """Revoke all direct share permissions on this dataset (owner-only).
 
         Use this (or the web portal) before :meth:`delete` when the dataset is shared.

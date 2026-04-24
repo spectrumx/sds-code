@@ -1,7 +1,6 @@
 """Capture model for SpectrumX."""
 
 from datetime import datetime
-from enum import StrEnum
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Annotated
@@ -14,25 +13,11 @@ from pydantic import Field
 from pydantic import field_validator
 
 from spectrumx.models.base import SDSModel
+from spectrumx.models.capture_enums import CaptureOrigin
+from spectrumx.models.capture_enums import CaptureType
 from spectrumx.models.datasets import Dataset
 from spectrumx.models.user import User
 from spectrumx.models.user import UserSharePermission
-
-
-class CaptureType(StrEnum):
-    """Capture types in SDS."""
-
-    DigitalRF = "drf"
-    RadioHound = "rh"
-    SigMF = "sigmf"
-
-
-class CaptureOrigin(StrEnum):
-    """Capture origins in SDS."""
-
-    System = "system"
-    User = "user"
-
 
 _d_capture_created_at = "The time the capture was created"
 _d_capture_props = "The indexed metadata for the capture"
@@ -101,8 +86,10 @@ class Capture(SDSModel):
         list[UserSharePermission],
         Field(description=_d_share_permissions, default_factory=list),
     ]
-    is_shared: Annotated[bool, Field(description=_d_is_shared)]
-    is_shared_with_me: Annotated[bool, Field(description=_d_is_shared_with_me)]
+    is_shared: Annotated[bool, Field(description=_d_is_shared, default=False)]
+    is_shared_with_me: Annotated[
+        bool, Field(description=_d_is_shared_with_me, default=False)
+    ]
 
     # optional fields
     created_at: Annotated[
@@ -178,5 +165,6 @@ class Capture(SDSModel):
 
 __all__ = [
     "Capture",
+    "CaptureOrigin",
     "CaptureType",
 ]

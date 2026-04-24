@@ -790,6 +790,103 @@ def test_list_files_temporal_rf_narrows_digital_rf_chunks(
     ],
     indirect=True,
 )
+def test_list_files_temporal_rf_inclusive_range_multiple_chunks(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+) -> None:
+    """Temporal window spanning several seconds includes each ``rf@*.h5`` in that span."""
+    if not drf_sample_top_level_dir.is_dir():
+        pytest.skip(
+            "Digital RF sample tree missing; cannot test temporal RF listing."
+        )
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+    rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
+    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
+    end = datetime.fromtimestamp(1719499742, tz=timezone.utc)
+    expected = {
+        "rf@1719499740.000.h5",
+        "rf@1719499741.000.h5",
+        "rf@1719499742.000.h5",
+    }
+    narrow_rf = {
+        f.name
+        for f in integration_client.list_files(
+            sds_path=rf_dir,
+            start_time=start,
+            end_time=end,
+        )
+        if f.name.startswith("rf@")
+    }
+    assert narrow_rf == expected
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+            *PassthruEndpoints.file_content_download(),
+        ]
+    ],
+    indirect=True,
+)
+def test_download_respects_temporal_rf_window(
+    integration_client: Client,
+    drf_sample_top_level_dir: Path,
+    tmp_path: Path,
+) -> None:
+    """Bulk download with start/end only fetches ``rf@*.h5`` in the UTC window."""
+    if not drf_sample_top_level_dir.is_dir():
+        pytest.skip(
+            "Digital RF sample tree missing; cannot test temporal RF download."
+        )
+    cap_data = _upload_drf_capture_test_assets(
+        integration_client=integration_client,
+        drf_sample_top_level_dir=drf_sample_top_level_dir,
+    )
+    rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
+    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
+    end = datetime.fromtimestamp(1719499741, tz=timezone.utc)
+    expected_names = {"rf@1719499740.000.h5", "rf@1719499741.000.h5"}
+
+    download_dir = tmp_path / "drf_partial"
+    results = integration_client.download(
+        from_sds_path=rf_dir,
+        start_time=start,
+        end_time=end,
+        to_local_path=download_dir,
+        verbose=False,
+    )
+    failures = [r.error_info for r in results if not r]
+    assert not failures, f"download failures: {failures}"
+    downloaded_rf = {
+        p.name
+        for p in download_dir.rglob("*")
+        if p.is_file() and p.name.startswith("rf@") and p.name.endswith(".h5")
+    }
+    assert downloaded_rf == expected_names
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_uploads(),
+        ]
+    ],
+    indirect=True,
+)
 def test_list_files_temporal_non_rf_directory_warns(
     caplog: pytest.LogCaptureFixture,
     integration_client: Client,
