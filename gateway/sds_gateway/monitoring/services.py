@@ -48,14 +48,26 @@ def _split_host_port(endpoint: str, *, default_port: int) -> tuple[str, int]:
 
 
 def get_default_service_definitions() -> list[ServiceDefinition]:
-    sfs_host, sfs_port = _split_host_port(
-        settings.SFS_ENDPOINT_URL,
-        default_port=8333,
-    )
-    minio_host, minio_port = _split_host_port(
-        settings.MINIO_ENDPOINT_URL,
-        default_port=9000,
-    )
+    services: list[ServiceDefinition] = []
+
+    sfs_endpoint = getattr(settings, "SFS_ENDPOINT_URL", None)
+    if sfs_endpoint is not None:
+        sfs_host, sfs_port = _split_host_port(sfs_endpoint, default_port=8333)
+        services.append(
+            ServiceDefinition(
+                name="seaweedfs", kind="tcp", host=sfs_host, port=sfs_port
+            )
+        )
+
+    minio_endpoint = getattr(settings, "MINIO_ENDPOINT_URL", None)
+    if minio_endpoint is not None:
+        minio_host, minio_port = _split_host_port(minio_endpoint, default_port=9000)
+        services.append(
+            ServiceDefinition(
+                name="minio", kind="tcp", host=minio_host, port=minio_port
+            )
+        )
+
     db_config = settings.DATABASES.get("default", {})
     postgres_host = str(db_config.get("HOST", "")).strip() or None
     postgres_port_raw = db_config.get("PORT")
@@ -64,17 +76,14 @@ def get_default_service_definitions() -> list[ServiceDefinition]:
         if postgres_port_raw is not None and str(postgres_port_raw).isdigit()
         else None
     )
+    if postgres_host is not None:
+        services.append(
+            ServiceDefinition(
+                name="postgres", kind="db", host=postgres_host, port=postgres_port
+            )
+        )
 
-    return [
-        ServiceDefinition(name="seaweedfs", kind="tcp", host=sfs_host, port=sfs_port),
-        ServiceDefinition(name="minio", kind="tcp", host=minio_host, port=minio_port),
-        ServiceDefinition(
-            name="postgres",
-            kind="db",
-            host=postgres_host,
-            port=postgres_port,
-        ),
-    ]
+    return services
 
 
 def get_service_definitions() -> list[ServiceDefinition]:
