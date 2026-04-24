@@ -76,7 +76,9 @@ def _get_captures_for_template(
     enhanced_captures = []
     for capture in captures:
         # Use composite serialization to handle multi-channel captures properly
-        capture_data = serialize_capture_or_composite(capture)
+        capture_data = serialize_capture_or_composite(
+            capture, context={"request": request}
+        )
 
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
