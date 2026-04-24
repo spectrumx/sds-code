@@ -5,7 +5,11 @@ from django.test import RequestFactory
 from sds_gateway.context_processors import app_settings
 
 
-def test_app_settings_exposes_admin_console_env(settings, rf: RequestFactory) -> None:
+def test_app_settings_exposes_admin_console_env(
+    settings,  # pytest-django fixture: to override Django settings in tests
+    rf: RequestFactory,  # for building mock requests
+    db,  # pytest-django fixture: allows ctx processor ORM/db access
+) -> None:
     settings.ADMIN_CONSOLE_ENV = "staging"
     request = rf.get("/")
 
@@ -48,8 +52,9 @@ def test_guess_admin_console_env_for_production(monkeypatch) -> None:
 
 
 def test_admin_template_shows_environment_and_fqdn(
-    settings,
-    rf: RequestFactory,
+    settings,  # pytest-django fixture: to override Django settings in tests
+    rf: RequestFactory,  # for building mock requests
+    db,  # pytest-django fixture: allows template rendering ORM/db access
 ) -> None:
     settings.ADMIN_CONSOLE_ENV = "staging"
     settings.SDS_SITE_FQDN = "staging.sds.example"
