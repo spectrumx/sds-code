@@ -49,13 +49,15 @@ class DatasetViewSet(ViewSet):
             ),
         ],
         responses={
-            200: OpenApiResponse(description="Dataset metadata, captures, and artifact files"),
+            200: OpenApiResponse(
+                description=("Dataset metadata, captures, and direct artifact files"),
+            ),
             403: OpenApiResponse(description="Forbidden"),
             404: OpenApiResponse(description="Not Found"),
         },
         description=(
             "Return dataset metadata with captures (one row per logical capture, "
-            "including composite multi-channel) and artifact files linked directly to the dataset."
+            "including composite multi-channel) and artifact files on the dataset."
         ),
         summary="Retrieve Dataset",
     )

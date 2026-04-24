@@ -7,9 +7,9 @@ from typing import Any
 from typing import cast
 
 from django.db.models import CharField
-from django.db.models import QuerySet
 from django.db.models import F as FExpression
 from django.db.models import ProtectedError
+from django.db.models import QuerySet
 from django.db.models import Value as WrappedValue
 from django.db.models.functions import Concat
 from django.http import HttpResponse
@@ -32,9 +32,11 @@ from rest_framework.viewsets import ViewSet
 import sds_gateway.api_methods.utils.swagger_example_schema as example_schema
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
 from sds_gateway.api_methods.helpers.download_file import download_file
-from sds_gateway.api_methods.helpers.temporal_filtering import filter_files_by_temporal_bounds
-from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.helpers.temporal_filtering import (
+    filter_files_by_temporal_bounds,
+)
 from sds_gateway.api_methods.models import DRF_RF_FILENAME_REGEX_STR
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileCheckResponseSerializer,
 )
@@ -211,7 +213,6 @@ class FileViewSet(ViewSet):
         serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
-
     def _datetime_string_to_milliseconds(self, datetime_string: str) -> int:
         """Converts a datetime string to milliseconds since start of capture."""
         parsed = datetime.fromisoformat(datetime_string)
@@ -219,9 +220,7 @@ class FileViewSet(ViewSet):
 
     def _check_files_includes_rf_data(self, files: QuerySet[File]) -> bool:
         """Checks if the files include RF data."""
-        return files.filter(
-            name__regex=DRF_RF_FILENAME_REGEX_STR
-        ).exists()
+        return files.filter(name__regex=DRF_RF_FILENAME_REGEX_STR).exists()
 
     @extend_schema(
         responses={
@@ -285,7 +284,7 @@ class FileViewSet(ViewSet):
             ),
         ],
     )
-    def list(self, request: Request) -> Response:
+    def list(self, request: Request) -> Response:  # noqa: C901
         """
         Lists all files accessible to the user (owned + shared via captures/datasets).
         When `path` is passed, it filters all files matching that subdirectory.

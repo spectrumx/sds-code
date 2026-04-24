@@ -409,9 +409,12 @@
 
         [tool.ruff.lint.per-file-ignores]
             "*.ipynb" = ["E501", "ERA001", "PLR2004", "T201"]
-
+            # Monorepo: pre-commit passes `gateway/...` from repo root; local runs may use `../gateway/...` from sdk/.
+            "**/test_composite_capture_serialization.py" = ["PLR2004"]
+            "../gateway/sds_gateway/api_methods/utils/metadata_schemas.py" = ["PLC0415"]
             "gateway/sds_gateway/api_methods/utils/metadata_schemas.py" = ["PLC0415"]
-            "gateway/sds_gateway/users/views.py"                        = ["PLC0415"]
+            "../gateway/sds_gateway/users/views.py" = ["PLC0415"]
+            "gateway/sds_gateway/users/views.py" = ["PLC0415"]
 
             # Tests commonly use boolean fixtures as positional args — intentional
             "sdk/tests/**" = ["FBT001", "FBT002"]

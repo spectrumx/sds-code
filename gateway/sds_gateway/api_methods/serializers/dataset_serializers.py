@@ -2,17 +2,26 @@
 
 from rest_framework import serializers
 
+from sds_gateway.api_methods.helpers.search_captures import (
+    group_captures_by_top_level_dir,
+)
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
-from sds_gateway.api_methods.helpers.search_captures import group_captures_by_top_level_dir
-from sds_gateway.api_methods.serializers.capture_serializers import build_composite_capture_data
-from sds_gateway.api_methods.serializers.capture_serializers import serialize_capture_or_composite
-from sds_gateway.api_methods.serializers.file_serializers import FileArtifactSummarySerializer
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    build_composite_capture_data,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    serialize_capture_or_composite,
+)
+from sds_gateway.api_methods.serializers.file_serializers import (
+    FileArtifactSummarySerializer,
+)
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
-from sds_gateway.api_methods.serializers.user_serializer import UserSharePermissionSerializer
+from sds_gateway.api_methods.serializers.user_serializer import (
+    UserSharePermissionSerializer,
+)
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.relationship_utils import get_dataset_artifact_files
 from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
@@ -21,7 +30,7 @@ READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
 
 
 class DatasetSummarySerializer(serializers.ModelSerializer[Dataset]):
-    """Minimal dataset shape for capture ``datasets`` when breaking serializer cycles."""
+    """Minimal dataset shape for capture ``datasets`` (breaks serializer cycles)."""
 
     class Meta:
         model = Dataset
@@ -147,7 +156,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             is_enabled=True,
         )
         return UserSharePermissionSerializer(user_share_permissions, many=True).data
-    
+
     def get_files(self, obj: Dataset) -> list[dict]:
         """Get the files for the dataset.
 
@@ -164,9 +173,9 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             context=self.context,
         )
         return serializer.data
-    
+
     def get_captures(self, obj: Dataset) -> list[dict]:
-        """Get captures for the dataset, one entry per logical capture (list API semantics).
+        """Captures for the dataset (one row per logical capture, list API semantics).
 
         Multi-channel uploads share ``top_level_dir``; those rows are merged into a
         single composite payload like :func:`get_composite_captures`.

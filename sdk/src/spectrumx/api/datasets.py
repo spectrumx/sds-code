@@ -3,16 +3,20 @@
 from __future__ import annotations
 
 import json
-import uuid
+from typing import TYPE_CHECKING
 from typing import Any
 
 from loguru import logger as log
 
-from spectrumx.gateway import GatewayClient
 from spectrumx.models.datasets import Dataset
 from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from spectrumx.gateway import GatewayClient
 
 
 class DatasetAPI:
@@ -31,7 +35,7 @@ class DatasetAPI:
         self.gateway = gateway
         self.verbose = verbose
 
-    def get(self, dataset_uuid: uuid.UUID) -> Dataset:
+    def get(self, dataset_uuid: UUID) -> Dataset:
         """Load dataset metadata, captures, and artifact files from SDS.
 
         Captures are returned in the same grouped shape as the capture list API
@@ -49,7 +53,7 @@ class DatasetAPI:
         )
         return Dataset.model_validate_json(raw)
 
-    def list_captures(self, dataset_uuid: uuid.UUID) -> list[dict[str, Any]]:
+    def list_captures(self, dataset_uuid: UUID) -> list[dict[str, Any]]:
         """Return capture payloads linked to the dataset (raw JSON objects).
 
         Use this when you need composite capture fields (for example ``channels``)
@@ -67,7 +71,7 @@ class DatasetAPI:
         captures = data.get("captures")
         return list(captures) if isinstance(captures, list) else []
 
-    def list_artifact_files(self, dataset_uuid: uuid.UUID) -> list[dict[str, Any]]:
+    def list_artifact_files(self, dataset_uuid: UUID) -> list[dict[str, Any]]:
         """Return file rows linked directly to the dataset (artifacts), as JSON dicts.
 
         These are the same objects embedded on :meth:`get` under the ``files`` key.
@@ -88,7 +92,7 @@ class DatasetAPI:
 
     def get_files(
         self,
-        dataset_uuid: uuid.UUID,
+        dataset_uuid: UUID,
     ) -> Paginator[File]:
         """Get files in the dataset as a paginator.
 
@@ -114,7 +118,7 @@ class DatasetAPI:
 
     def delete(
         self,
-        dataset_uuid: uuid.UUID,
+        dataset_uuid: UUID,
     ) -> bool:
         """Deletes a dataset from SDS by its UUID.
 
@@ -137,7 +141,7 @@ class DatasetAPI:
             log.debug(f"Dataset deleted with UUID {dataset_uuid}")
         return True
 
-    def revoke_share_permissions(self, dataset_uuid: uuid.UUID) -> bool:
+    def revoke_share_permissions(self, dataset_uuid: UUID) -> bool:
         """Revoke all direct share permissions on this dataset (owner-only).
 
         Use this (or the web portal) before :meth:`delete` when the dataset is shared.

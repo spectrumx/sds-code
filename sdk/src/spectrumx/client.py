@@ -416,6 +416,7 @@ class Client:
         sds_path: PurePosixPath | Path | str,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
+        *,
         verbose: bool = False,
     ) -> Paginator[File]:
         """Lists files in a given SDS path.
@@ -533,7 +534,7 @@ class Client:
         return self.datasets.get(dataset_uuid)
 
     def list_dataset_captures(self, dataset_uuid: UUID4 | str) -> list[dict[str, Any]]:
-        """List captures linked to a dataset (raw dicts; supports composite payloads)."""
+        """List captures for a dataset (raw dicts; composite payloads supported)."""
         if isinstance(dataset_uuid, str):
             dataset_uuid = UUID(dataset_uuid)
         return self.datasets.list_captures(dataset_uuid)
@@ -541,7 +542,7 @@ class Client:
     def list_dataset_artifact_files(
         self, dataset_uuid: UUID4 | str
     ) -> list[dict[str, Any]]:
-        """List files linked directly to the dataset (not the full download manifest)."""
+        """List dataset artifact files (not the full download manifest)."""
         if isinstance(dataset_uuid, str):
             dataset_uuid = UUID(dataset_uuid)
         return self.datasets.list_artifact_files(dataset_uuid)

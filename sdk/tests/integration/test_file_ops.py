@@ -3,8 +3,8 @@
 import logging
 import time
 import uuid
+from datetime import UTC
 from datetime import datetime
-from datetime import timezone
 from pathlib import Path
 from pathlib import PurePosixPath
 from unittest.mock import patch
@@ -25,6 +25,7 @@ from tests.integration.test_captures import drf_channel
 from tests.test_utils import disable_ssl_warnings
 
 BLAKE3_HEX_LEN: int = 64
+DRF_SAMPLE_RF_CHUNK_COUNT: int = 16
 
 
 def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:
@@ -747,18 +748,16 @@ def test_list_files_temporal_rf_narrows_digital_rf_chunks(
     integration_client: Client,
     drf_sample_top_level_dir: Path,
 ) -> None:
-    """Temporal bounds narrow ``rf@*.h5`` listings; non-RF names in the dir stay listed."""
+    """Temporal bounds narrow ``rf@*.h5``; other filenames in the dir still list."""
     if not drf_sample_top_level_dir.is_dir():
-        pytest.skip(
-            "Digital RF sample tree missing; cannot test temporal RF listing."
-        )
+        pytest.skip("Digital RF sample tree missing; cannot test temporal RF listing.")
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
     rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
-    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
-    end = datetime.fromtimestamp(1719499740, tz=timezone.utc)
+    start = datetime.fromtimestamp(1719499740, tz=UTC)
+    end = datetime.fromtimestamp(1719499740, tz=UTC)
     all_rf = {
         f.name
         for f in integration_client.list_files(sds_path=rf_dir)
@@ -773,7 +772,9 @@ def test_list_files_temporal_rf_narrows_digital_rf_chunks(
         )
         if f.name.startswith("rf@")
     }
-    assert len(all_rf) == 16, f"Expected 16 RF chunks under {rf_dir}, got {all_rf!r}"
+    assert len(all_rf) == DRF_SAMPLE_RF_CHUNK_COUNT, (
+        f"Expected {DRF_SAMPLE_RF_CHUNK_COUNT} RF chunks under {rf_dir}, got {all_rf!r}"
+    )
     assert narrow_rf == {"rf@1719499740.000.h5"}
 
 
@@ -794,18 +795,16 @@ def test_list_files_temporal_rf_inclusive_range_multiple_chunks(
     integration_client: Client,
     drf_sample_top_level_dir: Path,
 ) -> None:
-    """Temporal window spanning several seconds includes each ``rf@*.h5`` in that span."""
+    """A multi-second temporal window lists each ``rf@*.h5`` in that span."""
     if not drf_sample_top_level_dir.is_dir():
-        pytest.skip(
-            "Digital RF sample tree missing; cannot test temporal RF listing."
-        )
+        pytest.skip("Digital RF sample tree missing; cannot test temporal RF listing.")
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
     rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
-    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
-    end = datetime.fromtimestamp(1719499742, tz=timezone.utc)
+    start = datetime.fromtimestamp(1719499740, tz=UTC)
+    end = datetime.fromtimestamp(1719499742, tz=UTC)
     expected = {
         "rf@1719499740.000.h5",
         "rf@1719499741.000.h5",
@@ -844,16 +843,14 @@ def test_download_respects_temporal_rf_window(
 ) -> None:
     """Bulk download with start/end only fetches ``rf@*.h5`` in the UTC window."""
     if not drf_sample_top_level_dir.is_dir():
-        pytest.skip(
-            "Digital RF sample tree missing; cannot test temporal RF download."
-        )
+        pytest.skip("Digital RF sample tree missing; cannot test temporal RF download.")
     cap_data = _upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
     rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
-    start = datetime.fromtimestamp(1719499740, tz=timezone.utc)
-    end = datetime.fromtimestamp(1719499741, tz=timezone.utc)
+    start = datetime.fromtimestamp(1719499740, tz=UTC)
+    end = datetime.fromtimestamp(1719499741, tz=UTC)
     expected_names = {"rf@1719499740.000.h5", "rf@1719499741.000.h5"}
 
     download_dir = tmp_path / "drf_partial"
@@ -903,8 +900,8 @@ def test_list_files_temporal_non_rf_directory_warns(
     )
     failures = [result for result in results if not result]
     assert not failures, f"Upload failed: {failures}"
-    start = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    end = datetime(2020, 1, 2, tzinfo=timezone.utc)
+    start = datetime(2020, 1, 1, tzinfo=UTC)
+    end = datetime(2020, 1, 2, tzinfo=UTC)
     listed = list(
         integration_client.list_files(
             sds_path=sds_path,
