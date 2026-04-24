@@ -6,6 +6,7 @@ from typing import Any
 from django.db.models import QuerySet
 from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
+from rest_framework.request import Request
 from rich.pretty import pretty_repr
 
 from sds_gateway.api_methods.models import Capture
@@ -364,17 +365,22 @@ def group_captures_by_top_level_dir(
 # TODO: add pagination before retrieval rather than after
 # Need to paginate/limit OpenSearch results list before grouping
 # and then paginate/limit the grouped captures
-def get_composite_captures(captures: QuerySet[Capture]) -> list[dict[str, Any]]:
+def get_composite_captures(
+    captures: QuerySet[Capture], request: Request | None = None
+) -> list[dict[str, Any]]:
     """Get captures as composite objects, grouping multi-channel captures.
 
     Args:
         captures: QuerySet of Capture objects
+        request: Optional Django REST framework request for serializer context
     Returns:
         list: List of composite capture data
     """
 
     grouped_captures = group_captures_by_top_level_dir(captures)
     composite_captures = []
+
+    context = {"request": request} if request else {}
 
     for capture_list in grouped_captures.values():
         if len(capture_list) > 1:
@@ -384,7 +390,7 @@ def get_composite_captures(captures: QuerySet[Capture]) -> list[dict[str, Any]]:
         else:
             # Single capture - serialize normally
             capture = capture_list[0]
-            capture_data = serialize_capture_or_composite(capture)
+            capture_data = serialize_capture_or_composite(capture, context=context)
             composite_captures.append(capture_data)
 
     return composite_captures

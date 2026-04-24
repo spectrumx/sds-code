@@ -673,7 +673,7 @@ class CaptureViewSet(viewsets.ViewSet):
         """Paginate and serialize composite capture results."""
 
         # Get composite captures
-        composite_captures = get_composite_captures(captures)
+        composite_captures = get_composite_captures(captures, request=request)
 
         # Manual pagination for composite captures
         paginator = CapturePagination()
