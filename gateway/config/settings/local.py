@@ -116,6 +116,8 @@ if SENTRY_DSN:
 
 # CELERY
 # ------------------------------------------------------------------------------
+# Worker concurrency; override with env var CELERY_WORKER_CONCURRENCY
+CELERY_WORKER_CONCURRENCY: int = env.int("CELERY_WORKER_CONCURRENCY", default=1)
 
 # https://docs.celeryq.dev/en/stable/userguide/configuration.html#task-eager-propagates
 # CELERY_TASK_EAGER_PROPAGATES: bool = True  # noqa: ERA001
