@@ -17,6 +17,7 @@ from pydantic import Field
 
 from spectrumx.models.captures import CaptureType
 
+from .config import DEFAULT_HTTP_TIMEOUT
 from .errors import AuthError
 from .errors import CaptureError
 from .errors import DatasetError
@@ -88,7 +89,7 @@ class GatewayClient:
         api_key: str,
         port: int | None = None,
         protocol: str | None = None,
-        timeout: int = 30,
+        timeout: int = DEFAULT_HTTP_TIMEOUT,
         verbose: bool = False,
     ) -> None:
         self.host = host

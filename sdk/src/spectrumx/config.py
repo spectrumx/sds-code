@@ -20,6 +20,8 @@ from .utils import log_user_warning
 
 SDSModelT = type[SDSModel]
 AttrValueT = str | int | float | bool
+
+DEFAULT_HTTP_TIMEOUT: int = 300
 logger = logging.getLogger(__name__)
 
 
@@ -38,7 +40,7 @@ class Attr:
 #   breaking user configuration files. Use lower case.
 _cfg_name_lookup = {
     "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
-    "http_timeout": Attr(attr_name="http_timeout", cast_fn=int),
+    "http_timeout": Attr(attr_name="timeout", cast_fn=int),
     "sds_host": Attr(attr_name="sds_host"),
     "sds_secret_token": Attr(attr_name="api_key"),
 }
@@ -72,7 +74,7 @@ class SDSConfig:
     sds_host: None | str = None
     api_key: str = ""
     dry_run: bool = True  # safer default
-    timeout: int = 30
+    timeout: int = DEFAULT_HTTP_TIMEOUT
 
     _active_config: list[Attr]
     _env_file: Path | None = None
@@ -272,4 +274,7 @@ def _log_redacted(
     log_fn(msg)
 
 
-__all__ = ["SDSConfig"]
+__all__ = [
+    "DEFAULT_HTTP_TIMEOUT",
+    "SDSConfig",
+]
