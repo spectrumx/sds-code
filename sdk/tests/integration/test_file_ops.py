@@ -78,9 +78,10 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
     # test files that are invalid for upload end with the extension
     extension = ".tmp"
     invalid_file_paths = all_file_paths - valid_file_paths
-    assert all(path.suffix == extension for path in invalid_file_paths), (
-        "Expected invalid files for upload to end with "
-        f"{extension}: {invalid_file_paths}"
+    bad_paths = [p for p in invalid_file_paths if p.suffix != extension]
+    assert not bad_paths, (
+        f"Expected invalid files for upload to end with {extension}. "
+        f"Bad paths: {bad_paths}"
     )
 
 
@@ -366,12 +367,18 @@ def test_check_file_content_identical(
         local_file=temp_file_with_text_contents, sds_path=sds_path
     )
     assert uploaded_file.uuid is not None, "UUID not set."
-    # sleep
-    time.sleep(2)
 
-    file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
-        file_instance
-    )
+    deadline = time.monotonic() + 30
+    file_contents_check = None
+    while time.monotonic() < deadline:
+        file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+            file_instance
+        )
+        if file_contents_check.file_contents_exist_for_user is True:
+            break
+        time.sleep(0.5)
+    else:
+        pytest.fail("Timed out waiting for file to be ready after upload")
     assert file_contents_check.file_contents_exist_for_user is True, (
         "Test file should exist for user."
     )
@@ -440,12 +447,6 @@ def test_check_file_content_name_changed(
         "Expected asset ID to be the closest match (sibling UUID) to the uploaded file:"
         f"{file_contents_check.asset_id} != {uploaded_file.uuid!s}"
     )
-
-
-# TODO:
-# def test_file_upload_mode_skip(
-# def test_file_upload_mode_contents_and_metadata(
-# def test_file_upload_mode_metadata_only(
 
 
 @pytest.mark.integration
@@ -733,8 +734,10 @@ def test_detach_file_from_datasets(
     sds_path = PurePosixPath("/")
     local_file = construct_file(temp_file_with_text_contents, sds_path=sds_path)
     uploaded = integration_client.upload_file(local_file=local_file, sds_path=sds_path)
-    assert uploaded.uuid is not None
-    assert integration_client.detach_file_from_datasets(file_uuid=uploaded.uuid) is True
+    assert uploaded.uuid is not None, "Uploaded file should have a UUID"
+    assert (
+        integration_client.detach_file_from_datasets(file_uuid=uploaded.uuid) is True
+    ), "Detach from datasets should succeed"
     integration_client.delete_file(file_uuid=uploaded.uuid)
 
 
