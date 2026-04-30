@@ -44,6 +44,7 @@ def valid_sds_paths() -> list[str | PurePosixPath]:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_content_download(),
         ]
@@ -83,6 +84,7 @@ def test_paths_sds_download_dir(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_content_download(),
             *PassthruEndpoints.file_meta_download_or_upload(),
@@ -138,6 +140,7 @@ def test_paths_sds_upload_and_download_file(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
