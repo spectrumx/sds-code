@@ -92,6 +92,7 @@ def test_get_valid_files(temp_file_tree: Path) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -128,6 +129,7 @@ def test_upload_single_file(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -223,6 +225,7 @@ def test_upload_sibling(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -262,6 +265,7 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -306,7 +310,10 @@ def test_upload_large_file(
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[
-        PassthruEndpoints.file_content_checks(),
+        [
+            *PassthruEndpoints.authentication(),
+            *PassthruEndpoints.file_content_checks(),
+        ]
     ],
     indirect=True,
 )
@@ -347,6 +354,7 @@ def test_check_file_content_non_existing(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -401,6 +409,7 @@ def test_check_file_content_identical(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -456,6 +465,7 @@ def test_check_file_content_name_changed(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_content_download(),
@@ -498,6 +508,7 @@ def test_download_single_file(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_content_download(),
@@ -586,6 +597,7 @@ def test_download_files_in_bulk_with_path(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_content_download(),
@@ -676,6 +688,7 @@ def test_download_files_in_bulk_with_paginator(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_content_download(),
@@ -718,6 +731,7 @@ def test_file_listing(integration_client: Client, temp_file_tree: Path) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_detach_from_datasets(),
@@ -748,6 +762,7 @@ def test_detach_file_from_datasets(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_meta_download_or_upload(),
@@ -812,6 +827,7 @@ def test_delete_file_integration(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_meta_download_or_upload(),
             *PassthruEndpoints.file_deletion(),

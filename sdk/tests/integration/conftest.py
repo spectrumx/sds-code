@@ -12,6 +12,7 @@ import pytest
 from loguru import logger as log
 from responses import RequestsMock
 from spectrumx.client import Client
+from spectrumx.errors import AuthError
 from spectrumx.gateway import API_PATH
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.gateway import Endpoints
@@ -286,6 +287,17 @@ def integration_client() -> Client:
         _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
+
+    # Authenticate immediately to fail fast on bad credentials or unreachable host
+    try:
+        _integration_client.authenticate()
+    except AuthError as err:
+        pytest.exit(
+            "Integration tests authentication FAILED: "
+            "verify the API key in `tests/integration/integration.env` "
+            f"matches the server and the host is reachable.\nError: {err}",
+        )
+
     return _integration_client
 
 
@@ -311,6 +323,17 @@ def inline_auth_integration_client() -> Client:
         _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
+
+    # Authenticate immediately to fail fast on bad credentials or unreachable host
+    try:
+        _integration_client.authenticate()
+    except AuthError as err:
+        pytest.exit(
+            "Integration tests authentication FAILED: "
+            "verify the API key in `tests/integration/integration.env` "
+            f"matches the server and the host is reachable.\nError: {err}",
+        )
+
     return _integration_client
 
 

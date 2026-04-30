@@ -47,6 +47,7 @@ def _capture_test(drf_sample_top_level_dir: Path) -> Generator[None]:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -167,6 +168,7 @@ def _upload_drf_capture_test_assets(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -241,6 +243,7 @@ def test_capture_creation_rh(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.capture_listing(),
         ]
     ],
@@ -269,6 +272,7 @@ def test_capture_listing_drf(integration_client: Client) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.capture_listing(),
         ]
     ],
@@ -295,6 +299,7 @@ def test_capture_listing_rh(integration_client: Client) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.capture_listing(),
             *PassthruEndpoints.capture_creation(),
             *PassthruEndpoints.file_content_checks(),
@@ -334,6 +339,7 @@ def test_capture_listing_all(integration_client: Client) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -445,6 +451,7 @@ def load_rh_data(rh_top_level_dir: Path) -> dict[str, Any]:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -496,6 +503,7 @@ def test_capture_upload_drf(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -558,6 +566,7 @@ def test_capture_upload_rh(integration_client: Client) -> None:
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -603,6 +612,7 @@ def test_capture_upload_missing_required_fields_drf(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -673,6 +683,7 @@ def test_capture_reading_drf(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -714,6 +725,7 @@ def test_capture_deletion(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -752,6 +764,7 @@ def test_capture_revoke_share_and_detach_from_datasets(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
@@ -819,6 +832,7 @@ def test_capture_advanced_search_frequency_range(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.capture_creation(),
