@@ -547,14 +547,22 @@ class UploadWorkload(BaseModel):
         return max(self.total_bytes - uploaded_bytes, 0)
 
     async def _upload_next_file(self) -> Result[File]:
-        """Upload the next file in the queue."""
+        """Upload the next file in the queue.
+
+        Uses ``asyncio.to_thread`` to offload the synchronous ``upload_file``
+        call (which does blocking ``requests`` I/O) to a thread-pool executor.
+        Without this, all ``max_concurrent_uploads`` asyncio workers would be
+        serialised because every ``requests`` call would block the single event-
+        loop thread.
+        """
         next_file: File | None = await self._acquire_next_file()
         if not next_file:
             return Result(exception=StopAsyncIteration("No more files to upload"))
 
         try:
             result = Result(
-                value=self.client._sds_files.upload_file(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+                value=await asyncio.to_thread(
+                    self.client._sds_files.upload_file,  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
                     client=self.client,
                     local_file=next_file,
                     sds_path=self.sds_path,
