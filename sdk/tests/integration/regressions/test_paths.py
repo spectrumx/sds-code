@@ -136,6 +136,7 @@ def test_paths_sds_upload_and_download_file(
 @pytest.mark.integration
 @pytest.mark.usefixtures("_integration_setup_teardown")
 @pytest.mark.usefixtures("_without_responses")
+@pytest.mark.xdist_group("rh_capture")
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[
