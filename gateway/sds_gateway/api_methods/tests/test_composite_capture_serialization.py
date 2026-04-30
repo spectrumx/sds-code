@@ -66,15 +66,20 @@ class CompositeCaptureSerializationTests(TestCase):
                 "capture_pk": str(capture.uuid),
             }
 
-        with patch(
-            "sds_gateway.api_methods.serializers.capture_serializers"
-            ".retrieve_indexed_metadata",
-            side_effect=fake_retrieve,
+        with (
+            patch(
+                "sds_gateway.api_methods.serializers.capture_serializers"
+                ".retrieve_indexed_metadata",
+                side_effect=fake_retrieve,
+            ),
+            patch.object(Capture, "get_opensearch_metadata", return_value={}),
         ):
-            composite = build_composite_capture_data([cap0, cap1])
+            composite = build_composite_capture_data(
+                [cap0, cap1],
+                include_serializer_aux=True,
+            )
 
-        with patch.object(Capture, "get_opensearch_metadata", return_value={}):
-            out = CompositeCaptureSerializer(composite, context={}).data
+        out = CompositeCaptureSerializer(composite, context={}).data
 
         ch_rows = {row["channel"]: row for row in out["channels"]}
         assert ch_rows["ch0"]["channel_metadata"] == {
@@ -110,19 +115,24 @@ class CompositeCaptureSerializationTests(TestCase):
         def opensearch_by_instance(self: Capture) -> dict:
             return dict(meta_by_uuid[str(self.uuid)])
 
-        with patch(
-            "sds_gateway.api_methods.serializers.capture_serializers"
-            ".retrieve_indexed_metadata",
-            return_value={},
+        with (
+            patch(
+                "sds_gateway.api_methods.serializers.capture_serializers"
+                ".retrieve_indexed_metadata",
+                return_value={},
+            ),
+            patch.object(
+                Capture,
+                "get_opensearch_metadata",
+                opensearch_by_instance,
+            ),
         ):
-            composite = build_composite_capture_data([cap0, cap1])
+            composite = build_composite_capture_data(
+                [cap0, cap1],
+                include_serializer_aux=True,
+            )
 
-        with patch.object(
-            Capture,
-            "get_opensearch_metadata",
-            opensearch_by_instance,
-        ):
-            out = CompositeCaptureSerializer(composite, context={}).data
+        out = CompositeCaptureSerializer(composite, context={}).data
 
         ch_rows = {row["channel"]: row for row in out["channels"]}
         assert ch_rows["ch0"]["capture_start_epoch_sec"] == 1_700_000_000
@@ -158,19 +168,24 @@ class CompositeCaptureSerializationTests(TestCase):
                 "file_cadence": 200,
             }
 
-        with patch(
-            "sds_gateway.api_methods.serializers.capture_serializers"
-            ".retrieve_indexed_metadata",
-            return_value={},
+        with (
+            patch(
+                "sds_gateway.api_methods.serializers.capture_serializers"
+                ".retrieve_indexed_metadata",
+                return_value={},
+            ),
+            patch.object(
+                Capture,
+                "get_opensearch_metadata",
+                opensearch_by_instance,
+            ),
         ):
-            composite = build_composite_capture_data([cap0, cap1])
+            composite = build_composite_capture_data(
+                [cap0, cap1],
+                include_serializer_aux=True,
+            )
 
-        with patch.object(
-            Capture,
-            "get_opensearch_metadata",
-            opensearch_by_instance,
-        ):
-            out = CompositeCaptureSerializer(composite, context={}).data
+        out = CompositeCaptureSerializer(composite, context={}).data
 
         ch_rows = {row["channel"]: row for row in out["channels"]}
         assert ch_rows["ch0"]["length_of_capture_ms"] == 30_000

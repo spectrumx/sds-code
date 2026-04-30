@@ -1,5 +1,14 @@
 # SpectrumX SDK Changelog
 
+## `0.1.19` - YYYY-MM-DD
+
++ Features:
+    + [**Added `start_time` and `end_time` parameters to `list_files` and `download`**](https://github.com/spectrumx/sds-code/pull/278): this gives users the ability to filter file directory downloads associated with DigitalRF captures based on a time span within the capture bounds (similar to time filtering in the web UI on SDS)
+    + [**Added `capture_uuids` and `top_level_dirs` parameters to `download_dataset`**](https://github.com/spectrumx/sds-code/pull/278): this allows users to input specific capture UUIDs or directories associated with the dataset to download. Users may run `list_dataset_captures` to see the UUID and `top_level_dir` of the captures on the dataset they wish to download.
+
++ Observability:
+    + [**Added `captures` and `files` attributes to `Dataset` model**](https://github.com/spectrumx/sds-code/pull/278): This allows visibility from the dataset side into attached captures and files.
+
 ## `0.1.18` - 2026-04-30
 
 + Features:

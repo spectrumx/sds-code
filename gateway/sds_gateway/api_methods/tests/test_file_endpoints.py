@@ -479,6 +479,19 @@ class FileTestCases(APITestCase):
         assert f"rf@{base_sec}.000.h5" not in names
         assert f"rf@{base_sec + 5}.000.h5" not in names
 
+    def test_list_files_invalid_temporal_param_returns_400(self) -> None:
+        """Malformed start_time yields 400 instead of 500."""
+        response = self.client.get(
+            self.list_url,
+            {
+                "path": "/",
+                "start_time": "not-a-datetime",
+                "end_time": "2020-01-02T00:00:00",
+            },
+        )
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert "start_time" in response.json()["detail"].lower()
+
     def test_list_files_includes_warnings_key(self) -> None:
         """Paginated list responses always include ``warnings`` (possibly empty)."""
         response = self.client.get(self.list_url)
