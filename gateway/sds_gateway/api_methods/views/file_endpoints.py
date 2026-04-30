@@ -1,5 +1,6 @@
 """File operations endpoints for the SDS Gateway API."""
 
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -213,10 +214,61 @@ class FileViewSet(ViewSet):
         serializer = FileGetSerializer(target_file, many=False)
         return Response(serializer.data)
 
-    def _datetime_string_to_milliseconds(self, datetime_string: str) -> int:
-        """Converts a datetime string to milliseconds since start of capture."""
-        parsed = datetime.fromisoformat(datetime_string)
+    def _iso8601_query_string_to_epoch_ms(
+        self, param_name: str, datetime_string: str
+    ) -> int:
+        """Parse ``start_time`` / ``end_time`` query strings to Unix epoch milliseconds.
+
+        Naive datetimes are treated as UTC (same convention as the Python SDK).
+        ``Z`` is accepted as UTC. Raises ``ValueError`` with a client-safe message if
+        the string is not a parseable ISO 8601 datetime.
+        """
+        s = datetime_string.strip()
+        if len(s) >= 1 and s[-1] in "Zz":
+            s = s[:-1] + "+00:00"
+        try:
+            parsed = datetime.fromisoformat(s)
+        except ValueError as exc:
+            msg = (
+                f"Invalid {param_name}: expected ISO 8601 datetime "
+                "(e.g. 2024-01-15T12:30:45+00:00 or naive as UTC)."
+            )
+            raise ValueError(msg) from exc
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        else:
+            parsed = parsed.astimezone(UTC)
         return int(parsed.timestamp() * 1000)
+
+    def _parsed_temporal_bounds_for_file_list(
+        self, request: Request
+    ) -> Response | tuple[int | None, int | None]:
+        """Parse ``start_time`` / ``end_time`` for :meth:`list`, or a 400 response."""
+        start_raw = request.GET.get("start_time") or None
+        end_raw = request.GET.get("end_time") or None
+        start_ms: int | None = None
+        end_ms: int | None = None
+        if start_raw:
+            try:
+                start_ms = self._iso8601_query_string_to_epoch_ms(
+                    "start_time", cast("str", start_raw)
+                )
+            except ValueError as err:
+                return Response(
+                    {"detail": str(err)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        if end_raw:
+            try:
+                end_ms = self._iso8601_query_string_to_epoch_ms(
+                    "end_time", cast("str", end_raw)
+                )
+            except ValueError as err:
+                return Response(
+                    {"detail": str(err)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        return start_ms, end_ms
 
     def _check_files_includes_rf_data(self, files: QuerySet[File]) -> bool:
         """Checks if the files include RF data."""
@@ -253,8 +305,10 @@ class FileViewSet(ViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description=(
-                    "ISO 8601 datetime; converted to ms for temporal filtering of "
-                    "RF data files when the listing includes Digital RF ``.h5`` data."
+                    "ISO 8601 datetime; parsed to UTC epoch milliseconds for temporal "
+                    "filtering of RF data files when the listing includes Digital RF "
+                    "``.h5`` data. Timezone-aware inputs are converted to UTC; naive "
+                    "values are interpreted as UTC. Invalid values return 400."
                 ),
             ),
             OpenApiParameter(
@@ -263,7 +317,8 @@ class FileViewSet(ViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
                 description=(
-                    "ISO 8601 datetime; paired with start_time for RF temporal bounds."
+                    "ISO 8601 datetime; paired with start_time for RF temporal bounds "
+                    "(same UTC / naive-as-UTC rules as start_time)."
                 ),
             ),
             OpenApiParameter(
@@ -295,16 +350,10 @@ class FileViewSet(ViewSet):
         # warnings to be returned in the response
         warnings = []
 
-        # Get optional temporal filtering parameters
-        # time passed as datetime string, need to convert
-        # to milliseconds since start of capture
-        start_time = request.GET.get("start_time", None)
-        end_time = request.GET.get("end_time", None)
-        if start_time:
-            start_time = self._datetime_string_to_milliseconds(start_time)
-
-        if end_time:
-            end_time = self._datetime_string_to_milliseconds(end_time)
+        temporal = self._parsed_temporal_bounds_for_file_list(request)
+        if isinstance(temporal, Response):
+            return temporal
+        start_time, end_time = temporal
 
         unsafe_path = request.GET.get("path", "/").strip()
         basename = Path(unsafe_path).name

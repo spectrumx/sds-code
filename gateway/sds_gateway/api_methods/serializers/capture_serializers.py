@@ -44,6 +44,33 @@ def _epoch_sec_to_local_display(epoch_sec: int) -> str:
     return django_timezone.localtime(dt).strftime("%m/%d/%Y %I:%M:%S %p")
 
 
+def _channel_row_bounds_from_os_meta(meta: dict[str, Any]) -> dict[str, Any]:
+    """Map OpenSearch metadata to composite channel serializer fields."""
+    entry: dict[str, Any] = {}
+    start_sec = meta.get("start_time")
+    end_sec = meta.get("end_time")
+    entry["capture_start_epoch_sec"] = start_sec
+    entry["capture_end_epoch_sec"] = end_sec
+    entry["capture_start_iso_utc"] = (
+        _epoch_sec_to_iso_utc_z(start_sec) if start_sec is not None else None
+    )
+    entry["capture_end_iso_utc"] = (
+        _epoch_sec_to_iso_utc_z(end_sec) if end_sec is not None else None
+    )
+    entry["capture_start_display"] = (
+        _epoch_sec_to_local_display(start_sec) if start_sec is not None else None
+    )
+    entry["capture_end_display"] = (
+        _epoch_sec_to_local_display(end_sec) if end_sec is not None else None
+    )
+    if start_sec is None or end_sec is None:
+        entry["length_of_capture_ms"] = None
+    else:
+        entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
+    entry["file_cadence_ms"] = meta.get("file_cadence")
+    return entry
+
+
 class FileCaptureListSerializer(serializers.ModelSerializer[File]):
     class Meta:
         model = File
@@ -484,6 +511,38 @@ class CompositeCaptureSerializer(serializers.Serializer):
     capture_start_display = serializers.SerializerMethodField()
     capture_end_display = serializers.SerializerMethodField()
 
+    def _captures_bulk_by_uuid(self, obj: dict[str, Any]) -> dict[str, Capture]:
+        """One DB query per composite when ``include_serializer_aux`` was False."""
+        key = str(obj.get("uuid", ""))
+        if not hasattr(self, "_captures_bulk_cache"):
+            self._captures_bulk_cache: dict[str, dict[str, Capture]] = {}
+        if key not in self._captures_bulk_cache:
+            uuids = [ch["uuid"] for ch in obj.get("channels") or []]
+            self._captures_bulk_cache[key] = (
+                {str(c.uuid): c for c in Capture.objects.filter(uuid__in=uuids)}
+                if uuids
+                else {}
+            )
+        return self._captures_bulk_cache[key]
+
+    def _capture_for_channel(
+        self, obj: dict[str, Any], channel_entry: dict[str, Any]
+    ) -> Capture | None:
+        """Resolve Capture; prefer auxiliary map from build, otherwise bulk queryset."""
+        by_uuid = obj.get("_captures_by_uuid")
+        uuid_key = str(channel_entry["uuid"])
+        if isinstance(by_uuid, dict):
+            hit = cast("Capture | None", by_uuid.get(uuid_key))
+            if hit is not None:
+                return hit
+        hit = self._captures_bulk_by_uuid(obj).get(uuid_key)
+        if hit is not None:
+            return hit
+        try:
+            return Capture.objects.get(uuid=channel_entry["uuid"])
+        except Capture.DoesNotExist:
+            return None
+
     def _enriched_channels(self, obj: dict[str, Any]) -> list[dict[str, Any]]:
         """Per-channel rows with OpenSearch bounds (each channel may differ)."""
         key = str(obj.get("uuid", ""))
@@ -497,48 +556,32 @@ class CompositeCaptureSerializer(serializers.Serializer):
                     "uuid": ch["uuid"],
                     "channel_metadata": ch.get("channel_metadata", {}),
                 }
-                try:
-                    capture = Capture.objects.get(uuid=ch["uuid"])
-                except Capture.DoesNotExist:
-                    entry["capture_start_epoch_sec"] = None
-                    entry["capture_end_epoch_sec"] = None
-                    entry["capture_start_iso_utc"] = None
-                    entry["capture_end_iso_utc"] = None
-                    entry["capture_start_display"] = None
-                    entry["capture_end_display"] = None
-                    entry["length_of_capture_ms"] = None
-                    entry["file_cadence_ms"] = None
+                pre_meta = cast(
+                    "dict[str, Any] | None",
+                    ch.get("_per_channel_os_meta"),
+                )
+                if pre_meta is not None:
+                    entry.update(_channel_row_bounds_from_os_meta(pre_meta))
+                    out.append(entry)
+                    continue
+                capture = self._capture_for_channel(obj, ch)
+                if capture is None:
+                    entry.update(
+                        {
+                            "capture_start_epoch_sec": None,
+                            "capture_end_epoch_sec": None,
+                            "capture_start_iso_utc": None,
+                            "capture_end_iso_utc": None,
+                            "capture_start_display": None,
+                            "capture_end_display": None,
+                            "length_of_capture_ms": None,
+                            "file_cadence_ms": None,
+                        }
+                    )
                 else:
-                    # Per-channel bounds/cadence (Capture.get_opensearch_metadata).
-                    start_sec = capture.start_time
-                    end_sec = capture.end_time
-                    entry["capture_start_epoch_sec"] = start_sec
-                    entry["capture_end_epoch_sec"] = end_sec
-                    entry["capture_start_iso_utc"] = (
-                        _epoch_sec_to_iso_utc_z(start_sec)
-                        if start_sec is not None
-                        else None
-                    )
-                    entry["capture_end_iso_utc"] = (
-                        _epoch_sec_to_iso_utc_z(end_sec)
-                        if end_sec is not None
-                        else None
-                    )
-                    entry["capture_start_display"] = (
-                        _epoch_sec_to_local_display(start_sec)
-                        if start_sec is not None
-                        else None
-                    )
-                    entry["capture_end_display"] = (
-                        _epoch_sec_to_local_display(end_sec)
-                        if end_sec is not None
-                        else None
-                    )
-                    if start_sec is None or end_sec is None:
-                        entry["length_of_capture_ms"] = None
-                    else:
-                        entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
-                    entry["file_cadence_ms"] = capture.file_cadence
+                    # One OS round-trip per Capture instance via instance cache.
+                    meta = capture.get_opensearch_metadata()
+                    entry.update(_channel_row_bounds_from_os_meta(meta))
                 out.append(entry)
             self._enriched_channels_cache[key] = out
         return self._enriched_channels_cache[key]
@@ -591,8 +634,9 @@ class CompositeCaptureSerializer(serializers.Serializer):
         """Get all files from all channels in the composite capture."""
         all_files = []
         for channel_data in obj.get("channels") or []:
-            capture_uuid = channel_data["uuid"]
-            capture = Capture.objects.get(uuid=capture_uuid)
+            capture = self._capture_for_channel(obj, channel_data)
+            if capture is None:
+                continue
             non_deleted_files = get_capture_files(capture, include_deleted=False)
             serializer = FileCaptureListSerializer(
                 non_deleted_files,
@@ -609,8 +653,9 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
         total_size = 0
         for channel_data in obj.get("channels") or []:
-            capture_uuid = channel_data["uuid"]
-            capture = Capture.objects.get(uuid=capture_uuid)
+            capture = self._capture_for_channel(obj, channel_data)
+            if capture is None:
+                continue
             all_files = get_capture_files(capture, include_deleted=False)
             result = all_files.aggregate(total_size=Sum("size"))
             total_size += result["total_size"] or 0
@@ -637,8 +682,9 @@ class CompositeCaptureSerializer(serializers.Serializer):
         total_count = 0
         total_size = 0
         for channel_data in obj.get("channels") or []:
-            capture_uuid = channel_data["uuid"]
-            capture = Capture.objects.get(uuid=capture_uuid)
+            capture = self._capture_for_channel(obj, channel_data)
+            if capture is None:
+                continue
             stats = capture.get_drf_data_files_stats()
             total_count += stats["total_count"]
             total_size += stats["total_size"]
@@ -722,11 +768,20 @@ class CompositeCaptureSerializer(serializers.Serializer):
         return _epoch_sec_to_local_display(end_sec)
 
 
-def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
+def build_composite_capture_data(
+    captures: list[Capture],
+    *,
+    include_serializer_aux: bool = False,
+) -> dict[str, Any]:
     """Build composite capture data from a list of captures with the same top_level_dir.
 
     Args:
         captures: List of Capture objects to combine into composite
+        include_serializer_aux: When True, attach non-public fields used only by
+            :class:`CompositeCaptureSerializer`: per-channel cached OpenSearch
+            metadata (one search per capture) and a Capture map to avoid duplicate
+            ORM lookups. Keep False for raw API payloads (capture list/search,
+            nested dataset captures).
 
     Returns:
         dict: Composite capture data structure
@@ -742,20 +797,25 @@ def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
     base_capture = captures[0]
 
     # Build channel data with metadata
-    channels = []
+    captures_by_uuid: dict[str, Capture] | None = {} if include_serializer_aux else None
+    channels: list[dict[str, Any]] = []
     for capture in captures:
-        channel_data = {
+        if captures_by_uuid is not None:
+            captures_by_uuid[str(capture.uuid)] = capture
+        channel_data: dict[str, Any] = {
             "channel": capture.channel,
             "uuid": capture.uuid,
             "channel_metadata": retrieve_indexed_metadata(capture),
         }
+        if include_serializer_aux:
+            channel_data["_per_channel_os_meta"] = capture.get_opensearch_metadata()
         channels.append(channel_data)
 
     # Serialize the owner field
     owner_serializer = UserGetSerializer(base_capture.owner)
 
     # Build composite data
-    return {
+    composite: dict[str, Any] = {
         "uuid": base_capture.uuid,  # Use first capture's UUID as composite UUID
         "capture_type": base_capture.capture_type,
         "capture_type_display": base_capture.get_capture_type_display(),
@@ -771,6 +831,9 @@ def build_composite_capture_data(captures: list[Capture]) -> dict[str, Any]:
         "owner": owner_serializer.data,
         "channels": channels,
     }
+    if captures_by_uuid is not None:
+        composite["_captures_by_uuid"] = captures_by_uuid
+    return composite
 
 
 def serialize_capture_or_composite(
@@ -789,7 +852,10 @@ def serialize_capture_or_composite(
 
     if capture_data["is_composite"]:
         # Serialize as composite
-        composite_data = build_composite_capture_data(capture_data["captures"])
+        composite_data = build_composite_capture_data(
+            capture_data["captures"],
+            include_serializer_aux=True,
+        )
         serializer = CompositeCaptureSerializer(composite_data, context=context)
         return serializer.data
     # Serialize as single capture
