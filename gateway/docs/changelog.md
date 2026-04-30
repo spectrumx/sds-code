@@ -23,11 +23,11 @@
 >
 >       Explaining the flags:
 >
->       - `--autostash` will automatically stash uncommitted changes you might have
+>     - `--autostash` will automatically stash uncommitted changes you might have
 >           locally before the pull and re-apply them after the pull is complete. This
 >           allows you to keep your local changes without having to manage the stash
 >           yourself.
->       - `--ff-only` will refuse to merge if the merge can't be resolved as a
+>     - `--ff-only` will refuse to merge if the merge can't be resolved as a
 >           fast-forward. Unless you have local commits that are unique to your
 >           deployment, this is usually the case for production upgrades. If you do have
 >           local commits, you can use `git pull --autostash --rebase` to apply them on

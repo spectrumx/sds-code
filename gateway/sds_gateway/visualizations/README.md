@@ -11,15 +11,15 @@ This Django app handles post-processing of RF capture data to create interactive
 ### Supported Visualizations
 
 1. **Waterfall Visualization**
-   - Interactive scrolling waterfall display with periodogram
-   - Real-time signal analysis
-   - Supports DigitalRF capture format
-   - Available via web interface and API
+    - Interactive scrolling waterfall display with periodogram
+    - Real-time signal analysis
+    - Supports DigitalRF capture format
+    - Available via web interface and API
 
 2. **Spectrogram Visualization**
-   - 2D frequency vs. time visualization
-   - Configurable FFT parameters, window functions, and colormaps
-   - Supports DigitalRF capture format
+    - 2D frequency vs. time visualization
+    - Configurable FFT parameters, window functions, and colormaps
+    - Supports DigitalRF capture format
 
 ### Processing Types
 
@@ -65,8 +65,8 @@ python manage.py setup_pipelines
 2. **skip-if-exists**: Silently skips if pipeline already exists
 3. **force**: Deletes existing pipeline and recreates (loses history)
 4. **smart-recreate**: Intelligently handles existing pipelines:
-   - If no runs exist: deletes old pipeline and creates new timestamped version
-   - If runs exist: disables old pipeline without deleting it and creates new timestamped version
+    - If no runs exist: deletes old pipeline and creates new timestamped version
+    - If runs exist: disables old pipeline without deleting it and creates new timestamped version
 
 ## Deployment
 

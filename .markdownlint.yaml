@@ -1,6 +1,7 @@
 ---
 # Example markdownlint configuration file:
 # https://github.com/DavidAnson/markdownlint/blob/main/schema/.markdownlint.yaml
+# also works with rumdl, which is faster: https://github.com/rvben/rumdl
 default: true
 no-hard-tabs: true
 

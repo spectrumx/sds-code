@@ -112,7 +112,7 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
     > will only see it at creation time.
     >
     > For CI/ephemeral environments, see
-    > [docs/github-actions-ephemeral-env.md](docs/github-actions-ephemeral-env.md)
+    > [github-actions-ephemeral-env.md](github-actions-ephemeral-env.md)
 
 2. Docker compose deploy:
 
@@ -261,28 +261,28 @@ rsync -aP ./.envs/example/ ./.envs/production
 > Follow these steps to set the secrets:
 
 + Set most secrets, passwords, tokens, etc. to random values. You can use the
-    following one-liner and adjust the length as needed:
+  following one-liner and adjust the length as needed:
 
     ```bash
     echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 40)
     ```
 
 + In `minio.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to
-    `MINIO_ROOT_PASSWORD`**;
+  `MINIO_ROOT_PASSWORD`**;
 + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
 + In `django.env`, to generate the `API_KEY` get it running first, then navigate to
-    [localhost:18000/users/generate-api-key-form](http://localhost:18000/users/generate-api-key-form/)
-    (or this path under your own domain).
+  [localhost:18000/users/generate-api-key-form](http://localhost:18000/users/generate-api-key-form/)
+  (or this path under your own domain).
     + **Copy the generated key to that env file**. The key is not stored in the
-        database, so you will only see it at creation time.
+      database, so you will only see it at creation time.
 + In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID`
-    and `CLIENT_SECRET`** accordingly.
+  and `CLIENT_SECRET`** accordingly.
 + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user,
-    password, and database name** in that file.
+  password, and database name** in that file.
 + If using the Spectrum Visualization Interface (SVI) component:
     + In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the
-        values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be
-        40 characters.
+      values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be
+      40 characters.
 
 Add the machine's hostname to `./scripts/prod-hostnames.env`:
 

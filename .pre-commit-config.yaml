@@ -1,10 +1,8 @@
 exclude: "^docs/|/migrations/|devcontainer.json"
-default_stages: [pre-commit]
+default_stages: [ pre-commit ]
 
 default_language_version:
     python: python3.13
-    # markdownlint-cli 0.48+ depends on string-width using RegExp `v` (Unicode sets); needs Node 20+.
-    node: "22.14.0"
 
 repos:
     - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -18,7 +16,7 @@ repos:
           - id: check-yaml
           - id: debug-statements
           - id: check-added-large-files
-            args: ["--maxkb=1024"]
+            args: [ "--maxkb=1024" ]
           - id: check-builtin-literals
           - id: check-case-conflict
           - id: check-docstring-first
@@ -46,14 +44,14 @@ repos:
       rev: v2.4.13
       hooks:
           - id: biome-check
-            additional_dependencies: ["@biomejs/biome@^1.0.0"]
+            additional_dependencies: [ "@biomejs/biome@^1.0.0" ]
 
     # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade
       rev: "1.30.0"
       hooks:
           - id: django-upgrade
-            args: ["--target-version", "4.2"]
+            args: [ "--target-version", "4.2" ]
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -69,18 +67,17 @@ repos:
                 #   could be applied to the gateway side.
                 [
                     # --verbose, # for debugging
-                    # --show-files, # for debugging
-                    # --show-fixes, # for debugging
+                # --show-files, # for debugging
+                # --show-fixes, # for debugging
                     --no-cache,
                     --fix,
                     --exit-non-zero-on-fix,
                     --config,
                     "sdk/pyproject.toml",
-                    # --show-settings, # for debugging
-                ]
+                ] # --show-settings, # for debugging
           # formatter
           - id: ruff-format # runs ruff format --force-exclude
-            args: [--config, "sdk/pyproject.toml"]
+            args: [ --config, "sdk/pyproject.toml" ]
 
     # linter for django templates
     - repo: https://github.com/Riverside-Healthcare/djLint
@@ -90,12 +87,12 @@ repos:
           - id: djlint-django
 
     # linter for markdown files - see .markdownlint.yaml to configure rules
-    - repo: https://github.com/igorshubovych/markdownlint-cli
-      rev: "v0.48.0"
+    - repo: https://github.com/rvben/rumdl-pre-commit
+      rev: v0.1.62
       hooks:
-          - id: markdownlint
-            args: ["-f"]
-            stages: [pre-commit]
+          - id: rumdl # Lint only (fails on issues)
+          - id: rumdl-fmt # Auto-format and fail if issues remain
+            stages: [ pre-commit ]
 
     - repo: local
       # add deptry rule exceptions to pyproject.toml [tool.deptry.ignore_rules]
@@ -106,7 +103,7 @@ repos:
             entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry ."
             language: system
             pass_filenames: false # run once per commit, not per file
-            types: [python]
+            types: [ python ]
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:

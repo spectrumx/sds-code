@@ -42,10 +42,7 @@
 		"editor.defaultFormatter": "biomejs.biome"
 	},
 	"markdownlint.configFile": "../.markdownlint.yaml",
-	"python.testing.pytestArgs": [
-		"-m",
-		"not integration"
-	],
+	"python.testing.pytestArgs": ["-m", "not integration"],
 	"python.testing.pytestEnabled": true,
 	"python.testing.unittestEnabled": false
 }
