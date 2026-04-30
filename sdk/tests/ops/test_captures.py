@@ -36,13 +36,19 @@ if TYPE_CHECKING:
     from spectrumx import Client
     from spectrumx.gateway import GatewayClient
 
-log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
-
-# globally toggles dry run mode in case we want to run these under an integration mode.
-DRY_RUN: bool = False
-
 MULTICHANNEL_EXPECTED_COUNT: int = 2  # expected num of captures in multi-channel tests
-TEST_STATE_PERSISTENCE: bool = False  # don't persist upload state in tests
+
+
+@pytest.fixture
+def dry_run() -> bool:
+    """Default dry_run mode for capture tests (can be overridden per-test)."""
+    return False
+
+
+@pytest.fixture
+def test_state_persistence() -> bool:
+    """Whether to persist upload state in tests."""
+    return False
 
 
 def _gateway_capture_sharing_fields() -> dict[str, Any]:
@@ -139,10 +145,12 @@ def add_file_upload_mock(
     )
 
 
-def test_create_capture(client: Client, responses: responses.RequestsMock) -> None:
+def test_create_capture(
+    client: Client, responses: responses.RequestsMock, dry_run: bool
+) -> None:
     """Test creating a capture."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     top_level_dir = PurePosixPath("/test/capture/directory")
     capture_type = CaptureType.DigitalRF
     channel = "channel1"
@@ -212,10 +220,11 @@ def test_listing_captures(
     client: Client,
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
+    dry_run: bool,
 ) -> None:
     """Test listing captures."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     mocked_listing_response = {"results": [sample_capture_data], "next": None}
 
     responses.add(
@@ -241,10 +250,11 @@ def test_listing_captures_with_type_filter(
     client: Client,
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
+    dry_run: bool,
 ) -> None:
     """Test listing captures with type filter."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_type = CaptureType.DigitalRF
     mocked_listing_response = {"results": [sample_capture_data], "next": None}
 
@@ -324,10 +334,11 @@ def test_read_capture(
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
     sample_capture_uuid: UUID4,
+    dry_run: bool,
 ) -> None:
     """Test reading a capture."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     responses.add(
         method=responses.GET,
@@ -355,10 +366,11 @@ def test_update_capture(
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
     sample_capture_uuid: UUID4,
+    dry_run: bool,
 ) -> None:
     """Test updating a capture."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     responses.add(
         method=responses.PUT,
@@ -387,7 +399,9 @@ def test_update_capture_dry_run(client: Client, sample_capture_uuid: UUID4) -> N
     client.captures.update(capture_uuid=sample_capture_uuid)
 
 
-def test_upload_capture_dry_run(client: Client, tmp_path: Path) -> None:
+def test_upload_capture_dry_run(
+    client: Client, tmp_path: Path, test_state_persistence: bool
+) -> None:
     """Test uploading capture in dry run mode."""
     # ARRANGE
     client.dry_run = True
@@ -403,7 +417,7 @@ def test_upload_capture_dry_run(client: Client, tmp_path: Path) -> None:
     capture = client.upload_capture(
         capture_type=capture_type,
         local_path=test_dir,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         sds_path="/test/capture/dry-run",
     )
 
@@ -415,11 +429,15 @@ def test_upload_capture_dry_run(client: Client, tmp_path: Path) -> None:
 
 
 def test_upload_capture_upload_fails(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
+    client: Client,
+    responses: responses.RequestsMock,
+    tmp_path: Path,
+    dry_run: bool,
+    test_state_persistence: bool,
 ) -> None:
     """Test handling when file upload fails."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     test_dir = tmp_path / "test_capture_fail"
     test_dir.mkdir()
@@ -439,7 +457,7 @@ def test_upload_capture_upload_fails(
         client.upload_capture(
             capture_type=CaptureType.DigitalRF,
             local_path=test_dir,
-            persist_state=TEST_STATE_PERSISTENCE,
+            persist_state=test_state_persistence,
             raise_on_error=True,
             sds_path="/test/capture/fail",
         )
@@ -449,7 +467,7 @@ def test_upload_capture_upload_fails(
         local_path=test_dir,
         sds_path="/test/capture/fail",
         capture_type=CaptureType.DigitalRF,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         raise_on_error=False,
         verbose=False,
     )
@@ -457,10 +475,12 @@ def test_upload_capture_upload_fails(
     assert result is None
 
 
-def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
+def test_upload_capture_no_files(
+    client: Client, tmp_path: Path, dry_run: bool, test_state_persistence: bool
+) -> None:
     """Test upload capture with an empty directory."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     # Create empty directory
     empty_dir = tmp_path / "empty_dir"
@@ -471,7 +491,7 @@ def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
         local_path=empty_dir,
         sds_path="/test/capture/empty",
         capture_type=CaptureType.DigitalRF,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         verbose=False,
     )
 
@@ -480,7 +500,7 @@ def test_upload_capture_no_files(client: Client, tmp_path: Path) -> None:
 
 
 def test_upload_multichannel_drf_capture_dry_run(
-    client: Client, tmp_path: Path
+    client: Client, tmp_path: Path, test_state_persistence: bool
 ) -> None:
     """Test uploading multi-channel DRF capture in dry run mode."""
     # ARRANGE
@@ -497,7 +517,7 @@ def test_upload_multichannel_drf_capture_dry_run(
         local_path=test_dir,
         sds_path="/test/multichannel/dry-run",
         channels=channels,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
     )
 
     # ASSERT
@@ -511,11 +531,15 @@ def test_upload_multichannel_drf_capture_dry_run(
 
 
 def test_upload_multichannel_drf_capture_success(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
+    client: Client,
+    responses: responses.RequestsMock,
+    tmp_path: Path,
+    dry_run: bool,
+    test_state_persistence: bool,
 ) -> None:
     """Test successful multi-channel DRF capture upload."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     test_dir = tmp_path / "test_multichannel_drf"
     test_dir.mkdir()
     test_file = test_dir / "test.txt"
@@ -563,7 +587,7 @@ def test_upload_multichannel_drf_capture_success(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
     )
 
     # ASSERT
@@ -576,11 +600,15 @@ def test_upload_multichannel_drf_capture_success(
 
 
 def test_upload_multichannel_drf_capture_existing_capture(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
+    client: Client,
+    responses: responses.RequestsMock,
+    tmp_path: Path,
+    dry_run: bool,
+    test_state_persistence: bool,
 ) -> None:
     """Test multi-channel DRF capture when one capture already exists."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     test_dir = tmp_path / "test_multichannel_drf"
     test_dir.mkdir()
     test_file = test_dir / "test.txt"
@@ -659,7 +687,7 @@ def test_upload_multichannel_drf_capture_existing_capture(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
     )
 
     # ASSERT
@@ -670,11 +698,15 @@ def test_upload_multichannel_drf_capture_existing_capture(
 
 
 def test_upload_multichannel_drf_capture_creation_fails(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
+    client: Client,
+    responses: responses.RequestsMock,
+    tmp_path: Path,
+    dry_run: bool,
+    test_state_persistence: bool,
 ) -> None:
     """Test multi-channel DRF capture when capture creation fails for other reasons."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     test_dir = tmp_path / "test_multichannel_drf"
     test_dir.mkdir()
     test_file = test_dir / "test.txt"
@@ -735,7 +767,7 @@ def test_upload_multichannel_drf_capture_creation_fails(
         local_path=test_dir,
         sds_path="/test/multichannel",
         channels=channels,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         raise_on_error=False,
     )
 
@@ -783,10 +815,12 @@ def test_capture_string_repr_with_name(sample_capture_data: dict[str, Any]) -> N
     assert str(capture.uuid) in capture_repr
 
 
-def test_delete_capture(client: Client, responses: responses.RequestsMock) -> None:
+def test_delete_capture(
+    client: Client, responses: responses.RequestsMock, dry_run: bool
+) -> None:
     """Test deleting a capture."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_uuid = uuidlib.uuid4()
 
     # Mock response
@@ -809,10 +843,10 @@ def test_delete_capture(client: Client, responses: responses.RequestsMock) -> No
 
 
 def test_delete_capture_raises_when_gateway_rejects_shared(
-    client: Client, responses: responses.RequestsMock
+    client: Client, responses: responses.RequestsMock, dry_run: bool
 ) -> None:
     """DELETE fails with 400 when the capture is still shared (gateway message)."""
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_uuid = uuidlib.uuid4()
     delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
     err_msg = "Cannot delete capture: revoke share permissions first."
@@ -829,10 +863,10 @@ def test_delete_capture_raises_when_gateway_rejects_shared(
 
 
 def test_delete_capture_raises_when_gateway_rejects_dataset_attachment(
-    client: Client, responses: responses.RequestsMock
+    client: Client, responses: responses.RequestsMock, dry_run: bool
 ) -> None:
     """DELETE fails with 400 when the capture is still linked to datasets."""
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_uuid = uuidlib.uuid4()
     delete_url = get_captures_endpoint(client, capture_id=capture_uuid.hex)
     err_msg = "Cannot delete capture: detach from datasets first."
@@ -862,10 +896,10 @@ def test_delete_capture_dry_run(client: Client) -> None:
 
 
 def test_revoke_capture_share_permissions(
-    client: Client, responses: responses.RequestsMock
+    client: Client, responses: responses.RequestsMock, dry_run: bool
 ) -> None:
     """PUT revoke-share-permissions on a capture."""
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_uuid = uuidlib.uuid4()
     revoke_url = get_capture_revoke_share_permissions_url(
         client, capture_id=capture_uuid.hex
@@ -884,10 +918,10 @@ def test_revoke_capture_share_permissions(
 
 
 def test_detach_capture_from_datasets(
-    client: Client, responses: responses.RequestsMock
+    client: Client, responses: responses.RequestsMock, dry_run: bool
 ) -> None:
     """PUT detach-from-datasets on a capture."""
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     capture_uuid = uuidlib.uuid4()
     detach_url = get_capture_detach_from_datasets_url(
         client, capture_id=capture_uuid.hex
@@ -909,10 +943,11 @@ def test_search_captures_freq_range(
     client: Client,
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
+    dry_run: bool,
 ) -> None:
     """Test searching captures with a frequency range query."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     search_response = {
         "results": [sample_capture_data],
@@ -978,10 +1013,11 @@ def test_search_captures_exact_match(
     client: Client,
     responses: responses.RequestsMock,
     sample_capture_data: dict[str, Any],
+    dry_run: bool,
 ) -> None:
     """Test searching captures with an exact match query."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
 
     search_response = {
         "results": [sample_capture_data],
@@ -1017,7 +1053,9 @@ def test_search_captures_exact_match(
     assert capture.capture_type.value == sample_capture_data["capture_type"]
 
 
-def test_upload_capture_with_name_dry_run(client: Client, tmp_path: Path) -> None:
+def test_upload_capture_with_name_dry_run(
+    client: Client, tmp_path: Path, test_state_persistence: bool
+) -> None:
     """Test upload_capture with name parameter in dry run mode."""
     # ARRANGE
     client.dry_run = True
@@ -1033,7 +1071,7 @@ def test_upload_capture_with_name_dry_run(client: Client, tmp_path: Path) -> Non
         channel="test_channel",
         local_path=test_dir,
         name=capture_name,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         sds_path="/test/capture/with/name",
         verbose=False,
     )
@@ -1045,7 +1083,9 @@ def test_upload_capture_with_name_dry_run(client: Client, tmp_path: Path) -> Non
     assert capture.channel == "test_channel"
 
 
-def test_upload_capture_without_name_dry_run(client: Client, tmp_path: Path) -> None:
+def test_upload_capture_without_name_dry_run(
+    client: Client, tmp_path: Path, test_state_persistence: bool
+) -> None:
     """Test upload_capture without name parameter in dry run mode."""
     # ARRANGE
     client.dry_run = True
@@ -1058,7 +1098,7 @@ def test_upload_capture_without_name_dry_run(client: Client, tmp_path: Path) -> 
         capture_type=CaptureType.DigitalRF,
         channel="test_channel",
         local_path=test_dir,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         sds_path="/test/capture/no/name",
         verbose=False,
     )
@@ -1073,11 +1113,11 @@ def test_upload_capture_without_name_dry_run(client: Client, tmp_path: Path) -> 
 
 
 def test_create_capture_with_name(
-    client: Client, responses: responses.RequestsMock
+    client: Client, responses: responses.RequestsMock, dry_run: bool
 ) -> None:
     """Test creating a capture with a custom name."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     top_level_dir = PurePosixPath("/test/capture/directory")
     capture_type = CaptureType.DigitalRF
     channel = "channel1"
@@ -1175,7 +1215,9 @@ def test_create_capture_without_name_dry_run(client: Client) -> None:
     assert capture.uuid is not None
     assert capture.capture_type == capture_type
     assert capture.top_level_dir == top_level_dir
-    assert capture.name == ""  # Should be empty string when no name provided
+    assert (
+        capture.name == ""
+    )  # Should be empty string when no name provided"  # Should be empty string when no name provided"
     assert isinstance(capture.created_at, datetime), (
         "Expected created_at to be a datetime object"
     )
@@ -1183,11 +1225,15 @@ def test_create_capture_without_name_dry_run(client: Client) -> None:
 
 
 def test_upload_capture_with_name_success(
-    client: Client, responses: responses.RequestsMock, tmp_path: Path
+    client: Client,
+    responses: responses.RequestsMock,
+    tmp_path: Path,
+    dry_run: bool,
+    test_state_persistence: bool,
 ) -> None:
     """Test upload_capture with name parameter when upload succeeds."""
     # ARRANGE
-    client.dry_run = DRY_RUN
+    client.dry_run = dry_run
     test_dir = tmp_path / "test_capture_success"
     test_dir.mkdir()
     (test_dir / "test_file.txt").write_text("test content")
@@ -1237,7 +1283,7 @@ def test_upload_capture_with_name_success(
         channel="test_channel",
         local_path=test_dir,
         name=capture_name,
-        persist_state=TEST_STATE_PERSISTENCE,
+        persist_state=test_state_persistence,
         sds_path="/test/upload/success",
         verbose=False,
     )
