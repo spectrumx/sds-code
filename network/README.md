@@ -117,12 +117,13 @@ Available recipes:
     Alternative 2: use self-signed certificates for development purposes:
 
     ```bash
-    cd traefik/data/certs
-
-    openssl req -x509 -newkey rsa:4096 \
-        -keyout private_key.pem -out public_key.crt \
-        -days 365 -nodes -subj '/CN=issuer'
+    just gen-certs
+    # generates self-signed certs for name sds-dev.crc.nd.edu
+    # or with a custom hostname:
+    # just gen-certs sds.example.com
     ```
+
+    This README will use `sds.example.com` as the domain name of choice. Replace it as needed.
 
     Use cURL's `--insecure` flag to bypass SSL verification in development environment.
 

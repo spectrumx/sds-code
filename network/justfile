@@ -22,6 +22,17 @@ dc *args:
     @echo "Running docker compose command: {{args}}"
     {{docker_compose}} {{args}}
 
+# generates self-signed TLS certificates for development (see README)
+gen-certs hostname="sds-dev.crc.nd.edu":
+    @echo "Generating self-signed certificates for development (hostname: {{hostname}})..."
+    openssl req -x509 -newkey rsa:4096 \
+        -keyout traefik/data/certs/private_key.pem \
+        -out traefik/data/certs/public_key.crt \
+        -days 365 -nodes \
+        -subj '/CN={{hostname}}' \
+        -addext 'subjectAltName=DNS:{{hostname}}'
+    @echo "Done. Certs in traefik/data/certs/: private_key.pem public_key.crt"
+
 # stops and removes the compose stack
 down *args:
     @echo "Stopping sds-network"
