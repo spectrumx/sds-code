@@ -16,11 +16,6 @@ from spectrumx.config import _cfg_name_lookup
 from spectrumx.models.files import File
 from spectrumx.ops import files
 
-# ruff: noqa: SLF001
-# pyright: reportPrivateUsage=false
-
-log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
-
 
 class LogLevels(IntEnum):
     """Log levels for testing."""
@@ -40,21 +35,26 @@ def test_load_config_env_file_not_found(caplog: pytest.LogCaptureFixture) -> Non
     caplog.set_level(LogLevels.WARNING)
     SDSConfig(env_file=non_existent_file)
 
-    assert "file missing" in caplog.text.lower()
+    assert "file missing" in caplog.text.lower(), (
+        "Expected a warning about missing env file"
+    )
 
 
-def test_load_config_file_found(caplog: pytest.LogCaptureFixture) -> None:
+def test_load_config_file_found(
+    caplog: pytest.LogCaptureFixture, tmp_path: Path
+) -> None:
     """A valid env file must be found and loaded."""
 
     filename = "existing.env"
-    existing_file = Path(filename)
+    existing_file = tmp_path / filename
     existing_file.touch()
     caplog.set_level(LogLevels.DEBUG)
     SDSConfig(env_file=existing_file, verbose=True)
 
     pattern = f"found.*{filename}".lower()
-    assert re.search(pattern, caplog.text.lower())
-    existing_file.unlink()
+    assert re.search(pattern, caplog.text.lower()), (
+        "Expected log to contain 'found' and the filename"
+    )
 
 
 def test_load_config_from_args(sample_config: dict[str, Any]) -> None:
@@ -89,8 +89,10 @@ def test_show_config_does_not_expose_api_key(
     captured = capsys.readouterr()
     all_outputs = (captured.out + captured.err + caplog.text).lower()
 
-    assert "api_key" in all_outputs
-    assert sample_config["SDS_SECRET_TOKEN"] not in all_outputs
+    assert "api_key" in all_outputs, "Expected 'api_key' to appear in config output"
+    assert sample_config["SDS_SECRET_TOKEN"] not in all_outputs, (
+        "Expected API key value to NOT appear in config output"
+    )
 
 
 def test_warning_for_unrecognized_config(
@@ -103,8 +105,12 @@ def test_warning_for_unrecognized_config(
     caplog.set_level(LogLevels.WARNING)
     SDSConfig(env_file=Path(".env.example"), env_config=sample_config)
 
-    assert "not recognized" in caplog.text.lower()
-    assert unknown_attr in caplog.text
+    assert "not recognized" in caplog.text.lower(), (
+        "Expected warning about unrecognized config"
+    )
+    assert unknown_attr in caplog.text, (
+        "Expected the unknown config attribute name in log"
+    )
 
 
 # ======================================================================
@@ -123,7 +129,7 @@ _ENV_FILE_TIMEOUT_GATEWAY = 65
 def test_http_timeout_default() -> None:
     """Default timeout must be 300 when set via Client with no env overrides."""
     client = Client(host="sds-test.example.com")
-    assert client._gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (
+    assert client._gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (  # noqa: SLF001
         f"Expected default gateway timeout {_EXPECTED_DEFAULT_TIMEOUT}, "
         f"got {client._gateway.timeout}"
     )
@@ -135,7 +141,7 @@ def test_http_timeout_from_env_file(tmp_path: Path) -> None:
     env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT}\n{_TEST_ENV_BASE}"
     env_file.write_text(env_content)
     client = Client(host="sds-test.example.com", env_file=env_file)
-    assert client._gateway.timeout == _ENV_FILE_TIMEOUT, (
+    assert client._gateway.timeout == _ENV_FILE_TIMEOUT, (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT} from .env file, "
         f"got {client._gateway.timeout}"
     )
@@ -151,7 +157,7 @@ def test_http_timeout_from_env_config() -> None:
             "SDS_SECRET_TOKEN": "test-key-123",
         },
     )
-    assert client._gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (
+    assert client._gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_CONFIG_TIMEOUT} from env_config, "
         f"got {client._gateway.timeout}"
     )
@@ -167,7 +173,7 @@ def test_http_timeout_env_config_overrides_env_file(tmp_path: Path) -> None:
         env_file=env_file,
         env_config={"HTTP_TIMEOUT": _ENV_CONFIG_OVERRIDE_TIMEOUT},
     )
-    assert client._gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (
+    assert client._gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_CONFIG_OVERRIDE_TIMEOUT} "
         f"(env_config overrides .env), got {client._gateway.timeout}"
     )
@@ -179,7 +185,7 @@ def test_http_timeout_passed_to_gateway(tmp_path: Path) -> None:
     env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT_GATEWAY}\n{_TEST_ENV_BASE}"
     env_file.write_text(env_content)
     client = Client(host="sds-test.example.com", env_file=env_file)
-    assert client._gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (
+    assert client._gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT_GATEWAY}, "
         f"got {client._gateway.timeout}"
     )
@@ -205,13 +211,20 @@ def test_download_dry_run_happy_path(
     successful = [result() for result in results if result]
     errors = [result.error_info for result in results if not result]
     assert len(errors) == 0, "No errors should be present in this run."
-    assert (
-        "Dry-run enabled: no SDS requests will be made or files written." in caplog.text
+    dry_run_msg = "Dry-run enabled: no SDS requests will be made or files written."
+    assert dry_run_msg in caplog.text, (
+        f"Expected dry-run message in logs, got: {caplog.text}"
     )
-    assert len(results) == expected_length
-    assert len(successful) == expected_length
-    assert all(file_obj.is_sample for file_obj in successful), (
-        "All files should be sample files in dry-run."
+    assert len(results) == expected_length, (
+        f"Expected {expected_length} results, got {len(results)}"
+    )
+    assert len(successful) == expected_length, (
+        f"Expected {expected_length} successful downloads, got {len(successful)}"
+    )
+    non_sample_files = [file_obj for file_obj in successful if not file_obj.is_sample]
+    assert not non_sample_files, (
+        f"All files should be sample files in dry-run. "
+        f"Non-sample files: {len(non_sample_files)}"
     )
 
 
@@ -256,7 +269,9 @@ def test_download_fails_for_invalid_files(
 
         captured = capsys.readouterr()
         log.debug(captured.err)
-        assert "simulating download" in captured.err
+        assert "simulating download" in captured.err, (
+            "Expected 'simulating download' in stderr output"
+        )
         # assert "Skipping local file" in captured.err
         successful_files = [result() for result in results if result]
         error_infos = [result.error_info for result in results if not result]
@@ -295,7 +310,7 @@ def test_existing_local_file_no_overwrite_skips_download(
         "download_file",
         side_effect=AssertionError("download_file should not be called"),
     ):
-        result = client._download_single_file(
+        result = client._download_single_file(  # noqa: SLF001
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
@@ -355,7 +370,7 @@ def test_existing_local_file_overwrite_redownloads_it(
     with patch.object(
         Client, "download_file", side_effect=fake_download_file
     ) as patched:
-        result = client._download_single_file(
+        result = client._download_single_file(  # noqa: SLF001
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
@@ -398,7 +413,7 @@ def test_existing_local_file_identical_checksum_not_redownloaded(
         "download_file",
         side_effect=AssertionError("download_file should not be called"),
     ):
-        result = client._download_single_file(
+        result = client._download_single_file(  # noqa: SLF001
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
