@@ -261,7 +261,7 @@ def test_paginator_internal_state(
         "Should expect a next page before fetching"
     )
     assert paginator._next_page == first_page, (  # noqa: SLF001
-        f"Expected first page {first_page}, got {paginator._next_page}"
+        f"Expected first page {first_page}, got {paginator._next_page}"  # noqa: SLF001
     )
     assert paginator._yielded_count == 0, (  # noqa: SLF001
         "Should not have yielded anything before fetching"
@@ -286,10 +286,10 @@ def test_paginator_internal_state(
         "Should have more pages after first fetch"
     )
     assert paginator._next_page == first_page + 1, (  # noqa: SLF001
-        f"Expected page {first_page + 1}, got {paginator._next_page}"
+        f"Expected page {first_page + 1}, got {paginator._next_page}"  # noqa: SLF001
     )
     assert paginator._total_matches == target_count, (  # noqa: SLF001
-        f"Expected {target_count} total matches, got {paginator._total_matches}"
+        f"Expected {target_count} total matches, got {paginator._total_matches}"  # noqa: SLF001
     )
     assert paginator._yielded_count == 0, (  # noqa: SLF001
         "Yield count must be still zero after the first page is fetched"
@@ -306,7 +306,8 @@ def test_paginator_internal_state(
         "Yield count does not match the items actually yielded (1st page)"
     )
     assert paginator._yielded_count == test_yield_count, (  # noqa: SLF001
-        f"Yield count {paginator._yielded_count} should match test yield count {test_yield_count}"
+        f"Yield count {paginator._yielded_count} should match "  # noqa: SLF001
+        f"test yield count {test_yield_count}"
     )
 
     # Configure the mock to return the second page
@@ -325,15 +326,15 @@ def test_paginator_internal_state(
         "Paginator should not have more pages after final fetch"
     )
     assert paginator._next_page == first_page + 2, (  # noqa: SLF001
-        f"Expected page {first_page + 2}, got {paginator._next_page}"
+        f"Expected page {first_page + 2}, got {paginator._next_page}"  # noqa: SLF001
     )
     assert paginator._total_matches == target_count, (  # noqa: SLF001
-        f"Expected {target_count} total matches, got {paginator._total_matches}"
+        f"Expected {target_count} total matches, got {paginator._total_matches}"  # noqa: SLF001
     )
-    assert paginator._yielded_count == target_count, (
+    assert paginator._yielded_count == target_count, (  # noqa: SLF001
         "Yield count does not match the target count"
     )
-    assert paginator._yielded_count == test_yield_count, (
+    assert paginator._yielded_count == test_yield_count, (  # noqa: SLF001
         "Yield count does not match the items actually yielded (2nd page)"
     )
 
