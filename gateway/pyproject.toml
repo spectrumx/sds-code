@@ -635,3 +635,8 @@
         line-ending               = "auto"
         quote-style               = "double"
         skip-magic-trailing-comma = false
+
+# ====== UV
+[tool.uv]
+    # https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns
+    exclude-newer = "1 week"

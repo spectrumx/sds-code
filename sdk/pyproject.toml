@@ -370,6 +370,9 @@
 [tool.uv]
     default-groups = ["dev"]
 
+    # https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns
+    exclude-newer = "3 days"
+
     [tool.uv.workspace]
         members = ["spectrumx"]
 
