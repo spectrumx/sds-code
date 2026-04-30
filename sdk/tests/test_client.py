@@ -107,6 +107,84 @@ def test_warning_for_unrecognized_config(
     assert unknown_attr in caplog.text
 
 
+# ======================================================================
+# Regression tests: HTTP_TIMEOUT loading
+# ======================================================================
+
+_TEST_ENV_BASE = "SDS_HOST = sds-test.example.com\nSDS_SECRET_TOKEN = test-key-123\n"
+_EXPECTED_DEFAULT_TIMEOUT = 300
+_ENV_FILE_TIMEOUT = 99
+_ENV_CONFIG_TIMEOUT = "77"
+_ENV_FILE_TIMEOUT_LOWER = 50
+_ENV_CONFIG_OVERRIDE_TIMEOUT = "88"
+_ENV_FILE_TIMEOUT_GATEWAY = 65
+
+
+def test_http_timeout_default() -> None:
+    """Default timeout must be 300 when set via Client with no env overrides."""
+    client = Client(host="sds-test.example.com")
+    assert client._gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (
+        f"Expected default gateway timeout {_EXPECTED_DEFAULT_TIMEOUT}, "
+        f"got {client._gateway.timeout}"
+    )
+
+
+def test_http_timeout_from_env_file(tmp_path: Path) -> None:
+    """HTTP_TIMEOUT from .env file must propagate to GatewayClient."""
+    env_file = tmp_path / ".env.test_timeout"
+    env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT}\n{_TEST_ENV_BASE}"
+    env_file.write_text(env_content)
+    client = Client(host="sds-test.example.com", env_file=env_file)
+    assert client._gateway.timeout == _ENV_FILE_TIMEOUT, (
+        f"Expected gateway timeout {_ENV_FILE_TIMEOUT} from .env file, "
+        f"got {client._gateway.timeout}"
+    )
+
+
+def test_http_timeout_from_env_config() -> None:
+    """HTTP_TIMEOUT from env_config dict must propagate to GatewayClient."""
+    client = Client(
+        host="sds-test.example.com",
+        env_config={
+            "HTTP_TIMEOUT": _ENV_CONFIG_TIMEOUT,
+            "SDS_HOST": "sds-test.example.com",
+            "SDS_SECRET_TOKEN": "test-key-123",
+        },
+    )
+    assert client._gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (
+        f"Expected gateway timeout {_ENV_CONFIG_TIMEOUT} from env_config, "
+        f"got {client._gateway.timeout}"
+    )
+
+
+def test_http_timeout_env_config_overrides_env_file(tmp_path: Path) -> None:
+    """env_config must take precedence over .env file for HTTP_TIMEOUT."""
+    env_file = tmp_path / ".env.test_override"
+    env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT_LOWER}\n{_TEST_ENV_BASE}"
+    env_file.write_text(env_content)
+    client = Client(
+        host="sds-test.example.com",
+        env_file=env_file,
+        env_config={"HTTP_TIMEOUT": _ENV_CONFIG_OVERRIDE_TIMEOUT},
+    )
+    assert client._gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (
+        f"Expected gateway timeout {_ENV_CONFIG_OVERRIDE_TIMEOUT} "
+        f"(env_config overrides .env), got {client._gateway.timeout}"
+    )
+
+
+def test_http_timeout_passed_to_gateway(tmp_path: Path) -> None:
+    """HTTP_TIMEOUT from env must propagate to GatewayClient via Client."""
+    env_file = tmp_path / ".env.test_gateway"
+    env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT_GATEWAY}\n{_TEST_ENV_BASE}"
+    env_file.write_text(env_content)
+    client = Client(host="sds-test.example.com", env_file=env_file)
+    assert client._gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (
+        f"Expected gateway timeout {_ENV_FILE_TIMEOUT_GATEWAY}, "
+        f"got {client._gateway.timeout}"
+    )
+
+
 def test_download_dry_run_happy_path(
     caplog: pytest.LogCaptureFixture,
     client: Client,
