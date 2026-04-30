@@ -26,24 +26,23 @@
         minDuration   = "10ms"
         retryAttempts = true
         # statusCodes   = ["200", "300-302"] # switch to this if the one below is too verbose
-        statusCodes = ["200", "300-302", "400-404", "500-504"] # dev
+        statusCodes   = ["200", "300-302", "400-404", "500-504"]  # dev
 
 [log]
     level = "DEBUG"
 
 [tls]
-
     [[tls.certificates]]
         certFile = "/etc/traefik/certs/public_key.crt"
         keyFile  = "/etc/traefik/certs/private_key.pem"
         stores   = ["default"]
 
     [tls.options]
-
         [tls.options.default]
             minVersion = "VersionTLS12"
 
     [tls.stores]
+
         # these self-signed certs will be used by default if let's encrypt
         #   fails due to e.g. the domain not being publicly reachable.
         # you might need --insecure flag in curl; and to manually bypass
@@ -54,11 +53,11 @@
                 keyFile  = "/etc/traefik/certs/private_key.pem"
 
 [entryPoints]
-
     # https://doc.traefik.io/traefik/routing/entrypoints/
 
     [entryPoints.web]
         address = ":80"
+
         [entryPoints.web.http.redirections.entryPoint]
             # redirect all HTTP traffic to HTTPS
             to = "web-secure"
@@ -66,15 +65,18 @@
     [entryPoints.web-secure]
         address   = ":443"
         asDefault = true
+
         [entryPoints.web-secure.http2]
             maxConcurrentStreams = 250
+
         [entryPoints.web-secure.http3]
 
 [certificatesResolvers]
     [certificatesResolvers.letsencrypt]
         [certificatesResolvers.letsencrypt.acme]
             email   = "crc-sds-list@nd.edu"
-            storage = "/etc/traefik/acme/acme.json" # in traefik v3 this file doesn't need to be created manually
+            storage = "/etc/traefik/acme/acme.json"  # in traefik v3 this file doesn't need to be created manually
+
             [certificatesResolvers.letsencrypt.acme.httpChallenge]
                 entryPoint = "web"
 
@@ -87,6 +89,7 @@
         middlewares = ["auth"]
         rule        = "Host(`sds-dev.crc.nd.edu`) && ( PathPrefix(`/dashboard/`) )"
         service     = "api@internal"
+
         [http.routers.traefik-api.tls]
             certResolver = "letsencrypt"
 
@@ -96,6 +99,7 @@
         middlewares = ["csrf"]
         rule        = "Host(`sds-dev.crc.nd.edu`)"
         service     = "sds-gateway-local-app"
+
         [http.routers.sds-gateway-local-app.tls]
             certResolver = "letsencrypt"
 
@@ -117,6 +121,7 @@
         middlewares = ["csrf"]
         rule        = "Host(`sds.crc.nd.edu`)"
         service     = "sds-gateway-prod-app"
+
         [http.routers.sds-gateway-prod-app.tls]
             certResolver = "letsencrypt"
 
@@ -126,6 +131,7 @@
         entryPoints = ["web", "web-secure"]
         rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/static/`)"
         service     = "sds-gateway-local-nginx"
+
         [http.routers.sds-gateway-local-nginx.tls]
             certResolver = "letsencrypt"
 
@@ -135,6 +141,7 @@
         entryPoints = ["web", "web-secure"]
         rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/static/`)"
         service     = "sds-gateway-prod-nginx"
+
         [http.routers.sds-gateway-prod-nginx.tls]
             certResolver = "letsencrypt"
 
@@ -153,24 +160,20 @@
             #         certResolver = "letsencrypt"
 
 [http.middlewares]
-
     [http.middlewares.csrf]
-
         [http.middlewares.csrf.headers]
             hostsProxyHeaders = ["X-CSRFToken"]
 
     [http.middlewares.whitelist-svi-domains]
-
         [http.middlewares.whitelist-svi-domains.ipWhiteList]
             sourceRange = [
-                "127.0.0.1/32", # localhost
+                "127.0.0.1/32",     # localhost
                 # these svi variables may be omitted in self-hosted deployments
-                "129.74.246.5/32", # svi server
-                "10.32.8.29/32",   # svi qa
+                "129.74.246.5/32",  # svi server
+                "10.32.8.29/32",    # svi qa
             ]
 
     [http.middlewares.auth]
-
         # This is a basic auth for the Traefik dashboard
 
         [http.middlewares.auth.basicAuth]
@@ -182,7 +185,6 @@
             usersFile = "/etc/traefik/dashboard/credentials.htpasswd"
 
 [http.services]
-
     # These must match the compose service name and port
 
     # ------------- WEB APP SERVERS
