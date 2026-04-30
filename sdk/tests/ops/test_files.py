@@ -11,7 +11,6 @@ from pathlib import PurePosixPath
 
 import pytest
 import responses
-from loguru import logger as log  # noqa: F401
 from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
 from spectrumx.errors import FileError
