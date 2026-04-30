@@ -21,7 +21,6 @@ from spectrumx.api.uploads import UploadPersistenceManager
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.errors import Result
 from spectrumx.models.files.file import File
-from spectrumx.ops import files as file_ops
 
 if TYPE_CHECKING:
     from spectrumx.client import Client

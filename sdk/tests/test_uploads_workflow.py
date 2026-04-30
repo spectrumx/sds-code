@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from datetime import UTC
 from datetime import datetime
@@ -16,11 +15,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-from anyio import Path as AnyioPath
-from spectrumx.api.uploads import MAX_DAYS_FOR_RESUMING_UPLOAD
-from spectrumx.api.uploads import PersistedUploadFile
 from spectrumx.api.uploads import SkippedUpload
-from spectrumx.api.uploads import UploadPersistenceManager
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.api.uploads import create_file_instance
 from spectrumx.errors import Result
