@@ -1215,9 +1215,7 @@ def test_create_capture_without_name_dry_run(client: Client) -> None:
     assert capture.uuid is not None
     assert capture.capture_type == capture_type
     assert capture.top_level_dir == top_level_dir
-    assert (
-        capture.name == ""
-    )  # Should be empty string when no name provided"  # Should be empty string when no name provided"
+    assert capture.name == ""  # Should be empty string when no name provided"
     assert isinstance(capture.created_at, datetime), (
         "Expected created_at to be a datetime object"
     )

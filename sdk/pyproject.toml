@@ -409,6 +409,9 @@
             "gateway/sds_gateway/api_methods/utils/metadata_schemas.py" = ["PLC0415"]
             "gateway/sds_gateway/users/views.py"                        = ["PLC0415"]
 
+            # Tests commonly use boolean fixtures as positional args — intentional
+            "sdk/tests/**" = ["FBT001", "FBT002"]
+
     [tool.ruff.format]
         indent-style              = "space"
         line-ending               = "auto"

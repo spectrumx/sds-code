@@ -182,7 +182,8 @@ def test_file_upload_returns_file(
     )
     expected_permissions = "rw-rw-rw-" if sys.platform == "win32" else "rw-r--r--"
     assert file_sample.permissions == expected_permissions, (
-        f"Expected permissions '{expected_permissions}', got '{file_sample.permissions}'"
+        f"Expected permissions '{expected_permissions}', "
+        f"got '{file_sample.permissions}'"
     )
 
     assert isinstance(file_sample.created_at, datetime), (

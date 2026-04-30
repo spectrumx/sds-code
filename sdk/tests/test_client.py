@@ -131,7 +131,7 @@ def test_http_timeout_default() -> None:
     client = Client(host="sds-test.example.com")
     assert client._gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (  # noqa: SLF001
         f"Expected default gateway timeout {_EXPECTED_DEFAULT_TIMEOUT}, "
-        f"got {client._gateway.timeout}"
+        f"got {client._gateway.timeout}"  # noqa: SLF001
     )
 
 
@@ -143,7 +143,7 @@ def test_http_timeout_from_env_file(tmp_path: Path) -> None:
     client = Client(host="sds-test.example.com", env_file=env_file)
     assert client._gateway.timeout == _ENV_FILE_TIMEOUT, (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT} from .env file, "
-        f"got {client._gateway.timeout}"
+        f"got {client._gateway.timeout}"  # noqa: SLF001
     )
 
 
@@ -159,7 +159,7 @@ def test_http_timeout_from_env_config() -> None:
     )
     assert client._gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_CONFIG_TIMEOUT} from env_config, "
-        f"got {client._gateway.timeout}"
+        f"got {client._gateway.timeout}"  # noqa: SLF001
     )
 
 
@@ -175,7 +175,7 @@ def test_http_timeout_env_config_overrides_env_file(tmp_path: Path) -> None:
     )
     assert client._gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_CONFIG_OVERRIDE_TIMEOUT} "
-        f"(env_config overrides .env), got {client._gateway.timeout}"
+        f"(env_config overrides .env), got {client._gateway.timeout}"  # noqa: SLF001
     )
 
 
@@ -187,7 +187,7 @@ def test_http_timeout_passed_to_gateway(tmp_path: Path) -> None:
     client = Client(host="sds-test.example.com", env_file=env_file)
     assert client._gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (  # noqa: SLF001
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT_GATEWAY}, "
-        f"got {client._gateway.timeout}"
+        f"got {client._gateway.timeout}"  # noqa: SLF001
     )
 
 
