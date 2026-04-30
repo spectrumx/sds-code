@@ -1,7 +1,6 @@
 """Common test fixtures and utilities for the SDS SDK."""
 
 import os
-import random
 import sys
 import uuid
 from collections.abc import Generator
@@ -107,10 +106,8 @@ def temp_large_binary_file(
 ) -> Generator[Path]:
     """Fixture to create a temporary large binary file."""
     target_size_mb = (
-        request.param.get("size_mb", None) if hasattr(request, "param") else None
+        request.param.get("size_mb", 10) if hasattr(request, "param") else 10
     )
-    if target_size_mb is None:
-        target_size_mb = random.randint(10, 20)  # noqa: S311
     log.warning(f"Creating a large binary file of {target_size_mb:,} MB.")
     large_binary_file = tmp_path / "large_binary_file"
     byte_generator = random_bytes_generator(1024 * 1024 * target_size_mb)
@@ -149,7 +146,9 @@ def temp_file_tree(
             _all_created_files.append(file_path)
             with file_path.open("w", encoding="utf-8") as file_handle:
                 file_handle.writelines(file_content_generator())
-    assert len(_all_created_files) == _total_num_files
+    assert len(_all_created_files) == _total_num_files, (
+        f"Expected {_total_num_files} files, created {len(_all_created_files)}"
+    )
 
     yield tmp_path
 
@@ -172,7 +171,7 @@ class FakeFileFactory:
         self.tmp_path: Path = tmp_path
         self.value: list[File] = []
 
-    def _inner_loop(self) -> Generator[File, None, list[File]]:
+    def _inner_loop(self) -> None:
         """Inner loop to generate fake files."""
         for _ in range(self.num_files):
             file_obj = files.generate_sample_file(uuid.uuid4())
@@ -180,14 +179,12 @@ class FakeFileFactory:
                 file_obj.local_path = self.tmp_path / f"{file_obj.name}"
                 file_obj.local_path.touch()
             self.fake_files.append(file_obj)
-            yield file_obj
         self.value = self.fake_files
-        return self.value
 
-    def __iter__(self) -> Generator[File, None, list[File]]:
-        """Sets self.value properly when this generator is nested."""
-        self.value = yield from self._inner_loop()
-        return self.value
+    def __iter__(self):
+        """Iterate over generated files as a plain list."""
+        self._inner_loop()
+        return iter(self.value)
 
 
 @pytest.fixture

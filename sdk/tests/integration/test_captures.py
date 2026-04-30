@@ -18,8 +18,6 @@ from spectrumx.utils import get_random_line
 from tests.integration.conftest import PassthruEndpoints
 from tests.integration.conftest import dir_integration_data
 
-log.trace("Placeholder log avoid reimporting or resolving unused import warnings.")
-
 # paths with test data
 drf_channel = "cap-2024-06-27T14-00-00"
 
@@ -80,13 +78,26 @@ def test_capture_creation_drf(
 
     # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
-    assert capture.capture_type == CaptureType.DigitalRF
-    assert capture.channel == drf_channel
-    assert capture.top_level_dir == cap_data.capture_top_level
+    assert capture.capture_type == CaptureType.DigitalRF, (
+        f"Expected DigitalRF capture, got {capture.capture_type}"
+    )
+    assert capture.channel == drf_channel, (
+        f"Expected channel '{drf_channel}', got '{capture.channel}'"
+    )
+    assert capture.top_level_dir == cap_data.capture_top_level, (
+        f"Expected top_level_dir '{cap_data.capture_top_level}', "
+        f"got '{capture.top_level_dir}'"
+    )
 
     # test capture properties
-    assert capture.capture_props["start_bound"] == cap_data.cap_start_bound
-    assert capture.capture_props["is_continuous"] == cap_data.cap_is_continuous
+    assert capture.capture_props["start_bound"] == cap_data.cap_start_bound, (
+        f"Expected start_bound {cap_data.cap_start_bound}, "
+        f"got {capture.capture_props['start_bound']}"
+    )
+    assert capture.capture_props["is_continuous"] == cap_data.cap_is_continuous, (
+        f"Expected is_continuous {cap_data.cap_is_continuous}, "
+        f"got {capture.capture_props['is_continuous']}"
+    )
     assert (
         capture.capture_props["custom_attrs"]["receiver/info/mboard_serial"]
         == cap_data.cap_serial
@@ -203,8 +214,12 @@ def test_capture_creation_rh(
 
     # basic capture information
     assert capture.uuid is not None, "Capture UUID should not be None"
-    assert capture.capture_type == CaptureType.RadioHound
-    assert capture.top_level_dir == capture_top_level
+    assert capture.capture_type == CaptureType.RadioHound, (
+        f"Expected RadioHound capture, got {capture.capture_type}"
+    )
+    assert capture.top_level_dir == capture_top_level, (
+        f"Expected top_level_dir '{capture_top_level}', got '{capture.top_level_dir}'"
+    )
 
     # test capture metadata
     assert capture.scan_group is not None, "Scan group should not be None"
@@ -239,7 +254,9 @@ def test_capture_listing_drf(integration_client: Client) -> None:
     assert len(captures) > 0, "At least one capture should be present"
     for capture in captures:
         assert capture.uuid is not None, "Capture UUID should not be None"
-        assert capture.capture_type == CaptureType.DigitalRF
+        assert capture.capture_type == CaptureType.DigitalRF, (
+            f"Expected DigitalRF capture, got {capture.capture_type}"
+        )
         assert capture.channel is not None, "DigitalRF capture should have a channel"
         assert capture.top_level_dir is not None, "Top level dir should not be None"
 
@@ -973,13 +990,3 @@ def _delete_rh_captures_by_scan_group(
         log.warning(f"Deleting capture: {capture.uuid}")
         assert capture.uuid is not None, "Capture UUID should not be None"
         integration_client.captures.delete(capture_uuid=capture.uuid)
-
-
-def __clean_all_captures(integration_client: Client) -> None:
-    """Helper to delete all captures of this user in the SDS."""
-    captures = integration_client.captures.listing()
-    log.error(len(captures))
-    for cap in captures:
-        if cap.uuid is None:
-            continue
-        integration_client.captures.delete(capture_uuid=cap.uuid)

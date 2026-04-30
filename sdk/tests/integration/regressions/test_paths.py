@@ -65,7 +65,11 @@ def test_paths_sds_download_dir(
             to_local_path=local_path,
             verbose=True,
         )
-        assert all(_results), f"Failed to download {sds_path} to {local_path}"
+        failures = [r for r in _results if not r]
+        assert not failures, (
+            f"{len(failures)} download operations failed. "
+            f"Failed SDS path: {sds_path}, local path: {local_path}"
+        )
         # since no file was uploaded to this random sds location, the local
         # path will be empty and we can use rmdir() to remove it: we're just
         # making sure the server accepts the arguments, not testing the downloads

@@ -11,7 +11,7 @@ from pathlib import PurePosixPath
 
 import pytest
 import responses
-from loguru import logger as log
+from loguru import logger as log  # noqa: F401
 from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
 from spectrumx.errors import FileError
@@ -25,8 +25,6 @@ from spectrumx.ops.files import is_valid_file
 from tests.conftest import get_content_check_endpoint
 from tests.conftest import get_file_detach_from_datasets_url
 from tests.conftest import get_files_endpoint
-
-log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
 
 def _download_file_endpoint(client: Client, file_id: str) -> str:
@@ -56,7 +54,10 @@ def test_get_file_permissions(temp_file_empty: Path) -> None:
     }
     for perm_string, chmod in chmod_combos.items():
         temp_file_empty.chmod(chmod)
-        assert get_file_permissions(temp_file_empty) == perm_string
+        assert get_file_permissions(temp_file_empty) == perm_string, (
+            f"Expected permissions {perm_string}, got "
+            f"{get_file_permissions(temp_file_empty)}"
+        )
 
 
 @pytest.mark.win32
@@ -76,7 +77,10 @@ def test_get_file_permissions_win32(temp_file_empty: Path) -> None:
     }
     for perm_string, chmod in chmod_combos.items():
         temp_file_empty.chmod(chmod)
-        assert get_file_permissions(temp_file_empty) == perm_string
+        assert get_file_permissions(temp_file_empty) == perm_string, (
+            f"Expected permissions {perm_string}, got "
+            f"{get_file_permissions(temp_file_empty)}"
+        )
 
 
 def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> None:
@@ -100,7 +104,7 @@ def test_get_file_by_id(client: Client, responses: responses.RequestsMock) -> No
     )
     client.dry_run = False  # to test the actual request
     file_sample = client.get_file(file_uuid=uuid.hex)
-    assert file_sample.uuid == uuid
+    assert file_sample.uuid == uuid, f"Expected UUID {uuid}, got {file_sample.uuid}"
 
 
 def test_file_get_returns_valid(
@@ -119,18 +123,34 @@ def test_file_get_returns_valid(
     assert client.dry_run is True, "Dry run must be enabled for this test."
     file_sample = client.get_file(file_uuid=file_id.hex)
     assert file_sample.is_sample is True, "The file must be a sample file"  # pyright: ignore[reportPrivateUsage]
-    assert file_sample.uuid is not None
-    assert file_sample.name.startswith("dry-run-")
-    assert file_sample.media_type == "text/plain"
-    assert file_sample.size == file_size
-    assert file_sample.directory == PurePosixPath("sds-files/dry-run/")
-    assert file_sample.permissions == "rw-rw-r--"
-    assert isinstance(file_sample.created_at, datetime)
-    assert isinstance(file_sample.updated_at, datetime)
+    assert file_sample.uuid is not None, "File UUID should not be None"
+    assert file_sample.name.startswith("dry-run-"), (
+        f"Expected name to start with 'dry-run-', got '{file_sample.name}'"
+    )
+    assert file_sample.media_type == "text/plain", (
+        f"Expected media_type 'text/plain', got '{file_sample.media_type}'"
+    )
+    assert file_sample.size == file_size, (
+        f"Expected size {file_size}, got {file_sample.size}"
+    )
+    assert file_sample.directory == PurePosixPath("sds-files/dry-run/"), (
+        f"Expected directory 'sds-files/dry-run/', got '{file_sample.directory}'"
+    )
+    assert file_sample.permissions == "rw-rw-r--", (
+        f"Expected permissions 'rw-rw-r--', got '{file_sample.permissions}'"
+    )
+    assert isinstance(file_sample.created_at, datetime), (
+        "created_at should be a datetime"
+    )
+    assert isinstance(file_sample.updated_at, datetime), (
+        "updated_at should be a datetime"
+    )
     assert isinstance(file_sample.expiration_date, datetime), (
         "Expiration date should be a datetime"
     )
-    assert file_sample.expiration_date > file_sample.created_at
+    assert file_sample.expiration_date > file_sample.created_at, (
+        "Expiration date should be after created_at"
+    )
 
 
 def test_file_upload_returns_file(
@@ -157,12 +177,20 @@ def test_file_upload_returns_file(
     assert str(tmp_path) in str(file_sample.local_path), (
         "Expected the temp file directory"
     )
-    assert file_sample.directory == PurePosixPath("/my/upload/location")
+    assert file_sample.directory == PurePosixPath("/my/upload/location"), (
+        f"Expected directory '/my/upload/location', got '{file_sample.directory}'"
+    )
     expected_permissions = "rw-rw-rw-" if sys.platform == "win32" else "rw-r--r--"
-    assert file_sample.permissions == expected_permissions
+    assert file_sample.permissions == expected_permissions, (
+        f"Expected permissions '{expected_permissions}', got '{file_sample.permissions}'"
+    )
 
-    assert isinstance(file_sample.created_at, datetime)
-    assert isinstance(file_sample.updated_at, datetime)
+    assert isinstance(file_sample.created_at, datetime), (
+        "created_at should be a datetime"
+    )
+    assert isinstance(file_sample.updated_at, datetime), (
+        "updated_at should be a datetime"
+    )
     assert file_sample.expiration_date is None, (
         "Local files should not have an expiration date"
     )
@@ -209,13 +237,30 @@ def test_large_file_upload_mocked(
         sds_path=PurePosixPath(mocked_upload_json["directory"]),
     )
     assert file_sample.uuid == file_id, "UUID not as mocked."
-    assert file_sample.name == mocked_upload_json["name"]
-    assert file_sample.media_type == mocked_upload_json["media_type"]
-    assert file_sample.size == file_size
-    assert file_sample.directory == PurePosixPath(mocked_upload_json["directory"])
-    assert file_sample.permissions == mocked_upload_json["permissions"]
-    assert isinstance(file_sample.created_at, datetime)
-    assert isinstance(file_sample.updated_at, datetime)
+    assert file_sample.name == mocked_upload_json["name"], (
+        f"Expected name '{mocked_upload_json['name']}', got '{file_sample.name}'"
+    )
+    assert file_sample.media_type == mocked_upload_json["media_type"], (
+        f"Expected media_type '{mocked_upload_json['media_type']}', "
+        f"got '{file_sample.media_type}'"
+    )
+    assert file_sample.size == file_size, (
+        f"Expected size {file_size}, got {file_sample.size}"
+    )
+    assert file_sample.directory == PurePosixPath(mocked_upload_json["directory"]), (
+        f"Expected directory '{mocked_upload_json['directory']}', "
+        f"got '{file_sample.directory}'"
+    )
+    assert file_sample.permissions == mocked_upload_json["permissions"], (
+        f"Expected permissions '{mocked_upload_json['permissions']}', "
+        f"got '{file_sample.permissions}'"
+    )
+    assert isinstance(file_sample.created_at, datetime), (
+        "created_at should be a datetime"
+    )
+    assert isinstance(file_sample.updated_at, datetime), (
+        "updated_at should be a datetime"
+    )
 
 
 def test_download_file_contents(
@@ -334,8 +379,9 @@ def test_download_file_to_path(
     parent_dir.rmdir()
 
 
-@responses.activate
-def test_detach_file_from_datasets_success(client: Client) -> None:
+def test_detach_file_from_datasets_success(
+    client: Client, responses: responses.RequestsMock
+) -> None:
     """PUT detach-from-datasets uses the dedicated action URL."""
     file_uuid = uuidlib.uuid4()
     client.dry_run = False
@@ -349,20 +395,29 @@ def test_detach_file_from_datasets_success(client: Client) -> None:
         },
     )
 
-    assert client.detach_file_from_datasets(file_uuid=file_uuid) is True
-    assert len(responses.calls) == 1
-    assert responses.calls[0].request.method == "PUT"
-    assert responses.calls[0].request.url == detach_url
+    assert client.detach_file_from_datasets(file_uuid=file_uuid) is True, (
+        "Expected detach to return True"
+    )
+    assert len(responses.calls) == 1, (
+        f"Expected 1 response call, got {len(responses.calls)}"
+    )
+    assert responses.calls[0].request.method == "PUT", (
+        f"Expected PUT request, got {responses.calls[0].request.method}"
+    )
+    assert responses.calls[0].request.url == detach_url, (
+        f"Expected URL '{detach_url}', got '{responses.calls[0].request.url}'"
+    )
 
 
 def test_detach_file_from_datasets_dry_run(client: Client) -> None:
     """Dry run does not call the gateway."""
     client.dry_run = True
-    assert client.detach_file_from_datasets(file_uuid=uuidlib.uuid4()) is True
+    assert client.detach_file_from_datasets(file_uuid=uuidlib.uuid4()) is True, (
+        "Dry-run detach should return True without calling gateway"
+    )
 
 
-@responses.activate
-def test_delete_file_success(client: Client) -> None:
+def test_delete_file_success(client: Client, responses: responses.RequestsMock) -> None:
     """Test successful file deletion."""
     # ARRANGE
     test_uuid = uuidlib.uuid4()
@@ -400,16 +455,21 @@ def test_delete_file_success(client: Client) -> None:
     assert len(responses.calls) == num_reqs, (
         "Expected one file GET and one DELETE request to be made."
     )
-    assert responses.calls[1].request.method == "DELETE"
+    assert responses.calls[1].request.method == "DELETE", (
+        f"Expected DELETE, got {responses.calls[1].request.method}"
+    )
     assert (
         responses.calls[1].request.url
         == f"{get_files_endpoint(client)}{test_uuid_hex}/"
+    ), (
+        f"Expected URL '{get_files_endpoint(client)}{test_uuid_hex}/', "
+        f"got '{responses.calls[1].request.url}'"
     )
 
 
-@responses.activate
 def test_delete_file_raises_when_gateway_rejects_due_to_datasets_or_sharing(
     client: Client,
+    responses: responses.RequestsMock,
 ) -> None:
     """GET then DELETE: gateway returns 400 when delete is blocked (share/dataset)."""
     test_uuid = uuidlib.uuid4()
@@ -442,13 +502,20 @@ def test_delete_file_raises_when_gateway_rejects_due_to_datasets_or_sharing(
     num_reqs = 2
     with pytest.raises(FileError) as exc_info:
         delete_file(client=client, file_uuid=test_uuid)
-    assert err_msg in str(exc_info.value)
-    assert len(responses.calls) == num_reqs
-    assert responses.calls[1].request.method == "DELETE"
+    assert err_msg in str(exc_info.value), (
+        f"Expected error message containing '{err_msg}', got '{exc_info.value}'"
+    )
+    assert len(responses.calls) == num_reqs, (
+        f"Expected {num_reqs} calls, got {len(responses.calls)}"
+    )
+    assert responses.calls[1].request.method == "DELETE", (
+        f"Expected DELETE, got {responses.calls[1].request.method}"
+    )
 
 
-@responses.activate
-def test_delete_file_str_uuid(client: Client) -> None:
+def test_delete_file_str_uuid(
+    client: Client, responses: responses.RequestsMock
+) -> None:
     """Test file deletion with string UUID."""
     # ARRANGE
     test_uuid = uuidlib.uuid4()
@@ -486,15 +553,19 @@ def test_delete_file_str_uuid(client: Client) -> None:
     assert len(responses.calls) == num_reqs, (
         "Expected one file GET and one DELETE request to be made."
     )
-    assert responses.calls[1].request.method == "DELETE"
+    assert responses.calls[1].request.method == "DELETE", (
+        f"Expected DELETE, got {responses.calls[1].request.method}"
+    )
     assert (
         responses.calls[1].request.url
         == f"{get_files_endpoint(client)}{test_uuid_hex}/"
+    ), (
+        f"Expected URL '{get_files_endpoint(client)}{test_uuid_hex}/', "
+        f"got '{responses.calls[1].request.url}'"
     )
 
 
-@responses.activate
-def test_delete_file_dry_run(client: Client) -> None:
+def test_delete_file_dry_run(client: Client, responses: responses.RequestsMock) -> None:
     """Test file deletion in dry run mode."""
     # ARRANGE
     test_uuid = uuidlib.uuid4()
@@ -504,8 +575,10 @@ def test_delete_file_dry_run(client: Client) -> None:
     result = delete_file(client=client, file_uuid=test_uuid)
 
     # ASSERT
-    assert result is True  # deletion always succeeds in dry run mode
-    assert len(responses.calls) == 0
+    assert result is True, "Deletion should succeed in dry run mode"
+    assert len(responses.calls) == 0, (
+        f"Expected 0 calls in dry run, got {len(responses.calls)}"
+    )
 
 
 class TestIsValidFile:
@@ -555,7 +628,9 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(empty_file)
         assert is_valid is False, "Empty file should fail validation"
-        assert "Empty file, or could not read it" in reasons
+        assert "Empty file, or could not read it" in reasons, (
+            f"Expected 'Empty file' reason, got: {reasons}"
+        )
 
     def test_nonexistent_file(self, tmp_path: Path) -> None:
         """Test that a nonexistent file fails validation."""
@@ -563,7 +638,7 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(nonexistent_file)
         assert is_valid is False, "Nonexistent file should fail validation"
-        assert "Not a file" in reasons
+        assert "Not a file" in reasons, f"Expected 'Not a file' reason, got: {reasons}"
 
     def test_directory_instead_of_file(self, tmp_path: Path) -> None:
         """Test that a directory fails validation."""
@@ -572,7 +647,9 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(test_dir)
         assert is_valid is False, "Directory should fail validation"
-        assert "Not a file" in reasons
+        assert "Not a file" in reasons, (
+            f"Expected 'Not a file' reason for directory, got: {reasons}"
+        )
 
     def test_disallowed_executable_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that executable files with disallowed MIME types fail validation."""
@@ -588,7 +665,9 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(exe_file)
         assert is_valid is False, "Executable file should fail validation"
-        assert any("Invalid MIME type" in reason for reason in reasons)
+        assert any("Invalid MIME type" in reason for reason in reasons), (
+            f"Expected 'Invalid MIME type' reason, got: {reasons}"
+        )
 
     def test_disallowed_msi_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that MSI files fail validation."""
@@ -602,7 +681,9 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(msi_file)
         assert is_valid is False, "MSI file should fail validation"
-        assert any("Invalid MIME type" in reason for reason in reasons)
+        assert any("Invalid MIME type" in reason for reason in reasons), (
+            f"Expected 'Invalid MIME type' reason, got: {reasons}"
+        )
 
     def test_disallowed_com_file(self, tmp_path: Path, monkeypatch) -> None:
         """Test that COM files fail validation."""
@@ -616,7 +697,9 @@ class TestIsValidFile:
 
         is_valid, reasons = is_valid_file(com_file)
         assert is_valid is False, "COM file should fail validation"
-        assert any("Invalid MIME type" in reason for reason in reasons)
+        assert any("Invalid MIME type" in reason for reason in reasons), (
+            f"Expected 'Invalid MIME type' reason, got: {reasons}"
+        )
 
     def test_disallowed_glob_patterns(self, tmp_path: Path) -> None:
         """Test that files matching disallowed glob patterns fail validation."""
@@ -670,8 +753,12 @@ class TestIsValidFile:
 
         # Check for specific reasons
         reason_text = " ".join(reasons)
-        assert "Empty file" in reason_text or "Invalid MIME type" in reason_text
-        assert "undesired glob patterns" in reason_text
+        assert "Empty file" in reason_text or "Invalid MIME type" in reason_text, (
+            f"Expected 'Empty file' or 'Invalid MIME type' in reasons, got: {reasons}"
+        )
+        assert "undesired glob patterns" in reason_text, (
+            f"Expected 'undesired glob patterns' in reasons, got: {reasons}"
+        )
 
     def test_check_sds_ignore_disabled(self, tmp_path: Path) -> None:
         """Test that disabling SDS ignore check allows glob-patterned files."""
