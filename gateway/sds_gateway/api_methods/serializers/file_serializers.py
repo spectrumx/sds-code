@@ -73,9 +73,7 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
             context=context,
         ).data
         data["capture"] = (
-            CaptureGetSerializer(merged[0], context=context).data
-            if merged
-            else None
+            CaptureGetSerializer(merged[0], context=context).data if merged else None
         )
         return data
 

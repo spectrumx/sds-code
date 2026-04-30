@@ -214,10 +214,14 @@ class DatasetViewSet(ViewSet):
             )
 
         # Order and deduplicate files by path and created_at; avoid N+1 on captures
-        ordered_files = dataset_files.order_by("-created_at").select_related(
-            "capture",
-            "owner",
-        ).prefetch_related("captures", "datasets")
+        ordered_files = (
+            dataset_files.order_by("-created_at")
+            .select_related(
+                "capture",
+                "owner",
+            )
+            .prefetch_related("captures", "datasets")
+        )
         paginator = FilePagination()
         paginated_files = paginator.paginate_queryset(ordered_files, request=request)
 
