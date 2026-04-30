@@ -170,6 +170,7 @@ class DatasetEndpointsTestCase(TestCase):
             assert "size" in file_info
             assert "media_type" in file_info
             assert file_info["capture"] is None
+            assert file_info["captures"] == []
 
     def test_get_dataset_files_with_owned_captures(self):
         """Test dataset files manifest including files from owned captures."""
@@ -228,6 +229,12 @@ class DatasetEndpointsTestCase(TestCase):
         for file_info in capture_files:
             assert file_info["capture"]["uuid"] == str(capture.uuid)
             assert file_info["capture"]["name"] == capture.name
+            assert file_info["captures"]
+            assert any(c["uuid"] == str(capture.uuid) for c in file_info["captures"])
+
+        artifact_only = [f for f in results if f["capture"] is None]
+        assert len(artifact_only) == 1
+        assert artifact_only[0]["captures"] == []
 
     def test_get_dataset_files_with_shared_captures(self):
         """Test dataset files manifest including files from shared captures."""
@@ -302,6 +309,12 @@ class DatasetEndpointsTestCase(TestCase):
         for file_info in capture_files:
             assert file_info["capture"]["uuid"] == str(capture.uuid)
             assert file_info["capture"]["name"] == capture.name
+            assert file_info["captures"]
+            assert any(c["uuid"] == str(capture.uuid) for c in file_info["captures"])
+
+        artifact_only = [f for f in results if f["capture"] is None]
+        assert len(artifact_only) == 1
+        assert artifact_only[0]["captures"] == []
 
     def test_get_dataset_files_with_both_owned_and_shared_captures(self):
         """Test dataset files manifest with both owned and shared captures."""
@@ -402,6 +415,10 @@ class DatasetEndpointsTestCase(TestCase):
         for file_info in owned_capture_files:
             assert file_info["capture"]["uuid"] == str(owned_capture.uuid)
             assert file_info["capture"]["name"] == owned_capture.name
+            assert file_info["captures"]
+            assert any(
+                c["uuid"] == str(owned_capture.uuid) for c in file_info["captures"]
+            )
 
         # Verify shared capture file info structure
         shared_capture_files = [
@@ -415,6 +432,92 @@ class DatasetEndpointsTestCase(TestCase):
         for file_info in shared_capture_files:
             assert file_info["capture"]["uuid"] == str(shared_capture.uuid)
             assert file_info["capture"]["name"] == shared_capture.name
+            assert file_info["captures"]
+            assert any(
+                c["uuid"] == str(shared_capture.uuid) for c in file_info["captures"]
+            )
+
+        artifact_only = [f for f in results if f["capture"] is None]
+        assert len(artifact_only) == 1
+        assert artifact_only[0]["captures"] == []
+
+    def test_get_dataset_files_filter_by_capture_query(self):
+        """``capture`` query param restricts the manifest server-side."""
+        capture = Capture.objects.create(
+            owner=self.user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch",
+            index_name="ix",
+            name="cap",
+        )
+        self.created_captures.append(capture)
+        with MockMinIOContext(b"c"):
+            f_cap_a = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, capture=capture
+            )
+            f_cap_b = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, capture=capture
+            )
+            f_art = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, dataset=self.dataset
+            )
+            self.created_files.extend([f_cap_a, f_cap_b, f_art])
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(
+            base_url,
+            {"capture": str(capture.uuid)},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == self.EXPECTED_CAPTURE_FILES
+        for row in data["results"]:
+            assert any(c["uuid"] == str(capture.uuid) for c in row["captures"])
+
+    def test_get_dataset_files_filter_by_capture_invalid_uuid(self):
+        """Invalid ``capture`` UUID returns 400."""
+        with MockMinIOContext(b"x"):
+            f = create_file_with_minio_mock(
+                file_content=b"x", owner=self.user, dataset=self.dataset
+            )
+            self.created_files.append(f)
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(base_url, {"capture": "not-a-uuid"})
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_get_dataset_files_filter_by_top_level_dir(self):
+        """``top_level_dir`` filters by ``File.directory`` prefix."""
+        tld = "/pytest/capture/root"
+        capture = Capture.objects.create(
+            owner=self.user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch",
+            index_name="ix",
+            name="cap",
+            top_level_dir=tld,
+        )
+        self.created_captures.append(capture)
+        with MockMinIOContext(b"c"):
+            f_match = create_file_with_minio_mock(
+                file_content=b"c",
+                owner=self.user,
+                capture=capture,
+                directory=f"{tld}/channel0/",
+            )
+            f_other = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, dataset=self.dataset
+            )
+            self.created_files.extend([f_match, f_other])
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(
+            base_url,
+            {"top_level_dir": tld},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1
+        assert data["results"][0]["uuid"] == str(f_match.uuid)
 
     def test_get_dataset_files_not_found(self):
         """Test dataset files manifest with non-existent UUID."""

@@ -23,6 +23,15 @@ from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.asset_access_control import (
     revoke_share_permissions as revoke_item_share_permissions,
 )
+from sds_gateway.api_methods.utils.dataset_manifest_filters import (
+    filter_dataset_files_queryset,
+)
+from sds_gateway.api_methods.utils.dataset_manifest_filters import (
+    parse_capture_uuid_query,
+)
+from sds_gateway.api_methods.utils.dataset_manifest_filters import (
+    parse_top_level_dir_query,
+)
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
@@ -117,6 +126,27 @@ class DatasetViewSet(ViewSet):
                 location=OpenApiParameter.QUERY,
                 default=FilePagination.page_size,
             ),
+            OpenApiParameter(
+                name="capture",
+                description=(
+                    "Only include files linked to this capture UUID "
+                    "(repeat param or comma-separated). OR with top_level_dir."
+                ),
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
+            OpenApiParameter(
+                name="top_level_dir",
+                description=(
+                    "Only include files whose directory is this path or under it "
+                    "(repeat param or comma-separated). Normalized like capture "
+                    "top_level_dir."
+                ),
+                required=False,
+                type=str,
+                location=OpenApiParameter.QUERY,
+            ),
         ],
         responses={
             200: OpenApiResponse(description="Dataset file listing"),
@@ -168,8 +198,26 @@ class DatasetViewSet(ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        # Order and deduplicate files by path and created_at
-        ordered_files = dataset_files.order_by("-created_at")
+        try:
+            capture_uuids = parse_capture_uuid_query(request)
+        except ValueError as err:
+            return Response(
+                {"detail": str(err)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        top_level_dir_prefixes = parse_top_level_dir_query(request)
+        if capture_uuids or top_level_dir_prefixes:
+            dataset_files = filter_dataset_files_queryset(
+                dataset_files,
+                capture_uuids=capture_uuids,
+                top_level_dir_prefixes=top_level_dir_prefixes,
+            )
+
+        # Order and deduplicate files by path and created_at; avoid N+1 on captures
+        ordered_files = dataset_files.order_by("-created_at").select_related(
+            "capture",
+            "owner",
+        ).prefetch_related("captures", "datasets")
         paginator = FilePagination()
         paginated_files = paginator.paginate_queryset(ordered_files, request=request)
 

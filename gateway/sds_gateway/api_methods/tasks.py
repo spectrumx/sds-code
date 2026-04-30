@@ -1316,7 +1316,7 @@ def _get_item_files(
                 end_time=end_time,
             )
         else:
-            if start_time is not None or end_time is not None:
+            if start_time or end_time:
                 log.warning(
                     "Temporal filtering is only supported for DigitalRF captures, "
                     "ignoring start_time and end_time"

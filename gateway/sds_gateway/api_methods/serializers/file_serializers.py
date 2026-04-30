@@ -7,6 +7,7 @@ from django.http import QueryDict
 from loguru import logger as log
 from rest_framework import serializers
 
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
@@ -50,6 +51,33 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
     class Meta:
         model = File
         fields = "__all__"
+
+    def to_representation(self, instance: File) -> dict[str, Any]:
+        """Build ``captures`` from M2M plus legacy ``capture`` FK when needed."""
+        data = super().to_representation(instance)
+        merged: list[Capture] = []
+        seen_pks: set[uuid.UUID] = set()
+        for cap in instance.captures.all().order_by("uuid"):
+            pk = cap.pk
+            if pk not in seen_pks:
+                merged.append(cap)
+                seen_pks.add(pk)
+        legacy = instance.capture
+        if legacy is not None and legacy.pk not in seen_pks:
+            merged.append(legacy)
+            seen_pks.add(legacy.pk)
+        context = self.context
+        data["captures"] = CaptureGetSerializer(
+            merged,
+            many=True,
+            context=context,
+        ).data
+        data["capture"] = (
+            CaptureGetSerializer(merged[0], context=context).data
+            if merged
+            else None
+        )
+        return data
 
 
 class FilePostSerializer(serializers.ModelSerializer[File]):

@@ -136,7 +136,7 @@ def list_files(
         raise ValueError(msg)
     sds_path = PurePosixPath(sds_path)
     start_q: str | None = (
-        _file_list_time_query_param(start_time) if start_time is not None else None
+        _file_list_time_query_param(start_time) if start_time else None
     )
     end_q: str | None = (
         _file_list_time_query_param(end_time) if end_time is not None else None
