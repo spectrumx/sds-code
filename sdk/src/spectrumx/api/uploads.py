@@ -424,7 +424,7 @@ class UploadWorkload(BaseModel):
             file_candidate_progress.update(1)
             await self._process_file_candidate(
                 candidate=Path(candidate),
-                root=Path(root_resolved),
+                root=Path(root),
                 persisted_uploads=persisted_uploads,
                 check_sds_ignore=check_sds_ignore,
             )
