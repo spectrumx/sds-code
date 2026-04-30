@@ -42,7 +42,7 @@ clean:
         .eggs .eggs/ \
         ./**/*.py.cover \
         *.egg-info *.egg-info/ \
-        tests/coverage/ tests/__pycache__/ tests/htmlcov/ tests/.pytest_cache/
+        tests/coverage/ tests/__pycache__/ tests/htmlcov/ tests/.pytest_cache/ .coverage.*
 
 # build SDK documentation
 [group('documentation')]
@@ -163,11 +163,24 @@ test-all *args:
     # restore highest deps for local development
     uv sync --resolution highest --dev
 
-# runs integration tests using the default dependency resolution
+# runs integration tests in parallel (default); use -n to set worker count
 [group('qa')]
-test-integration python=python_version *pytest_args:
-    @echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"
-    @echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
+test-integration python=python_version workers="auto" *pytest_args:
+    @echo -e "\n\t\033[33mRunning integration tests in parallel\033[0m"
+    @echo -e "\t\033[33m  Workers: {{ workers }}\033[0m"
+    @echo -e "\t\033[33m  Pass -n 1 or use 'just test-integration-sequential' for sequential execution\033[0m\n"
+    uv run --resolution highest -p '{{ python }}' pytest \
+        -m '{{ test_marker_integration }}' \
+        -n {{ workers }} \
+        --dist loadgroup \
+        {{ pytest_args }} \
+        tests
+
+# runs integration tests sequentially (preserves original single-process behavior)
+[group('qa')]
+test-integration-sequential python=python_version *pytest_args:
+    @echo -e "\n\t\033[33mRunning integration tests sequentially\033[0m"
+    @echo -e "\t\033[33m  Use 'just test-integration' for parallel execution\033[0m\n"
     uv run --resolution highest -p '{{ python }}' pytest \
         -m '{{ test_marker_integration }}' \
         {{ pytest_args }} \
@@ -204,6 +217,19 @@ test-integration-verbose python=python_version *pytest_args:
         -m '{{ test_marker_integration }}' \
         -vvv \
         --capture=no \
+        {{ pytest_args }} \
+        tests
+
+# runs integration tests in parallel skipping heavy marker tests (large uploads)
+[group('qa')]
+test-integration-quick python=python_version workers="auto" *pytest_args:
+    @echo -e "\n\t\033[33mRunning quick integration tests in parallel (skipping heavy tests)\033[0m"
+    @echo -e "\t\033[33m  Workers: {{ workers }}\033[0m"
+    @echo -e "\t\033[33m  Marker: {{ test_marker_integration }} and not heavy\033[0m\n"
+    uv run --resolution highest -p '{{ python }}' pytest \
+        -m '{{ test_marker_integration }} and not heavy' \
+        -n {{ workers }} \
+        --dist loadgroup \
         {{ pytest_args }} \
         tests
 

@@ -16,7 +16,7 @@
     ]
 
     name            = "spectrumx"
-    version         = "0.1.17"
+    version         = "0.1.18"
     description     = "SpectrumX Data System SDK"
     readme          = "./docs/README.md"
     requires-python = ">=3.11"
@@ -58,6 +58,7 @@
         "pytest>=8.3.3",
         "pytest-cov>=5.0.0",
         "pytest-responses>=0.5.1",
+        "pytest-xdist>=3.6.1",
         "pytz>=2024.2",
         "rich>=13.9.4",
         "ruff>=0.7.2",
@@ -71,8 +72,10 @@
 [tool.coverage]
     [tool.coverage.run]
         # https://coverage.readthedocs.io/en/latest/config.html#run
-        branch = true
-        omit   = [
+        branch     = true
+        data_file  = "tests/coverage/.coverage"
+        parallel   = true
+        omit       = [
             "*/__init__.py",
             "*/__main__.py",
             "*/tests/**/*.py",
@@ -265,6 +268,7 @@
     log_date_format             = "%Y-%m-%d %H:%M:%S"
     markers                     = [
         "integration: marks a test as an integration test",
+        "heavy: marks a test as heavy (large file uploads, >10 MB)",
         "linux: marks a test to run on linux",
         "darwin: marks a test to run on Mac OS",
         "win32: marks a test to run on windows",
