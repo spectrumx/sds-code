@@ -370,13 +370,13 @@ class FileViewSet(ViewSet):
         )
 
         if self._check_files_includes_rf_data(files_matching_dir):
-            if start_time is not None and end_time is not None:
+            if start_time and end_time:
                 files_matching_dir = filter_files_by_temporal_bounds(
                     files_matching_dir,
                     start_time,
                     end_time,
                 )
-            elif start_time is not None or end_time is not None:
+            elif start_time or end_time:
                 msg = (
                     "Both start_time and end_time are required for temporal filtering "
                     "when listing Digital RF data."

@@ -163,7 +163,7 @@ def _validate_time_range(
     start_time: int | None, end_time: int | None
 ) -> JsonResponse | None:
     """Return 400 JsonResponse if both provided and start >= end; else None."""
-    if start_time is not None and end_time is not None and start_time >= end_time:
+    if start_time and end_time and start_time >= end_time:
         return JsonResponse(
             {
                 "success": False,

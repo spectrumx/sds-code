@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Collection
 from collections.abc import Iterator
 from enum import StrEnum
 from http import HTTPStatus
@@ -283,9 +284,9 @@ class GatewayClient:
             "page_size": page_size,
             "path": str(sds_path),
         }
-        if start_time is not None:
+        if start_time:
             params["start_time"] = start_time
-        if end_time is not None:
+        if end_time:
             params["end_time"] = end_time
         response = self._request(
             method=HTTPMethods.GET,
@@ -778,21 +779,34 @@ class GatewayClient:
         dataset_uuid: uuid.UUID,
         page: int = 1,
         page_size: int = 30,
+        capture_uuids: Collection[uuid.UUID] | None = None,
+        top_level_dirs: Collection[str | PurePosixPath | Path] | None = None,
         verbose: bool = False,
     ) -> bytes:
         """Get a manifest of files in the dataset for efficient downloading.
 
         Args:
             dataset_uuid: The UUID of the dataset to get files for.
+            capture_uuids: Optional capture UUIDs to filter server-side (repeat query).
+            top_level_dirs: Optional directory prefixes to filter server-side.
             verbose: Show network requests and other info.
         Returns:
             The response content containing the dataset file manifest.
         """
+        params_list: list[tuple[str, str | int]] = [
+            ("page", page),
+            ("page_size", page_size),
+        ]
+        if capture_uuids:
+            params_list.extend(("capture", str(cap_id)) for cap_id in capture_uuids)
+        if top_level_dirs:
+            params_list.extend(("top_level_dir", str(path)) for path in top_level_dirs)
+
         response = self._request(
             method=HTTPMethods.GET,
             endpoint=Endpoints.DATASET_FILES,
             endpoint_args={"uuid": dataset_uuid.hex},
-            params={"page": page, "page_size": page_size},
+            params=params_list,
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=DatasetError)

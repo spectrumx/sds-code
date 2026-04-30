@@ -1,5 +1,6 @@
 """Client for the SpectrumX Data System."""
 
+from collections.abc import Collection
 from collections.abc import Mapping
 from datetime import datetime
 from pathlib import Path
@@ -31,6 +32,47 @@ from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error
 from .utils import log_user_warning
+
+
+def _normalize_top_level_dir_prefix(
+    top_level_dir: PurePosixPath | Path | str,
+) -> str:
+    s = str(top_level_dir).strip().replace("\\", "/")
+    if not s.startswith("/"):
+        s = f"/{s}"
+    return s.rstrip("/") or "/"
+
+
+def _resolve_dataset_capture_filter_params(
+    *,
+    capture_uuids: Collection[UUID4 | str] | None,
+    top_level_dirs: Collection[PurePosixPath | Path | str] | None,
+    dry_run: bool,
+) -> tuple[bool, set[UUID] | None, list[str] | None]:
+    """Return (filter_active, uuid_set, dir_prefixes_norm) for manifest filtering."""
+    filter_by_capture = capture_uuids is not None
+    filter_by_dir = top_level_dirs is not None
+    filter_active = filter_by_capture or filter_by_dir
+    if not filter_active:
+        return False, None, None
+    if dry_run:
+        log_user(
+            "Dry run: capture_uuids / top_level_dirs filters are ignored "
+            "(simulated manifest files are not capture-tagged)."
+        )
+        return False, None, None
+    uuid_set: set[UUID] | None = None
+    dir_prefixes_norm: list[str] | None = None
+    if filter_by_capture:
+        uuid_set = {UUID(str(u)) for u in capture_uuids or ()}
+    if filter_by_dir:
+        dir_prefixes_norm = [
+            _normalize_top_level_dir_prefix(d) for d in top_level_dirs or ()
+        ]
+    return True, uuid_set, dir_prefixes_norm
+
+
+DownloadFileSource = list[File] | Paginator[File]
 
 
 class Client:
@@ -211,7 +253,7 @@ class Client:
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         to_local_path: Path | str,
-        files_to_download: list[File] | Paginator[File] | None = None,
+        files_to_download: DownloadFileSource | None = None,
         skip_contents: bool = False,
         overwrite: bool = False,
         verbose: bool = True,
@@ -278,9 +320,9 @@ class Client:
         from_sds_path: PurePosixPath | None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
-        files_to_download: list[File] | Paginator[File] | None,
+        files_to_download: DownloadFileSource | None,
         verbose: bool,
-    ) -> list[File] | Paginator[File]:
+    ) -> DownloadFileSource:
         """Get the list of files to download."""
         if self.dry_run:
             log_user(
@@ -310,7 +352,7 @@ class Client:
     def _download_files(
         self,
         *,
-        files_to_download: list[File] | Paginator[File],
+        files_to_download: DownloadFileSource,
         to_local_path: Path,
         skip_contents: bool,
         overwrite: bool,
@@ -479,11 +521,13 @@ class Client:
         *,
         dataset_uuid: UUID4 | str,
         to_local_path: Path | str,
+        capture_uuids: Collection[UUID4 | str] | None = None,
+        top_level_dirs: Collection[PurePosixPath | Path | str] | None = None,
         skip_contents: bool = False,
         overwrite: bool = False,
         verbose: bool = True,
     ) -> list[Result[File]]:
-        """Downloads all files in a dataset using the existing download infrastructure.
+        """Downloads files in a dataset using the existing download infrastructure.
 
         This approach uses the get_dataset_files endpoint to get a paginated list of
         File objects and then uses the existing download() method with
@@ -492,19 +536,64 @@ class Client:
         Args:
             dataset_uuid: The UUID of the dataset to download.
             to_local_path: The local path to save the downloaded files to.
+            capture_uuids: If set, only files linked to at least one of these capture
+                UUIDs are downloaded (dataset artifacts with no capture are excluded).
+            top_level_dirs: If set, only files whose ``directory`` lies under one of
+                these capture ``top_level_dir`` paths (as from
+                :meth:`list_dataset_captures`) are included. Leading/trailing slashes
+                are normalized.
             skip_contents: When True, only the metadata is downloaded.
             overwrite: Whether to overwrite existing local files.
             verbose: Show progress bars and detailed output.
+
+        If both ``capture_uuids`` and ``top_level_dirs`` are set, a file is included
+        when it matches **either** criterion (enforced on the gateway). In dry run
+        mode, capture/path filters are ignored because simulated files are not
+        capture-tagged.
+
         Returns:
             A list of results for each file downloaded.
         """
         if isinstance(dataset_uuid, str):
             dataset_uuid = UUID(dataset_uuid)
 
-        # Get all files in the dataset as a paginator
-        files_to_download = self.datasets.get_files(dataset_uuid=dataset_uuid)
+        (
+            filter_active,
+            uuid_set,
+            dir_prefixes_norm,
+        ) = _resolve_dataset_capture_filter_params(
+            capture_uuids=capture_uuids,
+            top_level_dirs=top_level_dirs,
+            dry_run=self.dry_run,
+        )
 
-        if verbose:
+        if filter_active:
+            uuid_nonempty = bool(uuid_set)
+            dir_nonempty = bool(dir_prefixes_norm)
+            if not uuid_nonempty and not dir_nonempty:
+                files_to_download: DownloadFileSource = []
+            elif uuid_nonempty and dir_nonempty:
+                files_to_download = self.datasets.get_files(
+                    dataset_uuid,
+                    capture_uuids=tuple(uuid_set),
+                    top_level_dirs=tuple(dir_prefixes_norm),
+                )
+            elif uuid_nonempty:
+                files_to_download = self.datasets.get_files(
+                    dataset_uuid,
+                    capture_uuids=tuple(uuid_set),
+                )
+            else:
+                files_to_download = self.datasets.get_files(
+                    dataset_uuid,
+                    top_level_dirs=tuple(dir_prefixes_norm),
+                )
+            if verbose and (uuid_nonempty or dir_nonempty):
+                log_user("Dataset capture filter active (applied on the gateway).")
+        else:
+            files_to_download = self.datasets.get_files(dataset_uuid=dataset_uuid)
+
+        if verbose and not filter_active:
             log_user(
                 f"Downloading files from dataset "
                 f"(total: {len(files_to_download)} files)"

@@ -14,6 +14,9 @@ from spectrumx.ops.pagination import Paginator
 from spectrumx.utils import log_user
 
 if TYPE_CHECKING:
+    from collections.abc import Collection
+    from pathlib import Path
+    from pathlib import PurePosixPath
     from uuid import UUID
 
     from spectrumx.gateway import GatewayClient
@@ -93,23 +96,35 @@ class DatasetAPI:
     def get_files(
         self,
         dataset_uuid: UUID,
+        *,
+        capture_uuids: Collection[UUID] | None = None,
+        top_level_dirs: Collection[PurePosixPath | Path | str] | None = None,
     ) -> Paginator[File]:
         """Get files in the dataset as a paginator.
 
         Args:
             dataset_uuid: The UUID of the dataset to get files for.
+            capture_uuids: If set, passed to the gateway to restrict by capture UUID (OR
+                with ``top_level_dirs``).
+            top_level_dirs: If set, passed to the gateway as path prefixes under
+                ``File.directory`` (OR with ``capture_uuids``).
         Returns:
             A paginator for the files in the dataset.
         """
         if self.dry_run:
             log_user("Dry run enabled: files will be simulated")
 
-        # Create a paginator that fetches from the dataset files endpoint
+        list_kwargs: dict[str, Any] = {"dataset_uuid": dataset_uuid}
+        if capture_uuids is not None:
+            list_kwargs["capture_uuids"] = tuple(capture_uuids)
+        if top_level_dirs is not None:
+            list_kwargs["top_level_dirs"] = tuple(str(p) for p in top_level_dirs)
+
         pagination: Paginator[File] = Paginator(
             Entry=File,
             gateway=self.gateway,
             list_method=self.gateway.get_dataset_files,
-            list_kwargs={"dataset_uuid": dataset_uuid},
+            list_kwargs=list_kwargs,
             dry_run=self.dry_run,
             verbose=self.verbose,
         )

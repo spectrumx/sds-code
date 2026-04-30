@@ -2,6 +2,7 @@
 
 # pylint: disable=redefined-outer-name
 
+import uuid
 from datetime import datetime
 from datetime import timedelta
 from pathlib import PurePosixPath
@@ -11,6 +12,8 @@ import pytest
 from pydantic import BaseModel
 from pytz import UTC
 from pytz import timezone
+from spectrumx.models.capture_enums import CaptureOrigin
+from spectrumx.models.capture_enums import CaptureType
 from spectrumx.models.files import File
 from spectrumx.models.files import PermissionRepresentation
 from spectrumx.models.files import UnixPermissionStr
@@ -100,3 +103,64 @@ def test_permission_serialization() -> None:
     assert b.model_dump(context={"mode": PermissionRepresentation.OCTAL}) == {
         "permission": "0o755"
     }
+
+
+def test_file_parses_captures_list_from_api(
+    file_properties: dict[str, Any],
+) -> None:
+    """Gateway file payloads use a ``captures`` list (canonical)."""
+    cap_uid = uuid.uuid4()
+    nested_capture = {
+        "owner": {"id": 1, "email": "test@example.com", "name": "Test User"},
+        "is_shared": False,
+        "share_permissions": [],
+        "datasets": [],
+        "capture_props": {},
+        "capture_type": CaptureType.DigitalRF.value,
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/c/tdir",
+        "uuid": str(cap_uid),
+        "files": [],
+    }
+    raw = {
+        "uuid": str(uuid.uuid4()),
+        **file_properties,
+        "captures": [nested_capture],
+    }
+    f = File.model_validate(raw)
+    assert f.captures is not None
+    assert len(f.captures) == 1
+    assert f.captures[0].uuid == cap_uid
+
+
+def test_file_payload_may_include_redundant_singular_capture(
+    file_properties: dict[str, Any],
+) -> None:
+    """Gateway may send both ``captures`` and ``capture``; SDK uses ``captures``."""
+    cap_uid = uuid.uuid4()
+    nested_capture = {
+        "owner": {"id": 1, "email": "test@example.com", "name": "Test User"},
+        "is_shared": False,
+        "share_permissions": [],
+        "datasets": [],
+        "capture_props": {},
+        "capture_type": CaptureType.DigitalRF.value,
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/c/tdir",
+        "uuid": str(cap_uid),
+        "files": [],
+    }
+    raw = {
+        "uuid": str(uuid.uuid4()),
+        **file_properties,
+        "captures": [nested_capture],
+        "capture": nested_capture,
+    }
+    f = File.model_validate(raw)
+    assert f.captures is not None
+    assert len(f.captures) == 1
+    assert f.captures[0].uuid == cap_uid
