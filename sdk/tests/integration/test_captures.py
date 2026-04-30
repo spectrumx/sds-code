@@ -164,6 +164,7 @@ def _upload_drf_capture_test_assets(
 @pytest.mark.usefixtures("_integration_setup_teardown")
 @pytest.mark.usefixtures("_capture_test")
 @pytest.mark.usefixtures("_without_responses")
+@pytest.mark.xdist_group("rh_capture")
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[
@@ -268,6 +269,7 @@ def test_capture_listing_drf(integration_client: Client) -> None:
 @pytest.mark.usefixtures("_integration_setup_teardown")
 @pytest.mark.usefixtures("_capture_test")
 @pytest.mark.usefixtures("_without_responses")
+@pytest.mark.xdist_group("rh_capture")
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[
@@ -335,6 +337,7 @@ def test_capture_listing_all(integration_client: Client) -> None:
 @pytest.mark.usefixtures("_integration_setup_teardown")
 @pytest.mark.usefixtures("_capture_test")
 @pytest.mark.usefixtures("_without_responses")
+@pytest.mark.xdist_group("rh_capture")
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[
@@ -499,6 +502,7 @@ def test_capture_upload_drf(
 @pytest.mark.usefixtures("_integration_setup_teardown")
 @pytest.mark.usefixtures("_capture_test")
 @pytest.mark.usefixtures("_without_responses")
+@pytest.mark.xdist_group("rh_capture")
 @pytest.mark.parametrize(
     "_without_responses",
     argvalues=[

@@ -267,9 +267,17 @@ def _without_responses(
     responses.reset()
 
 
-@pytest.fixture
-def integration_client() -> Client:
-    """Fixture to create a Client instance for integration testing."""
+@pytest.fixture(scope="session")
+def _integration_client() -> Client:
+    """Session-scoped: create Client object (no HTTP, safe at session scope).
+
+    Authentication is split into the function-scoped ``integration_client``
+    fixture below so it runs after ``_without_responses`` has set up
+    ``responses`` passthroughs.  Without this split, a session-scoped fixture
+    that calls ``authenticate()`` would be blocked by ``pytest-responses``'
+    global ``pytest_runtest_setup`` hook (which calls ``responses_.start()``
+    before session fixtures are resolved).
+    """
     integration_config = {
         "DRY_RUN": False,  # disable dry run for integration tests
         "HTTP_TIMEOUT": 30,
@@ -287,23 +295,35 @@ def integration_client() -> Client:
         _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
-
-    # Authenticate immediately to fail fast on bad credentials or unreachable host
-    try:
-        _integration_client.authenticate()
-    except AuthError as err:
-        pytest.exit(
-            "Integration tests authentication FAILED: "
-            "verify the API key in `tests/integration/integration.env` "
-            f"matches the server and the host is reachable.\nError: {err}",
-        )
-
     return _integration_client
 
 
 @pytest.fixture
-def inline_auth_integration_client() -> Client:
-    """Client instance for integration testing authenticated with inline."""
+def integration_client(_integration_client: Client) -> Client:
+    """Function-scoped: authenticate within the test's responses passthrough context.
+
+    The client object is shared (session-scoped via ``_integration_client``),
+    so auth only happens once per worker — subsequent tests skip it via
+    ``is_authenticated``.
+    """
+    if not _integration_client.is_authenticated:
+        try:
+            _integration_client.authenticate()
+        except AuthError as err:
+            pytest.exit(
+                "Integration tests authentication FAILED: "
+                "verify the API key in `tests/integration/integration.env` "
+                f"matches the server and the host is reachable.\nError: {err}",
+            )
+    return _integration_client
+
+
+@pytest.fixture(scope="session")
+def _inline_auth_integration_client() -> Client:
+    """Session-scoped: create Client object (no HTTP, safe at session scope).
+
+    See ``_integration_client`` for rationale on splitting auth.
+    """
     env_file = Path("tests") / "integration" / "integration.env"
     env_file_loaded = dotenv.dotenv_values(env_file, verbose=True)
     assert "SDS_SECRET_TOKEN" in env_file_loaded, (
@@ -323,18 +343,26 @@ def inline_auth_integration_client() -> Client:
         _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
-
-    # Authenticate immediately to fail fast on bad credentials or unreachable host
-    try:
-        _integration_client.authenticate()
-    except AuthError as err:
-        pytest.exit(
-            "Integration tests authentication FAILED: "
-            "verify the API key in `tests/integration/integration.env` "
-            f"matches the server and the host is reachable.\nError: {err}",
-        )
-
     return _integration_client
+
+
+@pytest.fixture
+def inline_auth_integration_client(_inline_auth_integration_client: Client) -> Client:
+    """Function-scoped: authenticate within the test's responses passthrough context.
+
+    The client object is shared (session-scoped via
+    ``_inline_auth_integration_client``), so auth only happens once per worker.
+    """
+    if not _inline_auth_integration_client.is_authenticated:
+        try:
+            _inline_auth_integration_client.authenticate()
+        except AuthError as err:
+            pytest.exit(
+                "Integration tests authentication FAILED: "
+                "verify the API key in `tests/integration/integration.env` "
+                f"matches the server and the host is reachable.\nError: {err}",
+            )
+    return _inline_auth_integration_client
 
 
 @pytest.fixture

@@ -276,7 +276,7 @@ def test_upload_files_in_bulk(integration_client: Client, temp_file_tree: Path) 
     "temp_large_binary_file",
     [
         {"size_mb": 10},  # 10 MB
-        {"size_mb": 100},  # 100 MB
+        pytest.param({"size_mb": 100}, marks=pytest.mark.heavy),  # 100 MB
         # {"size_mb": 1_000},  # 1 GB       # noqa: ERA001
         # {"size_mb": 10_000},  # 10 GB     # noqa: ERA001
     ],
