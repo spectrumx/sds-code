@@ -812,14 +812,14 @@ async def test_remove_persisted_upload_handles_write_error(
     persist_path.write_text(persisted.model_dump_json() + "\n")
 
     with patch("spectrumx.api.uploads.log_user_warning") as mock_warn:
-        persist_path.parent.chmod(0o555)
+        persist_path.chmod(0o444)
         try:
             await upload_workload._persistence_manager.remove_persisted_upload(
                 str(file_path.resolve())
             )
             mock_warn.assert_called()
         finally:
-            persist_path.parent.chmod(0o755)
+            persist_path.chmod(0o644)
 
 
 def test_remove_persisted_uploads_by_checksum_no_uploads_dir() -> None:
@@ -1008,14 +1008,14 @@ def test_remove_persisted_uploads_by_checksum_handles_write_error(
         mock_state_home.return_value = tmp_path
 
         with patch("spectrumx.api.uploads.log_user_warning") as mock_warn:
-            uploads_dir.chmod(0o555)
+            persist_file.chmod(0o444)
             try:
                 UploadPersistenceManager.remove_persisted_uploads_by_checksum(
                     checksum="checksum"
                 )
                 mock_warn.assert_called()
             finally:
-                uploads_dir.chmod(0o755)
+                persist_file.chmod(0o644)
 
 
 def test_remove_persisted_uploads_by_checksum_preserves_other_files(
