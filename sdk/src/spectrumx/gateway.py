@@ -781,6 +781,7 @@ class GatewayClient:
         page_size: int = 30,
         capture_uuids: Collection[uuid.UUID] | None = None,
         top_level_dirs: Collection[str | PurePosixPath | Path] | None = None,
+        artifacts_only: bool = False,
         verbose: bool = False,
     ) -> bytes:
         """Get a manifest of files in the dataset for efficient downloading.
@@ -789,6 +790,7 @@ class GatewayClient:
             dataset_uuid: The UUID of the dataset to get files for.
             capture_uuids: Optional capture UUIDs to filter server-side (repeat query).
             top_level_dirs: Optional directory prefixes to filter server-side.
+            artifacts_only: When True, request only dataset artifact files from the API.
             verbose: Show network requests and other info.
         Returns:
             The response content containing the dataset file manifest.
@@ -801,6 +803,8 @@ class GatewayClient:
             params_list.extend(("capture", str(cap_id)) for cap_id in capture_uuids)
         if top_level_dirs:
             params_list.extend(("top_level_dir", str(path)) for path in top_level_dirs)
+        if artifacts_only:
+            params_list.append(("artifacts_only", "true"))
 
         response = self._request(
             method=HTTPMethods.GET,

@@ -99,6 +99,7 @@ class DatasetAPI:
         *,
         capture_uuids: Collection[UUID] | None = None,
         top_level_dirs: Collection[PurePosixPath | Path | str] | None = None,
+        artifacts_only: bool = False,
     ) -> Paginator[File]:
         """Get files in the dataset as a paginator.
 
@@ -108,17 +109,28 @@ class DatasetAPI:
                 with ``top_level_dirs``).
             top_level_dirs: If set, passed to the gateway as path prefixes under
                 ``File.directory`` (OR with ``capture_uuids``).
+            artifacts_only: If set, only return artifact files (not capture-linked
+                files).
         Returns:
             A paginator for the files in the dataset.
         """
         if self.dry_run:
             log_user("Dry run enabled: files will be simulated")
 
+        if artifacts_only and capture_uuids:
+            log.warning("Capture UUIDs are not allowed when artifacts_only is True.")
+            capture_uuids = None
+
+        if artifacts_only and top_level_dirs:
+            log.info("Top level directories included will ONLY return artifact files.")
+
         list_kwargs: dict[str, Any] = {"dataset_uuid": dataset_uuid}
         if capture_uuids is not None:
             list_kwargs["capture_uuids"] = tuple(capture_uuids)
         if top_level_dirs is not None:
             list_kwargs["top_level_dirs"] = tuple(str(p) for p in top_level_dirs)
+        if artifacts_only:
+            list_kwargs["artifacts_only"] = True
 
         pagination: Paginator[File] = Paginator(
             Entry=File,

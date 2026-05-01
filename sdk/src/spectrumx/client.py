@@ -523,6 +523,7 @@ class Client:
         to_local_path: Path | str,
         capture_uuids: Collection[UUID4 | str] | None = None,
         top_level_dirs: Collection[PurePosixPath | Path | str] | None = None,
+        artifacts_only: bool = False,
         skip_contents: bool = False,
         overwrite: bool = False,
         verbose: bool = True,
@@ -542,6 +543,8 @@ class Client:
                 these capture ``top_level_dir`` paths (as from
                 :meth:`list_dataset_captures`) are included. Leading/trailing slashes
                 are normalized.
+            artifacts_only: If set, only return artifact files (not capture-linked
+                files).
             skip_contents: When True, only the metadata is downloaded.
             overwrite: Whether to overwrite existing local files.
             verbose: Show progress bars and detailed output.
@@ -573,25 +576,35 @@ class Client:
             if not uuid_nonempty and not dir_nonempty:
                 files_to_download: DownloadFileSource = []
             elif uuid_nonempty and dir_nonempty:
+                assert uuid_set is not None
+                assert dir_prefixes_norm is not None
                 files_to_download = self.datasets.get_files(
                     dataset_uuid,
                     capture_uuids=tuple(uuid_set),
                     top_level_dirs=tuple(dir_prefixes_norm),
+                    artifacts_only=artifacts_only,
                 )
             elif uuid_nonempty:
+                assert uuid_set is not None
                 files_to_download = self.datasets.get_files(
                     dataset_uuid,
                     capture_uuids=tuple(uuid_set),
+                    artifacts_only=artifacts_only,
                 )
             else:
+                assert dir_prefixes_norm is not None
                 files_to_download = self.datasets.get_files(
                     dataset_uuid,
                     top_level_dirs=tuple(dir_prefixes_norm),
+                    artifacts_only=artifacts_only,
                 )
             if verbose and (uuid_nonempty or dir_nonempty):
                 log_user("Dataset capture filter active (applied on the gateway).")
         else:
-            files_to_download = self.datasets.get_files(dataset_uuid=dataset_uuid)
+            files_to_download = self.datasets.get_files(
+                dataset_uuid,
+                artifacts_only=artifacts_only,
+            )
 
         if verbose and not filter_active:
             log_user(

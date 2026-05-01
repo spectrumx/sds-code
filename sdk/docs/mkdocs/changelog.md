@@ -4,7 +4,9 @@
 
 + Features:
     + [**Added `start_time` and `end_time` parameters to `list_files` and `download`**](https://github.com/spectrumx/sds-code/pull/278): this gives users the ability to filter file directory downloads associated with DigitalRF captures based on a time span within the capture bounds (similar to time filtering in the web UI on SDS)
-    + [**Added `capture_uuids` and `top_level_dirs` parameters to `download_dataset`**](https://github.com/spectrumx/sds-code/pull/278): this allows users to input specific capture UUIDs or directories associated with the dataset to download. Users may run `list_dataset_captures` to see the UUID and `top_level_dir` of the captures on the dataset they wish to download.
+    + [**Added `capture_uuids`, `top_level_dirs`, and `artifacts_only` parameters to `download_dataset`**](https://github.com/spectrumx/sds-code/pull/278): this allows users to input specific capture UUIDs or file directories associated with the dataset to download. `artifacts_only` allows user to filter for directly connected files on a dataset specifically. In this case, `capture_uuids` entry is ignored, but users may define `top_level_dir` file directories to filter artifacts for download on a large dataset. Users may run `list_dataset_captures` to see the UUID and `top_level_dir` of the captures on the dataset they wish to download.
+    + [**Added `list_dataset_captures` method**](https://github.com/spectrumx/sds-code/pull/278): this allows users to list all captures associated with a dataset.
+    + [**Added `list_dataset_artifact_files` method**](https://github.com/spectrumx/sds-code/pull/278): this allows users to list all artifact files associated with a dataset.
 
 + Observability:
     + [**Added `captures` and `files` attributes to `Dataset` model**](https://github.com/spectrumx/sds-code/pull/278): This allows visibility from the dataset side into attached captures and files.
