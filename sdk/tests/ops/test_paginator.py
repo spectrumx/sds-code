@@ -81,19 +81,17 @@ def test_paginator_dry_run_ingest_list_files(gateway: GatewayClient) -> None:
         )
 
         # initial state assertions
-        assert paginator._has_fetched is False, (  # noqa: SLF001
+        assert paginator._has_fetched is False, (
             "Paginator should not have fetched data initially"
         )
-        assert paginator._has_next_page is True, (  # noqa: SLF001
+        assert paginator._has_next_page is True, (
             "Paginator should expect more pages initially"
         )
-        assert paginator._next_page == 1, (  # noqa: SLF001
-            "Initial next page should be 1"
-        )
-        assert paginator._total_matches == 1, (  # noqa: SLF001
+        assert paginator._next_page == 1, "Initial next page should be 1"
+        assert paginator._total_matches == 1, (
             "Total matches defaults to 1 before first fetch"
         )
-        assert paginator._yielded_count == 0, (  # noqa: SLF001
+        assert paginator._yielded_count == 0, (
             "No items should have been yielded initially"
         )
 
@@ -180,19 +178,17 @@ def test_paginator_dry_run_ingest_get_dataset_files(gateway: GatewayClient) -> N
         )
 
         # initial state assertions
-        assert paginator._has_fetched is False, (  # noqa: SLF001
+        assert paginator._has_fetched is False, (
             "Paginator should not have fetched data initially"
         )
-        assert paginator._has_next_page is True, (  # noqa: SLF001
+        assert paginator._has_next_page is True, (
             "Paginator should expect more pages initially"
         )
-        assert paginator._next_page == 1, (  # noqa: SLF001
-            "Initial next page should be 1"
-        )
-        assert paginator._total_matches == 1, (  # noqa: SLF001
+        assert paginator._next_page == 1, "Initial next page should be 1"
+        assert paginator._total_matches == 1, (
             "Total matches defaults to 1 before first fetch"
         )
-        assert paginator._yielded_count == 0, (  # noqa: SLF001
+        assert paginator._yielded_count == 0, (
             "No items should have been yielded initially"
         )
 
@@ -314,19 +310,17 @@ def test_paginator_internal_state(
     )
 
     # assertions about the initial state
-    assert paginator._has_fetched is False, (  # noqa: SLF001
+    assert paginator._has_fetched is False, (
         "Should not have fetched before first iteration"
     )
-    assert paginator._has_next_page is True, (  # noqa: SLF001
-        "Should expect a next page before fetching"
+    assert paginator._has_next_page is True, "Should expect a next page before fetching"
+    assert paginator._next_page == first_page, (
+        f"Expected first page {first_page}, got {paginator._next_page}"
     )
-    assert paginator._next_page == first_page, (  # noqa: SLF001
-        f"Expected first page {first_page}, got {paginator._next_page}"  # noqa: SLF001
-    )
-    assert paginator._yielded_count == 0, (  # noqa: SLF001
+    assert paginator._yielded_count == 0, (
         "Should not have yielded anything before fetching"
     )
-    assert paginator._total_matches == 1, (  # noqa: SLF001
+    assert paginator._total_matches == 1, (
         "Total matches is unknown (default=1) before the first page is fetched"
     )
 
@@ -339,19 +333,17 @@ def test_paginator_internal_state(
             f"Expected paginator length to be {target_count}"
         )
 
-    assert paginator._has_fetched is True, (  # noqa: SLF001
+    assert paginator._has_fetched is True, (
         "Paginator should have fetched after computing length"
     )
-    assert paginator._has_next_page is True, (  # noqa: SLF001
-        "Should have more pages after first fetch"
+    assert paginator._has_next_page is True, "Should have more pages after first fetch"
+    assert paginator._next_page == first_page + 1, (
+        f"Expected page {first_page + 1}, got {paginator._next_page}"
     )
-    assert paginator._next_page == first_page + 1, (  # noqa: SLF001
-        f"Expected page {first_page + 1}, got {paginator._next_page}"  # noqa: SLF001
+    assert paginator._total_matches == target_count, (
+        f"Expected {target_count} total matches, got {paginator._total_matches}"
     )
-    assert paginator._total_matches == target_count, (  # noqa: SLF001
-        f"Expected {target_count} total matches, got {paginator._total_matches}"  # noqa: SLF001
-    )
-    assert paginator._yielded_count == 0, (  # noqa: SLF001
+    assert paginator._yielded_count == 0, (
         "Yield count must be still zero after the first page is fetched"
     )
 
@@ -362,11 +354,11 @@ def test_paginator_internal_state(
         test_yield_count += 1
         assert isinstance(item, File), "Expected a File instance"
     assert test_yield_count == page_size, "Did not fill a page"
-    assert paginator._yielded_count == page_size, (  # noqa: SLF001
+    assert paginator._yielded_count == page_size, (
         "Yield count does not match the items actually yielded (1st page)"
     )
-    assert paginator._yielded_count == test_yield_count, (  # noqa: SLF001
-        f"Yield count {paginator._yielded_count} should match "  # noqa: SLF001
+    assert paginator._yielded_count == test_yield_count, (
+        f"Yield count {paginator._yielded_count} should match "
         f"test yield count {test_yield_count}"
     )
 
@@ -379,22 +371,20 @@ def test_paginator_internal_state(
             item = next(paginator)
             test_yield_count += 1
             assert isinstance(item, File), "Expected a File instance"
-    assert paginator._has_fetched is True, (  # noqa: SLF001
-        "Paginator should have fetched data"
-    )
-    assert paginator._has_next_page is False, (  # noqa: SLF001
+    assert paginator._has_fetched is True, "Paginator should have fetched data"
+    assert paginator._has_next_page is False, (
         "Paginator should not have more pages after final fetch"
     )
-    assert paginator._next_page == first_page + 2, (  # noqa: SLF001
-        f"Expected page {first_page + 2}, got {paginator._next_page}"  # noqa: SLF001
+    assert paginator._next_page == first_page + 2, (
+        f"Expected page {first_page + 2}, got {paginator._next_page}"
     )
-    assert paginator._total_matches == target_count, (  # noqa: SLF001
-        f"Expected {target_count} total matches, got {paginator._total_matches}"  # noqa: SLF001
+    assert paginator._total_matches == target_count, (
+        f"Expected {target_count} total matches, got {paginator._total_matches}"
     )
-    assert paginator._yielded_count == target_count, (  # noqa: SLF001
+    assert paginator._yielded_count == target_count, (
         "Yield count does not match the target count"
     )
-    assert paginator._yielded_count == test_yield_count, (  # noqa: SLF001
+    assert paginator._yielded_count == test_yield_count, (
         "Yield count does not match the items actually yielded (2nd page)"
     )
 
