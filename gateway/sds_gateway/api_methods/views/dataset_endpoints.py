@@ -1,6 +1,9 @@
 """Dataset operations endpoints for the SDS Gateway API."""
 
-from django.db.models import QuerySet
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
@@ -8,7 +11,6 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
@@ -32,19 +34,39 @@ from sds_gateway.api_methods.utils.dataset_manifest_filters import (
 from sds_gateway.api_methods.utils.dataset_manifest_filters import (
     parse_top_level_dir_query,
 )
+from sds_gateway.api_methods.utils.relationship_utils import get_dataset_artifact_files
 from sds_gateway.api_methods.utils.relationship_utils import (
     get_dataset_files_including_captures,
 )
 from sds_gateway.api_methods.views.file_endpoints import FilePagination
 from sds_gateway.users.models import User
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from django.db.models import QuerySet
+    from rest_framework.request import Request
+
+
+def _truthy_query_param(raw: str | None) -> bool:
+    if raw is None:
+        return False
+    return raw.strip().lower() in ("1", "true", "yes")
+
 
 class DatasetViewSet(ViewSet):
     authentication_classes = [APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
-    def _get_file_objects(self, dataset: Dataset) -> QuerySet[File]:
+    def _get_file_objects(
+        self,
+        dataset: Dataset,
+        *,
+        artifacts_only: bool = False,
+    ) -> QuerySet[File]:
         """Get all files associated with a dataset."""
+        if artifacts_only:
+            return get_dataset_artifact_files(dataset, include_deleted=False)
         return get_dataset_files_including_captures(dataset, include_deleted=False)
 
     @extend_schema(
@@ -147,6 +169,13 @@ class DatasetViewSet(ViewSet):
                 type=str,
                 location=OpenApiParameter.QUERY,
             ),
+            OpenApiParameter(
+                name="artifact_only",
+                description="Only include artifact files (not capture-linked files).",
+                required=False,
+                type=bool,
+                location=OpenApiParameter.QUERY,
+            ),
         ],
         responses={
             200: OpenApiResponse(description="Dataset file listing"),
@@ -189,8 +218,13 @@ class DatasetViewSet(ViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        artifacts_only = _truthy_query_param(request.GET.get("artifacts_only"))
+
         # Get all files associated with this dataset
-        dataset_files = self._get_file_objects(target_dataset)
+        dataset_files = self._get_file_objects(
+            target_dataset,
+            artifacts_only=artifacts_only,
+        )
 
         if not dataset_files.exists():
             return Response(
@@ -198,13 +232,16 @@ class DatasetViewSet(ViewSet):
                 status=status.HTTP_404_NOT_FOUND,
             )
 
-        try:
-            capture_uuids = parse_capture_uuid_query(request)
-        except ValueError as err:
-            return Response(
-                {"detail": str(err)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        capture_uuids: list[UUID] = []
+        if not artifacts_only:
+            try:
+                capture_uuids = parse_capture_uuid_query(request)
+            except ValueError as err:
+                return Response(
+                    {"detail": str(err)},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
         top_level_dir_prefixes = parse_top_level_dir_query(request)
         if capture_uuids or top_level_dir_prefixes:
             dataset_files = filter_dataset_files_queryset(

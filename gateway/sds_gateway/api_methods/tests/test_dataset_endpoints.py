@@ -519,6 +519,95 @@ class DatasetEndpointsTestCase(TestCase):
         assert data["count"] == 1
         assert data["results"][0]["uuid"] == str(f_match.uuid)
 
+    def test_get_dataset_files_artifacts_only_excludes_capture_linked_files(self):
+        """artifacts_only=true returns only files directly on the dataset."""
+        capture = Capture.objects.create(
+            owner=self.user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch",
+            index_name="ix",
+            name="cap",
+        )
+        self.created_captures.append(capture)
+        with MockMinIOContext(b"c"):
+            f_cap = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, capture=capture
+            )
+            f_art = create_file_with_minio_mock(
+                file_content=b"c", owner=self.user, dataset=self.dataset
+            )
+            self.created_files.extend([f_cap, f_art])
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(base_url, {"artifacts_only": "true"})
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1
+        assert data["results"][0]["uuid"] == str(f_art.uuid)
+        assert data["results"][0]["capture"] is None
+
+    def test_get_dataset_files_artifacts_only_skips_capture_param_parsing(self):
+        """Invalid capture UUID is ignored when artifacts_only=true (no 400)."""
+        with MockMinIOContext(b"x"):
+            f_art = create_file_with_minio_mock(
+                file_content=b"x", owner=self.user, dataset=self.dataset
+            )
+            self.created_files.append(f_art)
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(
+            base_url,
+            {"artifacts_only": "true", "capture": "not-a-uuid"},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1
+        assert data["results"][0]["uuid"] == str(f_art.uuid)
+
+    def test_get_dataset_files_artifacts_only_filters_top_level_dir(self):
+        """artifacts_only with top_level_dir returns only artifacts under that path."""
+        tld = "/pytest/artifact/root"
+        capture = Capture.objects.create(
+            owner=self.user,
+            dataset=self.dataset,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch",
+            index_name="ix",
+            name="cap",
+            top_level_dir="/pytest/capture/other",
+        )
+        self.created_captures.append(capture)
+        with MockMinIOContext(b"c"):
+            f_in_prefix = create_file_with_minio_mock(
+                file_content=b"c",
+                owner=self.user,
+                dataset=self.dataset,
+                directory=f"{tld}/nested/",
+            )
+            f_other_dir = create_file_with_minio_mock(
+                file_content=b"c",
+                owner=self.user,
+                dataset=self.dataset,
+                directory="/other/artifacts/",
+            )
+            f_capture_under_same_prefix = create_file_with_minio_mock(
+                file_content=b"c",
+                owner=self.user,
+                capture=capture,
+                directory=f"{tld}/from_capture/",
+            )
+            self.created_files.extend(
+                [f_in_prefix, f_other_dir, f_capture_under_same_prefix]
+            )
+        base_url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        response = self.client.get(
+            base_url,
+            {"artifacts_only": "true", "top_level_dir": tld},
+        )
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] == 1
+        assert data["results"][0]["uuid"] == str(f_in_prefix.uuid)
+
     def test_get_dataset_files_not_found(self):
         """Test dataset files manifest with non-existent UUID."""
         fake_uuid = uuid.uuid4()
