@@ -64,13 +64,13 @@ load_credentials *args:
 
     # args=("{{ args }}")
     env="{{ env }}"
-    sfs_env_file="../gateway/.envs/${env}/sfs.env"
-    if [[ ! -f "${sfs_env_file}" ]]; then
-        echo "Error: SeaweedFS credentials file not found at ${sfs_env_file}" >&2
+    primary_env_file="../gateway/.envs/${env}/storage.env"
+    if [[ ! -f "${primary_env_file}" ]]; then
+        echo "Error: Primary storage credentials file not found at ${primary_env_file}" >&2
         echo "Please run 'just generate-secrets' to create it." >&2
         exit 1
     fi
-    env_file_gateway=$(realpath ${sfs_env_file})
+    env_file_gateway=$(realpath ${primary_env_file})
     echo "Loading credentials from ${env_file_gateway}..." >&2
 
     if [[ ! -f "${env_file_gateway}" ]]; then
@@ -78,13 +78,13 @@ load_credentials *args:
         exit 1
     fi
 
-    access_key=$(grep -E '^SFS_ACCESS_KEY_ID=' "${env_file_gateway}" | cut -d'=' -f2- || true)
-    secret_key=$(grep -E '^SFS_SECRET_ACCESS_KEY=' "${env_file_gateway}" | cut -d'=' -f2- || true)
-    bucket_name=$(grep -E '^SFS_STORAGE_BUCKET_NAME=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    access_key=$(grep -E '^PRIMARY_ACCESS_KEY_ID=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    secret_key=$(grep -E '^PRIMARY_SECRET_ACCESS_KEY=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    bucket_name=$(grep -E '^PRIMARY_STORAGE_BUCKET_NAME=' "${env_file_gateway}" | cut -d'=' -f2- || true)
 
     if [[ -z "${access_key}" || -z "${secret_key}" || -z "${bucket_name}" ]]; then
         echo "Missing required credentials in ${env_file_gateway}. Expected:" >&2
-        echo -e "\tSFS_ACCESS_KEY_ID, SFS_SECRET_ACCESS_KEY, SFS_STORAGE_BUCKET_NAME" >&2
+        echo -e "\tPRIMARY_ACCESS_KEY_ID, PRIMARY_SECRET_ACCESS_KEY, PRIMARY_STORAGE_BUCKET_NAME" >&2
         exit 1
     fi
 
