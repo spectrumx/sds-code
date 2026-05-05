@@ -13,7 +13,7 @@ volumes:
     sds-gateway-local-uv-venv-worker: {}
     sds-gateway-local-uv-venv-beat: {}
     sds-gateway-local-uv-venv-flower: {}
-    sds-gateway-local-minio-files: {}
+    sds-gateway-local-rustfs-files: {}
     sds-gateway-local-opensearch-data: {}
     sds-gateway-local-postgres-data-backups: {}
     sds-gateway-local-postgres-data: {}
@@ -21,9 +21,9 @@ volumes:
 
 networks:
     # for safety, all gateway local networks start with "sds-gateway-local-"
-    sds-gateway-local-minio-net:
+    sds-gateway-local-rustfs-net:
         driver: bridge
-        name: sds-gateway-local-minio-net
+        name: sds-gateway-local-rustfs-net
     sds-gateway-local-opensearch-net:
         driver: bridge
         name: sds-gateway-local-opensearch-net
@@ -31,7 +31,7 @@ networks:
         driver: bridge
         name: sds-gateway-local-postgres-net
     sds-network-local:
-        # externally defined in traefik and/or in the seaweedfs compose file
+        # externally defined in traefik and/or in the primary storage compose file
         external: true
         # should match traefik's network name
         name: sds-network-local
@@ -80,8 +80,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
-            - ./.envs/local/sfs.env
+            - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         # remember /entrypoint runs first
@@ -90,8 +89,7 @@ services:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
             - sds-gateway-local-opensearch-net
-            - sds-gateway-local-minio-net # TODO: deprecated, remove after migration complete
-            - sds-gateway-local-postgres-net
+            - sds-gateway-local-rustfs-net
             - sds-network-local
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
@@ -143,31 +141,34 @@ services:
             retries: 5
             start_period: 10s
 
-    # TODO: DEPRECATED: being replaced by SeaweedFS. Keep running during migration.
-    # Remove after data migration is complete — see docs/minio-to-sfs-migration.md
-    minio:
-        image: minio/minio:latest
-        container_name: sds-gateway-local-minio
+    # Primary storage (RustFS) — S3-compatible, default for local/CI
+    rustfs:
+        image: rustfs/rustfs:latest
+        container_name: sds-gateway-local-rustfs
         volumes:
-            - sds-gateway-local-minio-files:/files
+            - sds-gateway-local-rustfs-files:/data
         ports:
             - "9000:9000"
             - "9001:9001"
-        env_file:
-            - ./.envs/local/minio.env
+        environment:
+            - RUSTFS_VOLUMES=/data
+            - RUSTFS_ADDRESS=0.0.0.0:9000
+            - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+            - RUSTFS_CONSOLE_ENABLE=true
+            - RUSTFS_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=*
+        networks:
+            - sds-gateway-local-rustfs-net
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                    "curl -f http://localhost:9000/rustfs/console/health || exit 1",
                 ]
             interval: 30s
             timeout: 5s
             retries: 5
             start_period: 10s
-        command: 'server /files --console-address ":9001"'
-        networks:
-            - sds-gateway-local-minio-net
 
     opensearch:
         # used for indexing and searching documents
@@ -282,8 +283,7 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
-            - ./.envs/local/sfs.env
+            - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/worker-start"
@@ -342,72 +342,12 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/minio.env
-            - ./.envs/local/sfs.env
+            - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
         command: "/beat-start"
         networks:
-            - sds-gateway-local-opensearch-net
-            - sds-gateway-local-postgres-net
-            - sds-network-local
-        healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    'uv run python -c "import pathlib,sys; ok=any((b\"beat\" in data) and ((b\"celery\" in data) or (b\"watchfiles\" in data)) for data in (path.read_bytes() for path in pathlib.Path(\"/proc\").glob(\"[0-9]*/cmdline\"))); sys.exit(0 if ok else 1)"',
-                ]
-            interval: 30s
-            timeout: 30s
-            retries: 5
-            start_period: 30s
-
-    celery-flower:
-        # Celery monitoring and administration tool
-        build:
-            context: .
-            dockerfile: ./compose/local/django/Dockerfile
-            args:
-                GIT_COMMIT: ${GIT_COMMIT:-none}
-        image: sds-gateway-local-app
-        container_name: sds-gateway-local-celery-flower
-        tty: true
-        depends_on:
-            sds-gateway-local-app:
-                condition: service_healthy
-        volumes:
-            - sds-gateway-local-uv-cache:/opt/uv-cache/
-            - sds-gateway-local-uv-venv-flower:/opt/uv-venv/
-            - sds-gateway-local-app-media:/app/sds_gateway/media
-            - sds-gateway-local-temp-zips:/app/sds_gateway/media/temp_zips
-            - source: ./sds_gateway/api_methods/migrations
-              target: /app/sds_gateway/api_methods/migrations
-              type: bind
-              read_only: false
-              bind:
-                  selinux: z
-            - source: ./sds_gateway/users/migrations
-              target: /app/sds_gateway/users/migrations
-              type: bind
-              read_only: false
-              bind:
-                  selinux: z
-            - source: ./sds_gateway/visualizations/migrations
-              target: /app/sds_gateway/visualizations/migrations
-              type: bind
-              read_only: false
-              bind:
-                  selinux: z
-        env_file:
-            - ./.envs/local/django.env
-            - ./.envs/local/minio.env
-            - ./.envs/local/sfs.env
-            - ./.envs/local/postgres.env
-            - ./.envs/local/opensearch.env
-        command: "/flower-start"
-        ports:
-            - "5555:5555" # Flower web interface
-        networks:
+            - sds-gateway-local-rustfs-net
             - sds-gateway-local-opensearch-net
             - sds-gateway-local-postgres-net
             - sds-network-local
