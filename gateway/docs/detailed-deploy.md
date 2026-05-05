@@ -103,8 +103,8 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
     # manually set the secrets in .envs/local/*.env files
     ```
 
-    > [!NOTE]
-    > In `minio.env`, set `AWS_SECRET_ACCESS_KEY == MINIO_ROOT_PASSWORD`;
+> [!NOTE]
+> In `storage.env`, set `AWS_SECRET_ACCESS_KEY == SECONDARY_ROOT_PASSWORD`;
     >
     > In `django.env`, to generate the `API_KEY` get it running first, then navigate to
     > [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key).
@@ -166,10 +166,10 @@ differ.
 
     This also tests the connection between the application and the OpenSearch instance.
 
-3. Create the MinIO bucket:
+3. Create the storage bucket:
 
     Go to [localhost:9001](http://localhost:9001) (or `localhost:19001` in production)
-    and create a bucket named `spectrumx` with the credentials set in `minio.env`.
+    and create a bucket named `spectrumx` with the credentials set in `storage.env`.
     Optionally apply a storage quota to this bucket (you can modify it later if needed).
 
 ## First deployment: not automated
@@ -267,8 +267,8 @@ rsync -aP ./.envs/example/ ./.envs/production
     echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 40)
     ```
 
-+ In `minio.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to
-  `MINIO_ROOT_PASSWORD`**;
++ In `storage.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to
+  `SECONDARY_ROOT_PASSWORD`**;
 + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
 + In `django.env`, to generate the `API_KEY` get it running first, then navigate to
   [localhost:18000/users/generate-api-key-form](http://localhost:18000/users/generate-api-key-form/)
@@ -385,30 +385,37 @@ production hosts.
 
 4. MinIO setup:
 
+    > [!NOTE]
+    > As of April 2026, MinIO is used as a secondary storage for SDS, and the main
+    > storage is SeaweedFS. The MinIO instance is optional. For more details, see the
+    > [MinIO to SeaweedFS migration documentation](./migration-minio-to-seaweedfs.md).
+
     This is a multi-drive, single-node setup of MinIO. For a distributed setup
     (multi-node), see the [MinIO
     documentation](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html#deploy-minio-distributed).
 
     >[!NOTE]
     >
-    > We're using `local` in the example commands below as our MinIO alias. Change it
-    > accordingly if you're using a different alias in your MinIO configuration.
+    > We're using `prod-secondary-rustfs` in the example commands below as our mc alias
+    > alias. Change it accordingly if you're using a different alias in your config.
+    > To see all aliases, run `mc alias list`.
 
     1. Establish the connection alias:
 
         ```bash
-        just dc exec minio mc alias set local http://127.0.0.1:9000 minioadmin
-        # paste your MinIO credentials from .envs/production/minio.env;
-        # change `minioadmin` above to match that file, if needed.
+        just dc exec prod-secondary-rustfs mc alias set prod-secondary-rustfs http://127.0.0.1:9000 rustfsadmin
+        # paste your storage credentials from .envs/production/storage.env;
+        # change `rustfsadmin` above to match that file, if needed.
 
         # in prod, that is equivalent to:
-        # docker exec -it sds-gateway-prod-minio mc alias set local http://127.0.0.1:9000 minioadmin
+        # docker exec -it sds-gateway-prod-secondary-rustfs mc alias set prod-secondary-rustfs http://127.0.0.1:9000 rustfsadmin
         ```
 
-        Optionally, set up a local `mc` client if you're managing the cluster remotely:
+        Optionally, set up a `prod-secondary-rustfs` `mc` client if you're managing the
+        cluster remotely:
 
         ```bash
-        mc alias set local http://<minio_host>:19000 <minio_user> <minio_password>
+        mc alias set prod-secondary-rustfs http://<container_name>:19000 rustfsadmin <password>
         ```
 
     2. Set admin settings:
@@ -419,7 +426,7 @@ production hosts.
         ```bash
         # enable object compression for all objects, except the ones excluded by default
         # NOTE: compression is not recommended by MinIO when also using encryption.
-        mc admin config set local compression enable=on extensions= mime_types=
+        mc admin config set prod-secondary-rustfs compression enable=on extensions= mime_types=
 
         # https://min.io/docs/minio/container/administration/object-management/data-compression.html#id6
 
@@ -432,15 +439,15 @@ production hosts.
         # References:
         # https://min.io/docs/minio/linux/reference/minio-server/settings/storage-class.html#mc-conf.storage_class.standard
         # https://min.io/product/erasure-code-calculator
-        mc admin config set local storage_class standard=EC:2
-        mc admin config set local storage_class rrs=EC:1
+        mc admin config set prod-secondary-rustfs storage_class standard=EC:2
+        mc admin config set prod-secondary-rustfs storage_class rrs=EC:1
 
         ```
 
     3. Create the MinIO bucket:
 
         ```bash
-        mc mb local/spectrumx
+        mc mb --ignore-existing "prod-secondary-rustfs/spectrumx"
         ```
 
     4. (Optional) Diagnostic checks:
@@ -448,8 +455,8 @@ production hosts.
         Check the output of these commands to make sure everything is as expected:
 
         ```bash
-        mc admin info local
-        mc admin config get local
+        mc admin info prod-secondary-rustfs
+        mc admin config get prod-secondary-rustfs
 
         # --- cluster health
 

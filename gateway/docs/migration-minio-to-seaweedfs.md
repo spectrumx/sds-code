@@ -7,6 +7,7 @@ SeaweedFS setup is fully automated. This document covers data migration from a r
 MinIO instance and production-specific configuration.
 
 + [Migration: MinIO → SeaweedFS](#migration-minio--seaweedfs)
+    + [Diagram](#diagram)
     + [Prerequisites](#prerequisites)
     + [1. Start both stacks](#1-start-both-stacks)
     + [2. Configure `mc` aliases](#2-configure-mc-aliases)
@@ -19,6 +20,56 @@ MinIO instance and production-specific configuration.
         + [Strong credentials](#strong-credentials)
         + [Production checklist](#production-checklist)
     + [Rollback](#rollback)
+
+---
+
+## Diagram
+
+```mermaid
+timeline
+    title CRC SDS storage backend migration (2026)
+    March Week 2    : ✅ Run a standalone prototype for SeaweedFS
+                    : ✅ Initial SFS configuration
+    April Week 2    : ✅ Draft the data migration plan
+    April Week 3    : ✅ Automate deployment (local/ci/production)
+                    : ✅ Integrate SFS as an additional storage backend
+                    : ✅ Create backup deployment of MinIO on NFS for the transition period
+    April Week 4    : ✅ Verify backup integrity
+                    : ⬜ Unmount 3 (/8) MinIO drives (entering RO mode); rsync data in them to separate location
+                    : ⬜ Deploy a new MinIO instance on those 3 drives with `EC:1`
+                    : ⬜ Mirror data from RO MinIO to the new instance
+                    : ⬜ Check data integrity of new instance
+                    : ⬜ Switch production to use the new instance (leaving RO mode)
+    April Week 5    : ⬜ Stop older MinIO instance; wipe drives
+                    : ⬜ Repurpose drives for SeaweedFS
+                    : ⬜ Mirror existing production data to SeaweedFS
+                    : ⬜ Switch production primary to SeaweedFS, leave MinIO as secondary; monitor stability
+    May Week 1      : ⬜ Remove `prod-backup`; finalize migration; keep monitoring
+```
+
++ March Week 2
+    + [x] Run a standalone prototype for SeaweedFS
+    + [x] Initial SFS configuration
++ April Week 2
+    + [x] Draft the data migration plan
++ April Week 3
+    + [x] Automate deployment (local/ci/production)
+    + [x] Integrate SFS as an additional storage backend
+    + [x] Create backup deployment of MinIO on NFS for the transition period
++ April Week 4
+    + [x] Verify backup integrity
+    + [ ] Unmount 3 (/8) MinIO drives (entering RO mode); rsync data in them to separate location
+    + [ ] Deploy a new MinIO instance on those 3 drives with `EC:1`
+    + [ ] Mirror data from RO MinIO to the new instance
+    + [ ] Check data integrity of new instance
+    + [ ] Switch production to use the new instance (leaving RO mode)
++ April Week 5
+    + [ ] Stop older MinIO instance; wipe drives
+    + [ ] Repurpose drives for SeaweedFS
+    + [ ] Mirror existing production data to SeaweedFS
+    + [ ] Switch production primary to SeaweedFS, leave MinIO as secondary; monitor stability
++ May Week 1
+    + [ ] Remove `prod-backup`; finalize migration; keep monitoring
 
 ---
 
@@ -59,13 +110,13 @@ curl -s http://localhost:8333/healthz   # SFS S3 endpoint: expected empty 200
 
 ```bash
 # read credentials from env files
-MINIO_USER=$(grep MINIO_ROOT_USER .envs/local/minio.env | cut -d= -f2)
-MINIO_PASS=$(grep MINIO_ROOT_PASSWORD .envs/local/minio.env | cut -d= -f2)
-SFS_KEY=$(grep AWS_ACCESS_KEY_ID .envs/local/sfs.env | cut -d= -f2)
-SFS_SECRET=$(grep AWS_SECRET_ACCESS_KEY .envs/local/sfs.env | cut -d= -f2)
+SECONDARY_USER=$(grep SECONDARY_ROOT_USER .envs/local/storage.env | cut -d= -f2)
+SECONDARY_PASS=$(grep SECONDARY_ROOT_PASSWORD .envs/local/storage.env | cut -d= -f2)
+PRIMARY_KEY=$(grep PRIMARY_ACCESS_KEY_ID .envs/local/storage.env | cut -d= -f2)
+PRIMARY_SECRET=$(grep PRIMARY_SECRET_ACCESS_KEY .envs/local/storage.env | cut -d= -f2)
 
-mc alias set minio http://localhost:9000 "${MINIO_USER}" "${MINIO_PASS}"
-mc alias set sfs   http://localhost:8333 "${SFS_KEY}"    "${SFS_SECRET}"
+mc alias set minio http://localhost:9000 "${SECONDARY_USER}" "${SECONDARY_PASS}"
+mc alias set sfs   http://localhost:8333 "${PRIMARY_KEY}"    "${PRIMARY_SECRET}"
 ```
 
 Verify:
@@ -103,7 +154,7 @@ mc diff minio/spectrumx sfs/spectrumx
 
 ## 5. Switch the application to SFS
 
-The compose files already reference `sfs.env` instead of `minio.env`. Restart the
+The compose files already reference `storage.env` for both backends. Restart the
 gateway to confirm:
 
 ```bash
@@ -118,7 +169,7 @@ curl -s http://localhost:8000/api/v1/files/ | head
 Once migration is verified:
 
 1. Stop MinIO: `just dc stop minio`
-2. Remove `minio.env` entries from `env_file` lists in the compose file (lines marked `# legacy`).
+2. Remove `storage.env` entries from `env_file` lists in the compose file (lines marked `# legacy`).
 3. Remove the `minio:` service block.
 4. Remove the `sds-gateway-<env>-minio-net` network and `sds-gateway-<env>-minio-files` volume.
 5. Restart: `just down && just up`
@@ -163,12 +214,15 @@ Generate production credentials and keep both files in sync:
 ACCESS_KEY=$(openssl rand -hex 16)
 SECRET_KEY=$(openssl rand -base64 32 | tr -d '=+/')
 
-sed -i "s/^AWS_ACCESS_KEY_ID=.*/AWS_ACCESS_KEY_ID=${ACCESS_KEY}/" \
-    gateway/.envs/production/sfs.env \
+ACCESS_KEY=$(grep PRIMARY_ACCESS_KEY_ID .envs/local/storage.env | cut -d= -f2)
+SECRET_KEY=$(grep PRIMARY_SECRET_ACCESS_KEY .envs/local/storage.env | cut -d= -f2)
+
+sed -i "s/^PRIMARY_ACCESS_KEY_ID=.*/PRIMARY_ACCESS_KEY_ID=${ACCESS_KEY}/" \
+    gateway/.envs/production/storage.env \
     seaweedfs/.envs/production/sfs.env
 
-sed -i "s/^AWS_SECRET_ACCESS_KEY=.*/AWS_SECRET_ACCESS_KEY=${SECRET_KEY}/" \
-    gateway/.envs/production/sfs.env \
+sed -i "s/^PRIMARY_SECRET_ACCESS_KEY=.*/PRIMARY_SECRET_ACCESS_KEY=${SECRET_KEY}/" \
+    gateway/.envs/production/storage.env \
     seaweedfs/.envs/production/sfs.env
 ```
 
@@ -177,7 +231,7 @@ sed -i "s/^AWS_SECRET_ACCESS_KEY=.*/AWS_SECRET_ACCESS_KEY=${SECRET_KEY}/" \
 1. Add the server hostname to `seaweedfs/scripts/prod-hostnames.env` and
    `gateway/scripts/prod-hostnames.env` — deploy scripts validate this.
 
-2. Confirm `seaweedfs/.envs/production/sfs.env` and `gateway/.envs/production/sfs.env`
+2. Confirm `seaweedfs/.envs/production/sfs.env` and `gateway/.envs/production/storage.env`
    have matching non-empty credentials.
 
 3. The `sds-network-prod` Docker network must exist (the deploy script creates it
@@ -193,5 +247,5 @@ sed -i "s/^AWS_SECRET_ACCESS_KEY=.*/AWS_SECRET_ACCESS_KEY=${SECRET_KEY}/" \
 
 ## Rollback
 
-Replace `sfs.env` with `minio.env` in the `env_file` lists of the compose file, then
-restart the gateway. MinIO data is untouched until its volume is explicitly deleted.
+Replace `storage.prod.env` with `storage.env` in the `env_file` lists of the compose file, then
+restart the gateway.
