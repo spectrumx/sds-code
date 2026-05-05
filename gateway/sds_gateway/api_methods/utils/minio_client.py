@@ -68,10 +68,11 @@ def _build_minio_client(
 class ObjectStoreFacade:
     """Facade exposing MinIO-compatible methods with primary/fallback behavior.
 
-    It encapsulates two MinIO clients (primary and secondary) and provides methods that
-        implement the desired read/write behavior based on configuration flags. The
-        facade also handles argument rewriting to target the correct buckets for each
-        store and provides safe object references for logging.
+    It encapsulates two storage clients (primary and secondary) and provides
+    methods that implement the desired read/write behavior based on
+    configuration flags. The facade also handles argument rewriting to target
+    the correct buckets for each store and provides safe object references
+    for logging.
     """
 
     def __init__(
@@ -86,8 +87,8 @@ class ObjectStoreFacade:
         """Initialize the ObjectStoreFacade with given clients and behavior flags.
 
         Args:
-            primary_client:     MinIO client for the primary object store (SFS).
-            secondary_client:   MinIO client for the secondary object store (MinIO).
+            primary_client:     MinIO client for the primary object store (SeaweedFS).
+            secondary_client:   MinIO client for the secondary object store (secondary).
             fallback_reads:     Whether to fallback to secondary on read errors.
             write_both_enabled: Whether to perform writes on both stores.
             dual_write_strict:  Requires both writes to succeed, raises otherwise.
@@ -123,7 +124,7 @@ class ObjectStoreFacade:
         """Build call arguments targeting the primary object-store bucket."""
         kwargs.pop("bucket_name", None)
         return self._rewrite_bucket_name(
-            settings.SFS_STORAGE_BUCKET_NAME,
+            settings.PRIMARY_STORAGE_BUCKET_NAME,
             *args,
             **kwargs,
         )
@@ -136,7 +137,7 @@ class ObjectStoreFacade:
         """Build call arguments targeting the secondary object-store bucket."""
         kwargs.pop("bucket_name", None)
         return self._rewrite_bucket_name(
-            settings.MINIO_STORAGE_BUCKET_NAME,
+            settings.SECONDARY_STORAGE_BUCKET_NAME,
             *args,
             **kwargs,
         )
@@ -171,7 +172,7 @@ class ObjectStoreFacade:
                 raise
 
             log.warning(
-                "Object %s not found in primary store, falling back to MinIO",
+                "Object %s not found in primary store, falling back to secondary",
                 self._object_reference(*args, **kwargs),
             )
             secondary_method = getattr(self._secondary_client, method_name)
@@ -266,23 +267,23 @@ class ObjectStoreFacade:
 def get_minio_client() -> ObjectStoreFacade:
     """Return migration-aware object store facade while keeping API name stable."""
     primary_client = _build_minio_client(
-        endpoint=settings.SFS_ENDPOINT_URL,
-        access_key=settings.SFS_ACCESS_KEY_ID,
-        secret_key=settings.SFS_SECRET_ACCESS_KEY,
-        secure=settings.SFS_STORAGE_USE_HTTPS,
+        endpoint=settings.PRIMARY_ENDPOINT_URL,
+        access_key=settings.PRIMARY_ACCESS_KEY_ID,
+        secret_key=settings.PRIMARY_SECRET_ACCESS_KEY,
+        secure=settings.PRIMARY_STORAGE_USE_HTTPS,
     )
     secondary_client = _build_minio_client(
-        endpoint=settings.MINIO_ENDPOINT_URL,
-        access_key=settings.MINIO_ACCESS_KEY_ID,
-        secret_key=settings.MINIO_SECRET_ACCESS_KEY,
-        secure=settings.MINIO_STORAGE_USE_HTTPS,
+        endpoint=settings.SECONDARY_ENDPOINT_URL,
+        access_key=settings.SECONDARY_ACCESS_KEY_ID,
+        secret_key=settings.SECONDARY_SECRET_ACCESS_KEY,
+        secure=settings.SECONDARY_STORAGE_USE_HTTPS,
     )
 
     return ObjectStoreFacade(
         primary_client=primary_client,
         secondary_client=secondary_client,
         read_fallback_to_secondary_enabled=(
-            settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED
+            settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED
         ),
         write_both_enabled=settings.OBJECT_STORE_WRITE_BOTH_ENABLED,
         dual_write_strict=settings.OBJECT_STORE_DUAL_WRITE_STRICT,

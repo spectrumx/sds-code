@@ -92,55 +92,57 @@ LEGACY_AWS_S3_ENDPOINT_URL: str = env.str(
     default="http://sds-gateway-local-sfs-s3:8333",
 )
 
-# SeaweedFS (primary)
-SFS_ACCESS_KEY_ID: str = env.str(
-    "SFS_ACCESS_KEY_ID",
+# Primary (SeaweedFS)
+PRIMARY_ACCESS_KEY_ID: str = env.str(
+    "PRIMARY_ACCESS_KEY_ID",
     default=LEGACY_AWS_ACCESS_KEY_ID,
 )
-SFS_SECRET_ACCESS_KEY: str = env.str(
-    "SFS_SECRET_ACCESS_KEY",
+PRIMARY_SECRET_ACCESS_KEY: str = env.str(
+    "PRIMARY_SECRET_ACCESS_KEY",
     default=LEGACY_AWS_SECRET_ACCESS_KEY,
 )
-SFS_STORAGE_BUCKET_NAME: str = env.str(
-    "SFS_STORAGE_BUCKET_NAME",
+PRIMARY_STORAGE_BUCKET_NAME: str = env.str(
+    "PRIMARY_STORAGE_BUCKET_NAME",
     default=LEGACY_AWS_STORAGE_BUCKET_NAME,
 )
-SFS_S3_ENDPOINT_URL: str = env.str(
-    "SFS_S3_ENDPOINT_URL",
+PRIMARY_S3_ENDPOINT_URL: str = env.str(
+    "PRIMARY_S3_ENDPOINT_URL",
     default=LEGACY_AWS_S3_ENDPOINT_URL,
 )
-SFS_STORAGE_USE_HTTPS: bool = env.bool(
-    "SFS_STORAGE_USE_HTTPS",
-    default=SFS_S3_ENDPOINT_URL.startswith("https://"),
+PRIMARY_STORAGE_USE_HTTPS: bool = env.bool(
+    "PRIMARY_STORAGE_USE_HTTPS",
+    default=PRIMARY_S3_ENDPOINT_URL.startswith("https://"),
 )
-SFS_ENDPOINT_URL: str = env.str(
-    "SFS_ENDPOINT_URL",
-    default=_strip_endpoint_scheme(SFS_S3_ENDPOINT_URL),
+PRIMARY_ENDPOINT_URL: str = env.str(
+    "PRIMARY_ENDPOINT_URL",
+    default=_strip_endpoint_scheme(PRIMARY_S3_ENDPOINT_URL),
 )
 
-# MinIO (secondary fallback)
-MINIO_STORAGE_USE_HTTPS: bool = env.bool("MINIO_STORAGE_USE_HTTPS", default=False)
-MINIO_ENDPOINT_URL: str = env.str(
-    "MINIO_ENDPOINT_URL",
+# Secondary (minio/rustfs)
+SECONDARY_STORAGE_USE_HTTPS: bool = env.bool(
+    "SECONDARY_STORAGE_USE_HTTPS", default=False
+)
+SECONDARY_ENDPOINT_URL: str = env.str(
+    "SECONDARY_ENDPOINT_URL",
     default="sds-gateway-local-sfs-s3:8333",
 )
-MINIO_S3_ENDPOINT_URL: str = env.str(
-    "MINIO_S3_ENDPOINT_URL",
+SECONDARY_S3_ENDPOINT_URL: str = env.str(
+    "SECONDARY_S3_ENDPOINT_URL",
     default=_build_endpoint_url(
-        MINIO_ENDPOINT_URL,
-        secure=MINIO_STORAGE_USE_HTTPS,
+        SECONDARY_ENDPOINT_URL,
+        secure=SECONDARY_STORAGE_USE_HTTPS,
     ),
 )
-MINIO_ACCESS_KEY_ID: str = env.str(
-    "MINIO_ACCESS_KEY_ID",
+SECONDARY_ACCESS_KEY_ID: str = env.str(
+    "SECONDARY_ACCESS_KEY_ID",
     default=LEGACY_AWS_ACCESS_KEY_ID,
 )
-MINIO_SECRET_ACCESS_KEY: str = env.str(
-    "MINIO_SECRET_ACCESS_KEY",
+SECONDARY_SECRET_ACCESS_KEY: str = env.str(
+    "SECONDARY_SECRET_ACCESS_KEY",
     default=LEGACY_AWS_SECRET_ACCESS_KEY,
 )
-MINIO_STORAGE_BUCKET_NAME: str = env.str(
-    "MINIO_STORAGE_BUCKET_NAME",
+SECONDARY_STORAGE_BUCKET_NAME: str = env.str(
+    "SECONDARY_STORAGE_BUCKET_NAME",
     default=LEGACY_AWS_STORAGE_BUCKET_NAME,
 )
 
@@ -149,8 +151,8 @@ OBJECT_STORE_WRITE_BOTH_ENABLED: bool = env.bool(
     "OBJECT_STORE_WRITE_BOTH_ENABLED",
     default=False,
 )
-OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED: bool = env.bool(
-    "OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED",
+OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED: bool = env.bool(
+    "OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED",
     default=False,
 )
 OBJECT_STORE_DUAL_WRITE_STRICT: bool = env.bool(
@@ -159,10 +161,11 @@ OBJECT_STORE_DUAL_WRITE_STRICT: bool = env.bool(
 )
 
 # keep AWS_* aliases mapped to primary store for backward compatibility
-AWS_ACCESS_KEY_ID: str = SFS_ACCESS_KEY_ID
-AWS_SECRET_ACCESS_KEY: str = SFS_SECRET_ACCESS_KEY
-AWS_STORAGE_BUCKET_NAME: str = SFS_STORAGE_BUCKET_NAME
-AWS_S3_ENDPOINT_URL: str = SFS_S3_ENDPOINT_URL
+# django-storages expects these values
+AWS_S3_ACCESS_KEY_ID: str = PRIMARY_ACCESS_KEY_ID
+AWS_S3_SECRET_ACCESS_KEY: str = PRIMARY_SECRET_ACCESS_KEY
+AWS_STORAGE_BUCKET_NAME: str = PRIMARY_STORAGE_BUCKET_NAME
+AWS_S3_ENDPOINT_URL: str = PRIMARY_S3_ENDPOINT_URL
 AWS_S3_REGION_NAME: str = "us-east-1"
 AWS_S3_SIGNATURE_VERSION: str = "s3v4"
 AWS_S3_FILE_OVERWRITE: bool = False
