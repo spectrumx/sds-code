@@ -121,7 +121,7 @@ components, create a test user, and set up the integration test environment:
 2. Follow the Gateway instructions in the [Gateway README](../gateway/README.md); In
    summary:
     1. Deploy the Docker Compose stack;
-    2. Create a MinIO user and bucket with same credentials as in `minio.env`;
+     1. Create a storage user and bucket with same credentials as in `storage.env`;
 3. Create a test user and API key:
     1. Create a Gateway superuser and a regular user (they may be the same);
     2. Enable their `is_approved` flag in the [admin
