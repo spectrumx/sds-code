@@ -36,17 +36,17 @@
     replication    = ""
     ttlSec         = 0
 
-    # [sink.s3]
-    #     # read credentials doc at https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/sessions.html
-    #     # default loads credentials from the shared credentials file (~/.aws/credentials).
-    #     aws_access_key_id     = ""          # if empty, loads from the shared credentials file (~/.aws/credentials).
-    #     aws_secret_access_key = ""          # if empty, loads from the shared credentials file (~/.aws/credentials).
-    #     bucket                = "spectrumx" # an existing bucket
-    #     directory             = "/"         # destination directory
-    #     enabled               = false
-    #     endpoint              = ""
-    #     is_incremental        = false
-    #     region                = "us-east-2"
+    [sink.s3]
+        # read credentials doc at https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/sessions.html
+        # default loads credentials from the shared credentials file (~/.aws/credentials).
+        aws_access_key_id     = "${MINIO_BACKUP_ACCESS_KEY}"  # if empty, loads from the shared credentials file (~/.aws/credentials).
+        aws_secret_access_key = "${MINIO_BACKUP_SECRET_KEY}"  # if empty, loads from the shared credentials file (~/.aws/credentials).
+        bucket                = "spectrumx"                   # an existing bucket in MinIO
+        directory             = "/spectrumx"                  # prefix inside the bucket
+        enabled               = true
+        endpoint              = "https://minio.example.com"   # your MinIO endpoint URL
+        is_incremental        = false
+        region                = "us-east-1"                   # can be anything for MinIO
 
     # [sink.google_cloud_storage]
     #     # read credentials doc at https://cloud.google.com/docs/authentication/getting-started
