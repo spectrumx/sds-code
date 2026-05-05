@@ -22,8 +22,8 @@ class MissingObjectError(Exception):
 
 
 def _configure_bucket_settings(settings) -> None:
-    settings.SFS_STORAGE_BUCKET_NAME = "sfs-bucket"
-    settings.MINIO_STORAGE_BUCKET_NAME = "minio-bucket"
+    settings.PRIMARY_STORAGE_BUCKET_NAME = "sfs-bucket"
+    settings.SECONDARY_STORAGE_BUCKET_NAME = "secondary-bucket"
 
 
 def _build_storage_with_mocks(
@@ -36,7 +36,7 @@ def _build_storage_with_mocks(
     write_both_enabled: bool,
     dual_write_strict: bool,
 ) -> DualObjectStoreS3Storage:
-    settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED = read_fallback_enabled
+    settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED = read_fallback_enabled
     settings.OBJECT_STORE_WRITE_BOTH_ENABLED = write_both_enabled
     settings.OBJECT_STORE_DUAL_WRITE_STRICT = dual_write_strict
 
@@ -72,7 +72,7 @@ def test_adapter_read_falls_back_on_missing(settings) -> None:
 
     assert result is expected_response
     secondary_client.get_object.assert_called_once_with(
-        bucket_name="minio-bucket",
+        bucket_name="secondary-bucket",
         object_name="path/to/object",
     )
 
@@ -169,7 +169,7 @@ def test_adapter_maps_bucket_name_kwargs_per_store(settings) -> None:
         object_name="path/to/object",
     )
     secondary_client.put_object.assert_called_once_with(
-        bucket_name="minio-bucket",
+        bucket_name="secondary-bucket",
         object_name="path/to/object",
     )
 
@@ -195,7 +195,7 @@ def test_adapter_maps_bucket_name_positionally_per_store(settings) -> None:
         "path/to/object",
     )
     secondary_client.remove_object.assert_called_once_with(
-        "minio-bucket",
+        "secondary-bucket",
         "path/to/object",
     )
 

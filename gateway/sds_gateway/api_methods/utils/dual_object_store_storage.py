@@ -1,4 +1,14 @@
-"""Dual-store Django storage backend for SeaweedFS primary + MinIO secondary."""
+"""Dual-store Django storage backend for primary + secondary.
+
+Primary and secondary backends might be any S3-compatible object store, usually among:
+- Primary:      RustFS (local/CI), SeaweedFS (production), or MinIO (deprecated)
+- Secondary:    RustFS, Garage, or MinIO (deprecated)
+
+Sec is optional, unless any of these are True:
+    - OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED
+    - OBJECT_STORE_WRITE_BOTH_ENABLED
+    - OBJECT_STORE_DUAL_WRITE_STRICT
+"""
 
 import hashlib
 import logging
@@ -60,12 +70,12 @@ def _safe_object_reference(name: str) -> str:
 
 
 class DualObjectStoreS3Storage(Storage):
-    """Django storage backend with SFS primary reads/writes and MinIO fallback."""
+    """Django storage backend with primary and fallback."""
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()
-        self._primary_storage = self._create_backend(store_prefix="SFS")
-        self._secondary_storage = self._create_backend(store_prefix="MINIO")
+        self._primary_storage = self._create_backend(store_prefix="PRIMARY")
+        self._secondary_storage = self._create_backend(store_prefix="SECONDARY")
 
     def _create_backend(self, *, store_prefix: str) -> S3Boto3Storage:
         """Create storage backend for a given settings prefix."""
@@ -87,13 +97,13 @@ class DualObjectStoreS3Storage(Storage):
         try:
             return self._primary_storage._open(name, mode=mode)  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
         except Exception as error:
-            if not settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED:
+            if not settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED:
                 raise
             if not _is_missing_object_error(error):
                 raise
 
             log.warning(
-                "Object %s not found in primary storage backend, falling back to MinIO",
+                "Object %s not in primary storage, falling back to secondary",
                 _safe_object_reference(name),
             )
             return self._secondary_storage._open(name, mode=mode)  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
@@ -121,7 +131,7 @@ class DualObjectStoreS3Storage(Storage):
         if self._primary_storage.exists(name):
             return True
 
-        if settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED:
+        if settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED:
             return self._secondary_storage.exists(name)
 
         return False
@@ -130,7 +140,7 @@ class DualObjectStoreS3Storage(Storage):
         self._primary_storage.delete(name)
         if not (
             settings.OBJECT_STORE_WRITE_BOTH_ENABLED
-            or settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED
+            or settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED
         ):
             return
 
@@ -138,7 +148,7 @@ class DualObjectStoreS3Storage(Storage):
             self._secondary_storage.delete(name)
         except Exception:
             if (
-                settings.OBJECT_STORE_READ_FALLBACK_TO_MINIO_ENABLED
+                settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED
                 or settings.OBJECT_STORE_DUAL_WRITE_STRICT
             ):
                 raise
