@@ -13,7 +13,7 @@ volumes:
     sds-gateway-ci-uv-venv-worker: {}
     sds-gateway-ci-uv-venv-beat: {}
     sds-gateway-ci-uv-venv-flower: {}
-    sds-gateway-ci-minio-files: {}
+    sds-gateway-ci-rustfs-files: {}
     sds-gateway-ci-opensearch-data: {}
     sds-gateway-ci-postgres-data-backups: {}
     sds-gateway-ci-postgres-data: {}
@@ -21,7 +21,7 @@ volumes:
 
 networks:
     # for safety, all gateway CI networks start with "sds-gateway-ci-"
-    sds-gateway-ci-minio-net:
+    sds-gateway-ci-rustfs-net:
         driver: bridge
     sds-gateway-ci-opensearch-net:
         driver: bridge
@@ -72,8 +72,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env # legacy — kept during migration
-            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         # remember /entrypoint runs first
@@ -81,7 +80,7 @@ services:
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
             - sds-network-ci
         healthcheck:
@@ -134,34 +133,34 @@ services:
             retries: 5
             start_period: 10s
 
-    # DEPRECATED: kept during migration for data transfer. Remove after migration complete.
-    minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
-        image: minio/minio:latest
-        container_name: sds-gateway-ci-minio
+    # Primary storage (RustFS) — S3-compatible, default for local/CI
+    rustfs:
+        image: rustfs/rustfs:latest
+        container_name: sds-gateway-ci-rustfs
         volumes:
-            - sds-gateway-ci-minio-files:/files
+            - sds-gateway-ci-rustfs-files:/data
         ports:
             - "9000:9000"
             - "9001:9001"
-        env_file:
-            - ./.envs/ci/minio.env
+        environment:
+            - RUSTFS_VOLUMES=/data
+            - RUSTFS_ADDRESS=0.0.0.0:9000
+            - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+            - RUSTFS_CONSOLE_ENABLE=true
+            - RUSTFS_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=*
+        networks:
+            - sds-gateway-ci-rustfs-net
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                    "curl -f http://localhost:9000/rustfs/console/health || exit 1",
                 ]
             interval: 30s
             timeout: 5s
             retries: 5
             start_period: 10s
-        command: 'server /files --console-address ":9001"'
-        networks:
-            - sds-gateway-ci-minio-net
 
     opensearch:
         # used for indexing and searching documents
@@ -210,7 +209,7 @@ services:
         env_file:
             - ./.envs/ci/postgres.env
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
         healthcheck:
             test:
                 [
@@ -274,13 +273,12 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env # legacy — kept during migration
-            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/worker-start"
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
             - sds-network-ci
         healthcheck:
@@ -330,13 +328,12 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env # legacy — kept during migration
-            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/beat-start"
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
             - sds-network-ci
         healthcheck:
@@ -386,22 +383,21 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env # legacy — kept during migration
-            - ./.envs/ci/sfs.env # SeaweedFS S3 — see seaweedfs/compose.yaml
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/flower-start"
         ports:
             - "5555:5555" # Flower web interface
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
             - sds-network-ci
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    'uv run python -c "import sys,urllib.request; urllib.request.urlopen(\"http://127.0.0.1:5555/\", timeout=5); sys.exit(0)"',
+                    'curl -f --header "Authorization: Basic $(echo -n "$$CELERY_FLOWER_USER:$$CELERY_FLOWER_PASSWORD" | base64)" http://localhost:5555/api/workers || exit 1',
                 ]
             interval: 30s
             timeout: 30s
