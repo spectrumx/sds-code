@@ -11,10 +11,10 @@ from rich.pretty import pretty_repr
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.serializers.capture_serializers import (
+from sds_gateway.api_methods.serializers.capture_composition_utils import (
     build_composite_capture_data,
 )
-from sds_gateway.api_methods.serializers.capture_serializers import (
+from sds_gateway.api_methods.serializers.capture_composition_utils import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.utils.asset_access_control import (
@@ -376,7 +376,6 @@ def get_composite_captures(
     Returns:
         list: List of composite capture data
     """
-
     grouped_captures = group_captures_by_top_level_dir(captures)
     composite_captures = []
 
