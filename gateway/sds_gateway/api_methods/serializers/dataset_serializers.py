@@ -9,10 +9,10 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.capture_serializers import (
+from sds_gateway.api_methods.serializers.capture_composition_utils import (
     build_composite_capture_data,
 )
-from sds_gateway.api_methods.serializers.capture_serializers import (
+from sds_gateway.api_methods.serializers.capture_composition_utils import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.serializers.file_serializers import (
@@ -180,6 +180,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         Multi-channel uploads share ``top_level_dir``; those rows are merged into a
         single composite payload like :func:`get_composite_captures`.
         """
+
         non_deleted_captures = get_dataset_captures(
             obj,
             include_deleted=False,
