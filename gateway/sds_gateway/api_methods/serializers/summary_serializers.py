@@ -109,7 +109,7 @@ def serialize_captures_for_detail(
         )
     else:
         msg = f"Invalid object type: {type(obj)}"
-        raise ValueError(msg)
+        raise TypeError(msg)
 
     grouped = group_captures_by_top_level_dir(non_deleted_captures)
     rows: list[dict[str, Any]] = []

@@ -426,7 +426,7 @@ def test_existing_local_file_identical_checksum_not_redownloaded(
 
 
 def test_resolve_dataset_capture_filter_dry_run_disables() -> None:
-    active, uuids, dirs = _resolve_dataset_capture_filter_params(  # noqa: SLF001
+    active, uuids, dirs = _resolve_dataset_capture_filter_params(
         capture_uuids=[uuid.uuid4()],
         top_level_dirs=None,
         dry_run=True,
@@ -437,7 +437,7 @@ def test_resolve_dataset_capture_filter_dry_run_disables() -> None:
 
 
 def test_resolve_dataset_capture_filter_normalizes_top_level_dirs() -> None:
-    active, uuids, dirs = _resolve_dataset_capture_filter_params(  # noqa: SLF001
+    active, uuids, dirs = _resolve_dataset_capture_filter_params(
         capture_uuids=None,
         top_level_dirs=["foo/bar", "/baz/"],
         dry_run=False,
