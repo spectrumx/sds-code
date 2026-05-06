@@ -12,10 +12,26 @@ from rest_framework import serializers
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
+from sds_gateway.api_methods.utils.relationship_utils import get_file_captures
 from sds_gateway.api_methods.utils.relationship_utils import (
     group_captures_by_top_level_dir,
 )
+
+
+class FileSummarySerializer(serializers.ModelSerializer[File]):
+    """Subset of file fields for nested payloads (avoids recursive graphs)."""
+
+    class Meta:
+        model = File
+        fields = (
+            "uuid",
+            "name",
+            "directory",
+            "media_type",
+            "size",
+        )
 
 
 class DatasetSummarySerializer(serializers.ModelSerializer[Dataset]):
@@ -75,16 +91,26 @@ def composite_capture_summary(captures: list[Capture]) -> dict[str, Any]:
     }
 
 
-def serialize_captures_for_dataset_detail(
-    dataset: Dataset,
+def serialize_captures_for_detail(
+    obj: Dataset | File,
     *,
     context: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """One summary row per logical capture (no full capture or composite payloads)."""
-    non_deleted_captures = get_dataset_captures(
-        dataset,
-        include_deleted=False,
-    )
+    if isinstance(obj, Dataset):
+        non_deleted_captures = get_dataset_captures(
+            obj,
+            include_deleted=False,
+        )
+    elif isinstance(obj, File):
+        non_deleted_captures = get_file_captures(
+            obj,
+            include_deleted=False,
+        )
+    else:
+        msg = f"Invalid object type: {type(obj)}"
+        raise ValueError(msg)
+
     grouped = group_captures_by_top_level_dir(non_deleted_captures)
     rows: list[dict[str, Any]] = []
     for capture_list in grouped.values():

@@ -20,8 +20,8 @@ from spectrumx.ops.files import is_valid_file
 from spectrumx.utils import get_random_line
 
 from tests.integration.conftest import PassthruEndpoints
-from tests.integration.test_captures import _upload_drf_capture_test_assets
 from tests.integration.test_captures import drf_channel
+from tests.integration.test_captures import upload_drf_capture_test_assets
 from tests.test_utils import disable_ssl_warnings
 
 BLAKE3_HEX_LEN: int = 64
@@ -751,7 +751,7 @@ def test_list_files_temporal_rf_narrows_digital_rf_chunks(
     """Temporal bounds narrow ``rf@*.h5``; other filenames in the dir still list."""
     if not drf_sample_top_level_dir.is_dir():
         pytest.skip("Digital RF sample tree missing; cannot test temporal RF listing.")
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -798,7 +798,7 @@ def test_list_files_temporal_rf_inclusive_range_multiple_chunks(
     """A multi-second temporal window lists each ``rf@*.h5`` in that span."""
     if not drf_sample_top_level_dir.is_dir():
         pytest.skip("Digital RF sample tree missing; cannot test temporal RF listing.")
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -844,7 +844,7 @@ def test_download_respects_temporal_rf_window(
     """Bulk download with start/end only fetches ``rf@*.h5`` in the UTC window."""
     if not drf_sample_top_level_dir.is_dir():
         pytest.skip("Digital RF sample tree missing; cannot test temporal RF download.")
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )

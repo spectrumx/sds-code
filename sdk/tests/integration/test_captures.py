@@ -61,7 +61,7 @@ def test_capture_creation_drf(
     """Tests creating a Digital-RF capture."""
 
     # ARRANGE
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -120,7 +120,7 @@ class DRFCaptureAssets(BaseModel):
         return PurePosixPath("/") / self.path_after_capture_data
 
 
-def _upload_drf_capture_test_assets(
+def upload_drf_capture_test_assets(
     integration_client: Client,
     drf_sample_top_level_dir: Path,
 ) -> DRFCaptureAssets:
@@ -701,7 +701,7 @@ def test_capture_deletion(
 ) -> None:
     """Tests deleting a capture."""
 
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -745,7 +745,7 @@ def test_capture_revoke_share_and_detach_from_datasets(
     drf_sample_top_level_dir: Path,
 ) -> None:
     """Owner can revoke capture shares and detach from datasets before delete."""
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -783,7 +783,7 @@ def test_capture_advanced_search_frequency_range(
 ) -> None:
     """Tests searching captures with a frequency range query."""
     # ARRANGE to create a capture
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )
@@ -898,7 +898,7 @@ def test_capture_advanced_search_full_text_search(
 
     """
     # ARRANGE
-    cap_data = _upload_drf_capture_test_assets(
+    cap_data = upload_drf_capture_test_assets(
         integration_client=integration_client,
         drf_sample_top_level_dir=drf_sample_top_level_dir,
     )

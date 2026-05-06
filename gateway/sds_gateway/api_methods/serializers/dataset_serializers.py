@@ -6,11 +6,11 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.file_serializers import (
-    FileArtifactSummarySerializer,
+from sds_gateway.api_methods.serializers.summary_serializers import (
+    FileSummarySerializer,
 )
 from sds_gateway.api_methods.serializers.summary_serializers import (
-    serialize_captures_for_dataset_detail,
+    serialize_captures_for_detail,
 )
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import (
@@ -152,7 +152,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
             obj,
             include_deleted=False,
         )
-        serializer = FileArtifactSummarySerializer(
+        serializer = FileSummarySerializer(
             non_deleted_files,
             many=True,
             context=self.context,
@@ -165,7 +165,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         Multi-channel uploads share ``top_level_dir`` and are merged into one summary
         row (see :func:`summary_serializers.composite_capture_summary`).
         """
-        return serialize_captures_for_dataset_detail(obj, context=self.context)
+        return serialize_captures_for_detail(obj, context=self.context)
 
     def get_is_shared(self, obj):
         """Check if the dataset is shared."""
