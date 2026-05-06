@@ -7,11 +7,15 @@ from django.http import QueryDict
 from loguru import logger as log
 from rest_framework import serializers
 
-from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import File
-from sds_gateway.api_methods.serializers.capture_serializers import CaptureGetSerializer
-from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
+from sds_gateway.api_methods.serializers.summary_serializers import (
+    DatasetSummarySerializer,
+)
+from sds_gateway.api_methods.serializers.summary_serializers import (
+    serialize_captures_for_detail,
+)
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
+from sds_gateway.api_methods.utils.relationship_utils import get_file_datasets
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
@@ -19,26 +23,10 @@ BAD_REQUEST = 400
 CONFLICT = 409
 
 
-class FileArtifactSummarySerializer(serializers.ModelSerializer[File]):
-    """Subset of file fields for nested dataset payloads (avoids recursive graphs)."""
-
-    class Meta:
-        model = File
-        fields = (
-            "uuid",
-            "name",
-            "directory",
-            "media_type",
-            "size",
-        )
-
-
 class FileGetSerializer(serializers.ModelSerializer[File]):
     owner = UserGetSerializer()
-    datasets = DatasetGetSerializer(many=True)
-    captures = CaptureGetSerializer(many=True)
-    dataset = DatasetGetSerializer()
-    capture = CaptureGetSerializer()
+    captures = serializers.SerializerMethodField()
+    datasets = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     updated_at = serializers.DateTimeField(format="%Y-%m-%d %H:%M:%S", read_only=True)
     expiration_date = serializers.DateTimeField(
@@ -52,30 +40,12 @@ class FileGetSerializer(serializers.ModelSerializer[File]):
         model = File
         fields = "__all__"
 
-    def to_representation(self, instance: File) -> dict[str, Any]:
-        """Build ``captures`` from M2M plus legacy ``capture`` FK when needed."""
-        data = super().to_representation(instance)
-        merged: list[Capture] = []
-        seen_pks: set[uuid.UUID] = set()
-        for cap in instance.captures.all().order_by("uuid"):
-            pk = cap.pk
-            if pk not in seen_pks:
-                merged.append(cap)
-                seen_pks.add(pk)
-        legacy = instance.capture
-        if legacy is not None and legacy.pk not in seen_pks:
-            merged.append(legacy)
-            seen_pks.add(legacy.pk)
-        context = self.context
-        data["captures"] = CaptureGetSerializer(
-            merged,
-            many=True,
-            context=context,
-        ).data
-        data["capture"] = (
-            CaptureGetSerializer(merged[0], context=context).data if merged else None
-        )
-        return data
+    def get_captures(self, obj: File) -> list[dict[str, Any]]:
+        return serialize_captures_for_detail(obj, context=self.context)
+
+    def get_datasets(self, obj: File) -> list[dict[str, Any]]:
+        datasets = get_file_datasets(obj, include_deleted=False)
+        return DatasetSummarySerializer(datasets, many=True, context=self.context).data
 
 
 class FilePostSerializer(serializers.ModelSerializer[File]):

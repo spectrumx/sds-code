@@ -22,6 +22,9 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.summary_serializers import (
     DatasetSummarySerializer,
 )
+from sds_gateway.api_methods.serializers.summary_serializers import (
+    FileSummarySerializer,
+)
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import (
     UserSharePermissionSerializer,
@@ -68,16 +71,6 @@ def _channel_row_bounds_from_os_meta(meta: dict[str, Any]) -> dict[str, Any]:
         entry["length_of_capture_ms"] = (end_sec - start_sec) * 1000
     entry["file_cadence_ms"] = meta.get("file_cadence")
     return entry
-
-
-class FileCaptureListSerializer(serializers.ModelSerializer[File]):
-    class Meta:
-        model = File
-        fields = [
-            "uuid",
-            "name",
-            "directory",
-        ]
 
 
 class DEPRECATEDPostProcessedDataSerializer(
@@ -183,12 +176,9 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             A list of serialized file objects with uuid, name, and directory fields.
         """
         non_deleted_files = get_capture_files(capture, include_deleted=False)
-        serializer = FileCaptureListSerializer(
-            non_deleted_files,
-            many=True,
-            context=self.context,
-        )
-        return cast("ReturnList[File]", serializer.data)
+        return FileSummarySerializer(
+            non_deleted_files, many=True, context=self.context
+        ).data
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
     def get_total_file_size(self, capture: Capture) -> int | None:
@@ -635,7 +625,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
             if capture is None:
                 continue
             non_deleted_files = get_capture_files(capture, include_deleted=False)
-            serializer = FileCaptureListSerializer(
+            serializer = FileSummarySerializer(
                 non_deleted_files,
                 many=True,
                 context=self.context,
