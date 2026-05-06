@@ -365,13 +365,24 @@
             src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
     <script type="module"
             src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
-    <!-- Page-specific components -->
-    <script src="{% static 'js/components.js' %}"></script>
-    <script src="{% static 'js/file-list.js' %}"></script>
+    <!-- Page-specific components (split from deprecated/components.js) -->
+    <script src="{% static 'js/core/FormatUtils.js' %}"></script>
+    <script src="{% static 'js/core/ComponentUtils.js' %}"></script>
+    <script src="{% static 'js/core/TableManager.js' %}"></script>
+    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/core/PaginationManager.js' %}"></script>
+    <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
+    <script src="{% static 'js/captures/CapturesTableManager.js' %}"></script>
+    <script src="{% static 'js/core/DropdownUtils.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    <script src="{% static 'js/core/GatewayChrome.js' %}"></script>
+    <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
+    <script src="{% static 'js/captures/FileListCapturesTableManager.js' %}"></script>
+    <script src="{% static 'js/captures/FileListPageController.js' %}"></script>
+    <script src="{% static 'js/file-list.js' %}"></script>
     <!-- Upload Capture Modal JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
-    <script src="{% static 'js/file_list_upload_capture_modal.js' %}"></script>
+    <script src="{% static 'js/upload/FileListUploadCaptureModal.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}
     <script>

@@ -511,9 +511,20 @@
     {% endfor %}
 {% endblock content %}
 {% block javascript %}
-    <script src="{% static 'js/components.js' %}"></script>
+    {{ block.super }}
+    <script src="{% static 'js/core/FormatUtils.js' %}"></script>
+    <script src="{% static 'js/core/ComponentUtils.js' %}"></script>
+    <script src="{% static 'js/core/TableManager.js' %}"></script>
+    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/core/PaginationManager.js' %}"></script>
+    <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
+    <script src="{% static 'js/captures/CapturesTableManager.js' %}"></script>
+    <script src="{% static 'js/core/DropdownUtils.js' %}"></script>
+    <script src="{% static 'js/core/NotificationUtils.js' %}"></script>
+    <script src="{% static 'js/core/BrowserSupport.js' %}"></script>
+    <script src="{% static 'js/core/GatewayChrome.js' %}"></script>
     <script src="{% static 'js/deprecated/userSearchComponent.js' %}"></script>
-    {# Fallback modal helpers provided by components.js; inline duplicates removed #}
+    <script src="{% static 'js/upload/FileDropManager.js' %}"></script>
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
     <!-- Load the WASM library for BLAKE3 hashing -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
@@ -541,6 +552,11 @@
         window.csrfToken = window.filesConfig.csrfToken;
     </script>
     <!-- External JavaScript modules -->
+    <script src="{% static 'js/upload/Blake3FileHandler.js' %}"></script>
+    <script src="{% static 'js/upload/FilesUploadModal.js' %}"></script>
     <script src="{% static 'js/files-upload.js' %}"></script>
+    <script src="{% static 'js/upload/CaptureTypeSelector.js' %}"></script>
+    <script src="{% static 'js/upload/FilesPageInitializer.js' %}"></script>
+    <script src="{% static 'js/upload/FileUploadHandler.js' %}"></script>
     <script src="{% static 'js/files-ui.js' %}"></script>
 {% endblock javascript %}
