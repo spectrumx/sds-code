@@ -2,21 +2,15 @@
 
 from rest_framework import serializers
 
-from sds_gateway.api_methods.helpers.search_captures import (
-    group_captures_by_top_level_dir,
-)
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.capture_composition_utils import (
-    build_composite_capture_data,
-)
-from sds_gateway.api_methods.serializers.capture_composition_utils import (
-    serialize_capture_or_composite,
-)
 from sds_gateway.api_methods.serializers.file_serializers import (
     FileArtifactSummarySerializer,
+)
+from sds_gateway.api_methods.serializers.summary_serializers import (
+    serialize_captures_for_dataset_detail,
 )
 from sds_gateway.api_methods.serializers.user_serializer import UserGetSerializer
 from sds_gateway.api_methods.serializers.user_serializer import (
@@ -24,17 +18,8 @@ from sds_gateway.api_methods.serializers.user_serializer import (
 )
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
 from sds_gateway.api_methods.utils.relationship_utils import get_dataset_artifact_files
-from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
 
 READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
-
-
-class DatasetSummarySerializer(serializers.ModelSerializer[Dataset]):
-    """Minimal dataset shape for capture ``datasets`` (breaks serializer cycles)."""
-
-    class Meta:
-        model = Dataset
-        fields = ["uuid", "name", "version", "status", "is_public"]
 
 
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
@@ -175,33 +160,12 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         return serializer.data
 
     def get_captures(self, obj: Dataset) -> list[dict]:
-        """Captures for the dataset (one row per logical capture, list API semantics).
+        """Captures for the dataset (one summary row per logical capture).
 
-        Multi-channel uploads share ``top_level_dir``; those rows are merged into a
-        single composite payload like :func:`get_composite_captures`.
+        Multi-channel uploads share ``top_level_dir`` and are merged into one summary
+        row (see :func:`summary_serializers.composite_capture_summary`).
         """
-
-        non_deleted_captures = get_dataset_captures(
-            obj,
-            include_deleted=False,
-        )
-        grouped = group_captures_by_top_level_dir(list(non_deleted_captures))
-        composite_captures: list[dict] = []
-        capture_context = {
-            **(self.context or {}),
-            "omit_nested_dataset_graph": True,
-        }
-        for capture_list in grouped.values():
-            if len(capture_list) > 1:
-                composite_captures.append(build_composite_capture_data(capture_list))
-            else:
-                composite_captures.append(
-                    serialize_capture_or_composite(
-                        capture_list[0],
-                        context=capture_context,
-                    )
-                )
-        return composite_captures
+        return serialize_captures_for_dataset_detail(obj, context=self.context)
 
     def get_is_shared(self, obj):
         """Check if the dataset is shared."""

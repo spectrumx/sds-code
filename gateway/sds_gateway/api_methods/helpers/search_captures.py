@@ -11,10 +11,10 @@ from rich.pretty import pretty_repr
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.serializers.capture_composition_utils import (
+from sds_gateway.api_methods.serializers.capture_serializers import (
     build_composite_capture_data,
 )
-from sds_gateway.api_methods.serializers.capture_composition_utils import (
+from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
 from sds_gateway.api_methods.utils.asset_access_control import (
@@ -26,6 +26,9 @@ from sds_gateway.api_methods.utils.metadata_schemas import (
 )
 from sds_gateway.api_methods.utils.metadata_schemas import infer_index_name
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import (
+    group_captures_by_top_level_dir,
+)
 from sds_gateway.users.models import User
 
 RangeValue = dict[str, int | float]
@@ -339,27 +342,6 @@ def _build_os_query_for_captures(
     log.debug("OpenSearch query:")
     log.debug(pretty_repr(query, indent_size=4))
     return query
-
-
-def group_captures_by_top_level_dir(
-    captures: QuerySet[Capture],
-) -> dict[str, list[Capture]]:
-    """Group captures by top_level_dir for composite capture handling.
-
-    Args:
-        captures: QuerySet of Capture objects
-    Returns:
-        dict: {top_level_dir: list of captures}
-    """
-    grouped_captures: dict[str, list[Capture]] = {}
-
-    for capture in captures:
-        top_level_dir = capture.top_level_dir
-        if top_level_dir not in grouped_captures:
-            grouped_captures[top_level_dir] = []
-        grouped_captures[top_level_dir].append(capture)
-
-    return grouped_captures
 
 
 # TODO: add pagination before retrieval rather than after
