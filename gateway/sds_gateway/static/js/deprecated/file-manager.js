@@ -14,17 +14,178 @@ class FileManager {
 		this.boundHandlers = new Map(); // Track bound event handlers for cleanup
 		this.activeModals = new Set(); // Track active modals
 
-		this._fileDrop = new FileDropManager(this);
-		this._fileDrop.addGlobalDropGuards();
+		// Prevent browser from navigating away when user drags files over the whole window
+		this.addGlobalDropGuards();
 		this.init();
 	}
 
-	convertToFiles(itemsOrFiles) {
-		return this._fileDrop.convertToFiles(itemsOrFiles);
+	addGlobalDropGuards() {
+		// Prevent browser navigation on any drop event
+		document.addEventListener(
+			"dragover",
+			(e) => {
+				e.preventDefault();
+			},
+			false,
+		);
+
+		document.addEventListener(
+			"drop",
+			(e) => {
+				e.preventDefault();
+				e.stopPropagation();
+
+				// Always handle global drops for testing
+				this.handleGlobalDrop(e);
+			},
+			false,
+		);
 	}
 
+	async handleGlobalDrop(e) {
+		const dt = e.dataTransfer;
+		if (!dt) {
+			console.warn("No dataTransfer in global drop");
+			return;
+		}
+
+		const files = await this.collectFilesFromDataTransfer(dt);
+
+		if (!files.length) {
+			console.warn("No files collected from global drop");
+			return;
+		}
+
+		// Store the dropped files globally
+		window.selectedFiles = files;
+
+		// Open the upload modal
+		const uploadModalEl = document.getElementById("uploadCaptureModal");
+		if (!uploadModalEl) {
+			console.error("Upload modal element not found");
+			return;
+		}
+
+		const uploadModal = new bootstrap.Modal(uploadModalEl);
+		uploadModal.show();
+
+		// Wait a bit for modal to fully open, then trigger file selection
+		setTimeout(() => {
+			this.handleGlobalFilesInModal(files);
+		}, 200);
+	}
+
+	handleGlobalFilesInModal(files) {
+		// Update the file input to show selected files
+		const fileInput = document.getElementById("captureFileInput");
+		if (fileInput) {
+			// Create a new FileList-like object
+			const dataTransfer = new DataTransfer();
+			for (const file of files) {
+				dataTransfer.items.add(file);
+			}
+			fileInput.files = dataTransfer.files;
+		}
+
+		// Update the selected files display
+		this.handleFileSelection(files);
+
+		// Make sure the selected files section is visible
+		const selectedFilesSection = document.getElementById("selectedFiles");
+		if (selectedFilesSection) {
+			selectedFilesSection.classList.add("has-files");
+		}
+
+		// Update the file input label to show selected files
+		const fileInputLabel = fileInput?.nextElementSibling;
+		if (fileInputLabel?.classList.contains("form-control")) {
+			const fileNames = files
+				.map((f) => f.webkitRelativePath || f.name)
+				.join(", ");
+			fileInputLabel.textContent = fileNames || "No directory selected.";
+		}
+	}
+
+	convertToFiles(itemsOrFiles) {
+		if (!itemsOrFiles) return [];
+		// DataTransferItemList detection: items have getAsFile()
+		const first = itemsOrFiles[0];
+		if (first && typeof first.getAsFile === "function") {
+			return Array.from(itemsOrFiles)
+				.map((item) => item.getAsFile())
+				.filter((f) => !!f);
+		}
+		return Array.from(itemsOrFiles);
+	}
+
+	// Collect files from a directory or mixed drop using the File System API (Chrome/WebKit)
 	async collectFilesFromDataTransfer(dataTransfer) {
-		return this._fileDrop.collectFilesFromDataTransfer(dataTransfer);
+		const items = Array.from(dataTransfer.items || []);
+		const supportsEntries =
+			items.length > 0 && typeof items[0].webkitGetAsEntry === "function";
+		if (!supportsEntries) {
+			return this.convertToFiles(
+				dataTransfer.files?.length ? dataTransfer.files : dataTransfer.items,
+			);
+		}
+
+		const allFiles = [];
+		for (const item of items) {
+			if (item.kind !== "file") continue;
+			const entry = item.webkitGetAsEntry();
+			if (!entry) continue;
+			const files = await this.traverseEntry(entry);
+			allFiles.push(...files);
+		}
+		return allFiles;
+	}
+
+	async traverseEntry(entry) {
+		if (entry.isFile) {
+			return new Promise((resolve) => {
+				entry.file((file) => {
+					// Preserve folder structure on drop by injecting webkitRelativePath
+					try {
+						const relative = (entry.fullPath || file.name).replace(/^\//, "");
+						Object.defineProperty(file, "webkitRelativePath", {
+							value: relative,
+							configurable: true,
+						});
+					} catch (_) {}
+					resolve([file]);
+				});
+			});
+		}
+
+		if (entry.isDirectory) {
+			const reader = entry.createReader();
+			const entries = await this.readAllEntries(reader);
+			const nestedFiles = [];
+			for (const child of entries) {
+				const files = await this.traverseEntry(child);
+				nestedFiles.push(...files);
+			}
+			return nestedFiles;
+		}
+
+		return [];
+	}
+
+	readAllEntries(reader) {
+		return new Promise((resolve) => {
+			const entries = [];
+			const readChunk = () => {
+				reader.readEntries((results) => {
+					if (!results.length) {
+						resolve(entries);
+						return;
+					}
+					entries.push(...results);
+					readChunk();
+				});
+			};
+			readChunk();
+		});
 	}
 
 	stripHtml(html) {

@@ -1,0 +1,169 @@
+class Blake3FileHandler {
+	constructor() {
+		// Initialize global variables for file tracking
+		this.initializeGlobalVariables();
+		this.setupEventListeners();
+	}
+
+	initializeGlobalVariables() {
+		// Global variables to track files that should be skipped
+		window.filesToSkip = new Set();
+		window.fileCheckResults = new Map(); // Store detailed results for each file
+	}
+
+	setupEventListeners() {
+		const modal = document.getElementById("uploadCaptureModal");
+		if (!modal) {
+			console.warn("uploadCaptureModal not found");
+			return;
+		}
+
+		modal.addEventListener("shown.bs.modal", () => {
+			this.setupFileInputHandler();
+		});
+	}
+
+	setupFileInputHandler() {
+		const fileInput = document.getElementById("captureFileInput");
+		if (!fileInput) {
+			console.warn("captureFileInput not found");
+			return;
+		}
+
+		// Remove any previous handler to avoid duplicates
+		if (window._blake3CaptureHandler) {
+			fileInput.removeEventListener("change", window._blake3CaptureHandler);
+		}
+
+		// Create file handler that stores selected files
+		window._blake3CaptureHandler = async (event) => {
+			await this.handleFileSelection(event);
+		};
+
+		fileInput.addEventListener("change", window._blake3CaptureHandler);
+	}
+
+	async handleFileSelection(event) {
+		const files = event.target.files;
+		if (!files || files.length === 0) {
+			return;
+		}
+
+		// Store the selected files for later processing
+		window.selectedFiles = Array.from(files);
+
+		console.log(`Selected ${files.length} files for upload`);
+	}
+
+	/**
+	 * Calculate BLAKE3 hash for a file
+	 * @param {File} file - The file to hash
+	 * @returns {Promise<string>} - The BLAKE3 hash in hex format
+	 */
+	async calculateBlake3Hash(file) {
+		try {
+			const buffer = await file.arrayBuffer();
+			const hasher = await hashwasm.createBLAKE3();
+			hasher.init();
+			hasher.update(new Uint8Array(buffer));
+			return hasher.digest("hex");
+		} catch (error) {
+			console.error("Error calculating BLAKE3 hash:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Get directory path from webkitRelativePath
+	 * @param {File} file - The file to get directory for
+	 * @returns {string} - The directory path
+	 */
+	getDirectoryPath(file) {
+		if (!file.webkitRelativePath) {
+			return "/";
+		}
+
+		const pathParts = file.webkitRelativePath.split("/");
+		if (pathParts.length > 1) {
+			pathParts.pop(); // Remove filename
+			return `/${pathParts.join("/")}`;
+		}
+
+		return "/";
+	}
+
+	/**
+	 * Check if a file exists on the server
+	 * @param {File} file - The file to check
+	 * @param {string} hash - The BLAKE3 hash of the file
+	 * @returns {Promise<Object>} - The server response
+	 */
+	async checkFileExists(file, hash) {
+		const directory = this.getDirectoryPath(file);
+
+		const checkData = {
+			directory: directory,
+			filename: file.name,
+			checksum: hash,
+		};
+
+		try {
+			const response = await fetch(window.checkFileExistsUrl, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": window.csrfToken,
+				},
+				body: JSON.stringify(checkData),
+			});
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+			}
+
+			return await response.json();
+		} catch (error) {
+			console.error("Error checking file existence:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Process a single file for duplicate checking
+	 * @param {File} file - The file to process
+	 * @returns {Promise<Object>} - Processing result
+	 */
+	async processFileForDuplicateCheck(file) {
+		try {
+			// Calculate hash
+			const hash = await this.calculateBlake3Hash(file);
+
+			// Check if file exists
+			const checkResult = await this.checkFileExists(file, hash);
+
+			// Store results
+			const directory = this.getDirectoryPath(file);
+			const fileKey = `${directory}/${file.name}`;
+
+			const result = {
+				file: file,
+				directory: directory,
+				filename: file.name,
+				checksum: hash,
+				data: checkResult.data,
+			};
+
+			window.fileCheckResults.set(fileKey, result);
+
+			// Mark for skipping if file exists
+			if (checkResult.data && checkResult.data.file_exists_in_tree === true) {
+				window.filesToSkip.add(fileKey);
+			}
+
+			return result;
+		} catch (error) {
+			console.error("Error processing file for duplicate check:", error);
+			return null;
+		}
+	}
+}

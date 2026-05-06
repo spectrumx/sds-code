@@ -1,0 +1,204 @@
+class CapturesTableManager extends TableManager {
+	constructor(config) {
+		super(config);
+		this.modalHandler = config.modalHandler;
+		this.tableContainerSelector = config.tableContainerSelector;
+		this.eventDelegationHandler = null;
+		this.initializeEventDelegation();
+	}
+
+	/**
+	 * Initialize event delegation for better performance and memory management
+	 */
+	initializeEventDelegation() {
+		// Remove existing handler if it exists
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+		}
+
+		// Create single persistent event handler using delegation
+		this.eventDelegationHandler = (e) => {
+			// Ignore Bootstrap dropdown toggles
+			if (
+				e.target.matches('[data-bs-toggle="dropdown"]') ||
+				e.target.closest('[data-bs-toggle="dropdown"]')
+			) {
+				return;
+			}
+
+			// Handle capture details button clicks from actions dropdown
+			if (
+				e.target.matches(".capture-details-btn") ||
+				e.target.closest(".capture-details-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".capture-details-btn")
+					? e.target
+					: e.target.closest(".capture-details-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+
+			// Handle capture link clicks
+			if (
+				e.target.matches(".capture-link") ||
+				e.target.closest(".capture-link")
+			) {
+				e.preventDefault();
+				const link = e.target.matches(".capture-link")
+					? e.target
+					: e.target.closest(".capture-link");
+				this.openCaptureModal(link);
+				return;
+			}
+
+			// Handle view button clicks
+			if (
+				e.target.matches(".view-capture-btn") ||
+				e.target.closest(".view-capture-btn")
+			) {
+				e.preventDefault();
+				const button = e.target.matches(".view-capture-btn")
+					? e.target
+					: e.target.closest(".view-capture-btn");
+				this.openCaptureModal(button);
+				return;
+			}
+		};
+
+		// Add the persistent event listener
+		document.addEventListener("click", this.eventDelegationHandler);
+	}
+
+	renderRow(capture, index) {
+		// Sanitize all data before rendering
+		const safeData = {
+			uuid: ComponentUtils.escapeHtml(capture.uuid || ""),
+			channel: ComponentUtils.escapeHtml(capture.channel || ""),
+			scanGroup: ComponentUtils.escapeHtml(capture.scan_group || ""),
+			captureType: ComponentUtils.escapeHtml(capture.capture_type || ""),
+			captureTypeDisplay: ComponentUtils.escapeHtml(
+				capture.capture_type_display || "",
+			),
+			topLevelDir: ComponentUtils.escapeHtml(capture.top_level_dir || ""),
+			indexName: ComponentUtils.escapeHtml(capture.index_name || ""),
+			owner: ComponentUtils.escapeHtml(capture.owner || ""),
+			origin: ComponentUtils.escapeHtml(capture.origin || ""),
+			dataset: ComponentUtils.escapeHtml(capture.dataset || ""),
+			createdAt: ComponentUtils.escapeHtml(capture.created_at || ""),
+			updatedAt: ComponentUtils.escapeHtml(capture.updated_at || ""),
+			isPublic: ComponentUtils.escapeHtml(capture.is_public || ""),
+			isDeleted: ComponentUtils.escapeHtml(capture.is_deleted || ""),
+			centerFrequencyGhz: ComponentUtils.escapeHtml(
+				capture.center_frequency_ghz || "",
+			),
+		};
+
+		// Handle composite vs single capture display
+		let channelDisplay = safeData.channel;
+		let typeDisplay = safeData.captureTypeDisplay || safeData.captureType;
+
+		if (capture.is_multi_channel) {
+			// For composite captures, show all channels
+			if (capture.channels && Array.isArray(capture.channels)) {
+				channelDisplay = capture.channels
+					.map((ch) => ComponentUtils.escapeHtml(ch.channel || ch))
+					.join(", ");
+			}
+			// Use capture_type_display if available, otherwise fall back to captureType
+			typeDisplay = capture.capture_type_display || safeData.captureType;
+		}
+
+		return `
+            <tr class="capture-row" data-clickable="true" data-uuid="${safeData.uuid}">
+                <td>
+                    <a href="#" class="capture-link"
+                       data-uuid="${safeData.uuid}"
+                       data-channel="${safeData.channel}"
+                       data-scan-group="${safeData.scanGroup}"
+                       data-capture-type="${safeData.captureType}"
+                       data-top-level-dir="${safeData.topLevelDir}"
+                       data-index-name="${safeData.indexName}"
+                       data-owner="${safeData.owner}"
+                       data-origin="${safeData.origin}"
+                       data-dataset="${safeData.dataset}"
+                       data-created-at="${safeData.createdAt}"
+                       data-updated-at="${safeData.updatedAt}"
+                       data-is-public="${safeData.isPublic}"
+                       data-is-deleted="${safeData.isDeleted}"
+                       data-center-frequency-ghz="${safeData.centerFrequencyGhz}"
+                       data-is-multi-channel="${capture.is_multi_channel || false}"
+                       data-channels="${capture.channels ? JSON.stringify(capture.channels) : ""}"
+                       aria-label="View details for ${safeData.uuid || "unknown capture"}">
+                        ${safeData.uuid}
+                    </a>
+                </td>
+                <td>${channelDisplay}</td>
+                <td class="text-nowrap">
+                    ${ComponentUtils.formatDateForModal(capture.capture?.created_at || capture.created_at)}
+                </td>
+                <td>${typeDisplay}</td>
+                <td>${capture.files_count || "0"}</td>
+                <td>${capture.center_frequency_ghz ? `${capture.center_frequency_ghz.toFixed(3)} GHz` : "-"}</td>
+                <td>${capture.sample_rate_mhz ? `${capture.sample_rate_mhz.toFixed(1)} MHz` : "-"}</td>
+            </tr>
+        `;
+	}
+
+	/**
+	 * Attach row click handlers - now uses event delegation
+	 */
+	attachRowClickHandlers() {
+		// Event delegation is handled in initializeEventDelegation()
+		// This method is kept for compatibility but doesn't need to do anything
+	}
+
+	/**
+	 * Open capture modal with XSS protection
+	 */
+	openCaptureModal(linkElement) {
+		if (this.modalHandler) {
+			this.modalHandler.openCaptureModal(linkElement);
+		}
+	}
+
+	/**
+	 * Get CSRF token for API requests
+	 */
+	getCSRFToken() {
+		const token = document.querySelector("[name=csrfmiddlewaretoken]");
+		return token ? token.value : "";
+	}
+
+	/**
+	 * Open a custom modal
+	 */
+	openCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "block";
+			document.body.style.overflow = "hidden";
+		}
+	}
+
+	/**
+	 * Close a custom modal
+	 */
+	closeCustomModal(modalId) {
+		const modal = document.getElementById(modalId);
+		if (modal) {
+			modal.style.display = "none";
+			document.body.style.overflow = "auto";
+		}
+	}
+
+	/**
+	 * Cleanup method for proper resource management
+	 */
+	destroy() {
+		if (this.eventDelegationHandler) {
+			document.removeEventListener("click", this.eventDelegationHandler);
+			this.eventDelegationHandler = null;
+		}
+	}
+}
