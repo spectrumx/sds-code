@@ -311,3 +311,24 @@ def detach_item_from_all_datasets(item: Capture | File) -> None:
     item.dataset = None
     item.datasets.clear()
     item.save()
+
+
+def group_captures_by_top_level_dir(
+    captures: QuerySet[Capture],
+) -> dict[str, list[Capture]]:
+    """Group captures by top_level_dir for composite capture handling.
+
+    Args:
+        captures: QuerySet of Capture objects
+    Returns:
+        dict: {top_level_dir: list of captures}
+    """
+    grouped_captures: dict[str, list[Capture]] = {}
+
+    for capture in captures:
+        top_level_dir = capture.top_level_dir
+        if top_level_dir not in grouped_captures:
+            grouped_captures[top_level_dir] = []
+        grouped_captures[top_level_dir].append(capture)
+
+    return grouped_captures

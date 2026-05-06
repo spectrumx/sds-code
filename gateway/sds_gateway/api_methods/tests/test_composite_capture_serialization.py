@@ -14,14 +14,14 @@ from django.test import TestCase
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.serializers.capture_composition_utils import (
-    build_composite_capture_data,
-)
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CompositeCaptureSerializer,
 )
 from sds_gateway.api_methods.serializers.capture_serializers import (
     _epoch_sec_to_iso_utc_z,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    build_composite_capture_data,
 )
 from sds_gateway.api_methods.views.capture_endpoints import _normalize_top_level_dir
 
