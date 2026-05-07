@@ -34,11 +34,10 @@ class Attr:
     cast_fn: Callable[[str], AttrValueT] | None = None
 
 
-# '_cfg_name_lookup' maps config names to attribute names (internal).
-#   This allows decoupling env file names from attribute
-#   names in the object; used for refactoring code without
-#   breaking user configuration files. Use lower case.
-_cfg_name_lookup = {
+# Maps config names to attribute names. Decouples env file names from attribute
+# names; used for refactoring without breaking user configuration files. Lowercase
+# keys only.
+CFG_NAME_LOOKUP: dict[str, Attr] = {
     "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
     "http_timeout": Attr(attr_name="timeout", cast_fn=int),
     "sds_host": Attr(attr_name="sds_host"),
@@ -193,7 +192,7 @@ class SDSConfig:
 
         # clean and set the configuration loaded
         cleaned_config: list[Attr] = _clean_config(
-            name_lookup=_cfg_name_lookup, env_config=env_config
+            name_lookup=CFG_NAME_LOOKUP, env_config=env_config
         )
 
         # `deprecated_names` allows gracefully phasing out settings in future SDK

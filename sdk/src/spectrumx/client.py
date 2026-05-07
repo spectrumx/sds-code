@@ -43,7 +43,7 @@ def _normalize_top_level_dir_prefix(
     return s.rstrip("/") or "/"
 
 
-def _resolve_dataset_capture_filter_params(
+def resolve_dataset_capture_filter_params(
     *,
     capture_uuids: Collection[UUID4 | str] | None,
     top_level_dirs: Collection[PurePosixPath | Path | str] | None,
@@ -181,6 +181,11 @@ class Client:
             else "Dry-run DISABLED: modifications are now possible."
         )
         log_user_warning(msg)
+
+    @property
+    def gateway(self) -> GatewayClient:
+        """Underlying gateway client (for tests and advanced HTTP access)."""
+        return self._gateway
 
     @property
     def base_url(self) -> str:
@@ -367,7 +372,7 @@ class Client:
         results: list[Result[File]] = []
         for file_info in prog_bar:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
-            result = self._download_single_file(
+            result = self.download_single_file(
                 file_info=file_info,
                 to_local_path=to_local_path,
                 skip_contents=skip_contents,
@@ -377,7 +382,7 @@ class Client:
 
         return results
 
-    def _download_single_file(
+    def download_single_file(
         self,
         *,
         file_info: File,
@@ -564,7 +569,7 @@ class Client:
             filter_active,
             uuid_set,
             dir_prefixes_norm,
-        ) = _resolve_dataset_capture_filter_params(
+        ) = resolve_dataset_capture_filter_params(
             capture_uuids=capture_uuids,
             top_level_dirs=top_level_dirs,
             dry_run=self.dry_run,
