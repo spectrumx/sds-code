@@ -1,5 +1,6 @@
 import re
 
+from django.db.models import Q
 from django.db.models import QuerySet
 from loguru import logger as log
 
@@ -52,6 +53,12 @@ def get_capture_files_with_temporal_filter(
         )
         return capture_files
 
+    if not capture.start_time:
+        log.warning(
+            "Capture %s has no indexed start_time for temporal filtering", capture.uuid
+        )
+        return capture_files
+
     epoch_start_ms = capture.start_time * 1000
     start_ms = epoch_start_ms + start_time
     end_ms = epoch_start_ms + end_time
@@ -68,20 +75,13 @@ def filter_files_by_temporal_bounds(
     start_time: int,
     end_time: int,
 ) -> QuerySet[File]:
-    """Filter files by temporal bounds."""
+    """Filter files by temporal bounds.
 
-    # get non-data files
-    non_data_files = files.exclude(name__regex=DRF_RF_FILENAME_REGEX_STR)
-
-    unfiltered_data_files = files.filter(name__regex=DRF_RF_FILENAME_REGEX_STR)
-
+    Non-DRF filenames are kept; DRF ``rf@...h5`` files are kept only when ``name``
+    falls in the inclusive lexical window for ``start_time`` / ``end_time``.
+    """
     start_file_name = drf_rf_filename_from_ms(start_time)
     end_file_name = drf_rf_filename_from_ms(end_time)
-
-    filtered_data_files = unfiltered_data_files.filter(
-        name__gte=start_file_name,
-        name__lte=end_file_name,
-    ).order_by("name")
-
-    # return all files
-    return non_data_files.union(filtered_data_files)
+    is_drf_data_file = Q(name__regex=DRF_RF_FILENAME_REGEX_STR)
+    in_name_window = Q(name__gte=start_file_name, name__lte=end_file_name)
+    return files.filter(~is_drf_data_file | (is_drf_data_file & in_name_window))

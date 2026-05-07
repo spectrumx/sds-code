@@ -440,6 +440,7 @@ class FileViewSet(ViewSet):
             log.warning(msg)
             warnings.append(msg)
 
+        # annotate the files with a path
         files_matching_dir = files_matching_dir.annotate(
             path=Concat(
                 FExpression("directory"),
