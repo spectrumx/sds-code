@@ -209,11 +209,15 @@ function load_credentials() {
 }
 
 function parse_arguments() {
-	local -n args_ref=$1
+	local -n _args_ref=$1
 	shift
 
+	# Ensure key exists (shellcheck can't follow nameref)
+	if [[ -z "${_args_ref[skip_setup]+x}" ]]; then
+		_args_ref[skip_setup]="false"
+	fi
 	if [[ "${SFS_SKIP_SETUP:-}" == "true" ]]; then
-		args_ref[skip_setup]="true"
+		_args_ref[skip_setup]="true"
 	fi
 
 	while [[ $# -gt 0 ]]; do
@@ -244,7 +248,8 @@ function parse_arguments() {
 
 function assert_selected_env() {
 	local env_type="$1"
-	local selected_env="$(just env | awk -F"'" '/Environment:/{print $2}')"
+	local selected_env
+	selected_env="$(just env | awk -F"'" '/Environment:/{print $2}')"
 	if [[ "${env_type}" != "${selected_env}" ]]; then
 		log_error "Selected environment >${selected_env}< does not match argument >${env_type}<"
 		log_msg "If you are attempting to run e.g. a CI env locally, tear down your local stack,"
