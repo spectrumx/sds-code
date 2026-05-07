@@ -380,30 +380,45 @@ production hosts.
     Open the web interface at [localhost:18000](http://localhost:18000). You can create
     regular users by signing up there.
 
-    You can sign in with the superuser credentials at `localhost:18000/<admin path set
-    in django.env>` to access the admin interface.
+    You can sign in with the superuser credentials at
+    `localhost:18000/<admin_path_set_in_django.env>`
+    to access the admin interface.
 
-4. MinIO setup:
+4. RustFS setup:
 
     > [!NOTE]
-    > As of April 2026, MinIO is used as a secondary storage for SDS, and the main
-    > storage is SeaweedFS. The MinIO instance is optional. For more details, see the
-    > [MinIO to SeaweedFS migration documentation](./migration-minio-to-seaweedfs.md).
+    > As of May 2026, RustFS is used as a secondary storage for production deployments
+    > of SDS, and the primary is SeaweedFS. MinIO was replaced by a combination of
+    > SeaweedFS (primary) and RustFS (secondary) after project maintainers abandoned the
+    > open source community version of MinIO. For more details, see the [MinIO to
+    > SeaweedFS migration documentation](./migration-minio-to-seaweedfs.md).
 
-    This is a multi-drive, single-node setup of MinIO. For a distributed setup
-    (multi-node), see the [MinIO
-    documentation](https://min.io/docs/minio/linux/operations/install-deploy-manage/deploy-minio-multi-node-multi-drive.html#deploy-minio-distributed).
+    The instructions below are for setting up the RustFS instance if you choose to use
+    it, and instructions are very similar to the pre-existing ones for MinIO. This is a
+    multi-drive, single-node setup of RustFS. For other kinds of deployment, check their
+    documentation.
+
+    The `mc` commands below refer to the MinIO CLI client, which can be used with RustFS
+    endpoints. Unfortunately it also seems unmaintained, so you may want to use a
+    community fork or the RustFS CLI instead:
+
+    + Official `mc` repo: <https://github.com/minio/mc>
+    + Pigsty community fork of `mc`: <https://github.com/pgsty/mc> (most starred fork)
+        + Docker Hub mirror <https://hub.docker.com/r/pgsty/mc>
+    + RustFS CLI (alpha): <https://github.com/rustfs/cli>
+        + Most `mc` commands can be replaced with `rc`, as they are, but the API is not
+          exactly a drop-in replacement.
 
     >[!NOTE]
     >
-    > We're using `prod-secondary-rustfs` in the example commands below as our mc alias
-    > alias. Change it accordingly if you're using a different alias in your config.
+    > We're using `prod-secondary-rustfs` in the example commands below as our mc alias.
+    > Change it accordingly if you're using a different alias in your config.
     > To see all aliases, run `mc alias list`.
 
     1. Establish the connection alias:
 
         ```bash
-        just dc exec prod-secondary-rustfs mc alias set prod-secondary-rustfs http://127.0.0.1:9000 rustfsadmin
+        mc alias set prod-secondary-rustfs http://127.0.0.1:9000 rustfsadmin
         # paste your storage credentials from .envs/production/storage.env;
         # change `rustfsadmin` above to match that file, if needed.
 
@@ -415,8 +430,11 @@ production hosts.
         cluster remotely:
 
         ```bash
-        mc alias set prod-secondary-rustfs http://<container_name>:19000 rustfsadmin <password>
+        mc alias set prod-secondary-rustfs http://localhost:19000 rustfsadmin <password>
         ```
+
+        When running from another docker container, you can use the container name in
+        the stack instead of `localhost`.
 
     2. Set admin settings:
 
@@ -444,13 +462,18 @@ production hosts.
 
         ```
 
-    3. Create the MinIO bucket:
+    3. Create the bucket:
 
         ```bash
         mc mb --ignore-existing "prod-secondary-rustfs/spectrumx"
         ```
 
     4. (Optional) Diagnostic checks:
+
+        > [!TIP]
+        > If using `rc`, check their documentation. They have additional commands like:
+        > `rc admin info disk prod-secondary-rustfs` and
+        > `rc admin info cluster prod-secondary-rustfs`
 
         Check the output of these commands to make sure everything is as expected:
 
@@ -462,13 +485,13 @@ production hosts.
 
         # liveness check
         curl -I "http://localhost:19000/minio/health/live"
-        # A response code of 200 OK indicates the MinIO server is online and functional.
+        # A response code of 200 OK indicates the server is online and functional.
         # Any other HTTP codes indicate an issue with reaching the server, such as a
         # transient network issue or potential downtime.
 
         # write quorum check
         curl -I "http://localhost:19000/minio/health/cluster"
-        # a response code of 200 OK indicates that the MinIO cluster has sufficient MinIO
+        # a response code of 200 OK indicates that the cluster has sufficient MinIO
         # servers online to meet write quorum. A response code of 503 Service Unavailable
         # indicates the cluster does not currently have write quorum.
 

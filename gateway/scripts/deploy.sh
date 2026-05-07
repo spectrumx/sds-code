@@ -21,7 +21,7 @@ set -euo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-SFS_ROOT=$(cd "${PROJECT_ROOT}/../seaweedfs" 2>/dev/null && pwd || true)
+SFS_ROOT=$(cd "${PROJECT_ROOT}/../seaweedfs" 2>/dev/null && pwd) || SFS_ROOT=""
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
@@ -299,56 +299,72 @@ function show_next_steps() {
 }
 
 function parse_arguments() {
-	local -n args_ref=$1
+	local -n _args_ref=$1
 	shift
 
+	# Ensure all keys exist (shellcheck can't follow nameref)
+	if [[ -z "${_args_ref[force_secrets]+x}" ]]; then
+		_args_ref[force_secrets]="false"
+	fi
+	if [[ -z "${_args_ref[skip_secrets]+x}" ]]; then
+		_args_ref[skip_secrets]="false"
+	fi
+	if [[ -z "${_args_ref[skip_network]+x}" ]]; then
+		_args_ref[skip_network]="false"
+	fi
+	if [[ -z "${_args_ref[skip_sfs]+x}" ]]; then
+		_args_ref[skip_sfs]="false"
+	fi
+	if [[ -z "${_args_ref[detach]+x}" ]]; then
+		_args_ref[detach]="false"
+	fi
 	# read from environment variables first (command-line args will override)
 	if [[ "${SDS_FORCE_SECRETS:-}" == "true" ]]; then
-		args_ref[force_secrets]="true"
+		_args_ref[force_secrets]="true"
 	fi
 	if [[ "${SDS_SKIP_SECRETS:-}" == "true" ]]; then
-		args_ref[skip_secrets]="true"
+		_args_ref[skip_secrets]="true"
 	fi
 	if [[ "${SDS_SKIP_NETWORK:-}" == "true" ]]; then
-		args_ref[skip_network]="true"
+		_args_ref[skip_network]="true"
 	fi
 	if [[ "${SDS_SKIP_SFS:-}" == "true" ]]; then
-		args_ref[skip_sfs]="true"
+		_args_ref[skip_sfs]="true"
 	fi
 	if [[ "${SDS_DETACH:-}" == "true" ]]; then
-		args_ref[detach]="true"
+		_args_ref[detach]="true"
 	elif [[ "${SDS_DETACH:-}" == "false" ]]; then
-		args_ref[detach]="false"
+		_args_ref[detach]="false"
 	fi
 
 	# parse command-line arguments (these override env vars)
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
 		-f | --force)
-			args_ref[force_secrets]="true"
+			_args_ref[force_secrets]="true"
 			shift
 			;;
 		-s | --skip-secrets)
-			args_ref[skip_secrets]="true"
+			_args_ref[skip_secrets]="true"
 			shift
 			;;
 		-n | --skip-network)
-			args_ref[skip_network]="true"
+			_args_ref[skip_network]="true"
 			shift
 			;;
 		--skip-sfs)
-			args_ref[skip_sfs]="true"
+			_args_ref[skip_sfs]="true"
 			shift
 			;;
 		-d | --detach)
-			args_ref[detach]="true"
+			_args_ref[detach]="true"
 			shift
 			;;
 		-h | --help)
 			show_usage
 			;;
 		local | production | ci)
-			args_ref[env_type]="$1"
+			_args_ref[env_type]="$1"
 			shift
 			;;
 		*)
@@ -358,14 +374,14 @@ function parse_arguments() {
 		esac
 	done
 
-	if [[ -z "${args_ref[env_type]}" ]]; then
+	if [[ -z "${_args_ref[env_type]}" ]]; then
 		log_error "Environment type required (local, production, or ci)"
 		show_usage
 	fi
 
 	# auto-detach for production unless explicitly overridden
-	if [[ "${args_ref[env_type]}" == "production" && "${SDS_DETACH:-}" != "false" ]]; then
-		args_ref[detach]="true"
+	if [[ "${_args_ref[env_type]}" == "production" && "${SDS_DETACH:-}" != "false" ]]; then
+		_args_ref[detach]="true"
 	fi
 }
 

@@ -13,6 +13,10 @@ filer_container := shell(env_selection_script + ' $1', "filer_container")
 master_container := shell(env_selection_script + ' $1', "master_container")
 docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
 
+alias hooks := pre-commit
+alias run := up
+alias upgrade := update-hooks
+
 # show available recipes
 default:
     @just --list
@@ -153,6 +157,17 @@ up *args:
     echo "Environment: '{{ env }}'"
     echo "Compose file: '{{ compose_file }}'"
     {{ docker_compose }} up --detach --remove-orphans {{ args }}
+
+# runs the pre-commit hooks
+[group('qa')]
+pre-commit:
+    @uvx prek install -f
+    @uvx prek run --all-files
+
+# upgrades pre-commit hooks to their latest compatible versions
+[group('development')]
+update-hooks:
+    @uvx prek autoupdate
 
 # performs full teardown (removes data) — irreversible
 [confirm("This will destroy ALL SeaweedFS data. Are you sure? [y/N]")]
