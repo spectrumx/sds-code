@@ -26,10 +26,8 @@ networks:
     sds-gateway-ci-opensearch-net:
         driver: bridge
     sds-network-ci:
-        # external: true # make it external if running with traefik on this machine
-        # should match traefik's network name
+        external: true
         name: sds-network-ci
-        driver: bridge
 services:
     sds-gateway-ci-app:
         build:
