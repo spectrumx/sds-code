@@ -44,9 +44,9 @@ data-setup:
         exit 0
     fi
     echo "Creating data directories..."
-    mkdir -p data/volumes data/filer/filerldb2
+    mkdir -p data/master data/volumes data/filer/filerldb2
     echo "Setting ownership to ${UID:-1000}:${GID:-1000}..."
-    chown -R "${UID:-1000}:${GID:-1000}" data/
+    sudo chown --changes -R "${UID:-1000}:${GID:-1000}" data/
     echo "Done"
 
 # runs a full deploy (start services, configure credentials, create bucket)
