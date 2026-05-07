@@ -1,125 +1,157 @@
-# CI COMPOSE FILE — SeaweedFS stack
-# Container names and resources start with "sds-gateway-ci-" to avoid accidents.
-# Uses named volumes (ephemeral) instead of bind mounts for data directories.
-# Skips prometheus and webdav to minimize resource usage in CI.
+# CI COMPOSE — SeaweedFS stack (minimal subset for CI/testing)
+# 4 services only: master, single volume, filer, s3 gateway.
+# Uses bind mounts under ./data/ (ephemeral). No JWT, no metrics infra.
 
-volumes:
-    sds-gateway-ci-sfs-volume-data: {}
-    sds-gateway-ci-sfs-filer-data: {}
+x-logging: &default-logging
+  driver: "json-file"
+  options:
+    max-size: "100m"
+    max-file: "3"
 
 networks:
-    sds-gateway-ci-seaweed-net:
-        driver: bridge
-    sds-network-ci:
-        external: true
+  sds-gateway-ci-seaweed-net:
+    driver: bridge
+  sds-network-ci:
+    external: true
 
 services:
-    sds-gateway-ci-sfs-master:
-        image: docker.io/chrislusf/seaweedfs:4.17_large_disk
-        container_name: sds-gateway-ci-sfs-master
-        user: "${UID:-1000}:${GID:-1000}"
-        command: |
-            master
-                -ip=sds-gateway-ci-sfs-master
-                -ip.bind=0.0.0.0
-                -metricsPort=${SFS_MASTER_METRICS_PORT:-9324}
-        restart: unless-stopped
-        tty: true
-        volumes:
-            - source: ./config/
-              target: /etc/seaweedfs/
-              type: bind
-              read_only: true
-        networks:
-            - sds-gateway-ci-seaweed-net
-        deploy:
-            placement:
-                max_replicas_per_node: 1
+  # ─────────────────────────────────────────────────────────
+  # MASTER
+  # ─────────────────────────────────────────────────────────
+  sds-gateway-ci-sfs-master:
+    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    container_name: sds-gateway-ci-sfs-master
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
+    networks:
+      - sds-gateway-ci-seaweed-net
+    ports:
+      - "${SFS_MASTER_PORT:-9333}:${SFS_MASTER_PORT:-9333}"
+      - "${SFS_MASTER_GRPC_PORT:-19333}:${SFS_MASTER_GRPC_PORT:-19333}"
+    volumes:
+      - ./data/master:/data
+      - ./config/master.toml:/etc/seaweedfs/master.toml:ro
+      - ./config/security.toml:/etc/seaweedfs/security.toml:ro
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_MASTER_PORT:-9333}/cluster/status >/dev/null"]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    command: |
+      master
+      -mdir=/data
+      -ip=sds-gateway-ci-sfs-master
+      -ip.bind=0.0.0.0
+      -port=${SFS_MASTER_PORT:-9333}
+      -metricsPort=${SFS_MASTER_METRICS_PORT:-9324}
 
-    sds-gateway-ci-sfs-volume:
-        image: docker.io/chrislusf/seaweedfs:4.17_large_disk
-        container_name: sds-gateway-ci-sfs-volume
-        user: "${UID:-1000}:${GID:-1000}"
-        healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null",
-                ]
-            interval: 15s
-            retries: 5
-            start_interval: 5s
-            start_period: 15s
-            timeout: 5s
-        command: |
-            volume
-                -dir=/data/volumes
-                -ip.bind=0.0.0.0
-                -ip=sds-gateway-ci-sfs-volume
-                -master="sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}"
-                -max=0
-                -metricsPort=${SFS_VOLUME_METRICS_PORT:-9325}
-                -port=${SFS_VOLUME_PORT:-8080}
-        depends_on:
-            - sds-gateway-ci-sfs-master
-        tty: true
-        restart: unless-stopped
-        volumes:
-            - source: sds-gateway-ci-sfs-volume-data
-              target: /data/volumes
-              type: volume
-            - source: ./config/
-              target: /etc/seaweedfs/
-              type: bind
-              read_only: true
-        networks:
-            - sds-gateway-ci-seaweed-net
+  # ─────────────────────────────────────────────────────────
+  # VOLUME
+  # ─────────────────────────────────────────────────────────
+  sds-gateway-ci-sfs-volume:
+    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    container_name: sds-gateway-ci-sfs-volume
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
+    depends_on:
+      - sds-gateway-ci-sfs-master
+    networks:
+      - sds-gateway-ci-seaweed-net
+    ports:
+      - "${SFS_VOLUME_PORT:-8080}:${SFS_VOLUME_PORT:-8080}"
+      - "${SFS_VOLUME_GRPC_PORT:-18080}:${SFS_VOLUME_GRPC_PORT:-18080}"
+    volumes:
+      - ./data/volumes:/data
+      - ./config/security.toml:/etc/seaweedfs/security.toml:ro
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null"]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    command: |
+      volume
+      -master=sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}
+      -ip=sds-gateway-ci-sfs-volume
+      -ip.bind=0.0.0.0
+      -port=${SFS_VOLUME_PORT:-8080}
+      -max=0
+      -dir=/data
+      -index=leveldb
+      -metricsPort=${SFS_VOLUME_METRICS_PORT:-9325}
 
-    sds-gateway-ci-sfs-filer:
-        image: docker.io/chrislusf/seaweedfs:4.17_large_disk
-        container_name: sds-gateway-ci-sfs-filer
-        user: "${UID:-1000}:${GID:-1000}"
-        command: 'filer -ip=sds-gateway-ci-sfs-filer -master="sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}" -ip.bind=0.0.0.0 -metricsPort=${SFS_FILER_METRICS_PORT:-9326}'
-        tty: true
-        stdin_open: true
-        depends_on:
-            - sds-gateway-ci-sfs-master
-            - sds-gateway-ci-sfs-volume
-        volumes:
-            - source: sds-gateway-ci-sfs-filer-data
-              target: /data/filer
-              type: volume
-            - source: ./config/
-              target: /etc/seaweedfs/
-              type: bind
-              read_only: true
-        networks:
-            - sds-gateway-ci-seaweed-net
-        restart: unless-stopped
+  # ─────────────────────────────────────────────────────────
+  # FILER
+  # ─────────────────────────────────────────────────────────
+  sds-gateway-ci-sfs-filer:
+    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    container_name: sds-gateway-ci-sfs-filer
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
+    depends_on:
+      - sds-gateway-ci-sfs-master
+      - sds-gateway-ci-sfs-volume
+    networks:
+      - sds-gateway-ci-seaweed-net
+    ports:
+      - "${SFS_FILER_PORT:-8888}:${SFS_FILER_PORT:-8888}"
+      - "${SFS_FILER_GRPC_PORT:-18888}:${SFS_FILER_GRPC_PORT:-18888}"
+    volumes:
+      - ./data/filer:/data
+      - ./config/filer.toml:/etc/seaweedfs/filer.toml:ro
+      - ./config/security.toml:/etc/seaweedfs/security.toml:ro
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_FILER_PORT:-8888}/ >/dev/null"]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    command: |
+      filer
+      -master=sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}
+      -ip=sds-gateway-ci-sfs-filer
+      -ip.bind=0.0.0.0
+      -port=${SFS_FILER_PORT:-8888}
+      -metricsPort=${SFS_FILER_METRICS_PORT:-9326}
 
-    sds-gateway-ci-sfs-s3:
-        image: docker.io/chrislusf/seaweedfs:4.17_large_disk
-        container_name: sds-gateway-ci-sfs-s3
-        user: "${UID:-1000}:${GID:-1000}"
-        ports:
-            - ${SFS_S3_PORT:-8333}:${SFS_S3_PORT:-8333}
-        command: 's3 -filer="sds-gateway-ci-sfs-filer:${SFS_FILER_PORT:-8888}" -ip.bind=0.0.0.0 -metricsPort=${SFS_S3_METRICS_PORT:-9327}'
-        depends_on:
-            - sds-gateway-ci-sfs-master
-            - sds-gateway-ci-sfs-volume
-            - sds-gateway-ci-sfs-filer
-        healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
-                ]
-            interval: 15s
-            retries: 5
-            start_interval: 5s
-            start_period: 15s
-            timeout: 5s
-        networks:
-            - sds-gateway-ci-seaweed-net
-            - sds-network-ci
-        restart: unless-stopped
+  # ─────────────────────────────────────────────────────────
+  # S3 GATEWAY
+  # ─────────────────────────────────────────────────────────
+  sds-gateway-ci-sfs-s3:
+    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    container_name: sds-gateway-ci-sfs-s3
+    user: "${UID:-1000}:${GID:-1000}"
+    restart: unless-stopped
+    depends_on:
+      - sds-gateway-ci-sfs-master
+      - sds-gateway-ci-sfs-volume
+      - sds-gateway-ci-sfs-filer
+    networks:
+      - sds-gateway-ci-seaweed-net
+      - sds-network-ci
+    ports:
+      - "${SFS_S3_PORT:-8333}:${SFS_S3_PORT:-8333}"
+    volumes:
+      - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null"]
+      interval: 15s
+      retries: 5
+      start_interval: 5s
+      start_period: 30s
+      timeout: 5s
+    command: |
+      s3
+      -filer=sds-gateway-ci-sfs-filer:${SFS_FILER_PORT:-8888}
+      -ip.bind=0.0.0.0
+      -port=${SFS_S3_PORT:-8333}
+      -config=/etc/seaweedfs/s3.json
+      -metricsPort=${SFS_S3_METRICS_PORT:-9327}
