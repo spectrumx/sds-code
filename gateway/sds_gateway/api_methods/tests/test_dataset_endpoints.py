@@ -169,7 +169,6 @@ class DatasetEndpointsTestCase(TestCase):
             assert "directory" in file_info
             assert "size" in file_info
             assert "media_type" in file_info
-            assert file_info["capture"] is None
             assert file_info["captures"] == []
 
     def test_get_dataset_files_with_owned_captures(self):
@@ -223,18 +222,15 @@ class DatasetEndpointsTestCase(TestCase):
         assert len(results) == self.EXPECTED_TOTAL_FILES_3
 
         # Verify capture file info structure
-        capture_files = [f for f in results if f["capture"] is not None]
+        capture_files = [f for f in results if len(f["captures"]) > 0]
         assert len(capture_files) == self.EXPECTED_CAPTURE_FILES
 
         for file_info in capture_files:
-            assert file_info["capture"]["uuid"] == str(capture.uuid)
-            assert file_info["capture"]["name"] == capture.name
-            assert file_info["captures"]
             assert any(c["uuid"] == str(capture.uuid) for c in file_info["captures"])
 
-        artifact_only = [f for f in results if f["capture"] is None]
+        artifact_only = [f for f in results if len(f["captures"]) == 0]
         assert len(artifact_only) == 1
-        assert artifact_only[0]["captures"] == []
+        assert artifact_only[0]["uuid"] == file3.uuid
 
     def test_get_dataset_files_with_shared_captures(self):
         """Test dataset files manifest including files from shared captures."""
@@ -303,18 +299,15 @@ class DatasetEndpointsTestCase(TestCase):
         assert len(results) == self.EXPECTED_TOTAL_FILES_3
 
         # Verify shared capture file info structure
-        capture_files = [f for f in results if f["capture"] is not None]
+        capture_files = [f for f in results if len(f["captures"]) > 0]
         assert len(capture_files) == self.EXPECTED_CAPTURE_FILES
 
         for file_info in capture_files:
-            assert file_info["capture"]["uuid"] == str(capture.uuid)
-            assert file_info["capture"]["name"] == capture.name
-            assert file_info["captures"]
             assert any(c["uuid"] == str(capture.uuid) for c in file_info["captures"])
 
-        artifact_only = [f for f in results if f["capture"] is None]
+        artifact_only = [f for f in results if len(f["captures"]) == 0]
         assert len(artifact_only) == 1
-        assert artifact_only[0]["captures"] == []
+        assert artifact_only[0]["uuid"] == file3.uuid
 
     def test_get_dataset_files_with_both_owned_and_shared_captures(self):
         """Test dataset files manifest with both owned and shared captures."""
@@ -407,39 +400,28 @@ class DatasetEndpointsTestCase(TestCase):
         owned_capture_files = [
             f
             for f in results
-            if f["capture"] is not None
-            and f["capture"]["uuid"] == str(owned_capture.uuid)
+            if len(f["captures"]) > 0
+            and any(c["uuid"] == str(owned_capture.uuid) for c in f["captures"])
         ]
         assert len(owned_capture_files) == self.EXPECTED_CAPTURE_FILES
-
-        for file_info in owned_capture_files:
-            assert file_info["capture"]["uuid"] == str(owned_capture.uuid)
-            assert file_info["capture"]["name"] == owned_capture.name
-            assert file_info["captures"]
-            assert any(
-                c["uuid"] == str(owned_capture.uuid) for c in file_info["captures"]
-            )
+        assert file1.uuid in [f["uuid"] for f in owned_capture_files]
+        assert file2.uuid in [f["uuid"] for f in owned_capture_files]
 
         # Verify shared capture file info structure
         shared_capture_files = [
             f
             for f in results
-            if f["capture"] is not None
-            and f["capture"]["uuid"] == str(shared_capture.uuid)
+            if len(f["captures"]) > 0
+            and any(c["uuid"] == str(shared_capture.uuid) for c in f["captures"])
         ]
         assert len(shared_capture_files) == self.EXPECTED_CAPTURE_FILES
 
-        for file_info in shared_capture_files:
-            assert file_info["capture"]["uuid"] == str(shared_capture.uuid)
-            assert file_info["capture"]["name"] == shared_capture.name
-            assert file_info["captures"]
-            assert any(
-                c["uuid"] == str(shared_capture.uuid) for c in file_info["captures"]
-            )
+        assert file3.uuid in [f["uuid"] for f in shared_capture_files]
+        assert file4.uuid in [f["uuid"] for f in shared_capture_files]
 
-        artifact_only = [f for f in results if f["capture"] is None]
+        artifact_only = [f for f in results if len(f["captures"]) == 0]
         assert len(artifact_only) == 1
-        assert artifact_only[0]["captures"] == []
+        assert file5.uuid in [f["uuid"] for f in artifact_only]
 
     def test_get_dataset_files_filter_by_capture_query(self):
         """``capture`` query param restricts the manifest server-side."""
@@ -544,7 +526,7 @@ class DatasetEndpointsTestCase(TestCase):
         data = response.json()
         assert data["count"] == 1
         assert data["results"][0]["uuid"] == str(f_art.uuid)
-        assert data["results"][0]["capture"] is None
+        assert data["results"][0]["captures"] == []
 
     def test_get_dataset_files_artifacts_only_skips_capture_param_parsing(self):
         """Invalid capture UUID is ignored when artifacts_only=true (no 400)."""
