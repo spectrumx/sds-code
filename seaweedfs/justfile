@@ -191,3 +191,13 @@ wipe:
         echo "Local data directories cleared"
     fi
     echo "SeaweedFS data wiped"
+
+# health *args       # comprehensive cluster diagnostic (human-readable)
+[group('monitoring')]
+health *args:
+    @./scripts/health-check.sh {{ args }}
+
+# health-json        # machine-readable JSON output for agentic consumption
+[group('monitoring')]
+health-json:
+    @./scripts/health-check.sh --json
