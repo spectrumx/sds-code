@@ -138,7 +138,9 @@ curl_ok() { curl -fsS --max-time 5 "$@" >/dev/null 2>&1; }
 curl_json() { curl -fsS --max-time 5 "$@" 2>/dev/null || echo '{}'; }
 
 output_header() {
-	[[ "$OUTPUT_MODE" == "human" ]] && log_header "$1"
+	if [[ "$OUTPUT_MODE" == "human" ]]; then
+		log_header "$1"
+	fi
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -410,9 +412,9 @@ else
 		if [[ -d "${PROJECT_DIR}/${d}" ]]; then
 			USE_PCT=$(df "${PROJECT_DIR}/${d}" 2>/dev/null | tail -1 | awk '{print $5}' || echo "?")
 			if [[ "$USE_PCT" =~ ^[0-9]+$ ]] && [[ "$USE_PCT" -ge 90 ]]; then
-				add_check "Dir ${d}" "warn" "${USE_PCT}% used (high)"
+				add_check "Dir ${d}" "warn" "${USE_PCT}% (high)"
 			else
-				add_check "Dir ${d}" "ok" "${USE_PCT}% used"
+				add_check "Dir ${d}" "ok" "${USE_PCT}%"
 			fi
 		else
 			add_check "Dir ${d}" "warn" "not found"

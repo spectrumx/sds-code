@@ -105,7 +105,17 @@ function main() {
 	# determine the environment type
 	local target=${1:-}
 	local env_type=""
-	if is_production_host 2>/dev/null; then
+
+	# allow explicit override via SDS_ENV (e.g., SDS_ENV=ci just env)
+	if [[ -n "${SDS_ENV:-}" ]]; then
+		case "${SDS_ENV}" in
+		ci | local | production) env_type="${SDS_ENV}" ;;
+		*)
+			printf '\033[33mUnknown SDS_ENV="%s": must be ci, local, or production\033[0m\n' "${SDS_ENV}" >&2
+			exit 1
+			;;
+		esac
+	elif is_production_host 2>/dev/null; then
 		env_type="production"
 	elif is_ci_env; then
 		env_type="ci"
