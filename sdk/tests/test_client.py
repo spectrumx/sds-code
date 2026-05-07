@@ -11,9 +11,9 @@ from unittest.mock import patch
 import pytest
 from loguru import logger as log
 from spectrumx.client import Client
-from spectrumx.client import _resolve_dataset_capture_filter_params
+from spectrumx.client import resolve_dataset_capture_filter_params
+from spectrumx.config import CFG_NAME_LOOKUP
 from spectrumx.config import SDSConfig
-from spectrumx.config import _cfg_name_lookup
 from spectrumx.models.files import File
 from spectrumx.ops import files
 
@@ -65,8 +65,8 @@ def test_load_config_from_args(sample_config: dict[str, Any]) -> None:
 
     for key, value in sample_config.items():
         norm_key = (
-            _cfg_name_lookup[key.lower()].attr_name
-            if key.lower() in _cfg_name_lookup
+            CFG_NAME_LOOKUP[key.lower()].attr_name
+            if key.lower() in CFG_NAME_LOOKUP
             else key.lower()
         )
         expected_value = value
@@ -130,9 +130,9 @@ _ENV_FILE_TIMEOUT_GATEWAY = 65
 def test_http_timeout_default() -> None:
     """Default timeout must be 300 when set via Client with no env overrides."""
     client = Client(host="sds-test.example.com")
-    assert client._gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (  # noqa: SLF001
+    assert client.gateway.timeout == _EXPECTED_DEFAULT_TIMEOUT, (
         f"Expected default gateway timeout {_EXPECTED_DEFAULT_TIMEOUT}, "
-        f"got {client._gateway.timeout}"  # noqa: SLF001
+        f"got {client.gateway.timeout}"
     )
 
 
@@ -142,9 +142,9 @@ def test_http_timeout_from_env_file(tmp_path: Path) -> None:
     env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT}\n{_TEST_ENV_BASE}"
     env_file.write_text(env_content)
     client = Client(host="sds-test.example.com", env_file=env_file)
-    assert client._gateway.timeout == _ENV_FILE_TIMEOUT, (  # noqa: SLF001
+    assert client.gateway.timeout == _ENV_FILE_TIMEOUT, (
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT} from .env file, "
-        f"got {client._gateway.timeout}"  # noqa: SLF001
+        f"got {client.gateway.timeout}"
     )
 
 
@@ -158,9 +158,9 @@ def test_http_timeout_from_env_config() -> None:
             "SDS_SECRET_TOKEN": "test-key-123",
         },
     )
-    assert client._gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (  # noqa: SLF001
+    assert client.gateway.timeout == int(_ENV_CONFIG_TIMEOUT), (
         f"Expected gateway timeout {_ENV_CONFIG_TIMEOUT} from env_config, "
-        f"got {client._gateway.timeout}"  # noqa: SLF001
+        f"got {client.gateway.timeout}"
     )
 
 
@@ -174,9 +174,9 @@ def test_http_timeout_env_config_overrides_env_file(tmp_path: Path) -> None:
         env_file=env_file,
         env_config={"HTTP_TIMEOUT": _ENV_CONFIG_OVERRIDE_TIMEOUT},
     )
-    assert client._gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (  # noqa: SLF001
+    assert client.gateway.timeout == int(_ENV_CONFIG_OVERRIDE_TIMEOUT), (
         f"Expected gateway timeout {_ENV_CONFIG_OVERRIDE_TIMEOUT} "
-        f"(env_config overrides .env), got {client._gateway.timeout}"  # noqa: SLF001
+        f"(env_config overrides .env), got {client.gateway.timeout}"
     )
 
 
@@ -186,9 +186,9 @@ def test_http_timeout_passed_to_gateway(tmp_path: Path) -> None:
     env_content = f"HTTP_TIMEOUT = {_ENV_FILE_TIMEOUT_GATEWAY}\n{_TEST_ENV_BASE}"
     env_file.write_text(env_content)
     client = Client(host="sds-test.example.com", env_file=env_file)
-    assert client._gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (  # noqa: SLF001
+    assert client.gateway.timeout == _ENV_FILE_TIMEOUT_GATEWAY, (
         f"Expected gateway timeout {_ENV_FILE_TIMEOUT_GATEWAY}, "
-        f"got {client._gateway.timeout}"  # noqa: SLF001
+        f"got {client.gateway.timeout}"
     )
 
 
@@ -311,7 +311,7 @@ def test_existing_local_file_no_overwrite_skips_download(
         "download_file",
         side_effect=AssertionError("download_file should not be called"),
     ):
-        result = client._download_single_file(  # noqa: SLF001
+        result = client.download_single_file(
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
@@ -371,7 +371,7 @@ def test_existing_local_file_overwrite_redownloads_it(
     with patch.object(
         Client, "download_file", side_effect=fake_download_file
     ) as patched:
-        result = client._download_single_file(  # noqa: SLF001
+        result = client.download_single_file(
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
@@ -414,7 +414,7 @@ def test_existing_local_file_identical_checksum_not_redownloaded(
         "download_file",
         side_effect=AssertionError("download_file should not be called"),
     ):
-        result = client._download_single_file(  # noqa: SLF001
+        result = client.download_single_file(
             file_info=file_info,
             to_local_path=tmp_path,
             skip_contents=False,
@@ -426,7 +426,7 @@ def test_existing_local_file_identical_checksum_not_redownloaded(
 
 
 def test_resolve_dataset_capture_filter_dry_run_disables() -> None:
-    active, uuids, dirs = _resolve_dataset_capture_filter_params(
+    active, uuids, dirs = resolve_dataset_capture_filter_params(
         capture_uuids=[uuid.uuid4()],
         top_level_dirs=None,
         dry_run=True,
@@ -437,7 +437,7 @@ def test_resolve_dataset_capture_filter_dry_run_disables() -> None:
 
 
 def test_resolve_dataset_capture_filter_normalizes_top_level_dirs() -> None:
-    active, uuids, dirs = _resolve_dataset_capture_filter_params(
+    active, uuids, dirs = resolve_dataset_capture_filter_params(
         capture_uuids=None,
         top_level_dirs=["foo/bar", "/baz/"],
         dry_run=False,

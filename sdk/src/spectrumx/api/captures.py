@@ -403,5 +403,10 @@ def _generate_capture(capture_type: CaptureType) -> Capture:
         owner=User(name="Dry run", email="dry-run@local.invalid"),
         share_permissions=[],
         is_shared=False,
+        is_shared_with_me=False,
+        capture_start_iso_utc=None,
+        capture_end_iso_utc=None,
+        capture_start_display=None,
+        capture_end_display=None,
         created_at=datetime.now(UTC),
     )

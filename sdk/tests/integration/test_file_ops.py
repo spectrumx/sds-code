@@ -336,7 +336,7 @@ def test_check_file_content_non_existing(
 ) -> None:
     """The file content checker must indicate new files don't exist in SDS."""
     file_instance = construct_file(temp_large_binary_file, sds_path=PurePosixPath("./"))
-    file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+    file_contents_check = integration_client.gateway.check_file_contents_exist(
         file_instance
     )
     assert file_contents_check.file_contents_exist_for_user is False, (
@@ -385,7 +385,7 @@ def test_check_file_content_identical(
     deadline = time.monotonic() + 30
     file_contents_check = None
     while time.monotonic() < deadline:
-        file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+        file_contents_check = integration_client.gateway.check_file_contents_exist(
             file_instance
         )
         if file_contents_check.file_contents_exist_for_user is True:
@@ -446,7 +446,7 @@ def test_check_file_content_name_changed(
     )
     file_instance_renamed = construct_file(new_file_path, sds_path=sds_path)
 
-    file_contents_check = integration_client._gateway.check_file_contents_exist(  # pyright: ignore[reportPrivateUsage]  # noqa: SLF001
+    file_contents_check = integration_client.gateway.check_file_contents_exist(
         file_instance_renamed
     )
     assert file_contents_check.file_exists_in_tree is False, (

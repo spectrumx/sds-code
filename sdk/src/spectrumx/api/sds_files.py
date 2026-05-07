@@ -29,7 +29,7 @@ from spectrumx.utils import log_user_warning
 log.trace("Placeholder log to avoid reimporting or resolving unused import warnings.")
 
 
-def _file_list_time_query_param(value: datetime) -> str:
+def file_list_time_query_param(value: datetime) -> str:
     """Format a datetime for Gateway file list temporal query params (ISO 8601, UTC)."""
     value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
     return value.isoformat()
@@ -135,11 +135,9 @@ def list_files(
         msg = "start_time and end_time must both be set or both omitted."
         raise ValueError(msg)
     sds_path = PurePosixPath(sds_path)
-    start_q: str | None = (
-        _file_list_time_query_param(start_time) if start_time else None
-    )
+    start_q: str | None = file_list_time_query_param(start_time) if start_time else None
     end_q: str | None = (
-        _file_list_time_query_param(end_time) if end_time is not None else None
+        file_list_time_query_param(end_time) if end_time is not None else None
     )
     if client.dry_run:
         log_user("Dry run enabled: files will be simulated")

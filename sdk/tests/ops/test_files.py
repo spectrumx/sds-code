@@ -16,8 +16,8 @@ from unittest.mock import patch
 import pytest
 import responses
 from spectrumx import Client
-from spectrumx.api.sds_files import _file_list_time_query_param
 from spectrumx.api.sds_files import delete_file
+from spectrumx.api.sds_files import file_list_time_query_param
 from spectrumx.api.sds_files import list_files
 from spectrumx.errors import FileError
 from spectrumx.gateway import API_TARGET_VERSION
@@ -124,7 +124,7 @@ def test_list_files_start_end_must_be_paired(client: Client) -> None:
 def test_file_list_time_query_param_naive_treated_as_utc() -> None:
     """Naive datetimes are interpreted as UTC for query strings."""
     naive = datetime(2024, 6, 27, 14, 9, 0)  # noqa: DTZ001
-    out = _file_list_time_query_param(naive)
+    out = file_list_time_query_param(naive)
     assert out.endswith("+00:00")
     assert "2024-06-27T14:09:00" in out
 
@@ -133,7 +133,7 @@ def test_file_list_time_query_param_converts_non_utc_to_utc() -> None:
     """Aware datetimes are formatted in UTC (same instant)."""
     eastern = timezone(timedelta(hours=-5))
     local = datetime(2024, 6, 27, 9, 9, 0, tzinfo=eastern)
-    out = _file_list_time_query_param(local)
+    out = file_list_time_query_param(local)
     assert "2024-06-27T14:09:00" in out
     assert out.endswith("+00:00")
 
@@ -143,12 +143,12 @@ def test_list_files_passes_iso_temporal_params_to_gateway(client: Client) -> Non
     client.dry_run = False
     start = datetime(2024, 6, 27, 14, 9, 0, tzinfo=UTC)
     end = datetime(2024, 6, 27, 14, 10, 0, tzinfo=UTC)
-    expected_start = _file_list_time_query_param(start)
-    expected_end = _file_list_time_query_param(end)
+    expected_start = file_list_time_query_param(start)
+    expected_end = file_list_time_query_param(end)
     empty_page = b'{"count": 0, "results": []}'
 
     with patch.object(
-        client._gateway,  # noqa: SLF001
+        client.gateway,
         "list_files",
         return_value=empty_page,
     ) as m:
