@@ -893,6 +893,11 @@ class ModalManager {
 	 * Get CSRF token for API requests
 	 */
 	getCSRFToken() {
+		if (window.APIClient) {
+			try {
+				return new window.APIClient().getCSRFToken();
+			} catch (_) {}
+		}
 		const token = document.querySelector("[name=csrfmiddlewaretoken]");
 		return token ? token.value : "";
 	}

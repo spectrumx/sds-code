@@ -14,6 +14,8 @@ class TableManager {
 		);
 		this.currentSort = { by: "created_at", order: "desc" };
 		this.onRowClick = config.onRowClick;
+		this.sortBehavior = config.sortBehavior || "pushState"; // 'pushState' | 'reload' | 'callback'
+		this.onSortChange = config.onSortChange || null;
 
 		this.initializeSorting();
 	}
@@ -46,6 +48,20 @@ class TableManager {
 		}
 
 		this.currentSort = { by: field, order: newOrder };
+		if (this.sortBehavior === "callback" && typeof this.onSortChange === "function") {
+			this.onSortChange({ sort_by: field, sort_order: newOrder, page: "1" });
+			return;
+		}
+
+		if (this.sortBehavior === "reload") {
+			const urlParams = new URLSearchParams(window.location.search);
+			urlParams.set("sort_by", field);
+			urlParams.set("sort_order", newOrder);
+			urlParams.set("page", "1");
+			window.location.search = urlParams.toString();
+			return;
+		}
+
 		this.updateURL({ sort_by: field, sort_order: newOrder, page: "1" });
 	}
 

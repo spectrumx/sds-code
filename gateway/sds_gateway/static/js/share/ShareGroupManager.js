@@ -1026,40 +1026,7 @@ class ShareGroupManager {
 	 * @returns {Element|null} Dropdown element
 	 */
 	getDropdownForInput(input) {
-		// First try the original pattern: user-search-dropdown-{uuid}
-		let dropdown = document.getElementById(
-			`user-search-dropdown-${input.id.replace("user-search-", "")}`,
-		);
-
-		if (dropdown) {
-			return dropdown;
-		}
-
-		// Try alternative patterns
-		const alternativeIds = [
-			"user-search-dropdown-sharegroup",
-			"user-search-dropdown",
-			`${input.id}-dropdown`,
-		];
-
-		for (const id of alternativeIds) {
-			dropdown = document.getElementById(id);
-			if (dropdown) {
-				return dropdown;
-			}
-		}
-
-		// If still not found, look for any dropdown in the same container
-		const container = input.closest(".user-search-input-container");
-		if (container) {
-			dropdown = container.querySelector(".user-search-dropdown");
-			if (dropdown) {
-				return dropdown;
-			}
-		}
-
-		console.error(`Could not find dropdown for input: ${input.id}`);
-		return null;
+		return window.UserSearchDropdown.getDropdownForInput(input, {});
 	}
 
 	/**
@@ -1069,34 +1036,7 @@ class ShareGroupManager {
 	 * @param {number} direction - Direction to navigate
 	 */
 	navigateDropdown(items, currentIndex, direction) {
-		// Remove current selection
-		for (const item of items) {
-			item.classList.remove("selected");
-		}
-
-		// Calculate new index
-		let newIndex;
-		if (currentIndex === -1) {
-			// No item is currently selected
-			if (direction > 0) {
-				// ArrowDown: start from first item
-				newIndex = 0;
-			} else {
-				// ArrowUp: start from last item
-				newIndex = items.length - 1;
-			}
-		} else {
-			// An item is currently selected
-			newIndex = currentIndex + direction;
-			if (newIndex < 0) newIndex = items.length - 1;
-			if (newIndex >= items.length) newIndex = 0;
-		}
-
-		// Add selection to new item
-		if (items[newIndex]) {
-			items[newIndex].classList.add("selected");
-			items[newIndex].scrollIntoView({ block: "nearest" });
-		}
+		window.UserSearchDropdown.navigateDropdown(items, currentIndex, direction);
 	}
 
 	/**
@@ -1104,9 +1044,7 @@ class ShareGroupManager {
 	 * @param {Element} dropdown - Dropdown element
 	 */
 	showDropdown(dropdown) {
-		if (dropdown) {
-			dropdown.classList.remove("d-none");
-		}
+		window.UserSearchDropdown.showDropdown(dropdown);
 	}
 
 	/**
@@ -1114,13 +1052,7 @@ class ShareGroupManager {
 	 * @param {Element} dropdown - Dropdown element
 	 */
 	hideDropdown(dropdown) {
-		if (dropdown) {
-			dropdown.classList.add("d-none");
-			// Clear any selections
-			for (const item of dropdown.querySelectorAll(".list-group-item")) {
-				item.classList.remove("selected");
-			}
-		}
+		window.UserSearchDropdown.hideDropdown(dropdown);
 	}
 
 	/**

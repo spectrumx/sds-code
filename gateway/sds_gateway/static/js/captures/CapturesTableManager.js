@@ -171,6 +171,12 @@ class CapturesTableManager extends TableManager {
 	 * Get CSRF token for API requests
 	 */
 	getCSRFToken() {
+		if (window.APIClient) {
+			try {
+				const client = new window.APIClient();
+				return client.getCSRFToken();
+			} catch (_) {}
+		}
 		const token = document.querySelector("[name=csrfmiddlewaretoken]");
 		return token ? token.value : "";
 	}

@@ -270,26 +270,38 @@ class PageLifecycleManager {
 	 * Initialize pagination
 	 */
 	initializePagination() {
-		const paginationLinks = document.querySelectorAll(
-			".pagination a.page-link",
-		);
+		if (!window.PaginationManager) {
+			console.error(
+				"PaginationManager is required but not loaded. Ensure core/PaginationManager.js is included before PageLifecycleManager initializes.",
+			);
+			return;
+		}
 
-		for (const link of paginationLinks) {
-			// Prevent duplicate event listener attachment
-			if (link.dataset.paginationSetup === "true") {
-				continue;
-			}
-			link.dataset.paginationSetup = "true";
+		const containerIds = ["captures-pagination", "datasets-pagination", "files-pagination"];
+		for (const containerId of containerIds) {
+			const el = document.getElementById(containerId);
+			if (!el) continue;
 
-			link.addEventListener("click", (e) => {
-				e.preventDefault();
-				const page = link.getAttribute("data-page");
-				if (page) {
+			const mgr = new window.PaginationManager({
+				containerId,
+				onPageChange: (page) => {
 					const urlParams = new URLSearchParams(window.location.search);
-					urlParams.set("page", page);
+					urlParams.set("page", String(page));
 					window.location.search = urlParams.toString();
-				}
+				},
 			});
+
+			// Server renders pagination HTML; wire clicks via the shared callback.
+			const links = el.querySelectorAll(".pagination a.page-link");
+			for (const link of links) {
+				if (link.dataset.paginationSetup === "true") continue;
+				link.dataset.paginationSetup = "true";
+				link.addEventListener("click", (e) => {
+					e.preventDefault();
+					const p = Number.parseInt(link.getAttribute("data-page") || "");
+					if (p) mgr.onPageChange?.(p);
+				});
+			}
 		}
 	}
 

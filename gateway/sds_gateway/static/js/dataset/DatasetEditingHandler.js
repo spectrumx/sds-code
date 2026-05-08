@@ -1672,38 +1672,7 @@ class DatasetEditingHandler {
 	 * Get current authors with DOM-based stable IDs
 	 */
 	getCurrentAuthorsWithDOMIds() {
-		const authorsList = document.querySelector(".authors-list");
-		const currentAuthors = [];
-
-		if (authorsList) {
-			// Get all visible author items (not marked for removal)
-			const authorItems = authorsList.querySelectorAll(
-				".author-item:not(.marked-for-removal)",
-			);
-
-			for (const [index, authorItem] of authorItems.entries()) {
-				// Get the stable ID from the DOM element
-				const authorId = authorItem.id;
-				if (!authorId) {
-					console.error("❌ Author item missing ID");
-					return;
-				}
-
-				// Get current values from the inputs
-				const nameInput = authorItem.querySelector(".author-name-input");
-				const orcidInput = authorItem.querySelector(".author-orcid-input");
-
-				const authorData = {
-					name: nameInput?.value || "",
-					orcid_id: orcidInput?.value || "",
-					_stableId: authorId,
-				};
-
-				currentAuthors.push(authorData);
-			}
-		}
-
-		return currentAuthors;
+		return window.AuthorsManager.getCurrentAuthorsWithDOMIds();
 	}
 
 	/**
@@ -1755,15 +1724,7 @@ class DatasetEditingHandler {
 	 * Format authors array into display string
 	 */
 	formatAuthors(authors) {
-		if (!Array.isArray(authors) || authors.length === 0) {
-			return "No authors specified.";
-		}
-
-		return authors
-			.map((author) =>
-				typeof author === "string" ? author : author.name || "Unknown",
-			)
-			.join(", ");
+		return window.AuthorsManager.formatAuthors(authors);
 	}
 
 	/**

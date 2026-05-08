@@ -1513,15 +1513,7 @@ class DatasetCreationHandler {
 	 * Format authors array into display string
 	 */
 	formatAuthors(authors) {
-		if (!Array.isArray(authors) || authors.length === 0) {
-			return "No authors specified.";
-		}
-
-		return authors
-			.map((author) =>
-				typeof author === "string" ? author : author.name || "Unknown",
-			)
-			.join(", ");
+		return window.AuthorsManager.formatAuthors(authors);
 	}
 }
 
