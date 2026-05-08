@@ -62,13 +62,13 @@ down *args:
     {{ docker_compose }} down --remove-orphans {{ args }}
 
 [group('setup')]
-load_credentials *args:
+load_credentials path="":
     #!/usr/bin/env bash
     set -Eeuo pipefail
 
-    # args=("{{ args }}")
     env="{{ env }}"
-    primary_env_file="../gateway/.envs/${env}/storage.env"
+    path_override="{{ path }}"
+    primary_env_file="${path_override:-../gateway/.envs/${env}/storage.env}"
     if [[ ! -f "${primary_env_file}" ]]; then
         echo "Error: Primary storage credentials file not found at ${primary_env_file}" >&2
         echo "Please run 'just generate-secrets' to create it." >&2

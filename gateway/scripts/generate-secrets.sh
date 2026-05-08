@@ -56,10 +56,10 @@ function configure_object_store_defaults() {
 
 	case "${env_type}" in
 	local)
-		PRIMARY_ENDPOINT_URL="sds-gateway-local-rustfs-s3:9000"
+		PRIMARY_ENDPOINT_URL="sds-gateway-local-rustfs:9000"
 		;;
 	ci)
-		PRIMARY_ENDPOINT_URL="sds-gateway-ci-rustfs-s3:9000"
+		PRIMARY_ENDPOINT_URL="sds-gateway-ci-rustfs:9000"
 		;;
 	production)
 		PRIMARY_ENDPOINT_URL="sds-gateway-prod-sfs-s3:8333"
@@ -160,9 +160,9 @@ function process_env_file() {
 	if [[ "${filename}" == "storage.env" ]]; then
 		# PRIMARY vars
 		content="${content//PRIMARY_ACCESS_KEY_ID=admin/PRIMARY_ACCESS_KEY_ID=${PRIMARY_ACCESS_KEY_ID}}"
-		content="${content//PRIMARY_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-rustfs-s3:9000/PRIMARY_S3_ENDPOINT_URL=${PRIMARY_S3_ENDPOINT_URL}}"
+		content="${content//PRIMARY_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-rustfs:9000/PRIMARY_S3_ENDPOINT_URL=${PRIMARY_S3_ENDPOINT_URL}}"
 		content="${content//PRIMARY_SECRET_ACCESS_KEY=admin/PRIMARY_SECRET_ACCESS_KEY=${PRIMARY_SECRET_ACCESS_KEY}}"
-		content="${content//PRIMARY_ENDPOINT_URL=sds-gateway-local-rustfs-s3:9000/PRIMARY_ENDPOINT_URL=${PRIMARY_ENDPOINT_URL}}"
+		content="${content//PRIMARY_ENDPOINT_URL=sds-gateway-local-rustfs:9000/PRIMARY_ENDPOINT_URL=${PRIMARY_ENDPOINT_URL}}"
 
 		# deprecated:
 		# content="${content//AWS_ACCESS_KEY_ID=admin/AWS_ACCESS_KEY_ID=${PRIMARY_ACCESS_KEY_ID}}"
