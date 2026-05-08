@@ -523,7 +523,8 @@
     <script src="{% static 'js/core/NotificationUtils.js' %}"></script>
     <script src="{% static 'js/core/BrowserSupport.js' %}"></script>
     <script src="{% static 'js/core/GatewayChrome.js' %}"></script>
-    <script src="{% static 'js/deprecated/userSearchComponent.js' %}"></script>
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
+    <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/upload/FileDropManager.js' %}"></script>
     <script src="{% static 'js/file-manager.js' %}?v=7"></script>
     <!-- Load the WASM library for BLAKE3 hashing -->
@@ -537,6 +538,21 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <!-- Configuration for external JavaScript files -->
     <script>
+        // Permissions for ShareActionManager on per-capture share modals (files browser)
+        window.filesSharePagePermissions = {
+            userPermissionLevel: "owner",
+            currentUserId: {{ request.user.id }},
+            isOwner: true,
+            datasetPermissions: {
+                canEditMetadata: true,
+                canAddAssets: true,
+                canRemoveAnyAssets: true,
+                canRemoveOwnAssets: true,
+                canShare: true,
+                canDownload: true,
+            },
+        };
+
         // Global configuration for files page JavaScript modules
         window.filesConfig = {
             urls: {
@@ -553,6 +569,7 @@
     </script>
     <!-- External JavaScript modules -->
     <script src="{% static 'js/upload/Blake3FileHandler.js' %}"></script>
+    <script src="{% static 'js/upload/ChunkUploadPipeline.js' %}"></script>
     <script src="{% static 'js/upload/FilesUploadModal.js' %}"></script>
     <script src="{% static 'js/files-upload.js' %}"></script>
     <script src="{% static 'js/upload/CaptureTypeSelector.js' %}"></script>

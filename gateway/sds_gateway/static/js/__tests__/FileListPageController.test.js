@@ -1,6 +1,6 @@
 /**
- * Jest tests for file-list.js
- * Tests FileListController and FileListCapturesTableManager functionality
+ * Jest tests for captures file list page.
+ * Tests FileListPageController and FileListCapturesTableManager-shaped mocks.
  */
 
 // Mock components.js classes that file-list.js depends on
@@ -55,11 +55,12 @@ global.window.ModalManager = MockModalManager;
 global.window.SearchManager = MockSearchManager;
 global.window.PaginationManager = MockPaginationManager;
 
-// Mock CONFIG constant (file-list.js uses it)
-global.CONFIG = {
+// FileListPageController reads window.FileListConfig (see constants/FileListConfig.js)
+global.window.FileListConfig = {
 	DEBOUNCE_DELAY: 300,
 	DEFAULT_SORT_BY: "created_at",
 	DEFAULT_SORT_ORDER: "desc",
+	MIN_LOADING_TIME: 500,
 	ELEMENT_IDS: {
 		SEARCH_INPUT: "search-input",
 		START_DATE: "start_date",
@@ -71,6 +72,9 @@ global.CONFIG = {
 		ITEMS_PER_PAGE: "items-per-page",
 	},
 };
+
+const { PageController } = require("../core/PageController.js");
+global.window.PageController = PageController;
 
 // Mock ComponentUtils
 global.window.ComponentUtils = {
@@ -100,12 +104,9 @@ global.bootstrap.Dropdown = jest
 		options: options,
 	}));
 
-// NOW import the actual classes from file-list.js
-// (after all dependencies are mocked)
-// Use require() instead of import so it executes after mocks are set up
-const { FileListController } = require("../file-list.js");
+const { FileListPageController } = require("../captures/FileListPageController.js");
 
-describe("FileListController", () => {
+describe("FileListPageController", () => {
 	let fileListController;
 	let mockElements;
 	let mockTableManager;
@@ -225,23 +226,21 @@ describe("FileListController", () => {
 			containerId: "captures-pagination",
 		});
 
-		// Mock global classes (they would be imported from components.js)
+		// Mock global classes (loaded as separate scripts on the real page)
 		global.ModalManager = jest.fn(() => mockModalManager);
 		global.SearchManager = jest.fn(() => mockSearchManager);
 		global.PaginationManager = jest.fn(() => mockPaginationManager);
-		global.CapturesTableManager = jest.fn(() => mockTableManager);
+		global.window.FileListCapturesTableManager = jest.fn(() => mockTableManager);
 
-		// Also make them available on window (file-list.js uses them without global prefix)
 		global.window.ModalManager = global.ModalManager;
 		global.window.SearchManager = global.SearchManager;
 		global.window.PaginationManager = global.PaginationManager;
-		global.window.CapturesTableManager = global.CapturesTableManager;
 	});
 
 	describe("Initialization", () => {
 		test("should initialize with default sort values", () => {
 			window.location.search = "";
-			fileListController = new FileListController();
+			fileListController = new FileListPageController();
 
 			expect(fileListController.currentSortBy).toBe("created_at");
 			expect(fileListController.currentSortOrder).toBe("desc");
@@ -275,7 +274,7 @@ describe("FileListController", () => {
 				writable: true,
 			});
 
-			fileListController = new FileListController();
+			fileListController = new FileListPageController();
 
 			expect(fileListController.currentSortBy).toBe("name");
 			expect(fileListController.currentSortOrder).toBe("asc");
@@ -285,7 +284,7 @@ describe("FileListController", () => {
 		});
 
 		test("should cache DOM elements", () => {
-			fileListController = new FileListController();
+			fileListController = new FileListPageController();
 
 			expect(fileListController.elements).toBeDefined();
 			expect(fileListController.elements.searchInput).toBe(
@@ -297,11 +296,12 @@ describe("FileListController", () => {
 		});
 
 		test("should initialize component managers", () => {
-			fileListController = new FileListController();
+			fileListController = new FileListPageController();
 
 			expect(global.ModalManager).toHaveBeenCalled();
 			expect(global.SearchManager).toHaveBeenCalled();
 			expect(global.PaginationManager).toHaveBeenCalled();
+			expect(global.window.FileListCapturesTableManager).toHaveBeenCalled();
 			expect(fileListController.modalManager).toBe(mockModalManager);
 			expect(fileListController.searchManager).toBe(mockSearchManager);
 		});
@@ -309,7 +309,7 @@ describe("FileListController", () => {
 
 	describe("Search functionality", () => {
 		beforeEach(() => {
-			fileListController = new FileListController();
+			fileListController = new FileListPageController();
 		});
 
 		test("buildSearchParams should include all filter values", () => {

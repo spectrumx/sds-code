@@ -360,6 +360,7 @@
 {% block javascript %}
     {{ block.super }}
     <!-- Action components -->
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script type="module" src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script type="module"
             src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
@@ -377,9 +378,9 @@
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <script src="{% static 'js/core/GatewayChrome.js' %}"></script>
     <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
+    <script src="{% static 'js/core/PageController.js' %}"></script>
     <script src="{% static 'js/captures/FileListCapturesTableManager.js' %}"></script>
     <script src="{% static 'js/captures/FileListPageController.js' %}"></script>
-    <script src="{% static 'js/file-list.js' %}"></script>
     <!-- Upload Capture Modal JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
     <script src="{% static 'js/upload/FileListUploadCaptureModal.js' %}"></script>
