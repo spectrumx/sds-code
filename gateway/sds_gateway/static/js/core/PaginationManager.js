@@ -68,6 +68,7 @@ class PaginationManager {
 			});
 		}
 	}
+}
 
 if (typeof window !== "undefined") {
 	window.PaginationManager = PaginationManager;

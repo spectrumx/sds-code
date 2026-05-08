@@ -3,8 +3,75 @@
  * Migrated from deprecated/file-list.js (FileListController).
  */
 
-class FileListPageController {
+// Ensure PageController base exists before class declaration (Jest/CommonJS).
+if (typeof window !== "undefined" && !window.PageController && typeof require !== "undefined") {
+	try {
+		// eslint-disable-next-line global-require, import/no-dynamic-require
+		const mod = require("../core/PageController.js");
+		if (mod?.PageController) window.PageController = mod.PageController;
+	} catch (_) {}
+}
+
+// Support both browser globals and CommonJS.
+const PageControllerBase =
+	(typeof window !== "undefined" && window.PageController) ||
+	(typeof PageController !== "undefined" ? PageController : null);
+
+function ensureFileListConfig() {
+	if (typeof window === "undefined") return;
+	if (window.FileListConfig) return;
+
+	// In Jest/node, the config module is available via CommonJS exports.
+	if (typeof require !== "undefined") {
+		try {
+			// eslint-disable-next-line global-require, import/no-dynamic-require
+			const mod = require("../constants/FileListConfig.js");
+			if (mod?.FileListConfig) {
+				window.FileListConfig = mod.FileListConfig;
+				return;
+			}
+		} catch (_) {}
+	}
+
+	// Final fallback: defaults (should be overridden by constants/FileListConfig.js in browser).
+	window.FileListConfig = {
+		DEBOUNCE_DELAY: 500,
+		DEFAULT_SORT_BY: "created_at",
+		DEFAULT_SORT_ORDER: "desc",
+		MIN_LOADING_TIME: 500,
+		ELEMENT_IDS: {
+			SEARCH_INPUT: "search-input",
+			START_DATE: "start_date",
+			END_DATE: "end_date",
+			CENTER_FREQ_MIN: "centerFreqMinInput",
+			CENTER_FREQ_MAX: "centerFreqMaxInput",
+			APPLY_FILTERS: "apply-filters-btn",
+			CLEAR_FILTERS: "clear-filters-btn",
+			ITEMS_PER_PAGE: "items-per-page",
+		},
+	};
+}
+
+function ensureFileListCapturesTableManager() {
+	if (typeof window === "undefined") return;
+	if (window.FileListCapturesTableManager) return;
+
+	if (typeof require !== "undefined") {
+		try {
+			// eslint-disable-next-line global-require, import/no-dynamic-require
+			const mod = require("./FileListCapturesTableManager.js");
+			if (mod?.FileListCapturesTableManager) {
+				window.FileListCapturesTableManager = mod.FileListCapturesTableManager;
+			}
+		} catch (_) {}
+	}
+}
+
+class FileListPageController extends (PageControllerBase || class {}) {
 	constructor() {
+		super();
+		ensureFileListConfig();
+		ensureFileListCapturesTableManager();
 		this.userInteractedWithFrequency = false;
 		this.urlParams = new URLSearchParams(window.location.search);
 		this.currentSortBy =
@@ -13,17 +80,17 @@ class FileListPageController {
 			this.urlParams.get("sort_order") || window.FileListConfig.DEFAULT_SORT_ORDER;
 
 		// Cache DOM elements
-		this.cacheElements();
+		if (typeof this.init === "function") {
+			this.init();
+		} else {
+			// Fallback if PageControllerBase wasn't available for any reason
+			this.cacheElements();
+			this.initializeComponents();
+			this.initializeEventHandlers();
+			this.initializeFromURL();
+		}
 
-		// Initialize components
-		this.initializeComponents();
-
-		// Initialize functionality
-		this.initializeEventHandlers();
-		this.initializeFromURL();
-
-		// Initial setup
-		this.updateSortIcons();
+		// Initial setup (sorting handled by TableManager)
 		this.tableManager.attachRowClickHandlers();
 
 		// Initialize dropdowns for any existing static dropdowns
@@ -67,12 +134,14 @@ class FileListPageController {
 			modalTitleId: "capture-modal-label",
 		});
 
-		this.tableManager = new FileListCapturesTableManager({
+		this.tableManager = new window.FileListCapturesTableManager({
 			tableId: "captures-table",
 			tableContainerSelector: ".table-responsive",
 			resultsCountId: "results-count",
 			modalHandler: this.modalManager,
 			onSelectionChange: () => this.syncBulkAddToDatasetButton(),
+			// Keep current UX: clicking sort headers navigates (server-rendered sort)
+			sortBehavior: "reload",
 		});
 
 		this.searchManager = new SearchManager({
@@ -95,11 +164,17 @@ class FileListPageController {
 	 * Initialize all event handlers
 	 */
 	initializeEventHandlers() {
-		this.initializeTableSorting();
 		this.initializeAccordions();
 		this.initializeFrequencyHandling();
 		this.initializeItemsPerPageHandler();
 		this.initializeAddToDatasetButton();
+	}
+
+	destroy() {
+		try {
+			this.tableManager?.destroy?.();
+		} catch (_) {}
+		super.destroy();
 	}
 
 	/**
@@ -341,79 +416,6 @@ class FileListPageController {
 			this.tableManager.showError(`Search failed: ${error.message}`);
 		} finally {
 			this.tableManager.hideLoading();
-		}
-	}
-
-	/**
-	 * Initialize table sorting functionality
-	 */
-	initializeTableSorting() {
-		if (!this.elements.sortableHeaders) return;
-
-		for (const header of this.elements.sortableHeaders) {
-			header.style.cursor = "pointer";
-			header.addEventListener("click", () => this.handleSort(header));
-		}
-	}
-
-	/**
-	 * Handle sort click events
-	 */
-	handleSort(header) {
-		try {
-			const sortField = header.getAttribute("data-sort");
-			const currentSort = this.urlParams.get("sort_by");
-			const currentOrder = this.urlParams.get("sort_order") || "desc";
-
-			// Determine new sort order
-			let newOrder = "asc";
-			if (currentSort === sortField && currentOrder === "asc") {
-				newOrder = "desc";
-			}
-
-			// Build new URL with sort parameters
-			const urlParams = new URLSearchParams(window.location.search);
-			urlParams.set("sort_by", sortField);
-			urlParams.set("sort_order", newOrder);
-			urlParams.set("page", "1");
-
-			// Navigate to sorted results
-			window.location.search = urlParams.toString();
-		} catch (error) {
-			console.error("Error handling sort:", error);
-		}
-	}
-
-	/**
-	 * Update sort icons to show current sort state
-	 */
-	updateSortIcons() {
-		if (!this.elements.sortableHeaders) return;
-
-		const currentSort = this.urlParams.get("sort_by") || window.FileListConfig.DEFAULT_SORT_BY;
-		const currentOrder = this.urlParams.get("sort_order") || "desc";
-
-		for (const header of this.elements.sortableHeaders) {
-			const sortField = header.getAttribute("data-sort");
-			const icon = header.querySelector(".sort-icon");
-
-			if (icon) {
-				// Reset classes
-				icon.className = "bi sort-icon";
-
-				if (currentSort === sortField) {
-					// Add active class and appropriate direction icon
-					icon.classList.add("active");
-					if (currentOrder === "desc") {
-						icon.classList.add("bi-caret-down-fill");
-					} else {
-						icon.classList.add("bi-caret-up-fill");
-					}
-				} else {
-					// Inactive columns get default down arrow
-					icon.classList.add("bi-caret-down-fill");
-				}
-			}
 		}
 	}
 

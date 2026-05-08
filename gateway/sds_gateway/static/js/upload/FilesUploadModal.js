@@ -453,16 +453,7 @@ class FilesUploadModal {
 	}
 
 	addCaptureTypeData(formData) {
-		const captureType = document.getElementById("captureTypeSelect").value;
-		formData.append("capture_type", captureType);
-
-		if (captureType === "drf") {
-			const channels = document.getElementById("captureChannelsInput").value;
-			formData.append("channels", channels);
-		} else if (captureType === "rh") {
-			const scanGroup = document.getElementById("captureScanGroupInput").value;
-			formData.append("scan_group", scanGroup);
-		}
+		window.ChunkUploadPipeline.appendCaptureTypeToFormData(formData);
 	}
 
 	handleError(error) {

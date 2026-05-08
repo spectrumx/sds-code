@@ -391,6 +391,10 @@ class FileListCapturesTableManager extends CapturesTableManager {
 	}
 }
 
+if (typeof window !== "undefined") {
+	window.FileListCapturesTableManager = FileListCapturesTableManager;
+}
+
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { FileListCapturesTableManager };
 }
