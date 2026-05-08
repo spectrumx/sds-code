@@ -39,9 +39,9 @@ function show_usage() {
 	echo "    <local|production|ci>   Target environment to deploy"
 	echo ""
 	echo -e "\e[34mCREDENTIALS FILE FORMAT:\e[0m"
-	echo "    AWS_ACCESS_KEY_ID=<key>"
-	echo "    AWS_SECRET_ACCESS_KEY=<secret>"
-	echo "    AWS_STORAGE_BUCKET_NAME=<bucket>"
+	echo "    PRIMARY_ACCESS_KEY_ID=<key>"
+	echo "    PRIMARY_SECRET_ACCESS_KEY=<secret>"
+	echo "    PRIMARY_STORAGE_BUCKET_NAME=<bucket>"
 	echo ""
 	echo -e "\e[34mEXAMPLES:\e[0m"
 	echo "    ${0} local"
@@ -195,13 +195,13 @@ function load_credentials() {
 	fi
 
 	local access_key secret_key bucket_name
-	access_key=$(grep -E '^AWS_ACCESS_KEY_ID=' "${env_file}" | cut -d'=' -f2-)
-	secret_key=$(grep -E '^AWS_SECRET_ACCESS_KEY=' "${env_file}" | cut -d'=' -f2-)
-	bucket_name=$(grep -E '^AWS_STORAGE_BUCKET_NAME=' "${env_file}" | cut -d'=' -f2-)
+	access_key=$(grep -E '^PRIMARY_ACCESS_KEY_ID=' "${env_file}" | cut -d'=' -f2-)
+	secret_key=$(grep -E '^PRIMARY_SECRET_ACCESS_KEY=' "${env_file}" | cut -d'=' -f2-)
+	bucket_name=$(grep -E '^PRIMARY_STORAGE_BUCKET_NAME=' "${env_file}" | cut -d'=' -f2-)
 
 	if [[ -z "${access_key}" || -z "${secret_key}" || -z "${bucket_name}" ]]; then
 		log_error "Missing required credentials in ${env_file}"
-		log_msg "Expected: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_STORAGE_BUCKET_NAME"
+		log_msg "Expected: PRIMARY_ACCESS_KEY_ID, PRIMARY_SECRET_ACCESS_KEY, PRIMARY_STORAGE_BUCKET_NAME"
 		return 1
 	fi
 
@@ -213,24 +213,35 @@ function parse_arguments() {
 	shift
 
 	# Ensure key exists (shellcheck can't follow nameref)
-	if [[ -z "${_args_ref[skip_setup]+x}" ]]; then
-		_args_ref[skip_setup]="false"
+	if [[ -z "${_args_ref["skip_setup"]+x}" ]]; then
+		_args_ref["skip_setup"]="false"
+	fi
+	if [[ -z "${_args_ref["sfs_env"]+x}" ]]; then
+		_args_ref["sfs_env"]=""
 	fi
 	if [[ "${SFS_SKIP_SETUP:-}" == "true" ]]; then
-		_args_ref[skip_setup]="true"
+		_args_ref["skip_setup"]="true"
 	fi
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
+		--sfs-env)
+			if [[ -z "${2:-}" ]]; then
+				log_error "Missing value for --sfs-env"
+				show_usage
+			fi
+			_args_ref["sfs_env"]="$2"
+			shift 2
+			;;
 		--skip-setup)
-			args_ref[skip_setup]="true"
+			_args_ref["skip_setup"]="true"
 			shift
 			;;
 		-h | --help)
 			show_usage
 			;;
 		local | production | ci)
-			args_ref[env_type]="$1"
+			_args_ref["env_type"]="$1"
 			shift
 			;;
 		*)
@@ -240,7 +251,7 @@ function parse_arguments() {
 		esac
 	done
 
-	if [[ -z "${args_ref[env_type]}" ]]; then
+	if [[ -z "${_args_ref["env_type"]}" ]]; then
 		log_error "Environment type required (local, production, or ci)"
 		show_usage
 	fi
@@ -262,6 +273,7 @@ function main() {
 	declare -A args=(
 		[env_type]=""
 		[skip_setup]="false"
+		[sfs_env]=""
 	)
 
 	parse_arguments args "$@"
@@ -277,7 +289,8 @@ function main() {
 
 	if [[ "${args[skip_setup]}" == "false" ]]; then
 		local creds
-		creds=$(just load_credentials)
+		local sfs_env_path="${args[sfs_env]}"
+		creds=$(just load_credentials "${sfs_env_path}")
 		local access_key secret_key bucket_name
 		access_key=$(echo "${creds}" | sed -n '1p')
 		secret_key=$(echo "${creds}" | sed -n '2p')

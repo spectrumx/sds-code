@@ -69,7 +69,8 @@ function show_usage() {
 	echo -e "\e[34mNOTES:\e[0m"
 	echo "    - For production, ensure prod-hostnames.env is configured first"
 	echo "    - Superuser creation is interactive by default"
-	echo "    - SFS S3 credentials are configured automatically via weed shell"
+	echo "    - S3 credentials are read from PRIMARY_* vars in .envs/<env>/storage.env"
+	echo "      and configured automatically via SeaweedFS weed shell"
 	echo "    - Use 'just redeploy' for quick rebuilds after initial deploy"
 	exit 0
 }
