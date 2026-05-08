@@ -620,3 +620,32 @@ if (typeof module !== "undefined" && module.exports) {
 	module.exports = { FileListPageController };
 }
 
+const _isJestRuntime =
+	typeof process !== "undefined" &&
+	Boolean(process.env && process.env.JEST_WORKER_ID);
+
+if (
+	typeof window !== "undefined" &&
+	typeof document !== "undefined" &&
+	!_isJestRuntime
+) {
+	window.initializeFrequencySlider = function initializeFrequencySlider() {
+		if (window.fileListController?.initializeFrequencyFromURL) {
+			window.fileListController.initializeFrequencyFromURL();
+		}
+	};
+
+	const _bootFileListPage = () => {
+		try {
+			window.fileListController = new FileListPageController();
+		} catch (error) {
+			console.error("Error initializing file list page:", error);
+		}
+	};
+
+	if (document.readyState === "loading") {
+		document.addEventListener("DOMContentLoaded", _bootFileListPage);
+	} else {
+		_bootFileListPage();
+	}
+}

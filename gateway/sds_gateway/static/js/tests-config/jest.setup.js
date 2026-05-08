@@ -1,5 +1,13 @@
 // Jest setup file for global test configuration
 
+const { TextDecoder, TextEncoder } = require("node:util");
+if (typeof globalThis.TextEncoder === "undefined") {
+	globalThis.TextEncoder = TextEncoder;
+}
+if (typeof globalThis.TextDecoder === "undefined") {
+	globalThis.TextDecoder = TextDecoder;
+}
+
 // Mock DOM environment
 const mockDOM = {
 	createElement: (tag) => ({
@@ -27,6 +35,7 @@ const mockDOM = {
 	querySelector: jest.fn(() => null),
 	querySelectorAll: jest.fn(() => []),
 	getElementById: jest.fn(() => null),
+	head: { appendChild: jest.fn() },
 	createTextNode: jest.fn((text) => ({ textContent: text })),
 	addEventListener: jest.fn(),
 	removeEventListener: jest.fn(),
@@ -222,16 +231,32 @@ global.bootstrap = {
 // Mock window.bootstrap (some code uses window.bootstrap)
 global.window.bootstrap = global.bootstrap;
 
-// Mock APIClient for template rendering
-global.window.APIClient = {
-	get: jest.fn().mockResolvedValue({ success: true }),
-	post: jest.fn().mockResolvedValue({ html: "<div>Mock HTML</div>" }),
-	put: jest.fn().mockResolvedValue({ success: true }),
-	patch: jest.fn().mockResolvedValue({ success: true }),
-	delete: jest.fn().mockResolvedValue({ success: true }),
-	request: jest.fn().mockResolvedValue({ success: true }),
-	getCSRFToken: jest.fn().mockReturnValue("mock-csrf-token"),
-	getCookie: jest.fn().mockReturnValue(null),
+// Mock APIClient as a real class (production uses `new window.APIClient()`; jest.fn is not a reliable constructor)
+global.window.APIClient = class MockAPIClient {
+	get() {
+		return Promise.resolve({ success: true });
+	}
+	post() {
+		return Promise.resolve({ html: "<div>Mock HTML</div>" });
+	}
+	put() {
+		return Promise.resolve({ success: true });
+	}
+	patch() {
+		return Promise.resolve({ success: true });
+	}
+	delete() {
+		return Promise.resolve({ success: true });
+	}
+	request() {
+		return Promise.resolve({ success: true });
+	}
+	getCSRFToken() {
+		return "mock-csrf-token";
+	}
+	getCookie() {
+		return null;
+	}
 };
 
 // Mock DOMUtils
@@ -252,3 +277,10 @@ global.window.DOMUtils = {
 global.window.showAlert = jest.fn();
 global.window.showToast = jest.fn();
 global.window.hideToast = jest.fn();
+
+const { AuthorsManager } = require("../dataset/AuthorsManager.js");
+const { UserSearchDropdown } = require("../share/UserSearchDropdown.js");
+const { ChunkUploadPipeline } = require("../upload/ChunkUploadPipeline.js");
+global.window.AuthorsManager = AuthorsManager;
+global.window.UserSearchDropdown = UserSearchDropdown;
+global.window.ChunkUploadPipeline = ChunkUploadPipeline;

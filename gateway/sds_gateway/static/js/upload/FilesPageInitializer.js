@@ -72,30 +72,43 @@ class FilesPageInitializer {
 	}
 
 	initializeUserSearchHandlers() {
-		// Create a UserSearchHandler for each share modal
 		const shareModals = document.querySelectorAll(".modal[data-item-uuid]");
 
-		// Skip initialization if no share modals exist on this page
 		if (shareModals.length === 0) {
 			return;
 		}
 
-		// Check if UserSearchHandler is available before trying to initialize
-		if (!window.UserSearchHandler) {
+		if (!window.ShareActionManager || !window.PermissionsManager) {
 			console.warn(
-				"UserSearchHandler not available. Share functionality will not work.",
+				"ShareActionManager or PermissionsManager not available. Share modals will not initialize.",
 			);
 			return;
 		}
 
+		const permConfig =
+			window.filesSharePagePermissions || {
+				userPermissionLevel: "owner",
+				isOwner: true,
+				currentUserId: 0,
+				datasetPermissions: {
+					canShare: true,
+					canDownload: true,
+					canEditMetadata: false,
+					canAddAssets: false,
+					canRemoveAnyAssets: false,
+					canRemoveOwnAssets: false,
+				},
+			};
+
+		const permissionsManager = new window.PermissionsManager(permConfig);
+
 		for (const modal of shareModals) {
-			this.setupUserSearchHandler(modal);
+			this.setupShareActionManager(modal, permissionsManager);
 		}
 	}
 
-	setupUserSearchHandler(modal) {
+	setupShareActionManager(modal, permissionsManager) {
 		try {
-			// Ensure boundHandlers and activeHandlers are initialized
 			if (!this.boundHandlers) {
 				this.boundHandlers = new Map();
 			}
@@ -103,7 +116,6 @@ class FilesPageInitializer {
 				this.activeHandlers = new Set();
 			}
 
-			// Validate modal attributes
 			const itemUuid = modal.getAttribute("data-item-uuid");
 			const itemType = modal.getAttribute("data-item-type");
 
@@ -115,41 +127,25 @@ class FilesPageInitializer {
 				return;
 			}
 
-			const handler = new window.UserSearchHandler();
-			// Store the handler on the modal element
-			modal.userSearchHandler = handler;
-			this.activeHandlers.add(handler);
-
-			// Create bound event handlers for cleanup
-			const showHandler = () => {
-				if (modal.userSearchHandler) {
-					modal.userSearchHandler.setItemInfo(itemUuid, itemType);
-					modal.userSearchHandler.init();
-				}
-			};
-
-			const hideHandler = () => {
-				if (modal.userSearchHandler) {
-					modal.userSearchHandler.resetAll();
-				}
-			};
-
-			// Store handlers for cleanup
-			this.boundHandlers.set(modal, {
-				show: showHandler,
-				hide: hideHandler,
+			const shareManager = new window.ShareActionManager({
+				itemUuid,
+				itemType,
+				permissions: permissionsManager,
 			});
+			modal.shareActionManager = shareManager;
+			this.activeHandlers.add(shareManager);
 
-			// On modal show, set the item info and call init()
-			modal.addEventListener("show.bs.modal", showHandler);
+			const onHidden = () => {
+				modal.shareActionManager?.clearSelections?.();
+			};
 
-			// On modal hide, reset all selections and entered data
-			modal.addEventListener("hidden.bs.modal", hideHandler);
+			modal.addEventListener("hidden.bs.modal", onHidden);
+			this.boundHandlers.set(modal, { hiddenShare: onHidden });
 
-			console.log(`UserSearchHandler initialized for ${itemType}: ${itemUuid}`);
+			console.log(`ShareActionManager initialized for ${itemType}: ${itemUuid}`);
 		} catch (error) {
 			ErrorHandler.showError(
-				"Failed to setup user search functionality",
+				"Failed to setup share modal",
 				"user-search-setup",
 				error,
 			);
@@ -204,9 +200,11 @@ class FilesPageInitializer {
 
 	// Memory management and cleanup
 	cleanup() {
-		// Remove all bound event handlers
 		for (const [element, handlers] of this.boundHandlers) {
 			if (element?.removeEventListener) {
+				if (handlers.hiddenShare) {
+					element.removeEventListener("hidden.bs.modal", handlers.hiddenShare);
+				}
 				if (handlers.show) {
 					element.removeEventListener("show.bs.modal", handlers.show);
 				}
@@ -217,13 +215,12 @@ class FilesPageInitializer {
 		}
 		this.boundHandlers.clear();
 
-		// Cleanup active handlers
 		for (const handler of this.activeHandlers) {
-			if (handler && typeof handler.cleanup === "function") {
+			if (handler && typeof handler.clearSelections === "function") {
 				try {
-					handler.cleanup();
+					handler.clearSelections();
 				} catch (error) {
-					console.warn("Error during handler cleanup:", error);
+					console.warn("Error clearing share selections:", error);
 				}
 			}
 		}
