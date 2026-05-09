@@ -80,7 +80,7 @@ class ObjectStoreFacade:
         *,
         primary_client: Minio,
         secondary_client: Minio,
-        fallback_reads: bool,
+        read_fallback_to_secondary_enabled: bool,
         write_both_enabled: bool,
         dual_write_strict: bool,
     ) -> None:
@@ -89,13 +89,14 @@ class ObjectStoreFacade:
         Args:
             primary_client:     MinIO client for the primary object store (SeaweedFS).
             secondary_client:   MinIO client for the secondary object store (secondary).
-            fallback_reads:     Whether to fallback to secondary on read errors.
+            read_fallback_to_secondary_enabled: Whether to fallback to secondary on
+                read errors.
             write_both_enabled: Whether to perform writes on both stores.
             dual_write_strict:  Requires both writes to succeed, raises otherwise.
         """
         self._primary_client = primary_client
         self._secondary_client = secondary_client
-        self._read_fallback_to_secondary_enabled = fallback_reads
+        self._read_fallback_to_secondary_enabled = read_fallback_to_secondary_enabled
         self._write_both_enabled = write_both_enabled
         self._dual_write_strict = dual_write_strict
 

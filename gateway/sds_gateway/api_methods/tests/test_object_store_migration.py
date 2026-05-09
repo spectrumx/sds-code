@@ -14,6 +14,8 @@ from sds_gateway.api_methods.utils.dual_object_store_storage import (
 )
 from sds_gateway.api_methods.utils.minio_client import ObjectStoreFacade
 
+EXPECTED_SIZE = 42
+
 
 class MissingObjectError(Exception):
     """Test-only exception to simulate missing-object failures."""
@@ -328,3 +330,32 @@ def test_storage_delete_is_strict_when_fallback_is_enabled(
 
     with pytest.raises(RuntimeError, match="secondary delete failed"):
         storage.delete("path/to/object")
+
+
+def test_storage_size_delegates_to_primary(
+    monkeypatch: pytest.MonkeyPatch,
+    settings,
+) -> None:
+    """DualObjectStoreS3Storage.size() must be implemented so Django's
+    FileField run_validation can read file size without raising
+    NotImplementedError."""
+    primary_storage = MagicMock()
+    secondary_storage = MagicMock()
+
+    primary_storage.size.return_value = EXPECTED_SIZE
+
+    storage = _build_storage_with_mocks(
+        monkeypatch=monkeypatch,
+        settings=settings,
+        primary_storage=primary_storage,
+        secondary_storage=secondary_storage,
+        read_fallback_enabled=False,
+        write_both_enabled=False,
+        dual_write_strict=False,
+    )
+
+    result = storage.size("path/to/object")
+
+    assert result == EXPECTED_SIZE
+    primary_storage.size.assert_called_once_with("path/to/object")
+    secondary_storage.size.assert_not_called()
