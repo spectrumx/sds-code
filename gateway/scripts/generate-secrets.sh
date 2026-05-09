@@ -36,13 +36,14 @@ EXAMPLES:
     ${0} --force ci         # Generate CI env files (overwrite if exist)
     ${0} production         # Generate production env files
 
-NOTES:
-    - Generated files are placed in .envs/<env>/ directory
-    - Example templates are read from .envs/example/
-    - Secrets are randomly generated using OpenSSL
-    - CI environment uses insecure but deterministic values for ephemeral usage
-    - local/CI: PRIMARY only (RustFS). No secondary storage.
-    - production: PRIMARY (SeaweedFS) + SECONDARY (RustFS)
+    NOTES:
+        - Generated files are placed in .envs/<env>/ directory
+        - Example templates are read from .envs/example/
+        - Secrets are randomly generated using OpenSSL
+        - CI environment uses insecure but deterministic values for ephemeral usage
+        - local: PRIMARY (RustFS) + SECONDARY (SeaweedFS)
+        - production: PRIMARY (SeaweedFS) + SECONDARY (RustFS)
+        - ci: PRIMARY only (RustFS). No secondary storage.
 EOF
 	exit 0
 }
@@ -59,6 +60,10 @@ function configure_object_store_defaults() {
 		PRIMARY_ENDPOINT_URL="sds-gateway-local-rustfs:9000"
 		PRIMARY_ACCESS_KEY_ID=$(generate_secret 32)
 		PRIMARY_SECRET_ACCESS_KEY=$(generate_secret 32)
+		# SECONDARY = SeaweedFS (S3 gateway)
+		SECONDARY_ENDPOINT_URL="sds-gateway-local-sfs-s3:8333"
+		SECONDARY_ACCESS_KEY_ID=$(generate_secret 32)
+		SECONDARY_SECRET_ACCESS_KEY=$(generate_secret 32)
 		;;
 	ci)
 		PRIMARY_ENDPOINT_URL="sds-gateway-ci-rustfs:9000"
@@ -74,7 +79,12 @@ function configure_object_store_defaults() {
 
 	PRIMARY_S3_ENDPOINT_URL="http://${PRIMARY_ENDPOINT_URL}"
 
-	# SECONDARY only in production
+	# Set SECONDARY S3 endpoint URL for environments that have a secondary
+	if [[ -n "${SECONDARY_ENDPOINT_URL:-}" ]]; then
+		SECONDARY_S3_ENDPOINT_URL="http://${SECONDARY_ENDPOINT_URL}"
+	fi
+
+	# SECONDARY only in local and production (no secondary for CI)
 	if [[ "${env_type}" == "ci" ]]; then
 		PRIMARY_ACCESS_KEY_ID="ci-rustfs-access-key"
 		PRIMARY_SECRET_ACCESS_KEY="ci-rustfs-secret-key"
@@ -84,6 +94,7 @@ function configure_object_store_defaults() {
 	if [[ "${env_type}" == "production" ]]; then
 		SECONDARY_ACCESS_KEY_ID="rustfs-secondary-access-key"
 		SECONDARY_SECRET_ACCESS_KEY="rustfs-secondary-secret-key"
+		SECONDARY_ROOT_USER="minioadmin"
 	fi
 }
 
@@ -165,6 +176,14 @@ function process_env_file() {
 		content="${content//PRIMARY_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-rustfs:9000/PRIMARY_S3_ENDPOINT_URL=${PRIMARY_S3_ENDPOINT_URL}}"
 		content="${content//PRIMARY_SECRET_ACCESS_KEY=admin/PRIMARY_SECRET_ACCESS_KEY=${PRIMARY_SECRET_ACCESS_KEY}}"
 		content="${content//PRIMARY_ENDPOINT_URL=sds-gateway-local-rustfs:9000/PRIMARY_ENDPOINT_URL=${PRIMARY_ENDPOINT_URL}}"
+
+		# SECONDARY vars (local only — SeaweedFS)
+		if [[ -n "${SECONDARY_ENDPOINT_URL:-}" ]]; then
+			content="${content//SECONDARY_ACCESS_KEY_ID=admin/SECONDARY_ACCESS_KEY_ID=${SECONDARY_ACCESS_KEY_ID}}"
+			content="${content//SECONDARY_S3_ENDPOINT_URL=http:\/\/sds-gateway-local-sfs-s3:8333/SECONDARY_S3_ENDPOINT_URL=${SECONDARY_S3_ENDPOINT_URL}}"
+			content="${content//SECONDARY_SECRET_ACCESS_KEY=admin/SECONDARY_SECRET_ACCESS_KEY=${SECONDARY_SECRET_ACCESS_KEY}}"
+			content="${content//SECONDARY_ENDPOINT_URL=sds-gateway-local-sfs-s3:8333/SECONDARY_ENDPOINT_URL=${SECONDARY_ENDPOINT_URL}}"
+		fi
 
 		# deprecated:
 		# content="${content//AWS_ACCESS_KEY_ID=admin/AWS_ACCESS_KEY_ID=${PRIMARY_ACCESS_KEY_ID}}"
