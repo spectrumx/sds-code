@@ -215,6 +215,30 @@ function load_credentials() {
 	printf '%s\n%s\n%s' "${access_key}" "${secret_key}" "${bucket_name}"
 }
 
+function load_secondary_credentials() {
+	local env_file="$1"
+
+	if [[ ! -f "${env_file}" ]]; then
+		return 1
+	fi
+
+	local access_key secret_key
+	access_key=$(grep -E '^SECONDARY_ACCESS_KEY_ID=' "${env_file}" | cut -d'=' -f2-)
+	secret_key=$(grep -E '^SECONDARY_SECRET_ACCESS_KEY=' "${env_file}" | cut -d'=' -f2-)
+
+	# If neither SECONDARY credential is set, the store is not configured
+	if [[ -z "${access_key}" || -z "${secret_key}" ]]; then
+		return 1
+	fi
+
+	# Filter out placeholder/admin defaults that indicate unset creds
+	if [[ "${access_key}" == "admin" && "${secret_key}" == "admin" ]]; then
+		return 1
+	fi
+
+	printf '%s\n%s' "${access_key}" "${secret_key}"
+}
+
 function parse_arguments() {
 	local -n _args_ref=$1
 	shift
@@ -305,6 +329,18 @@ function main() {
 
 		configure_s3_credentials "${args[env_type]}" "${access_key}" "${secret_key}"
 		create_bucket "${args[env_type]}" "${bucket_name}" "${access_key}" "${secret_key}"
+
+		# Also configure SECONDARY S3 identity if credentials are available (local/dev)
+		local secondary_creds
+		secondary_creds=$(just load_secondary_credentials "${sfs_env_path}") || true
+		if [[ -n "${secondary_creds}" ]]; then
+			local sec_access_key sec_secret_key
+			sec_access_key=$(echo "${secondary_creds}" | sed -n '1p')
+			sec_secret_key=$(echo "${secondary_creds}" | sed -n '2p')
+			log_msg "Configuring SECONDARY S3 identity on SeaweedFS..."
+			configure_s3_credentials "${args[env_type]}" "${sec_access_key}" "${sec_secret_key}"
+			log_success "SECONDARY S3 identity configured on SeaweedFS"
+		fi
 	else
 		log_msg "Skipping credential and bucket setup (--skip-setup)"
 	fi

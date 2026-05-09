@@ -24,21 +24,29 @@ class Command(BaseCommand):
         self._ensure_bucket(primary_client, settings.PRIMARY_STORAGE_BUCKET_NAME)
 
         # Secondary store (optional — may be unreachable)
-        try:
-            secondary_client = _build_minio_client(
-                endpoint=settings.SECONDARY_ENDPOINT_URL,
-                access_key=settings.SECONDARY_ACCESS_KEY_ID,
-                secret_key=settings.SECONDARY_SECRET_ACCESS_KEY,
-                secure=settings.SECONDARY_STORAGE_USE_HTTPS,
+        # Skip entirely if access key is still the LEGACY fallback default;
+        # that means no secondary was ever configured for this environment.
+        if settings.SECONDARY_ACCESS_KEY_ID == settings.LEGACY_AWS_ACCESS_KEY_ID:
+            log.info(
+                "Secondary object store not configured (LEGACY fallback creds), "
+                "skipping"
             )
-            self._ensure_bucket(
-                secondary_client, settings.SECONDARY_STORAGE_BUCKET_NAME
-            )
-        except Exception as exc:  # noqa: BLE001
-            log.warning(
-                "Secondary object store unreachable or bucket creation failed: {}",
-                exc,
-            )
+        else:
+            try:
+                secondary_client = _build_minio_client(
+                    endpoint=settings.SECONDARY_ENDPOINT_URL,
+                    access_key=settings.SECONDARY_ACCESS_KEY_ID,
+                    secret_key=settings.SECONDARY_SECRET_ACCESS_KEY,
+                    secure=settings.SECONDARY_STORAGE_USE_HTTPS,
+                )
+                self._ensure_bucket(
+                    secondary_client, settings.SECONDARY_STORAGE_BUCKET_NAME
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "Secondary object store unreachable or bucket creation failed: {}",
+                    exc,
+                )
 
     def _ensure_bucket(self, client, bucket_name: str) -> None:
         """Check if a bucket exists; create it if it does not."""
