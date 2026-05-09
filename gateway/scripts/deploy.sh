@@ -442,6 +442,20 @@ function setup_database() {
 
 }
 
+function create_storage_buckets() {
+	local env_type="$1"
+	log_header "Creating Object Store Buckets"
+	log_msg "Ensuring storage buckets exist on configured object stores..."
+	set +e
+	just uv run manage.py create_storage_buckets
+	local mgmt_exit=$?
+	set -e
+	if [[ ${mgmt_exit} -ne 0 ]]; then
+		log_warning "Bucket creation had non-zero exit (may be expected if secondary is unreachable)"
+	fi
+	log_success "Storage buckets ready"
+}
+
 function deploy_sfs_stack() {
 	local env_type="$1"
 	local sfs_env_file="${PROJECT_ROOT}/.envs/${env_type}/storage.env"
@@ -513,6 +527,8 @@ function main() {
 
 	build_app "${container_name}"
 	first_start
+
+	create_storage_buckets "${args[env_type]}"
 
 	setup_database "${container_name}" "${args[env_type]}"
 	finalize_deployment "${args[env_type]}" "${args[detach]}"
