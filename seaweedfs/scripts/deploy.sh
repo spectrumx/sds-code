@@ -51,6 +51,11 @@ function show_usage() {
 	exit 0
 }
 
+# Return 0 if running as root, 1 otherwise
+function is_root() {
+	[[ $(id -u) -eq 0 ]]
+}
+
 function setup_data_dirs() {
 	local env_type="$1"
 	if [[ "${env_type}" != "local" ]]; then
@@ -59,20 +64,17 @@ function setup_data_dirs() {
 
 	log_header "Local Data Directory Setup"
 	log_msg "Creating data directories..."
-	mkdir -p "${SFS_ROOT}/data/volumes" "${SFS_ROOT}/data/filer/filerldb2"
-
 	local uid gid
-	# uid=$(id -u)
-	# gid=$(id -g)
-	# matches the permissions inside the container
-	uid=1000
-	gid=1000
-	log_msg "Setting ownership to ${uid}:${gid}..."
-	sudo -p "Enter password to set ownership of data directories: " \
-		chown -R "${uid}:${gid}" "${SFS_ROOT}/data/volumes/" &&
-		sudo chown -R "${uid}:${gid}" "${SFS_ROOT}/data/"
-	sudo -k
-	log_success "Data directories ready"
+	uid=$(id -u)
+	gid=$(id -g)
+	# Export for compose (UID/GID are readonly in bash, so we use HOST_UID/HOST_GID)
+	export HOST_UID="${uid}" HOST_GID="${gid}"
+	mkdir -p "${SFS_ROOT}/data/volumes" "${SFS_ROOT}/data/filer/filerldb2"
+	# Dirs created by current user → already owned by ${uid}:${gid}
+	# Container also runs as ${uid}:${gid} via compose user: ${HOST_UID}:${HOST_GID}
+	# → no chown needed.
+
+	log_success "Data directories ready (uid=${uid}, gid=${gid})"
 }
 
 function start_stack() {
@@ -111,6 +113,11 @@ function wait_for_s3_health() {
 
 		if [[ $((attempt % 10)) -eq 0 ]]; then
 			log_msg "Still waiting... (attempt ${attempt}/${max_attempts})"
+			log_msg "=== S3 gateway logs (last 20 lines) ==="
+			docker logs --tail 20 "${s3_container}" 2>&1 | while IFS= read -r line; do
+				log_msg "  ${line}"
+			done
+			log_msg "========================================="
 		fi
 
 		sleep 2
