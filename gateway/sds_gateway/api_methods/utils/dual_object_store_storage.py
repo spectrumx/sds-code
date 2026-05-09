@@ -157,5 +157,16 @@ class DualObjectStoreS3Storage(Storage):
                 "Secondary storage delete failed in non-strict dual-write mode"
             )
 
+    def size(self, name: str) -> int:
+        """Return the size of the file in the primary storage."""
+        return self._primary_storage.size(name)
+
+    def path(self, name: str) -> str:
+        """Return the absolute path of the file in the primary storage."""
+        return self._primary_storage.path(name)  # pyright: ignore[reportUnknownMemberType]
+
+    def url(self, name: str) -> str:
+        return self._primary_storage.url(name)
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._primary_storage, name)
