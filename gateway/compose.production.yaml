@@ -26,6 +26,8 @@ networks:
         driver: bridge
     sds-gateway-prod-opensearch-net:
         driver: bridge
+    sds-gateway-prod-postgres-net:
+        driver: bridge
     sds-network-prod:
         external: true
 
@@ -87,6 +89,7 @@ services:
         command: "/start"
         networks:
             - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-postgres-net
             - sds-network-prod # also carries SeaweedFS S3 traffic — see seaweedfs/compose.yaml
         healthcheck:
             test: [ "CMD-SHELL", "curl -f http://localhost:18000/ || exit 1" ]
@@ -314,7 +317,8 @@ services:
         env_file:
             - ./.envs/production/postgres.env
         networks:
-            - sds-gateway-prod-minio-net
+            - sds-gateway-prod-postgres-net
+            - sds-gateway-prod-opensearch-net
         healthcheck:
             test:
                 [
@@ -390,6 +394,7 @@ services:
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-postgres-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
         healthcheck:
             test:
@@ -448,6 +453,7 @@ services:
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-postgres-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
         healthcheck:
             test:
@@ -507,6 +513,7 @@ services:
             - "15555:5555" # Flower web interface
         networks:
             - sds-gateway-prod-opensearch-net
+            - sds-gateway-prod-postgres-net
             - sds-network-prod # also carries SeaweedFS S3 traffic
         healthcheck:
             test:
