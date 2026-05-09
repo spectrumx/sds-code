@@ -204,6 +204,11 @@ function wait_for_service() {
 
 		if [[ $((attempt % 5)) -eq 0 ]]; then
 			log_msg "Still waiting... (attempt ${attempt}/${max_attempts})"
+			log_msg "=== Container logs (last 20 lines) ==="
+			docker logs --tail 20 "${container_name}" 2>&1 | while IFS= read -r line; do
+				log_msg "  ${line}"
+			done
+			log_msg "=========================================="
 		fi
 
 		sleep 2
