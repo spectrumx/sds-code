@@ -57,6 +57,8 @@ function configure_object_store_defaults() {
 	case "${env_type}" in
 	local)
 		PRIMARY_ENDPOINT_URL="sds-gateway-local-rustfs:9000"
+		PRIMARY_ACCESS_KEY_ID=$(generate_secret 32)
+		PRIMARY_SECRET_ACCESS_KEY=$(generate_secret 32)
 		;;
 	ci)
 		PRIMARY_ENDPOINT_URL="sds-gateway-ci-rustfs:9000"
