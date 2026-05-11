@@ -19,7 +19,9 @@ document.head.appendChild(style);
 
 document.addEventListener("DOMContentLoaded", () => {
 	if (!window.components) {
-		const domUtils = window.DOMUtils ? new window.DOMUtils() : null;
+		// DOMUtils.js exposes a singleton on window.DOMUtils (not the class constructor).
+		const domUtils =
+			typeof window.DOMUtils?.showAlert === "function" ? window.DOMUtils : null;
 		window.components = {
 			showError(message) {
 				if (domUtils) {

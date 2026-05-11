@@ -1,3 +1,7 @@
+/**
+ * Files browser: grid navigation, previews, drag/drop, upload modal wiring.
+ * Lives under upload/ with other files-page assets; legacy monolith archived in deprecated/.
+ */
 class FileManager {
 	constructor() {
 		// Check browser compatibility before proceeding
@@ -1447,28 +1451,15 @@ class FileManager {
 		console.log("FileManager cleanup completed");
 	}
 
-	// Browser compatibility check
+	// Browser compatibility check (prefer core/BrowserSupport.js)
 	checkBrowserSupport() {
-		const requiredFeatures = {
-			"File API": "File" in window,
-			FileReader: "FileReader" in window,
-			FormData: "FormData" in window,
-			"Fetch API": "fetch" in window,
-			Promise: "Promise" in window,
-			Map: "Map" in window,
-			Set: "Set" in window,
-		};
-
-		const missingFeatures = Object.entries(requiredFeatures)
-			.filter(([name, supported]) => !supported)
-			.map(([name]) => name);
-
-		if (missingFeatures.length > 0) {
-			console.warn("Missing browser features:", missingFeatures);
-			return false;
+		if (
+			window.BrowserSupport &&
+			typeof window.BrowserSupport.checkBrowserSupport === "function"
+		) {
+			return window.BrowserSupport.checkBrowserSupport();
 		}
-
-		return true;
+		return false;
 	}
 
 	// Track event handler for cleanup
@@ -1617,6 +1608,13 @@ class FileManager {
 			this.showError("Invalid file identifier", null, "file-preview");
 		}
 	}
+}
+
+if (typeof window !== "undefined") {
+	window.FileManager = FileManager;
+}
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { FileManager };
 }
 
 // Initialize file manager when DOM is loaded

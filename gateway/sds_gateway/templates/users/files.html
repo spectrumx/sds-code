@@ -526,7 +526,7 @@
     <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/upload/FileDropManager.js' %}"></script>
-    <script src="{% static 'js/file-manager.js' %}?v=7"></script>
+    <script src="{% static 'js/upload/FileManager.js' %}?v=9"></script>
     <!-- Load the WASM library for BLAKE3 hashing -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
     <!-- Prism.js for syntax highlighting -->
@@ -567,13 +567,12 @@
         window.uploadFilesUrl = window.filesConfig.urls.uploadFiles;
         window.csrfToken = window.filesConfig.csrfToken;
     </script>
-    <!-- External JavaScript modules -->
     <script src="{% static 'js/upload/Blake3FileHandler.js' %}"></script>
     <script src="{% static 'js/upload/ChunkUploadPipeline.js' %}"></script>
     <script src="{% static 'js/upload/FilesUploadModal.js' %}"></script>
-    <script src="{% static 'js/files-upload.js' %}"></script>
+    <script src="{% static 'js/upload/FilesCaptureUploadBootstrap.js' %}"></script>
     <script src="{% static 'js/upload/CaptureTypeSelector.js' %}"></script>
     <script src="{% static 'js/upload/FilesPageInitializer.js' %}"></script>
     <script src="{% static 'js/upload/FileUploadHandler.js' %}"></script>
-    <script src="{% static 'js/files-ui.js' %}"></script>
+    <script src="{% static 'js/upload/FilesPageBootstrap.js' %}"></script>
 {% endblock javascript %}
