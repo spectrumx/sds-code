@@ -2,6 +2,7 @@
 
 # pyright: reportPrivateUsage=false
 
+import contextlib
 import datetime
 import json
 import logging
@@ -201,6 +202,11 @@ class CaptureTestCases(APITestCase):
 
     def _setup_opensearch_indices(self) -> None:
         """Set up OpenSearch indices with proper mappings."""
+        # Clear cluster-level create_index block that can persist from
+        # previous runs or init_indices (FORBIDDEN/10).  This must be
+        # done before any indices.create() call in tests.
+        self._clear_create_index_block()
+
         for capture, metadata_type in [
             (self.drf_capture_v0, CaptureType.DigitalRF),
             (self.drf_capture_v1, CaptureType.DigitalRF),
@@ -218,6 +224,17 @@ class CaptureTestCases(APITestCase):
                         "mappings": get_mapping_by_capture_type(metadata_type),
                     },
                 )
+
+    def _clear_create_index_block(self) -> None:
+        """Clear cluster.blocks.create_index if set via _cluster/settings API."""
+        with contextlib.suppress(Exception):
+            self.opensearch.cluster.put_settings(
+                body={
+                    "persistent": {
+                        "cluster.blocks.create_index": False,
+                    },
+                },
+            )
 
     def _index_test_metadata(self) -> None:
         """Index test metadata into OpenSearch."""

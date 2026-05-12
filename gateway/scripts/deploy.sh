@@ -175,6 +175,17 @@ function first_start() {
 	just up || true
 }
 
+function nuke_ci_opensearch_volume() {
+	# Remove the OpenSearch persistent volume in CI to clear any leftover
+	# cluster state (e.g. cluster.blocks.create_index set via API).  This
+	# prevents FORBIDDEN/10 errors from previous runs.
+	log_msg "Checking OpenSearch volume for CI clean-up..."
+	if docker volume inspect sds-gateway-ci-opensearch-data &>/dev/null; then
+		log_msg "Removing stale sds-gateway-ci-opensearch-data volume..."
+		docker volume rm sds-gateway-ci-opensearch-data || log_warning "Failed to remove volume"
+	fi
+}
+
 function start_stack() {
 	log_header "Starting SDS stack"
 	log_msg "Starting stack..."
