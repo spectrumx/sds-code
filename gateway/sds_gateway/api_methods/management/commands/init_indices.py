@@ -1,5 +1,6 @@
 """Django management command to initialize OpenSearch indices."""
 
+from contextlib import suppress
 from typing import Any
 
 from django.core.management.base import BaseCommand
@@ -21,6 +22,11 @@ class Command(BaseCommand):
     def handle(self, *args, **options) -> None:
         """Execute the command."""
         self.client: OpenSearch = get_opensearch_client()
+
+        # Reset any API-set cluster blocks that prevent index creation.
+        # In CI the block can persist from a previous run via the
+        # _cluster/settings API, yielding FORBIDDEN/10 on create.
+        self.reset_create_block()
 
         # Loop through capture types to create/update indices
         for capture_type in CaptureType:
@@ -56,6 +62,18 @@ class Command(BaseCommand):
                     f"Failed to initialize/update index '{index_name}': {format(e)}",
                 )
                 raise
+
+    def reset_create_block(self) -> None:
+        """Clear the cluster-level create_index block if set via API."""
+        with suppress(Exception):
+            self.client.cluster.put_settings(
+                body={
+                    "persistent": {
+                        "cluster.blocks.create_index": False,
+                    },
+                },
+            )
+            log.info("Cleared cluster create_index block (if present)")
 
     def init_index(
         self,

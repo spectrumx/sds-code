@@ -290,14 +290,86 @@ function parse_arguments() {
 
 function assert_selected_env() {
 	local env_type="$1"
+	log_msg "assert_selected_env: checking env_type='${env_type}'"
+
+	# Directly use env-selection.sh to detect what environment it resolves to
+	# (without calling 'just env' which fails if .envs/ci/sfs.env is missing).
 	local selected_env
-	selected_env="$(just env | awk -F"'" '/Environment:/{print $2}')"
+	selected_env="$(cd "${SFS_ROOT}" && bash "${SCRIPT_DIR}/env-selection.sh" env)"
+	log_msg "assert_selected_env: detected env='${selected_env}' (requested='${env_type}')"
+
+	# If they match, we're good. If not, explain why.
 	if [[ "${env_type}" != "${selected_env}" ]]; then
-		log_error "Selected environment >${selected_env}< does not match argument >${env_type}<"
-		log_msg "If you are attempting to run e.g. a CI env locally, tear down your local stack,"
-		log_msg "then run the deploy script with CI=1, e.g.:\n\n\tCI=1 ${0} ci\n"
+		# Show what env-selection.sh detected and why
+		log_msg "assert_selected_env: env mismatch!"
+		log_msg "  SDS_ENV=${SDS_ENV:-<not set>}"
+		log_msg "  CI=${CI:-<not set>}"
+		log_msg "  GITHUB_ACTIONS=${GITHUB_ACTIONS:-<not set>}"
+		log_msg "  GITLAB_CI=${GITLAB_CI:-<not set>}"
+		log_msg "  BUILD_ID=${BUILD_ID:-<not set>}"
+		log_msg "  JENKINS_URL=${JENKINS_URL:-<not set>}"
+		log_msg "  Hostname: $(hostname)"
+		if [[ -f "${SCRIPT_DIR}/prod-hostnames.env" ]]; then
+			log_msg "  prod-hostnames.env exists ($(wc -l <"${SCRIPT_DIR}/prod-hostnames.env") lines)"
+		else
+			log_warning "  prod-hostnames.env NOT FOUND at '${SCRIPT_DIR}/prod-hostnames.env'"
+		fi
+
+		# Check if just env recipe would fail too
+		log_msg "Checking just env recipe for diagnostics:"
+		local compose_file env_file
+		compose_file="$(cd "${SFS_ROOT}" && bash "${SCRIPT_DIR}/env-selection.sh" compose_file)"
+		env_file="$(cd "${SFS_ROOT}" && bash "${SCRIPT_DIR}/env-selection.sh" env_file)"
+		log_msg "  compose_file='${compose_file}' exists=${compose_file:+"$(test -f "${SFS_ROOT}/${compose_file}" && echo yes || echo no)"}"
+		log_msg "  env_file='${env_file}' exists=${env_file:+"$(test -f "${SFS_ROOT}/${env_file}" && echo yes || echo no)"}"
+
+		log_error "Requested env '${env_type}' does not match detected env '${selected_env}'"
+		log_msg "If running locally with CI env, set SDS_ENV=${env_type} or export CI=1 before running this script."
+		log_msg "  e.g.: SDS_ENV=${env_type} ${0} ${env_type}"
+		log_msg "  e.g.: CI=1 ${0} ${env_type}"
 		exit 1
 	fi
+
+	log_success "assert_selected_env: env '${env_type}' OK"
+}
+
+function ensure_ci_sfs_env() {
+	# CI sfs.env is git-ignored; generate a minimal one if missing.
+	# Only needed for 'just env' recipe — compose.ci.yaml ports have
+	# defaults, so values here only matter for 'just env' output.
+	local ci_env_file="${SFS_ROOT}/.envs/ci/sfs.env"
+
+	if [[ -f "${ci_env_file}" ]]; then
+		return 0
+	fi
+
+	log_msg "Generating minimal CI sfs.env (git-ignored, safe for ephemeral CI)..."
+	local uid gid
+	uid=$(id -u)
+	gid=$(id -g)
+
+	# Create parent directory if it doesn't exist (git-ignored, may not be checked in)
+	mkdir -p "$(dirname "${ci_env_file}")"
+
+	cat >"${ci_env_file}" <<EOF
+UID=${uid}
+GID=${gid}
+SFS_MASTER_PORT=9333
+SFS_MASTER_GRPC_PORT=19333
+SFS_MASTER_METRICS_PORT=9324
+SFS_VOLUME_PORT=8080
+SFS_VOLUME_GRPC_PORT=18080
+SFS_VOLUME_METRICS_PORT=9325
+SFS_FILER_PORT=8888
+SFS_FILER_GRPC_PORT=18888
+SFS_FILER_METRICS_PORT=9326
+SFS_S3_PORT=8333
+SFS_S3_METRICS_PORT=9327
+SFS_WEBDAV_PORT=7333
+SFS_PROMETHEUS_HOST_PORT=9000
+SFS_PROMETHEUS_CONTAINER_PORT=9090
+EOF
+	chmod 600 "${ci_env_file}"
 }
 
 function main() {
@@ -313,6 +385,7 @@ function main() {
 	log_header "SeaweedFS Deployment - ${args[env_type]} environment"
 
 	assert_selected_env "${args[env_type]}"
+	ensure_ci_sfs_env
 	setup_prod_hostnames "${args[env_type]}"
 	setup_data_dirs "${args[env_type]}"
 	start_stack "${args[env_type]}"

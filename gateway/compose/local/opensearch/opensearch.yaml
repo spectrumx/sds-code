@@ -2,3 +2,8 @@ cluster.name: "local-cluster"
 network.host: 0.0.0.0
 discovery.type: single-node
 plugins.security.disabled: true
+
+# Local and CI environments: raise disk watermark thresholds to prevent
+# flood-stage auto-blocking of indices when disk space is tight.
+cluster.routing.allocation.disk.watermark.high: "98%"
+cluster.routing.allocation.disk.watermark.flood_stage: "99%"
