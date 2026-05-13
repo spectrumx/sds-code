@@ -79,7 +79,7 @@ class ObjectStoreFacade:
         self,
         *,
         primary_client: Minio,
-        secondary_client: Minio,
+        secondary_client: Minio | None,
         read_fallback_to_secondary_enabled: bool,
         write_both_enabled: bool,
         dual_write_strict: bool,
@@ -88,7 +88,8 @@ class ObjectStoreFacade:
 
         Args:
             primary_client:     MinIO client for the primary object store (SeaweedFS).
-            secondary_client:   MinIO client for the secondary object store (secondary).
+            secondary_client:   MinIO client for the secondary object store (secondary),
+                                or None when only the primary store is configured.
             read_fallback_to_secondary_enabled: Whether to fallback to secondary on
                 read errors.
             write_both_enabled: Whether to perform writes on both stores.
@@ -171,6 +172,8 @@ class ObjectStoreFacade:
                 raise
             if not _is_missing_object_error(error):
                 raise
+            if not self._secondary_client:
+                raise
 
             log.warning(
                 "Object %s not found in primary store, falling back to secondary",
@@ -193,7 +196,7 @@ class ObjectStoreFacade:
         primary_args, primary_kwargs = self._primary_call_arguments(*args, **kwargs)
         primary_result = primary_method(*primary_args, **primary_kwargs)
 
-        if not self._write_both_enabled:
+        if not self._write_both_enabled or not self._secondary_client:
             return primary_result
 
         secondary_method = getattr(self._secondary_client, method_name)
@@ -221,7 +224,9 @@ class ObjectStoreFacade:
             **primary_kwargs,
         )
 
-        if not (self._write_both_enabled or self._read_fallback_to_secondary_enabled):
+        if not self._secondary_client or not (
+            self._write_both_enabled or self._read_fallback_to_secondary_enabled
+        ):
             return primary_result
 
         secondary_args, secondary_kwargs = self._secondary_call_arguments(
@@ -265,6 +270,13 @@ class ObjectStoreFacade:
         return getattr(self._primary_client, name)
 
 
+def _is_secondary_configured() -> bool:
+    """Return True when a secondary object store is explicitly configured."""
+    return getattr(settings, "SECONDARY_ACCESS_KEY_ID", None) != getattr(
+        settings, "LEGACY_AWS_ACCESS_KEY_ID", None
+    )
+
+
 def get_minio_client() -> ObjectStoreFacade:
     """Return migration-aware object store facade while keeping API name stable."""
     primary_client = _build_minio_client(
@@ -273,12 +285,16 @@ def get_minio_client() -> ObjectStoreFacade:
         secret_key=settings.PRIMARY_SECRET_ACCESS_KEY,
         secure=settings.PRIMARY_STORAGE_USE_HTTPS,
     )
-    secondary_client = _build_minio_client(
-        endpoint=settings.SECONDARY_ENDPOINT_URL,
-        access_key=settings.SECONDARY_ACCESS_KEY_ID,
-        secret_key=settings.SECONDARY_SECRET_ACCESS_KEY,
-        secure=settings.SECONDARY_STORAGE_USE_HTTPS,
-    )
+
+    if _is_secondary_configured():
+        secondary_client = _build_minio_client(
+            endpoint=settings.SECONDARY_ENDPOINT_URL,
+            access_key=settings.SECONDARY_ACCESS_KEY_ID,
+            secret_key=settings.SECONDARY_SECRET_ACCESS_KEY,
+            secure=settings.SECONDARY_STORAGE_USE_HTTPS,
+        )
+    else:
+        secondary_client = None  # type: ignore[assignment]
 
     return ObjectStoreFacade(
         primary_client=primary_client,

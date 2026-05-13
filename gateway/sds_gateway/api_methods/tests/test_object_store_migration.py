@@ -26,6 +26,9 @@ class MissingObjectError(Exception):
 def _configure_bucket_settings(settings) -> None:
     settings.PRIMARY_STORAGE_BUCKET_NAME = "sfs-bucket"
     settings.SECONDARY_STORAGE_BUCKET_NAME = "secondary-bucket"
+    # Ensures _is_secondary_configured() returns True so
+    # self._secondary_storage is instantiated during DualObjectStoreS3Storage.__init__
+    settings.SECONDARY_ACCESS_KEY_ID = "secondary-test-key"
 
 
 def _build_storage_with_mocks(
@@ -38,6 +41,7 @@ def _build_storage_with_mocks(
     write_both_enabled: bool,
     dual_write_strict: bool,
 ) -> DualObjectStoreS3Storage:
+    _configure_bucket_settings(settings)
     settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED = read_fallback_enabled
     settings.OBJECT_STORE_WRITE_BOTH_ENABLED = write_both_enabled
     settings.OBJECT_STORE_DUAL_WRITE_STRICT = dual_write_strict
