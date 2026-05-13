@@ -63,6 +63,13 @@ def _build_storage_options(store_prefix: str) -> dict[str, Any]:
     }
 
 
+def _is_secondary_configured() -> bool:
+    """Return True when a secondary object store is explicitly configured."""
+    return getattr(settings, "SECONDARY_ACCESS_KEY_ID", None) != getattr(
+        settings, "LEGACY_AWS_ACCESS_KEY_ID", None
+    )
+
+
 def _safe_object_reference(name: str) -> str:
     """Return a non-reversible identifier suitable for operational logs."""
     object_name_digest = hashlib.sha256(name.encode()).hexdigest()[:12]
@@ -75,7 +82,11 @@ class DualObjectStoreS3Storage(Storage):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__()
         self._primary_storage = self._create_backend(store_prefix="PRIMARY")
-        self._secondary_storage = self._create_backend(store_prefix="SECONDARY")
+        self._secondary_storage: S3Boto3Storage | None = (
+            self._create_backend(store_prefix="SECONDARY")
+            if _is_secondary_configured()
+            else None
+        )
 
     def _create_backend(self, *, store_prefix: str) -> S3Boto3Storage:
         """Create storage backend for a given settings prefix."""
@@ -101,6 +112,8 @@ class DualObjectStoreS3Storage(Storage):
                 raise
             if not _is_missing_object_error(error):
                 raise
+            if not self._secondary_storage:
+                raise
 
             log.warning(
                 "Object %s not in primary storage, falling back to secondary",
@@ -110,6 +123,9 @@ class DualObjectStoreS3Storage(Storage):
 
     def _save(self, name: str, content: File[Any]) -> str:
         if not settings.OBJECT_STORE_WRITE_BOTH_ENABLED:
+            return self._primary_storage._save(name, content)  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
+
+        if not self._secondary_storage:
             return self._primary_storage._save(name, content)  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
 
         secondary_content = self._clone_content(content)
@@ -132,7 +148,8 @@ class DualObjectStoreS3Storage(Storage):
             return True
 
         if settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED:
-            return self._secondary_storage.exists(name)
+            if self._secondary_storage:
+                return self._secondary_storage.exists(name)
 
         return False
 
@@ -142,6 +159,9 @@ class DualObjectStoreS3Storage(Storage):
             settings.OBJECT_STORE_WRITE_BOTH_ENABLED
             or settings.OBJECT_STORE_READ_FALLBACK_TO_SECONDARY_ENABLED
         ):
+            return
+
+        if not self._secondary_storage:
             return
 
         try:
