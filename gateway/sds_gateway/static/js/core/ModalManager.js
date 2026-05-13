@@ -49,31 +49,31 @@ class ModalManager {
 
 			// Get all data attributes from the link with sanitization
 			const data = {
-				uuid: ComponentUtils.escapeHtml(
+				uuid: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-uuid") || "",
 				),
-				name: ComponentUtils.escapeHtml(
+				name: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-name") || "",
 				),
-				channel: ComponentUtils.escapeHtml(
+				channel: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-channel") || "",
 				),
-				scanGroup: ComponentUtils.escapeHtml(
+				scanGroup: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-scan-group") || "",
 				),
-				captureType: ComponentUtils.escapeHtml(
+				captureType: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-capture-type") || "",
 				),
-				topLevelDir: ComponentUtils.escapeHtml(
+				topLevelDir: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-top-level-dir") || "",
 				),
-				owner: ComponentUtils.escapeHtml(
+				owner: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-owner") || "",
 				),
-				origin: ComponentUtils.escapeHtml(
+				origin: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-origin") || "",
 				),
-				dataset: ComponentUtils.escapeHtml(
+				dataset: window.DOMUtils.escapeHtml(
 					linkElement.getAttribute("data-dataset") || "",
 				),
 				createdAt: linkElement.getAttribute("data-created-at") || "",
@@ -220,7 +220,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Created At:</span>
 								<br>
 								<small class="text-muted">
-									${ComponentUtils.formatDateForModal(data.createdAt)}
+									${window.DOMUtils.formatDateForModal(data.createdAt)}
 								</small>
 							</p>
 						</div>
@@ -229,7 +229,7 @@ class ModalManager {
 								<span class="fw-medium text-muted">Updated At:</span>
 								<br>
 								<small class="text-muted">
-									${ComponentUtils.formatDateForModal(data.updatedAt)}
+									${window.DOMUtils.formatDateForModal(data.updatedAt)}
 								</small>
 							</p>
 						</div>
@@ -383,7 +383,7 @@ class ModalManager {
 												data-bs-target="#collapse-${channelId}"
 												aria-expanded="${i === 0 ? "true" : "false"}"
 												aria-controls="collapse-${channelId}">
-											<strong>${ComponentUtils.escapeHtml(channel.channel || "N/A")}</strong>
+											<strong>${window.DOMUtils.escapeHtml(channel.channel || "N/A")}</strong>
 											<small class="text-muted ms-2">(Click to expand metadata)</small>
 										</button>
 									</h2>
@@ -420,7 +420,7 @@ class ModalManager {
 							<div class="alert alert-warning">
 								<i class="fas fa-exclamation-triangle"></i>
 								Unable to display channel details due to data format issues.
-								<br><small>Raw data: ${ComponentUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
+								<br><small>Raw data: ${window.DOMUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
 							</div>
 						</div>
 					`;
@@ -790,7 +790,7 @@ class ModalManager {
 
 		if (file.media_type) {
 			metadata.push(
-				`<strong>Media Type:</strong> ${ComponentUtils.escapeHtml(file.media_type)}`,
+				`<strong>Media Type:</strong> ${window.DOMUtils.escapeHtml(file.media_type)}`,
 			);
 		}
 
@@ -805,24 +805,24 @@ class ModalManager {
 		// File properties and attributes
 		if (file.name) {
 			metadata.push(
-				`<strong>Name:</strong> ${ComponentUtils.escapeHtml(file.name)}`,
+				`<strong>Name:</strong> ${window.DOMUtils.escapeHtml(file.name)}`,
 			);
 		}
 
 		if (file.directory || file.relative_path) {
 			metadata.push(
-				`<strong>Directory:</strong> ${ComponentUtils.escapeHtml(file.directory || file.relative_path)}`,
+				`<strong>Directory:</strong> ${window.DOMUtils.escapeHtml(file.directory || file.relative_path)}`,
 			);
 		}
 
 		// Removed permissions display
 		// if (file.permissions) {
-		// 	metadata.push(`<strong>Permissions:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.permissions)}</span>`);
+		// 	metadata.push(`<strong>Permissions:</strong> <span style="color: #005a9c; font-family: monospace;">${window.DOMUtils.escapeHtml(file.permissions)}</span>`);
 		// }
 
 		if (file.owner?.username) {
 			metadata.push(
-				`<strong>Owner:</strong> ${ComponentUtils.escapeHtml(file.owner.username)}`,
+				`<strong>Owner:</strong> ${window.DOMUtils.escapeHtml(file.owner.username)}`,
 			);
 		}
 
@@ -834,26 +834,26 @@ class ModalManager {
 
 		if (file.bucket_name) {
 			metadata.push(
-				`<strong>Storage Bucket:</strong> ${ComponentUtils.escapeHtml(file.bucket_name)}`,
+				`<strong>Storage Bucket:</strong> ${window.DOMUtils.escapeHtml(file.bucket_name)}`,
 			);
 		}
 
 		// Removed checksum display
 		// if (file.sum_blake3) {
-		// 	metadata.push(`<strong>Checksum:</strong> <span style="color: #005a9c; font-family: monospace;">${ComponentUtils.escapeHtml(file.sum_blake3)}</span>`);
+		// 	metadata.push(`<strong>Checksum:</strong> <span style="color: #005a9c; font-family: monospace;">${window.DOMUtils.escapeHtml(file.sum_blake3)}</span>`);
 		// }
 
 		// Associated resources
 		// TODO: Refactor this to handle multiple associations
 		if (file.capture?.name) {
 			metadata.push(
-				`<strong>Associated Capture:</strong> ${ComponentUtils.escapeHtml(file.capture.name)}`,
+				`<strong>Associated Capture:</strong> ${window.DOMUtils.escapeHtml(file.capture.name)}`,
 			);
 		}
 
 		if (file.dataset?.name) {
 			metadata.push(
-				`<strong>Associated Dataset:</strong> ${ComponentUtils.escapeHtml(file.dataset.name)}`,
+				`<strong>Associated Dataset:</strong> ${window.DOMUtils.escapeHtml(file.dataset.name)}`,
 			);
 		}
 
@@ -874,7 +874,7 @@ class ModalManager {
 					} else if (typeof value === "object") {
 						formattedValue = `<span style="color: #005a9c; font-family: monospace;">${JSON.stringify(value, null, 2)}</span>`;
 					} else {
-						formattedValue = ComponentUtils.escapeHtml(String(value));
+						formattedValue = window.DOMUtils.escapeHtml(String(value));
 					}
 
 					metadata.push(`<strong>${formattedKey}:</strong> ${formattedValue}`);
@@ -953,14 +953,243 @@ class ModalManager {
 					metadataContent.innerHTML = `
 						<div class="alert alert-warning mb-0">
 							<i class="bi bi-exclamation-triangle me-2"></i>
-							Failed to load metadata for ${ComponentUtils.escapeHtml(fileName)}.
-							<br><small>Error: ${ComponentUtils.escapeHtml(error.message)}</small>
+							Failed to load metadata for ${window.DOMUtils.escapeHtml(fileName)}.
+							<br><small>Error: ${window.DOMUtils.escapeHtml(error.message)}</small>
 						</div>
 					`;
 				}
 			}
 		} else {
 			fileMetadataSection.style.display = "none";
+		}
+	}
+
+	/**
+	 * Delegated document clicks → capture detail modal (replaces per-page CapturesTableManager wiring).
+	 * @param {ModalManager} modalManager
+	 * @returns {() => void} cleanup
+	 */
+	static attachDocumentCaptureClickDelegation(modalManager) {
+		const handler = (e) => {
+			if (
+				e.target.matches('[data-bs-toggle="dropdown"]') ||
+				e.target.closest('[data-bs-toggle="dropdown"]')
+			) {
+				return;
+			}
+			const selectors = [".capture-details-btn", ".capture-link", ".view-capture-btn"];
+			for (const sel of selectors) {
+				if (e.target.matches(sel) || e.target.closest(sel)) {
+					e.preventDefault();
+					const el = e.target.matches(sel) ? e.target : e.target.closest(sel);
+					modalManager?.openCaptureModal?.(el);
+					return;
+				}
+			}
+		};
+		document.addEventListener("click", handler);
+		return () => document.removeEventListener("click", handler);
+	}
+
+	/**
+	 * Files browser: capture modal + delegated row clicks + per-modal ShareActionManager.
+	 * @param {{ permissions: object }} options
+	 * @returns {() => void} cleanup
+	 */
+	static initFilesPageCaptureModals(options) {
+		const permConfig = options?.permissions;
+		const bound = [];
+
+		const modalManager = new ModalManager({
+			modalId: "capture-modal",
+			modalBodyId: "capture-modal-body",
+			modalTitleId: "capture-modal-label",
+		});
+		window.filesCaptureModalManager = modalManager;
+
+		const detachClicks =
+			typeof ModalManager.attachDocumentCaptureClickDelegation === "function"
+				? ModalManager.attachDocumentCaptureClickDelegation(modalManager)
+				: null;
+
+		if (!permConfig || !window.PermissionsManager || !window.ShareActionManager) {
+			return () => {
+				detachClicks?.();
+			};
+		}
+
+		const permissionsManager = new window.PermissionsManager(permConfig);
+
+		const uuidRegex =
+			/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+		const validTypes = new Set(["capture", "dataset", "file"]);
+
+		for (const modal of document.querySelectorAll(".modal[data-item-uuid]")) {
+			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
+			if (!itemUuid || !itemType || !uuidRegex.test(itemUuid) || !validTypes.has(itemType)) {
+				continue;
+			}
+
+			const shareManager = new window.ShareActionManager({
+				itemUuid,
+				itemType,
+				permissions: permissionsManager,
+			});
+			modal.shareActionManager = shareManager;
+
+			const onHidden = () => {
+				modal.shareActionManager?.clearSelections?.();
+			};
+			modal.addEventListener("hidden.bs.modal", onHidden);
+			bound.push({ modal, onHidden });
+		}
+
+		return () => {
+			detachClicks?.();
+			for (const { modal, onHidden } of bound) {
+				modal.removeEventListener("hidden.bs.modal", onHidden);
+			}
+		};
+	}
+
+	/**
+	 * Dispose/recreate Bootstrap Modal instances (dataset list full refresh).
+	 * @param {ParentNode} [root]
+	 */
+	static prepareBootstrapModalInstances(root = document) {
+		if (!window.bootstrap) return;
+		for (const modal of root.querySelectorAll(".modal")) {
+			const existingInstance = bootstrap.Modal.getInstance(modal);
+			if (existingInstance) {
+				try {
+					existingInstance.dispose();
+				} catch (e) {
+					console.warn("Failed to dispose modal instance:", e);
+				}
+			}
+			new bootstrap.Modal(modal, {
+				backdrop: true,
+				keyboard: true,
+				focus: true,
+			});
+		}
+	}
+
+	/**
+	 * @param {HTMLElement} element
+	 * @param {object} [options] Bootstrap Modal options
+	 * @returns {object | null}
+	 */
+	static getOrCreateBootstrapModal(element, options = {}) {
+		if (!element || !window.bootstrap?.Modal) return null;
+		let inst = bootstrap.Modal.getInstance(element);
+		if (!inst) inst = new bootstrap.Modal(element, options);
+		return inst;
+	}
+
+	/**
+	 * @param {HTMLElement} element
+	 * @param {object} [options]
+	 * @returns {object | null}
+	 */
+	static openModalElement(element, options = {}) {
+		const inst = ModalManager.getOrCreateBootstrapModal(element, options);
+		if (inst) inst.show();
+		return inst;
+	}
+
+	/** @param {HTMLElement | null} element */
+	static hideModalElement(element) {
+		if (!element || !window.bootstrap?.Modal) return;
+		const inst = bootstrap.Modal.getInstance(element);
+		if (inst) inst.hide();
+	}
+
+	/**
+	 * Share / versioning / details managers for dataset modals (list + edit pages).
+	 * @param {PermissionsManager|null} permissions
+	 * @param {unknown[]} managersOut
+	 */
+	static wireDatasetListModals(permissions, managersOut) {
+		ModalManager.prepareBootstrapModalInstances(document);
+
+		const datasetModals = document.querySelectorAll(
+			".modal[data-item-type='dataset']",
+		);
+
+		for (const modal of datasetModals) {
+			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
+
+			if (!itemUuid || !permissions) {
+				console.warn(
+					`No item UUID or permissions found for dataset modal: ${modal}`,
+				);
+				continue;
+			}
+
+			if (window.ShareActionManager) {
+				const shareManager = new window.ShareActionManager({
+					permissions,
+					itemUuid: itemUuid,
+					itemType: itemType,
+				});
+				managersOut.push(shareManager);
+				modal.shareActionManager = shareManager;
+			}
+
+			if (window.VersioningActionManager && !modal.versioningActionManager) {
+				const versioningManager = new window.VersioningActionManager({
+					permissions,
+					datasetUuid: itemUuid,
+				});
+				managersOut.push(versioningManager);
+				modal.versioningActionManager = versioningManager;
+			}
+
+			if (window.DetailsActionManager) {
+				const detailsManager = new window.DetailsActionManager({
+					permissions,
+					itemUuid: itemUuid,
+					itemType: itemType,
+				});
+				managersOut.push(detailsManager);
+				modal.detailsActionManager = detailsManager;
+			}
+		}
+	}
+
+	/**
+	 * Share managers for capture modals (capture list HTML refresh).
+	 * @param {PermissionsManager|null} permissions
+	 * @param {unknown[]} managersOut
+	 */
+	static wireCaptureListModals(permissions, managersOut) {
+		const captureModals = document.querySelectorAll(
+			".modal[data-item-type='capture']",
+		);
+
+		for (const modal of captureModals) {
+			const itemUuid = modal.getAttribute("data-item-uuid");
+			const itemType = modal.getAttribute("data-item-type");
+
+			if (!itemUuid || !permissions) {
+				console.warn(
+					`No item UUID or permissions found for capture modal: ${modal}`,
+				);
+				continue;
+			}
+
+			if (window.ShareActionManager) {
+				const shareManager = new window.ShareActionManager({
+					permissions,
+					itemUuid: itemUuid,
+					itemType: itemType,
+				});
+				managersOut.push(shareManager);
+				modal.shareActionManager = shareManager;
+			}
 		}
 	}
 }

@@ -5,6 +5,7 @@
 
 // Import the PageLifecycleManager class
 import { PageLifecycleManager } from "../PageLifecycleManager.js";
+import { ModalManager } from "../ModalManager.js";
 
 describe("PageLifecycleManager", () => {
 	let lifecycleManager;
@@ -239,6 +240,8 @@ describe("PageLifecycleManager", () => {
 		let mockBootstrapModal;
 
 		beforeEach(() => {
+			global.window.ModalManager = ModalManager;
+
 			// Mock Bootstrap
 			mockBootstrapModal = {
 				dispose: jest.fn(),

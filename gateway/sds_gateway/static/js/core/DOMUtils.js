@@ -66,6 +66,135 @@ class DOMUtils {
 	}
 
 	/**
+	 * Escape text for safe HTML interpolation (textContent round-trip).
+	 * @param {string} text
+	 * @returns {string}
+	 */
+	escapeHtml(text) {
+		if (!text) return "";
+		const div = document.createElement("div");
+		div.textContent = text;
+		return div.innerHTML;
+	}
+
+	formatDate(dateString) {
+		if (!dateString) return "<div>-</div>";
+
+		let date;
+		if (typeof dateString === "string") {
+			date = new Date(dateString);
+		} else {
+			date = new Date(dateString);
+		}
+
+		if (!date || Number.isNaN(date.getTime())) {
+			return "<div>-</div>";
+		}
+
+		const month = String(date.getMonth() + 1).padStart(2, "0");
+		const day = String(date.getDate()).padStart(2, "0");
+		const year = date.getFullYear();
+		const hours = date.getHours();
+		const minutes = String(date.getMinutes()).padStart(2, "0");
+		const seconds = String(date.getSeconds()).padStart(2, "0");
+		const ampm = hours >= 12 ? "PM" : "AM";
+		const displayHours = hours % 12 || 12;
+
+		return `<div>${month}/${day}/${year}</div><small class="text-muted">${displayHours}:${minutes}:${seconds} ${ampm}</small>`;
+	}
+
+	formatDateForModal(dateString) {
+		if (!dateString || dateString === "None") {
+			return "N/A";
+		}
+
+		try {
+			const date = new Date(dateString);
+			if (Number.isNaN(date.getTime())) {
+				return "N/A";
+			}
+
+			const year = date.getFullYear();
+			const month = String(date.getMonth() + 1).padStart(2, "0");
+			const day = String(date.getDate()).padStart(2, "0");
+			const dateFormatted = `${year}-${month}-${day}`;
+
+			const hours = String(date.getHours()).padStart(2, "0");
+			const minutes = String(date.getMinutes()).padStart(2, "0");
+			const seconds = String(date.getSeconds()).padStart(2, "0");
+			const timezone = date
+				.toLocaleTimeString("en-US", { timeZoneName: "short" })
+				.split(" ")[1];
+			const timeFormatted = `${hours}:${minutes}:${seconds} ${timezone}`;
+
+			return `<span class="bg-transparent pe-2">${dateFormatted}</span><span class="text-muted bg-transparent">${timeFormatted}</span>`;
+		} catch (error) {
+			console.error("Error formatting capture date:", error);
+			return "N/A";
+		}
+	}
+
+	formatDateSimple(dateString) {
+		try {
+			const date = new Date(dateString);
+			return date.toString() !== "Invalid Date"
+				? date.toLocaleDateString("en-US", {
+						month: "2-digit",
+						day: "2-digit",
+						year: "numeric",
+					})
+				: "";
+		} catch (_e) {
+			return "";
+		}
+	}
+
+	/**
+	 * Deduped error surface: console + optional toast (no legacy globals).
+	 * @param {string} message
+	 * @param {string} context
+	 * @param {Error|null} error
+	 */
+	showError(message, context = "", error = null) {
+		if (!this._notificationDedup) {
+			this._notificationDedup = new Set();
+		}
+		const messageKey = `${context}:${message}`;
+		if (this._notificationDedup.has(messageKey)) {
+			if (error) {
+				console.error(`[${context}]`, error);
+			}
+			return;
+		}
+		this._notificationDedup.add(messageKey);
+
+		if (error) {
+			console.error(`[${context}]`, {
+				message: error.message,
+				stack: error.stack,
+				userMessage: message,
+			});
+		} else {
+			console.warn(`[${context}]`, message);
+		}
+
+		void this.showAlert(message, "error");
+	}
+
+	getUserFriendlyErrorMessage(error, _context = "") {
+		if (!error) return "An unexpected error occurred";
+
+		if (error.name === "TypeError" && error.message.includes("Cannot read")) {
+			return "Configuration error: Some components are not properly loaded";
+		}
+		if (error.name === "ReferenceError") {
+			return "Component error: Required functionality is not available";
+		}
+
+		return error.message || "An unexpected error occurred";
+	}
+
+	/**
 	 * Show global toast notification
 	 * Renders toast using Django template toast.html
 	 * @param {string} message - Toast message
@@ -242,18 +371,45 @@ class DOMUtils {
 	}
 
 	/**
-	 * Refresh list
-	 * @param {string} itemType - Item type (dataset, file, capture)
+	 * Bootstrap icon action menus: dispose/recreate instances; global listeners once.
+	 * @param {ParentNode} [root]
 	 */
-	initializeListDropdowns() {
-		for (const toggle of document.querySelectorAll(".btn-icon-dropdown")) {
-			// Dispose existing dropdown if any
+	initIconDropdowns(root = document) {
+		if (typeof bootstrap === "undefined" || !bootstrap.Dropdown) {
+			return;
+		}
+
+		if (!this._iconDropdownShowDelegated) {
+			this._iconDropdownShowDelegated = true;
+			document.addEventListener("show.bs.dropdown", (e) => {
+				const toggle = e.target?.closest?.(".btn-icon-dropdown");
+				if (!toggle) return;
+				const dropdownMenu = toggle.nextElementSibling;
+				if (dropdownMenu?.classList.contains("dropdown-menu")) {
+					document.body.appendChild(dropdownMenu);
+				}
+			});
+		}
+
+		if (!this._dropdownStopRowClickBound) {
+			this._dropdownStopRowClickBound = true;
+			document.addEventListener("click", (event) => {
+				if (
+					event.target.closest(".dropdown") ||
+					event.target.closest(".btn-icon-dropdown") ||
+					event.target.closest(".dropdown-toggle") ||
+					event.target.closest(".dropdown-menu")
+				) {
+					event.stopPropagation();
+				}
+			});
+		}
+
+		for (const toggle of root.querySelectorAll(".btn-icon-dropdown")) {
 			const existing = bootstrap.Dropdown.getInstance(toggle);
 			if (existing) {
 				existing.dispose();
 			}
-
-			// Create new dropdown instance
 			new bootstrap.Dropdown(toggle, {
 				container: "body",
 				boundary: "viewport",
@@ -268,27 +424,14 @@ class DOMUtils {
 					],
 				},
 			});
-
-			// Manually move dropdown to body when shown
-			toggle.addEventListener("show.bs.dropdown", () => {
-				const dropdownMenu = toggle.nextElementSibling;
-				if (dropdownMenu?.classList.contains("dropdown-menu")) {
-					document.body.appendChild(dropdownMenu);
-				}
-			});
 		}
+	}
 
-		// Prevent row click when clicking on dropdown elements
-		document.addEventListener("click", (event) => {
-			if (
-				event.target.closest(".dropdown") ||
-				event.target.closest(".btn-icon-dropdown") ||
-				event.target.closest(".dropdown-toggle") ||
-				event.target.closest(".dropdown-menu")
-			) {
-				event.stopPropagation();
-			}
-		});
+	/**
+	 * @param {ParentNode} [root]
+	 */
+	initializeListDropdowns(root = document) {
+		this.initIconDropdowns(root);
 	}
 
 	/**
@@ -332,18 +475,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering error template:", error);
-			// Fallback based on format
-			if (context.format === "table") {
-				el.innerHTML = `<tr><td colspan="${context.colspan || 5}" class="text-center text-danger">${message}</td></tr>`;
-			} else if (context.format === "alert") {
-				// For alert format, use showAlert instead of creating alert directly
-				this.showAlert(message, "error");
-				return true;
-			} else if (context.format === "list") {
-				el.innerHTML = `<ul class="mb-0 list-unstyled"><li class="text-danger">${message}</li></ul>`;
-			} else {
-				el.innerHTML = `<span class="text-danger">${message}</span>`;
-			}
 			return false;
 		}
 	}
@@ -391,9 +522,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering loading template:", error);
-			// Fallback
-			const sizeClass = context.size === "sm" ? "spinner-border-sm" : "";
-			el.innerHTML = `<span class="spinner-border ${sizeClass} text-${context.color}" role="status"><span class="visually-hidden">${text}</span></span> ${text}`;
 			return false;
 		}
 	}
@@ -432,17 +560,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering content template:", error);
-			// Fallback
-			const iconHtml = options.icon
-				? `<i class="bi bi-${options.icon}${options.color ? ` text-${options.color}` : ""}"></i>`
-				: "";
-			const textHtml = options.text || "";
-			const spacing =
-				options.spacing !== false && iconHtml && textHtml ? " " : "";
-			el.innerHTML =
-				options.icon_position === "right"
-					? `${textHtml}${spacing}${iconHtml}`
-					: `${iconHtml}${spacing}${textHtml}`;
 			return false;
 		}
 	}
@@ -464,19 +581,27 @@ class DOMUtils {
 			return false;
 		}
 
+		const {
+			template = "users/components/table_rows.html",
+			empty_message = "No items found",
+			colspan,
+			empty_colspan,
+			...rest
+		} = options;
+
 		const context = {
 			rows: rows,
-			empty_message: options.empty_message || "No items found",
-			empty_colspan: options.colspan || options.empty_colspan || 5,
-			...options,
+			empty_message,
+			empty_colspan: colspan || empty_colspan || 5,
+			...rest,
 		};
 
 		try {
 			const response = await window.APIClient.post(
 				"/users/render-html/",
 				{
-					template: "users/components/table_rows.html",
-					context: context,
+					template,
+					context,
 				},
 				null,
 				true,
@@ -489,8 +614,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering table template:", error);
-			// Fallback
-			el.innerHTML = `<tr><td colspan="${context.empty_colspan}" class="text-center text-muted">${context.empty_message}</td></tr>`;
 			return false;
 		}
 	}
@@ -550,13 +673,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering select options template:", error);
-			// Fallback
-			el.innerHTML = formattedChoices
-				.map(
-					(choice) =>
-						`<option value="${choice.value}"${choice.selected ? " selected" : ""}>${choice.label}</option>`,
-				)
-				.join("");
 			return false;
 		}
 	}
@@ -622,8 +738,6 @@ class DOMUtils {
 			return false;
 		} catch (error) {
 			console.error("Error rendering pagination template:", error);
-			// Fallback: show nothing rather than broken pagination
-			el.innerHTML = "";
 			return false;
 		}
 	}
@@ -658,16 +772,7 @@ class DOMUtils {
 			return null;
 		} catch (error) {
 			console.error("Error rendering dropdown template:", error);
-			// Fallback to basic dropdown
-			const items = context.items
-				.map((item) => {
-					const icon = item.icon
-						? `<i class="bi bi-${item.icon} me-1"></i>`
-						: "";
-					return `<li><button type="button" class="dropdown-item">${icon}${item.label}</button></li>`;
-				})
-				.join("");
-			return `<div class="dropdown"><button class="btn ${context.button_class} dropdown-toggle" type="button" data-bs-toggle="dropdown"><i class="bi bi-${context.button_icon}"></i></button><ul class="dropdown-menu">${items}</ul></div>`;
+			return null;
 		}
 	}
 }

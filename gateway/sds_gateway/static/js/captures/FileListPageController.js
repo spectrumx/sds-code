@@ -52,26 +52,11 @@ function ensureFileListConfig() {
 	};
 }
 
-function ensureFileListCapturesTableManager() {
-	if (typeof window === "undefined") return;
-	if (window.FileListCapturesTableManager) return;
-
-	if (typeof require !== "undefined") {
-		try {
-			// eslint-disable-next-line global-require, import/no-dynamic-require
-			const mod = require("./FileListCapturesTableManager.js");
-			if (mod?.FileListCapturesTableManager) {
-				window.FileListCapturesTableManager = mod.FileListCapturesTableManager;
-			}
-		} catch (_) {}
-	}
-}
-
 class FileListPageController extends (PageControllerBase || class {}) {
 	constructor() {
 		super();
 		ensureFileListConfig();
-		ensureFileListCapturesTableManager();
+		this.selectedCaptureIds = new Set();
 		this.userInteractedWithFrequency = false;
 		this.urlParams = new URLSearchParams(window.location.search);
 		this.currentSortBy =
@@ -89,9 +74,6 @@ class FileListPageController extends (PageControllerBase || class {}) {
 			this.initializeEventHandlers();
 			this.initializeFromURL();
 		}
-
-		// Initial setup (sorting handled by TableManager)
-		this.tableManager.attachRowClickHandlers();
 
 		// Initialize dropdowns for any existing static dropdowns
 		this.initializeDropdowns();
@@ -128,35 +110,43 @@ class FileListPageController extends (PageControllerBase || class {}) {
 	 * Initialize component managers
 	 */
 	initializeComponents() {
+		if (window.__FILE_LIST_PAGE_LIFECYCLE__ && !window.pageLifecycleManager) {
+			window.pageLifecycleManager = new PageLifecycleManager(
+				window.__FILE_LIST_PAGE_LIFECYCLE__,
+			);
+		}
+
+		if (!window.listRefreshManager && window.ListRefreshManager) {
+			const lr = window.__FILE_LIST_LIST_REFRESH__ || {};
+			window.listRefreshManager = new ListRefreshManager({
+				containerSelector: lr.containerSelector || "#capture-list-ajax-wrapper",
+				modalsContainerSelector:
+					lr.modalsContainerSelector || "#capture-list-modals-container",
+				url: lr.url || window.location.pathname,
+				itemType: lr.itemType || "capture",
+			});
+		}
+		this.listRefreshManager = window.listRefreshManager;
+
 		this.modalManager = new ModalManager({
 			modalId: "capture-modal",
 			modalBodyId: "capture-modal-body",
 			modalTitleId: "capture-modal-label",
 		});
 
-		this.tableManager = new window.FileListCapturesTableManager({
-			tableId: "captures-table",
-			tableContainerSelector: ".table-responsive",
-			resultsCountId: "results-count",
-			modalHandler: this.modalManager,
-			onSelectionChange: () => this.syncBulkAddToDatasetButton(),
-			// Keep current UX: clicking sort headers navigates (server-rendered sort)
-			sortBehavior: "reload",
-		});
+		if (typeof ModalManager.attachDocumentCaptureClickDelegation === "function") {
+			this._detachCaptureClicks =
+				ModalManager.attachDocumentCaptureClickDelegation(this.modalManager);
+		}
 
 		this.searchManager = new SearchManager({
 			searchInputId: window.FileListConfig.ELEMENT_IDS.SEARCH_INPUT,
 			searchButtonId: "search-btn",
 			clearButtonId: "reset-search-btn",
 			searchFormId: "search-form",
-			onSearchStart: () => this.tableManager.showLoading(),
-			onSearch: (query, signal) => this.performSearch(signal),
+			onSearchStart: () => {},
+			onSearch: (_query, signal) => this.performSearch(signal),
 			debounceDelay: window.FileListConfig.DEBOUNCE_DELAY,
-		});
-
-		this.paginationManager = new PaginationManager({
-			containerId: "captures-pagination",
-			onPageChange: (page) => this.handlePageChange(page),
 		});
 	}
 
@@ -168,13 +158,76 @@ class FileListPageController extends (PageControllerBase || class {}) {
 		this.initializeFrequencyHandling();
 		this.initializeItemsPerPageHandler();
 		this.initializeAddToDatasetButton();
+		this.initializeCaptureSelectionDelegation();
 	}
 
 	destroy() {
 		try {
-			this.tableManager?.destroy?.();
+			this._detachCaptureClicks?.();
 		} catch (_) {}
+		if (this._checkboxChangeHandler) {
+			document.removeEventListener("change", this._checkboxChangeHandler);
+			this._checkboxChangeHandler = null;
+		}
+		if (this._rowClickHandler && this._selectionTable) {
+			this._selectionTable.removeEventListener(
+				"click",
+				this._rowClickHandler,
+				true,
+			);
+			this._rowClickHandler = null;
+			this._selectionTable = null;
+		}
 		super.destroy();
+	}
+
+	/**
+	 * Selection-mode checkboxes + row toggles (server-rendered table; survives list HTML refresh).
+	 */
+	initializeCaptureSelectionDelegation() {
+		this._checkboxChangeHandler = (e) => {
+			if (!e.target.matches(".capture-select-checkbox")) return;
+			const uuid = e.target.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			if (e.target.checked) {
+				this.selectedCaptureIds.add(uuid);
+			} else {
+				this.selectedCaptureIds.delete(uuid);
+			}
+			this.syncBulkAddToDatasetButton();
+		};
+		document.addEventListener("change", this._checkboxChangeHandler);
+
+		const table = document.getElementById("captures-table");
+		if (!table) return;
+		this._selectionTable = table;
+		this._rowClickHandler = (e) => {
+			if (!table.classList.contains("selection-mode-active")) return;
+			if (
+				e.target.closest(
+					"button, a, [data-bs-toggle='dropdown'], .capture-select-checkbox",
+				)
+			) {
+				return;
+			}
+			const row = e.target.closest("tr");
+			if (!row) return;
+			const checkbox = row.querySelector(".capture-select-checkbox");
+			if (!checkbox) return;
+			const uuid = checkbox.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			if (this.selectedCaptureIds.has(uuid)) {
+				this.selectedCaptureIds.delete(uuid);
+				checkbox.checked = false;
+			} else {
+				this.selectedCaptureIds.add(uuid);
+				checkbox.checked = true;
+			}
+			this.syncBulkAddToDatasetButton();
+			e.preventDefault();
+			e.stopPropagation();
+		};
+		table.addEventListener("click", this._rowClickHandler, true);
 	}
 
 	/**
@@ -241,17 +294,14 @@ class FileListPageController extends (PageControllerBase || class {}) {
 		mainBtn?.setAttribute("aria-pressed", "false");
 		modeButtonsWrap?.classList.add("d-none");
 
-		// Uncheck all visible checkboxes and clear the tracked set
-		if (this.tableManager) {
-			for (const uuid of this.tableManager.selectedCaptureIds) {
-				const cb = document.querySelector(
-					`.capture-select-checkbox[data-capture-uuid="${uuid}"]`,
-				);
-				if (cb) cb.checked = false;
-			}
-			this.tableManager.selectedCaptureIds.clear();
-			this.syncBulkAddToDatasetButton();
+		for (const uuid of this.selectedCaptureIds) {
+			const cb = document.querySelector(
+				`.capture-select-checkbox[data-capture-uuid="${uuid}"]`,
+			);
+			if (cb) cb.checked = false;
 		}
+		this.selectedCaptureIds.clear();
+		this.syncBulkAddToDatasetButton();
 	}
 
 	/**
@@ -263,7 +313,7 @@ class FileListPageController extends (PageControllerBase || class {}) {
 		if (!addBtn || !table?.classList.contains("selection-mode-active")) {
 			return;
 		}
-		const n = this.tableManager?.selectedCaptureIds?.size ?? 0;
+		const n = this.selectedCaptureIds?.size ?? 0;
 		addBtn.disabled = n === 0;
 		addBtn.title =
 			n === 0
@@ -306,74 +356,55 @@ class FileListPageController extends (PageControllerBase || class {}) {
 	 * Build search parameters from form inputs
 	 */
 	buildSearchParams() {
-		const searchParams = new URLSearchParams();
+		const searchParams = new URLSearchParams(window.location.search);
 
 		const searchQuery = this.elements.searchInput?.value.trim() || "";
 		const startDate = this.elements.startDate?.value || "";
 		let endDate = this.elements.endDate?.value || "";
 
-		// If end date is set, include the full day
-		if (endDate) {
-			endDate = `${endDate}T23:59:59`;
+		if (searchQuery) {
+			searchParams.set("search", searchQuery);
+		} else {
+			searchParams.delete("search");
 		}
 
-		// Add search parameters
-		if (searchQuery) searchParams.set("search", searchQuery);
-		if (startDate) searchParams.set("date_start", startDate);
-		if (endDate) searchParams.set("date_end", endDate);
+		if (startDate) {
+			searchParams.set("date_start", startDate);
+		} else {
+			searchParams.delete("date_start");
+		}
 
-		// Only add frequency parameters if user has explicitly interacted
+		if (endDate) {
+			searchParams.set("date_end", `${endDate}T23:59:59`);
+		} else {
+			searchParams.delete("date_end");
+		}
+
 		if (this.userInteractedWithFrequency) {
 			if (this.elements.centerFreqMin?.value) {
 				searchParams.set("min_freq", this.elements.centerFreqMin.value);
+			} else {
+				searchParams.delete("min_freq");
 			}
 			if (this.elements.centerFreqMax?.value) {
 				searchParams.set("max_freq", this.elements.centerFreqMax.value);
+			} else {
+				searchParams.delete("max_freq");
 			}
+		}
+
+		if (this.elements.itemsPerPage?.value) {
+			searchParams.set("items_per_page", this.elements.itemsPerPage.value);
 		}
 
 		searchParams.set("sort_by", this.currentSortBy);
 		searchParams.set("sort_order", this.currentSortOrder);
 
+		if (!searchParams.get("page")) {
+			searchParams.set("page", "1");
+		}
+
 		return searchParams;
-	}
-
-	/**
-	 * Execute search API call
-	 */
-	async executeSearch(searchParams, signal) {
-		const apiUrl = `${window.location.pathname.replace(/\/$/, "")}/api/?${searchParams.toString()}`;
-
-		const response = await fetch(apiUrl, {
-			method: "GET",
-			headers: {
-				Accept: "application/json",
-			},
-			credentials: "same-origin",
-			signal: signal,
-		});
-
-		if (!response.ok) {
-			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-		}
-
-		const text = await response.text();
-		try {
-			return JSON.parse(text);
-		} catch {
-			throw new Error("Invalid JSON response from server");
-		}
-	}
-
-	/**
-	 * Update UI with search results
-	 */
-	updateUI(data) {
-		if (data.error) {
-			throw new Error(`Server error: ${data.error}`);
-		}
-
-		this.tableManager.updateTable(data.captures || [], data.has_results);
 	}
 
 	/**
@@ -388,14 +419,17 @@ class FileListPageController extends (PageControllerBase || class {}) {
 	 * Main search function - now broken down into smaller methods
 	 */
 	async performSearch(signal) {
+		void signal;
 		try {
 			const startTime = Date.now();
-			this.tableManager.showLoading();
-
 			const searchParams = this.buildSearchParams();
-			const data = await this.executeSearch(searchParams, signal);
+			const params = Object.fromEntries(searchParams.entries());
 
-			// Ensure minimum loading time is displayed
+			await this.listRefreshManager.loadTable(params, {
+				showLoading: true,
+				loadingMessage: "Loading captures...",
+			});
+
 			const elapsedTime = Date.now() - startTime;
 			if (elapsedTime < window.FileListConfig.MIN_LOADING_TIME) {
 				await new Promise((resolve) =>
@@ -403,19 +437,14 @@ class FileListPageController extends (PageControllerBase || class {}) {
 				);
 			}
 
-			this.updateUI(data);
 			this.updateBrowserHistory(searchParams);
 		} catch (error) {
-			// Don't show error if request was aborted (user issued a new search)
 			if (error.name === "AbortError") {
 				console.log("Previous search request was cancelled");
 				return;
 			}
 
 			console.error("Search error:", error);
-			this.tableManager.showError(`Search failed: ${error.message}`);
-		} finally {
-			this.tableManager.hideLoading();
 		}
 	}
 
@@ -610,9 +639,7 @@ class FileListPageController extends (PageControllerBase || class {}) {
 	 * Initialize dropdowns with body container for proper positioning
 	 */
 	initializeDropdowns() {
-		if (window.DropdownUtils) {
-			window.DropdownUtils.initIconDropdowns(document);
-		}
+		window.DOMUtils?.initIconDropdowns(document);
 	}
 }
 

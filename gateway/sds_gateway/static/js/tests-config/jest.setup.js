@@ -280,7 +280,8 @@ global.window.hideToast = jest.fn();
 
 const { AuthorsManager } = require("../dataset/AuthorsManager.js");
 const { UserSearchDropdown } = require("../share/UserSearchDropdown.js");
-const { ChunkUploadPipeline } = require("../upload/ChunkUploadPipeline.js");
+const { UploadUtils } = require("../upload/UploadUtils.js");
 global.window.AuthorsManager = AuthorsManager;
 global.window.UserSearchDropdown = UserSearchDropdown;
-global.window.ChunkUploadPipeline = ChunkUploadPipeline;
+global.window.UploadUtils = UploadUtils;
+global.window.ChunkUploadPipeline = UploadUtils;

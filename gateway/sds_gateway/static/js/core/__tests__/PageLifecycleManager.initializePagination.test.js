@@ -2,14 +2,9 @@
  * PageLifecycleManager.initializePagination: server-rendered pagination links
  * update the page query (same behavior users rely on post-refactor).
  */
-const { PaginationManager } = require("../PaginationManager.js");
 const { PageLifecycleManager } = require("../PageLifecycleManager.js");
 
 describe("PageLifecycleManager.initializePagination", () => {
-	beforeAll(() => {
-		window.PaginationManager = PaginationManager;
-	});
-
 	beforeEach(() => {
 		document.body.innerHTML = "";
 		window.history.replaceState({}, "", "http://localhost/files/?page=1&q=stay");

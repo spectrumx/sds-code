@@ -406,15 +406,12 @@ describe("DOMUtils", () => {
 			);
 
 			test.each([
-				["inline", {}, '<span class="text-danger">Error message</span>'],
-				[
-					"table",
-					{ format: "table", colspan: 5 },
-					'<tr><td colspan="5" class="text-center text-danger">Error message</td></tr>',
-				],
+				["inline", {}],
+				["table", { format: "table", colspan: 5 }],
 			])(
-				"should fallback to %s HTML on API error",
-				async (formatName, options, expectedHtml) => {
+				"returns false on API error (%s) without mutating container",
+				async (_formatName, options) => {
+					mockContainer.innerHTML = "<p>prior</p>";
 					mockAPIClient.post.mockRejectedValue(new Error("API error"));
 					console.error = jest.fn();
 
@@ -424,7 +421,7 @@ describe("DOMUtils", () => {
 						options,
 					);
 
-					expect(mockContainer.innerHTML).toBe(expectedHtml);
+					expect(mockContainer.innerHTML).toBe("<p>prior</p>");
 					expect(result).toBe(false);
 				},
 			);
@@ -710,9 +707,23 @@ describe("DOMUtils", () => {
 							rows: [],
 							empty_message: "No data",
 							empty_colspan: 3,
-							colspan: 3,
 						},
 					},
+					null,
+					true,
+				);
+			});
+
+			test("should honor options.template", async () => {
+				mockAPIClient.post.mockResolvedValue({ html: "<tr></tr>" });
+				await domUtils.renderTable(mockContainer, [], {
+					template: "users/components/other_rows.html",
+				});
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					expect.objectContaining({
+						template: "users/components/other_rows.html",
+					}),
 					null,
 					true,
 				);
@@ -962,14 +973,10 @@ describe("DOMUtils", () => {
 					"renderError",
 					async (container) =>
 						await domUtils.renderError(container, "Error message"),
-					'<span class="text-danger">Error message</span>',
-					true, // use toBe
 				],
 				[
 					"renderLoading",
 					async (container) => await domUtils.renderLoading(container),
-					"spinner-border",
-					false, // use toContain
 				],
 				[
 					"renderContent",
@@ -978,14 +985,10 @@ describe("DOMUtils", () => {
 							icon: "check",
 							text: "Success",
 						}),
-					"bi-check",
-					false, // use toContain
 				],
 				[
 					"renderTable",
 					async (container) => await domUtils.renderTable(container, []),
-					"No items found",
-					false, // use toContain
 				],
 				[
 					"renderSelectOptions",
@@ -993,8 +996,6 @@ describe("DOMUtils", () => {
 						await domUtils.renderSelectOptions(container, [
 							["value1", "Label 1"],
 						]),
-					"value1",
-					false, // use toContain
 				],
 				[
 					"renderPagination",
@@ -1005,22 +1006,17 @@ describe("DOMUtils", () => {
 							has_previous: false,
 							has_next: true,
 						}),
-					"",
-					true, // use toBe
 				],
 			])(
-				"should fallback on API error for %s",
-				async (methodName, renderFn, expectedContent, useExactMatch) => {
+				"returns false on API error for %s without mutating container",
+				async (methodName, renderFn) => {
+					mockContainer.innerHTML = "<p>prior</p>";
 					mockAPIClient.post.mockRejectedValue(new Error("API error"));
 					console.error = jest.fn();
 
 					const result = await renderFn(mockContainer);
 
-					if (useExactMatch) {
-						expect(mockContainer.innerHTML).toBe(expectedContent);
-					} else {
-						expect(mockContainer.innerHTML).toContain(expectedContent);
-					}
+					expect(mockContainer.innerHTML).toBe("<p>prior</p>");
 					expect(result).toBe(false);
 				},
 			);
@@ -1302,7 +1298,9 @@ describe("DOMUtils", () => {
 				mockToggle = {
 					nextElementSibling: mockDropdownMenu,
 					dataset: {},
-					addEventListener: jest.fn(),
+					closest: jest.fn((sel) =>
+						sel === ".btn-icon-dropdown" ? mockToggle : null,
+					),
 				};
 
 				global.document.querySelectorAll = jest.fn((selector) => {
@@ -1364,13 +1362,12 @@ describe("DOMUtils", () => {
 			test("should move dropdown menu to body on show", () => {
 				domUtils.initializeListDropdowns();
 
-				// Simulate show.bs.dropdown event
-				const showHandler = mockToggle.addEventListener.mock.calls.find(
+				const showHandler = global.document.addEventListener.mock.calls.find(
 					(call) => call[0] === "show.bs.dropdown",
 				)?.[1];
 
 				if (showHandler) {
-					showHandler();
+					showHandler({ target: mockToggle });
 					expect(global.document.bodyAppendChildSpy).toHaveBeenCalledWith(
 						mockDropdownMenu,
 					);
