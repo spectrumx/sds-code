@@ -2,9 +2,9 @@
  * @jest-environment jsdom
  */
 
-const { ChunkUploadPipeline } = require("../ChunkUploadPipeline.js");
+const { UploadUtils } = require("../UploadUtils.js");
 
-describe("ChunkUploadPipeline", () => {
+describe("UploadUtils", () => {
 	beforeEach(() => {
 		document.body.innerHTML = "";
 	});
@@ -18,7 +18,7 @@ describe("ChunkUploadPipeline", () => {
 		Object.defineProperty(files[0], "size", { value: 6 });
 		Object.defineProperty(files[1], "size", { value: 6 });
 
-		expect(ChunkUploadPipeline.calculateTotalChunks(files, chunkSize)).toBe(2);
+		expect(UploadUtils.calculateTotalChunks(files, chunkSize)).toBe(2);
 	});
 
 	test("calculateTotalChunks splits oversized single file", () => {
@@ -28,7 +28,7 @@ describe("ChunkUploadPipeline", () => {
 		];
 		Object.defineProperty(files[0], "size", { value: 100 });
 
-		expect(ChunkUploadPipeline.calculateTotalChunks(files, chunkSize)).toBe(1);
+		expect(UploadUtils.calculateTotalChunks(files, chunkSize)).toBe(1);
 	});
 
 	test("appendCaptureTypeToFormData reads modal fields", () => {
@@ -38,7 +38,7 @@ describe("ChunkUploadPipeline", () => {
 			<input id="captureScanGroupInput" value="" />
 		`;
 		const fd = new FormData();
-		ChunkUploadPipeline.appendCaptureTypeToFormData(fd);
+		UploadUtils.appendCaptureTypeToFormData(fd);
 		expect(fd.get("capture_type")).toBe("drf");
 		expect(fd.get("channels")).toBe("ch1,ch2");
 	});
@@ -50,7 +50,7 @@ describe("ChunkUploadPipeline", () => {
 			<input id="captureScanGroupInput" value="sg-1" />
 		`;
 		const fd = new FormData();
-		ChunkUploadPipeline.appendCaptureTypeToFormData(fd);
+		UploadUtils.appendCaptureTypeToFormData(fd);
 		expect(fd.get("capture_type")).toBe("rh");
 		expect(fd.get("scan_group")).toBe("sg-1");
 	});

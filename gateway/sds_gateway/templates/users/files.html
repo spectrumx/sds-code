@@ -512,23 +512,14 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
-    <script src="{% static 'js/core/FormatUtils.js' %}"></script>
-    <script src="{% static 'js/core/ComponentUtils.js' %}"></script>
-    <script src="{% static 'js/core/TableManager.js' %}"></script>
     <script src="{% static 'js/core/ModalManager.js' %}"></script>
-    <script src="{% static 'js/core/PaginationManager.js' %}"></script>
     <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
-    <script src="{% static 'js/captures/CapturesTableManager.js' %}"></script>
-    <script src="{% static 'js/core/DropdownUtils.js' %}"></script>
-    <script src="{% static 'js/core/NotificationUtils.js' %}"></script>
-    <script src="{% static 'js/core/BrowserSupport.js' %}"></script>
-    <script src="{% static 'js/core/GatewayChrome.js' %}"></script>
     <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
-    <script src="{% static 'js/upload/FileDropManager.js' %}"></script>
-    <script src="{% static 'js/upload/FileManager.js' %}?v=9"></script>
-    <!-- Load the WASM library for BLAKE3 hashing -->
+    <!-- BLAKE3 (hash-wasm) for capture duplicate checks; load before upload bundle -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <script src="{% static 'js/upload/UploadUtils.js' %}"></script>
+    <script src="{% static 'js/upload/UploadManager.js' %}?v=10"></script>
     <!-- Prism.js for syntax highlighting -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markup.min.js"></script>
@@ -567,12 +558,57 @@
         window.uploadFilesUrl = window.filesConfig.urls.uploadFiles;
         window.csrfToken = window.filesConfig.csrfToken;
     </script>
-    <script src="{% static 'js/upload/Blake3FileHandler.js' %}"></script>
-    <script src="{% static 'js/upload/ChunkUploadPipeline.js' %}"></script>
-    <script src="{% static 'js/upload/FilesUploadModal.js' %}"></script>
-    <script src="{% static 'js/upload/FilesCaptureUploadBootstrap.js' %}"></script>
-    <script src="{% static 'js/upload/CaptureTypeSelector.js' %}"></script>
-    <script src="{% static 'js/upload/FilesPageInitializer.js' %}"></script>
-    <script src="{% static 'js/upload/FileUploadHandler.js' %}"></script>
-    <script src="{% static 'js/upload/FilesPageBootstrap.js' %}"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const key = "filesAlert";
+            const stored = sessionStorage.getItem(key);
+            if (stored) {
+                try {
+                    const data = JSON.parse(stored);
+                    if (window.components?.showError && data?.type === "error") {
+                        window.components.showError(data.message || "An error occurred.");
+                    } else if (window.components?.showSuccess && data?.type === "success") {
+                        window.components.showSuccess(data.message || "Success");
+                    }
+                } catch (_) {}
+                sessionStorage.removeItem(key);
+            }
+
+            try {
+                const needsFilesCaptureModals =
+                    document.querySelector(".modal[data-item-uuid]") ||
+                    document.getElementById("capture-modal");
+
+                let filesCaptureModalsCleanup = null;
+                if (needsFilesCaptureModals && window.ModalManager?.initFilesPageCaptureModals) {
+                    filesCaptureModalsCleanup = window.ModalManager.initFilesPageCaptureModals({
+                        permissions: window.filesSharePagePermissions,
+                    });
+                }
+
+                window.filesUICleanup = function() {
+                    const captureSelector = window.captureTypeSelectorInstance;
+                    if (captureSelector && typeof captureSelector.cleanup === "function") {
+                        captureSelector.cleanup();
+                    }
+                    if (typeof filesCaptureModalsCleanup === "function") {
+                        filesCaptureModalsCleanup();
+                    }
+                    const fileUploadHandler = window.fileUploadHandlerInstance;
+                    if (
+                        fileUploadHandler &&
+                        typeof fileUploadHandler.cleanup === "function"
+                    ) {
+                        fileUploadHandler.cleanup();
+                    }
+                };
+            } catch (error) {
+                window.DOMUtils?.showError(
+                    "Failed to initialize Files UI components",
+                    "initialization",
+                    error,
+                );
+            }
+        });
+    </script>
 {% endblock javascript %}

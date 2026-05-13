@@ -4,7 +4,7 @@
 
 const {
 	UploadCaptureModalController,
-} = require("../UploadCaptureModalController.js");
+} = require("../UploadManager.js");
 
 describe("UploadCaptureModalController — getCSRFToken", () => {
 	test("prefers new APIClient().getCSRFToken()", () => {

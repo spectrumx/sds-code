@@ -46,6 +46,25 @@ class PageController {
 		this.initializeFromURL();
 	}
 
+	/**
+	 * Shared list-page bootstrap (dataset list, capture list, etc.).
+	 * @param {{ pageLifecycleConfig?: object, listRefreshConfig?: object }} opts
+	 */
+	static initListPage(opts = {}) {
+		if (typeof window === "undefined") return;
+		const { pageLifecycleConfig, listRefreshConfig } = opts;
+		if (pageLifecycleConfig && window.PageLifecycleManager) {
+			window.pageLifecycleManager = new window.PageLifecycleManager(
+				pageLifecycleConfig,
+			);
+		}
+		if (listRefreshConfig && window.ListRefreshManager) {
+			window.listRefreshManager = new window.ListRefreshManager(
+				listRefreshConfig,
+			);
+		}
+	}
+
 	// Hooks (override in subclasses)
 	cacheElements() {}
 	initializeComponents() {}

@@ -1,7 +1,6 @@
 /**
  * Behavioral contract: table header sort updates the URL the same way
- * deprecated/components.js TableManager did; core/TableManager preserves
- * that for sortBehavior "pushState" and adds "reload" / "callback".
+ * deprecated/components.js TableManager did (pushState).
  *
  * Uses the default Jest jsdom document/window. Swaps in the real URL /
  * URLSearchParams implementations because jest.setup.js provides a minimal
@@ -74,111 +73,6 @@ describe("table sort URL behavior", () => {
 			expect(pushed).toMatch(/sort_by=name/);
 			expect(pushed).toMatch(/sort_order=asc/);
 			expect(pushed).toMatch(/page=1/);
-		});
-	});
-
-	describe("core/TableManager.js — pushState + callback", () => {
-		let CoreTableManager;
-
-		beforeAll(() => {
-			// eslint-disable-next-line global-require
-			const { ComponentUtils } = require("../core/ComponentUtils.js");
-			window.ComponentUtils = ComponentUtils;
-		});
-
-		beforeEach(() => {
-			mountSortPage({ sort_by: "created_at", sort_order: "desc" });
-			jest.resetModules();
-			// eslint-disable-next-line global-require
-			({ TableManager: CoreTableManager } = require("../core/TableManager.js"));
-			jest.spyOn(window.history, "pushState");
-		});
-
-		afterEach(() => {
-			jest.restoreAllMocks();
-			document.body.innerHTML = "";
-		});
-
-		test("default sortBehavior matches deprecated (pushState)", () => {
-			// eslint-disable-next-line no-new
-			new CoreTableManager({
-				tableId: "tm-table",
-				loadingIndicatorId: "tm-loading",
-				paginationContainerId: "tm-pag",
-			});
-			document.querySelector("th.sortable").click();
-			const pushed = window.history.pushState.mock.calls.at(-1)[2];
-			expect(pushed).toMatch(/sort_by=name/);
-			expect(pushed).toMatch(/sort_order=asc/);
-			expect(pushed).toMatch(/page=1/);
-		});
-
-		test("sortBehavior callback invokes onSortChange instead of history or location", () => {
-			const onSortChange = jest.fn();
-			// eslint-disable-next-line no-new
-			new CoreTableManager({
-				tableId: "tm-table",
-				loadingIndicatorId: "tm-loading",
-				paginationContainerId: "tm-pag",
-				sortBehavior: "callback",
-				onSortChange,
-			});
-			document.querySelector("th.sortable").click();
-			expect(onSortChange).toHaveBeenCalledWith({
-				sort_by: "name",
-				sort_order: "asc",
-				page: "1",
-			});
-			expect(window.history.pushState).not.toHaveBeenCalled();
-		});
-	});
-
-	describe("core/TableManager.js — sortBehavior reload (isolated)", () => {
-		beforeAll(() => {
-			// eslint-disable-next-line global-require
-			const { ComponentUtils } = require("../core/ComponentUtils.js");
-			window.ComponentUtils = ComponentUtils;
-		});
-
-		afterEach(() => {
-			jest.restoreAllMocks();
-			document.body.innerHTML = "";
-			try {
-				delete window.location;
-			} catch (_) {
-				/* jsdom */
-			}
-		});
-
-		test("sortBehavior reload assigns location.search with encoded params", () => {
-			mountSortPage({ sort_by: "created_at", sort_order: "desc" });
-			let query = "sort_by=created_at&sort_order=desc";
-			Object.defineProperty(window, "location", {
-				configurable: true,
-				value: {
-					pathname: "/captures/",
-					get search() {
-						return query ? `?${query}` : "";
-					},
-					set search(v) {
-						query = String(v).replace(/^\?/, "");
-					},
-				},
-			});
-			jest.resetModules();
-			// eslint-disable-next-line global-require
-			const { TableManager: ReloadTableManager } = require("../core/TableManager.js");
-			// eslint-disable-next-line no-new
-			new ReloadTableManager({
-				tableId: "tm-table",
-				loadingIndicatorId: "tm-loading",
-				paginationContainerId: "tm-pag",
-				sortBehavior: "reload",
-			});
-			document.querySelector("th.sortable").click();
-			expect(query).toMatch(/sort_by=name/);
-			expect(query).toMatch(/sort_order=asc/);
-			expect(query).toMatch(/page=1/);
 		});
 	});
 });
