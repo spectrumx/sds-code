@@ -806,11 +806,17 @@ def test_list_files_temporal_rf_inclusive_range_multiple_chunks(
     rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
     start = datetime.fromtimestamp(1719499740, tz=UTC)
     end = datetime.fromtimestamp(1719499742, tz=UTC)
+    # The DRF sample data has 16 files across 2 seconds at 125ms intervals.
+    # All of them fall within the inclusive range [1719499740, 1719499742].
+    drf_millis = range(0, 1000, 125)
     expected = {
-        "rf@1719499740.000.h5",
-        "rf@1719499741.000.h5",
-        "rf@1719499742.000.h5",
+        f"rf@{second}.{millis:03d}.h5"
+        for second in (1719499740, 1719499741)
+        for millis in drf_millis
     }
+    assert len(expected) == DRF_SAMPLE_RF_CHUNK_COUNT, (
+        f"Expected {DRF_SAMPLE_RF_CHUNK_COUNT} RF chunks, computed {len(expected)}"
+    )
     narrow_rf = {
         f.name
         for f in integration_client.list_files(
@@ -853,7 +859,13 @@ def test_download_respects_temporal_rf_window(
     rf_dir = cap_data.capture_top_level / drf_channel / "2024-06-27T14-00-00"
     start = datetime.fromtimestamp(1719499740, tz=UTC)
     end = datetime.fromtimestamp(1719499741, tz=UTC)
-    expected_names = {"rf@1719499740.000.h5", "rf@1719499741.000.h5"}
+    # Files in [1719499740, 1719499741]: all 8 files from second 0 (125ms steps)
+    # plus rf@1719499741.000.h5 at the inclusive end boundary.
+    # Sub-second files at 1719499741.125+ are beyond end and excluded.
+    drf_millis = range(0, 1000, 125)
+    expected_names = {f"rf@1719499740.{millis:03d}.h5" for millis in drf_millis} | {
+        "rf@1719499741.000.h5"
+    }
 
     download_dir = tmp_path / "drf_partial"
     results = integration_client.download(
