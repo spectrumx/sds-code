@@ -785,6 +785,7 @@ def test_list_files_temporal_rf_narrows_digital_rf_chunks(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -829,6 +830,7 @@ def test_list_files_temporal_rf_inclusive_range_multiple_chunks(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_content_download(),
@@ -878,6 +880,7 @@ def test_download_respects_temporal_rf_window(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
         ]
@@ -922,6 +925,7 @@ def test_list_files_temporal_non_rf_directory_warns(
     "_without_responses",
     argvalues=[
         [
+            *PassthruEndpoints.authentication(),
             *PassthruEndpoints.file_content_checks(),
             *PassthruEndpoints.file_uploads(),
             *PassthruEndpoints.file_detach_from_datasets(),
