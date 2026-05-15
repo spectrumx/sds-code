@@ -129,9 +129,9 @@ class FileListPageController extends (PageControllerBase || class {}) {
 		this.listRefreshManager = window.listRefreshManager;
 
 		this.modalManager = new ModalManager({
-			modalId: "capture-modal",
-			modalBodyId: "capture-modal-body",
-			modalTitleId: "capture-modal-label",
+			modalId: "asset-details-modal",
+			modalBodyId: "asset-details-modal-body",
+			modalTitleId: "asset-details-modal-label",
 		});
 
 		if (typeof ModalManager.attachDocumentCaptureClickDelegation === "function") {

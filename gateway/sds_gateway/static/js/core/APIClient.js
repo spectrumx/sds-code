@@ -352,8 +352,7 @@ class ListRefreshManager {
 
 				this.container.innerHTML = tableHtml;
 
-				// Re-initialize any necessary event listeners after update
-				this._reinitializeEventListeners();
+				await this._reinitializeEventListeners();
 
 				// Call success callback if provided
 				if (onSuccess) {
@@ -386,10 +385,15 @@ class ListRefreshManager {
 	 * Re-initialize event listeners after table update
 	 * This ensures modals, dropdowns, and other interactive elements work after AJAX updates
 	 */
-	_reinitializeEventListeners() {
+	async _reinitializeEventListeners() {
 		// Re-initialize Bootstrap dropdowns
 		if (typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
 			window.DOMUtils.initializeListDropdowns();
+		}
+
+		// Bootstrap modal instances on replaced markup (share/version/download shells)
+		if (typeof window.ModalManager?.prepareBootstrapModalInstances === "function") {
+			window.ModalManager.prepareBootstrapModalInstances(document);
 		}
 
 		// Re-initialize tooltips if Bootstrap tooltips are available
@@ -408,12 +412,12 @@ class ListRefreshManager {
 			}
 		}
 
-		// Trigger page lifecycle manager re-initialization if available
-		if (window.pageLifecycleManager) {
-			// The PageLifecycleManager should handle modal re-initialization
-			// You may need to call a refresh method if it exists
-			if (typeof window.pageLifecycleManager.refresh === "function") {
-				window.pageLifecycleManager.refresh();
+		// Page lifecycle: full re-init so ShareActionManager / VersioningActionManager re-bind
+		if (window.pageLifecycleManager?.refresh) {
+			try {
+				await window.pageLifecycleManager.refresh();
+			} catch (error) {
+				console.error("PageLifecycleManager.refresh failed after list update:", error);
 			}
 		}
 	}

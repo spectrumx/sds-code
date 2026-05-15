@@ -9,6 +9,7 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
+from django.conf import settings
 from django.views import View
 from django.views.generic import DetailView
 from loguru import logger as log
@@ -261,15 +262,21 @@ class FilesView(Auth0LoginRequiredMixin, View):
         # Convert Pydantic models to dictionaries for template
         items_data = items_to_dicts(items)
 
+        ctx: dict = {
+            "items": items_data,
+            "current_dir": nav_context.to_path(),
+            "breadcrumb_parts": breadcrumb_parts,
+            "user_email": request.user.email,
+        }
+        if settings.VISUALIZATIONS_ENABLED:
+            from sds_gateway.visualizations.config import get_visualization_compatibility
+
+            ctx["visualization_compatibility"] = get_visualization_compatibility()
+
         return render(
             request,
             self.template_name,
-            {
-                "items": items_data,
-                "current_dir": nav_context.to_path(),
-                "breadcrumb_parts": breadcrumb_parts,
-                "user_email": request.user.email,
-            },
+            ctx,
         )
 
     def _add_root_items(self, request) -> list[Item]:

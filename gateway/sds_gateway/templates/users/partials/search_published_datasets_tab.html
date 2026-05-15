@@ -40,13 +40,17 @@
                     </thead>
                     <tbody id="search-results-tbody">
                         {% for dataset in page_obj %}
-                            <tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
+                            <tr class="clickable-row dataset-details-open"
+                                data-dataset-uuid="{{ dataset.uuid }}"
+                                data-item-uuid="{{ dataset.uuid }}"
+                                data-item-type="dataset"
+                                role="button"
+                                tabindex="0">
                                 <td class="text-nowrap">
                                     <a href="#"
                                        class="dataset-name-link"
-                                       data-bs-toggle="modal"
-                                       data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                                        data-dataset-uuid="{{ dataset.uuid }}"
+                                       data-item-uuid="{{ dataset.uuid }}"
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                     {% if dataset.is_public %}<i class="bi bi-globe me-1 text-primary" title="Public"></i>{% endif %}
                                 </td>

@@ -30,8 +30,11 @@
             </div>
         </div>
     </div>
-    <!-- Modals to reveal on click; container is replaced on AJAX list refresh -->
-    {% include "users/components/dataset_list_modals.html" with page_obj=page_obj %}
+    <!-- Shared details shell (not replaced on list AJAX); per-dataset modals below -->
+    {% include "users/partials/asset_details_modal.html" %}
+    <div id="dataset-modals-container">
+        {% include "users/components/dataset_list_modals.html" with page_obj=page_obj %}
+    </div>
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
@@ -51,6 +54,7 @@
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/core/ModalManager.js' %}"></script>
     <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>

@@ -21,8 +21,8 @@ Context:
     <td headers="name-header">
         <a href="#"
            class="capture-link"
-           data-bs-toggle="modal"
-           data-bs-target="#captureDetailsModal-{{ capture.uuid }}"
+           data-item-type="capture"
+           data-item-uuid="{{ capture.uuid }}"
            data-uuid="{{ capture.uuid }}"
            aria-label="View details for capture {{ capture.name|default:capture.uuid }}"
            title="View capture details: {{ capture.name|default:capture.uuid }}">

@@ -85,6 +85,7 @@ from .user_profile import user_redirect_view
 from .user_profile import user_update_view
 
 # Utility views
+from .details_modal import details_modal_fragment_view
 from .utilities import RenderHTMLFragmentView
 from .utilities import render_html_fragment_view
 
@@ -95,6 +96,7 @@ __all__ = [
     "CheckFileExistsView",
     "DatasetDetailsView",
     "DatasetVersioningView",
+    "details_modal_fragment_view",
     "DownloadItemView",
     "FileContentView",
     "FileDetailView",

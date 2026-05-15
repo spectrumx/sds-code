@@ -7,20 +7,23 @@ Context:
 {% endcomment %}
 {% load tz %}
 
-<tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
+<tr class="clickable-row dataset-details-open"
+    data-dataset-uuid="{{ dataset.uuid }}"
+    data-item-uuid="{{ dataset.uuid }}"
+    data-item-type="dataset"
+    role="button"
+    tabindex="0">
     <td class="text-nowrap">
         {% if dataset.is_owner %}
             <a href="#"
                class="dataset-name-link"
-               data-bs-toggle="modal"
-               data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
                data-dataset-uuid="{{ dataset.uuid }}"
+               data-item-uuid="{{ dataset.uuid }}"
                aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
         {% else %}
             <span class="text-muted dataset-name-link"
-                  data-bs-toggle="modal"
-                  data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
-                  data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
+                  data-dataset-uuid="{{ dataset.uuid }}"
+                  data-item-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
         {% endif %}
         {% if dataset.status == 'draft' %}
             <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>

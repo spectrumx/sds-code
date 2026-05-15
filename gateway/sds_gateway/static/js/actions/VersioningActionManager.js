@@ -73,7 +73,7 @@ class VersioningActionManager {
 			.then((response) => {
 				if (response.success) {
 					const modalEl = document.getElementById(this.modalId);
-					const onHidden = () => {
+					const onHidden = async () => {
 						if (modalEl) {
 							modalEl.removeEventListener("hidden.bs.modal", onHidden);
 						}
@@ -85,7 +85,14 @@ class VersioningActionManager {
 							window.listRefreshManager &&
 							typeof window.listRefreshManager.loadTable === "function"
 						) {
-							window.listRefreshManager.loadTable();
+							try {
+								await window.listRefreshManager.loadTable();
+							} catch (refreshErr) {
+								console.error(
+									"VersioningActionManager: list refresh failed after version create",
+									refreshErr,
+								);
+							}
 						} else {
 							console.warn("listRefreshManager not available, reloading page");
 							window.location.reload();

@@ -247,12 +247,19 @@ window.ShareActionManager = class ShareActionManager {
 				// Close modal
 				this.closeModal();
 
-				// Refresh dataset list
+				// Refresh dataset list (await so modal/list re-init completes before user continues)
 				if (
 					window.listRefreshManager &&
 					typeof window.listRefreshManager.loadTable === "function"
 				) {
-					window.listRefreshManager.loadTable();
+					try {
+						await window.listRefreshManager.loadTable();
+					} catch (refreshErr) {
+						console.error(
+							"ShareActionManager: list refresh failed after share",
+							refreshErr,
+						);
+					}
 				} else {
 					// Fallback: reload the page if listRefreshManager is not available
 					console.warn("listRefreshManager not available, reloading page");

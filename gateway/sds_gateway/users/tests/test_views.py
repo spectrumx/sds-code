@@ -26,6 +26,7 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.users.forms import UserAdminChangeForm
 from sds_gateway.users.models import User
@@ -955,3 +956,104 @@ class TestRenderHTMLFragmentView:
         # Both files should appear in rendered HTML
         assert "file1.txt" in html
         assert "file2.txt" in html
+
+
+class TestDetailsModalFragmentView:
+    """Tests for GET /users/details-modal/<asset_type>/<uuid>/."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def user(self) -> User:
+        return cast("User", UserFactory(is_approved=True))
+
+    def test_anonymous_redirects_to_login(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.FOUND
+
+    def test_owner_receives_modal_payload(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user, name="modal-test-cap")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+        assert "title" in payload
+        assert "meta" in payload
+        assert "capture-name-input" in payload["html"]
+        assert payload["meta"]["uuid"] == str(cap.uuid)
+
+    def test_non_owner_not_found(self, client: Client, user: User) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        cap = CaptureFactory(owner=owner)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_unknown_asset_type(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "unknown", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_anonymous_public_dataset_modal_ok(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(
+            owner=user,
+            is_public=True,
+            status=DatasetStatus.FINAL,
+            keywords=None,
+        )
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+        assert "dataset-details-name" in payload["html"]
+
+    def test_anonymous_private_dataset_modal_not_found(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(owner=user, is_public=False, keywords=None)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_owner_dataset_modal_ok(self, client: Client, user: User) -> None:
+        ds = DatasetFactory(owner=user, keywords=None)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert "dataset-details-name" in response.json()["html"]

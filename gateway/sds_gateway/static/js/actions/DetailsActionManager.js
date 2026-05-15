@@ -1,332 +1,69 @@
 /**
  * Details Action Manager
- * Handles all details-related actions and modal management
+ * Thin helpers for details UI (e.g. dataset UUID copy after server-rendered modal HTML).
  */
 class DetailsActionManager {
-	/**
-	 * Initialize details action manager
-	 * @param {Object} config - Configuration object
-	 */
 	constructor(config) {
 		this.permissions = config.permissions;
 		this.itemUuid = config.itemUuid;
 		this.itemType = config.itemType;
-		this.modalId = `${this.itemType}DetailsModal-${this.itemUuid}`;
 		this.initializeEventListeners();
 	}
 
-	/**
-	 * Initialize event listeners
-	 */
 	initializeEventListeners() {
-		// Initialize details buttons for captures
-		this.initializeCaptureDetailsButtons();
-
-		// Initialize modal event handlers for datasets
-		this.initializeDatasetModalEventHandlers();
+		// Per-instance wiring removed; dataset/capture details load via ModalManager + registry.
 	}
 
 	/**
-	 * Initialize capture details buttons
+	 * Wire UUID copy on a dataset details modal after HTML injection.
+	 * @param {Element} modal
+	 * @param {string} uuid
 	 */
-	initializeCaptureDetailsButtons() {
-		const detailsButtons = document.querySelectorAll(".capture-details-btn");
-
-		for (const button of detailsButtons) {
-			// Prevent duplicate event listener attachment
-			if (button.dataset.detailsSetup === "true") {
-				continue;
-			}
-			button.dataset.detailsSetup = "true";
-
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-
-				const captureUuid =
-					button.getAttribute("data-capture-uuid") ||
-					button.getAttribute("data-uuid");
-
-				// Skip if no valid UUID
-				if (
-					!captureUuid ||
-					captureUuid === "null" ||
-					captureUuid === "undefined"
-				) {
-					console.warn(
-						"No valid capture UUID found for details button:",
-						button,
-					);
-					return;
-				}
-
-				this.handleCaptureDetails(captureUuid);
-			});
-		}
-	}
-
-	/**
-	 * Initialize modal event handlers
-	 */
-	initializeDatasetModalEventHandlers() {
-		// Handle modal show events
-		document.addEventListener("show.bs.modal", (e) => {
-			const modal = e.target;
-			if (modal.id === this.modalId) {
-				this.handleDatasetDetailsModalShow(modal, e);
-			}
-		});
-	}
-
-	/**
-	 * Handle capture details
-	 * @param {string} captureUuid - Capture UUID
-	 */
-	async handleCaptureDetails(captureUuid) {
-		try {
-			// Show loading state
-			window.DOMUtils.showModalLoading(this.modalId);
-
-			// Fetch capture details
-			const captureData = await window.APIClient.get(
-				`/users/capture-details/?capture_uuid=${captureUuid}`,
-			);
-
-			// Populate modal with data
-			this.populateCaptureDetailsModal(captureData);
-
-			// Show modal
-			window.DOMUtils.openModal(this.modalId);
-		} catch (error) {
-			console.error("Error loading capture details:", error);
-			window.DOMUtils.showModalError(
-				this.modalId,
-				"Failed to load capture details",
-			);
-		}
-	}
-
-	/**
-	 * Populate dataset details modal
-	 * @param {Object} datasetData - Dataset data
-	 * @param {Object} statistics - Dataset statistics
-	 * @param {Object} tree - File tree data
-	 */
-	async populateDatasetDetailsModal(datasetData, statistics, tree) {
-		const modal = document.getElementById(this.modalId);
-		if (!modal) return;
-
-		// Clear loading state and restore original modal content
-		window.DOMUtils.clearModalLoading(this.modalId);
-
-		// Update basic information using the correct selectors from the template
-		this.updateElementText(
-			modal,
-			".dataset-details-name",
-			`${datasetData.name} (v${datasetData.version})` || "Untitled Dataset",
-		);
-		this.updateElementText(
-			modal,
-			".dataset-details-description",
-			datasetData.description || "No description provided",
-		);
-		// Update status as badge
-		this.updateStatusBadge(modal, datasetData.status);
-
-		this.updateElementText(
-			modal,
-			".dataset-details-created",
-			this.formatDate(datasetData.created_at),
-		);
-		this.updateElementText(
-			modal,
-			".dataset-details-updated",
-			this.formatDate(datasetData.updated_at),
-		);
-
-		// Set up UUID copy functionality
-		this.setupUuidCopyButton(modal, datasetData.uuid);
-
-		// Update authors
-		this.updateAuthors(modal, datasetData.authors || []);
-
-		// Update keywords
-		this.updateKeywords(modal, datasetData.keywords || []);
-
-		// Update statistics
-		if (statistics) {
-			this.updateElementText(
-				modal,
-				"#total-files-count",
-				statistics.total_files || 0,
-			);
-			this.updateElementText(
-				modal,
-				"#captures-count",
-				statistics.captures || 0,
-			);
-			this.updateElementText(
-				modal,
-				"#artifacts-count",
-				statistics.artifacts || 0,
-			);
-			this.updateElementText(
-				modal,
-				"#total-size",
-				window.DOMUtils.formatFileSize(statistics.total_size || 0),
-			);
-		}
-
-		// Update file tree (if tree container exists)
-		await this.updateFileTree(modal, tree);
-	}
-
-	/**
-	 * Populate capture details modal
-	 * @param {Object} captureData - Capture data
-	 */
-	populateCaptureDetailsModal(captureData) {
-		const modal = document.getElementById(this.modalId);
-		if (!modal) return;
-
-		// Update basic information
-		this.updateElementText(
-			modal,
-			"#capture-name",
-			captureData.name || "Untitled Capture",
-		);
-		this.updateElementText(
-			modal,
-			"#capture-type",
-			captureData.type || "Unknown",
-		);
-		this.updateElementText(
-			modal,
-			"#capture-directory",
-			captureData.directory || "Unknown",
-		);
-		this.updateElementText(
-			modal,
-			"#capture-channel",
-			captureData.channel || "-",
-		);
-		this.updateElementText(
-			modal,
-			"#capture-scan-group",
-			captureData.scan_group || "-",
-		);
-		this.updateElementText(
-			modal,
-			"#capture-created-at",
-			this.formatDate(captureData.created_at),
-		);
-		this.updateElementText(
-			modal,
-			"#capture-updated-at",
-			this.formatDate(captureData.updated_at),
-		);
-
-		// Update owner information
-		this.updateElementText(
-			modal,
-			"#capture-owner",
-			captureData.owner?.name || captureData.owner?.email || "Unknown",
-		);
-
-		// Update technical details
-		this.updateTechnicalDetails(modal, captureData);
-
-		// Update action buttons based on permissions
-		this.updateCaptureActionButtons(modal, captureData);
-	}
-
-	/**
-	 * Update element text content
-	 * @param {Element} container - Container element
-	 * @param {string} selector - Element selector
-	 * @param {string} text - Text content
-	 */
-	updateElementText(container, selector, text) {
-		const element = container.querySelector(selector);
-		if (element) {
-			element.textContent = text;
-		}
-	}
-
-	/**
-	 * Update status badge
-	 * @param {Element} modal - Modal element
-	 * @param {string} status - Status value ('draft' or 'final')
-	 */
-	updateStatusBadge(modal, status) {
-		const statusContainer = modal.querySelector(".dataset-details-status");
-		if (!status || typeof status !== "string") {
-			if (statusContainer) {
-				statusContainer.innerHTML = `<span class="badge bg-secondary">Unknown</span>`;
-			}
-			return;
-		}
-
-		const statusText = status[0].toUpperCase() + status.slice(1);
-		const statusClass = status === "final" ? "success" : "secondary";
-		if (statusContainer) {
-			statusContainer.innerHTML = `<span class="badge bg-${statusClass}">${statusText}</span>`;
-		}
-	}
-
-	/**
-	 * Set up UUID copy button functionality
-	 * @param {Element} modal - Modal element
-	 * @param {string} uuid - Dataset UUID
-	 */
-	setupUuidCopyButton(modal, uuid) {
-		const copyButton = modal.querySelector(".copy-uuid-btn");
+	static attachUuidCopyButton(modal, uuid) {
+		const copyButton = modal?.querySelector?.(".copy-uuid-btn");
 		if (!copyButton || !uuid) return;
 
-		// Store UUID in button data attribute
 		copyButton.dataset.uuid = uuid;
+		copyButton.replaceWith(copyButton.cloneNode(true));
+		const btn = modal.querySelector(".copy-uuid-btn");
+		if (!btn) return;
 
-		// Remove any existing event listeners to prevent duplicates
-		copyButton.removeEventListener("click", this.handleUuidCopy);
+		btn.addEventListener("click", (e) => {
+			void DetailsActionManager.handleUuidCopy(e, uuid);
+		});
 
-		// Add click event listener
-		copyButton.addEventListener("click", (e) => this.handleUuidCopy(e, uuid));
+		if (window.bootstrap?.Tooltip) {
+			const bs = window.bootstrap;
+			const existing = bs.Tooltip.getInstance(btn);
+			if (existing) existing.dispose();
+			new bs.Tooltip(btn);
+		}
 	}
 
-	/**
-	 * Handle UUID copy to clipboard
-	 * @param {Event} event - Click event
-	 * @param {string} uuid - UUID to copy
-	 */
-	async handleUuidCopy(event, uuid) {
+	static async handleUuidCopy(event, uuid) {
 		event.preventDefault();
 		event.stopPropagation();
 
 		try {
-			// Copy to clipboard using the modern Clipboard API
 			await navigator.clipboard.writeText(uuid);
-
-			// Show success feedback
-			this.showCopyFeedback(event.target, "Copied!");
+			await DetailsActionManager.showCopyFeedback(event.target, "Copied!");
 		} catch (error) {
 			console.warn("Clipboard API failed, trying fallback method:", error);
-
-			// Fallback for older browsers
 			try {
-				this.fallbackCopyToClipboard(uuid);
-				this.showCopyFeedback(event.target, "Copied!");
+				DetailsActionManager.fallbackCopyToClipboard(uuid);
+				await DetailsActionManager.showCopyFeedback(event.target, "Copied!");
 			} catch (fallbackError) {
 				console.error("Failed to copy UUID:", fallbackError);
-				this.showCopyFeedback(event.target, "Copy failed", "error");
+				await DetailsActionManager.showCopyFeedback(
+					event.target,
+					"Copy failed",
+					"error",
+				);
 			}
 		}
 	}
 
-	/**
-	 * Fallback copy method for older browsers
-	 * @param {string} text - Text to copy
-	 */
-	fallbackCopyToClipboard(text) {
+	static fallbackCopyToClipboard(text) {
 		const textArea = document.createElement("textarea");
 		textArea.value = text;
 		textArea.style.position = "fixed";
@@ -343,293 +80,34 @@ class DetailsActionManager {
 		}
 	}
 
-	/**
-	 * Show copy feedback to user
-	 * @param {Element} button - Button element
-	 * @param {string} message - Feedback message
-	 * @param {string} type - Feedback type ('success' or 'error')
-	 */
-	async showCopyFeedback(button, message, type = "success") {
-		// Find the button element (might be the icon inside)
+	static async showCopyFeedback(button, message, type = "success") {
 		const copyButton = button.closest(".copy-uuid-btn") || button;
-
-		// Store original tooltip
 		const originalTitle = copyButton.getAttribute("title");
 		const originalIcon = copyButton.innerHTML;
 
-		// Update button appearance temporarily
 		const icon = type === "success" ? "check" : "x";
 		const color = type === "success" ? "success" : "danger";
 
 		await window.DOMUtils.renderContent(copyButton, { icon, color });
 		copyButton.setAttribute("title", message);
 
-		// Reset after 2 seconds
 		setTimeout(() => {
 			copyButton.innerHTML = originalIcon;
 			copyButton.setAttribute("title", originalTitle);
-
-			// Re-initialize tooltip if using Bootstrap tooltips
-			if (window.bootstrap && bootstrap.Tooltip) {
-				const tooltip = bootstrap.Tooltip.getInstance(copyButton);
+			if (window.bootstrap?.Tooltip) {
+				const bs = window.bootstrap;
+				const tooltip = bs.Tooltip.getInstance(copyButton);
 				if (tooltip) {
 					tooltip.dispose();
 				}
-				new bootstrap.Tooltip(copyButton);
+				new bs.Tooltip(copyButton);
 			}
 		}, 2000);
 	}
 
 	/**
-	 * Update authors section
-	 * @param {Element} modal - Modal element
-	 * @param {Array} authors - Authors array
-	 */
-	async updateAuthors(modal, authors) {
-		const authorsContainer = modal.querySelector(".dataset-details-author");
-		if (!authorsContainer) return;
-
-		if (!authors || authors.length === 0) {
-			await window.DOMUtils.renderError(
-				authorsContainer,
-				"No authors specified",
-				{ format: "inline" },
-			);
-			return;
-		}
-
-		const authorsText = authors
-			.map((author) => {
-				if (typeof author === "string") {
-					return author;
-				}
-				return author.name || author.email || "Unknown Author";
-			})
-			.join(", ");
-
-		authorsContainer.textContent = authorsText;
-	}
-
-	/**
-	 * Update keywords section
-	 * @param {Element} modal - Modal element
-	 * @param {Array} keywords - Keywords array
-	 */
-	updateKeywords(modal, keywords) {
-		const keywordsContainer = modal.querySelector(".dataset-details-keywords");
-		if (!keywordsContainer) return;
-
-		// Clear existing content
-		keywordsContainer.innerHTML = "";
-
-		if (!keywords || keywords.length === 0) {
-			keywordsContainer.innerHTML =
-				'<span class="text-muted">No keywords</span>';
-			return;
-		}
-
-		// Create badges for each keyword
-		for (const keyword of keywords) {
-			const badge = document.createElement("span");
-			badge.className = "badge bg-secondary me-2 mb-2";
-			badge.textContent = keyword;
-			keywordsContainer.appendChild(badge);
-		}
-	}
-
-	/**
-	 * Update captures table
-	 * @param {Element} modal - Modal element
-	 * @param {Array} captures - Captures array
-	 */
-	async updateCapturesTable(modal, captures) {
-		const tableBody = modal.querySelector("#dataset-captures-table tbody");
-		if (!tableBody) return;
-
-		// Transform captures into rows format for generalized table template
-		const rows = captures.map((capture) => ({
-			cells: [
-				{ kind: "text", value: capture.type },
-				{ kind: "text", value: capture.directory },
-				{ kind: "text", value: capture.channel },
-				{ kind: "text", value: capture.scan_group },
-				{ kind: "text", value: capture.created_at },
-			],
-		}));
-
-		const success = await window.DOMUtils.renderTable(tableBody, rows, {
-			empty_colspan: 5,
-			empty_message: "No captures in dataset",
-		});
-
-		if (!success) {
-			await window.DOMUtils.renderError(tableBody, "Error loading captures", {
-				format: "table",
-				colspan: 5,
-			});
-		}
-	}
-
-	/**
-	 * Update files table
-	 * @param {Element} modal - Modal element
-	 * @param {Array} files - Files array
-	 */
-	async updateFilesTable(modal, files) {
-		const tableBody = modal.querySelector("#dataset-files-table tbody");
-		if (!tableBody) return;
-
-		// Transform files into rows format for generalized table template
-		const rows = files.map((file) => ({
-			cells: [
-				{ kind: "text", value: file.name },
-				{ kind: "text", value: file.media_type },
-				{ kind: "text", value: file.relative_path },
-				{ kind: "text", value: file.size },
-			],
-		}));
-
-		const success = await window.DOMUtils.renderTable(tableBody, rows, {
-			empty_colspan: 4,
-			empty_message: "No files in dataset",
-		});
-
-		if (!success) {
-			await window.DOMUtils.renderError(tableBody, "Error loading files", {
-				format: "table",
-				colspan: 4,
-			});
-		}
-	}
-
-	/**
-	 * Update permissions section
-	 * @param {Element} modal - Modal element
-	 * @param {Array} permissions - Permissions array
-	 */
-	async updatePermissionsSection(modal, permissions) {
-		const permissionsContainer = modal.querySelector("#dataset-permissions");
-		if (!permissionsContainer) return;
-
-		try {
-			// Normalize permissions with badge class and display name
-			const normalizedPermissions = permissions.map((permission) => ({
-				...permission,
-				badge_class: this.permissions.getPermissionBadgeClass(
-					permission.permission_level,
-				),
-				display_name: this.permissions.getPermissionDisplayName(
-					permission.permission_level,
-				),
-			}));
-
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/modal_permissions.html",
-					context: { permissions: normalizedPermissions },
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (response.html) {
-				permissionsContainer.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering permissions:", error);
-			await window.DOMUtils.renderError(
-				permissionsContainer,
-				"Error loading permissions",
-				{ format: "inline" },
-			);
-		}
-	}
-
-	/**
-	 * Update technical details for capture
-	 * @param {Element} modal - Modal element
-	 * @param {Object} captureData - Capture data
-	 */
-	async updateTechnicalDetails(modal, captureData) {
-		const technicalDetails = modal.querySelector("#capture-technical-details");
-		if (!technicalDetails) return;
-
-		const details = [];
-
-		if (captureData.center_frequency_ghz) {
-			details.push(`Center Frequency: ${captureData.center_frequency_ghz} GHz`);
-		}
-
-		if (captureData.bandwidth_mhz) {
-			details.push(`Bandwidth: ${captureData.bandwidth_mhz} MHz`);
-		}
-
-		if (captureData.sample_rate_hz) {
-			details.push(`Sample Rate: ${captureData.sample_rate_hz} Hz`);
-		}
-
-		if (captureData.duration_seconds) {
-			details.push(`Duration: ${captureData.duration_seconds} seconds`);
-		}
-
-		try {
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/modal_technical_details.html",
-					context: { details: details },
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (response.html) {
-				technicalDetails.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering technical details:", error);
-			await window.DOMUtils.renderError(
-				technicalDetails,
-				"Error loading details",
-				{ format: "inline" },
-			);
-		}
-	}
-
-	/**
-	 * Update action buttons for capture
-	 * @param {Element} modal - Modal element
-	 * @param {Object} captureData - Capture data
-	 */
-	updateCaptureActionButtons(modal, captureData) {
-		// Download button
-		const downloadButton = modal.querySelector("#download-capture-btn");
-		if (!downloadButton) {
-			// Continue to next button
-		} else if (!this.permissions.canDownload()) {
-			window.DOMUtils.hide(downloadButton, "display-inline-block");
-		} else {
-			window.DOMUtils.show(downloadButton, "display-inline-block");
-			downloadButton.setAttribute("data-capture-uuid", captureData.uuid);
-			downloadButton.setAttribute("data-capture-name", captureData.name);
-		}
-
-		// Visualize button
-		const visualizeButton = modal.querySelector("#visualize-capture-btn");
-		if (!visualizeButton) return;
-
-		if (!this.permissions.canView()) {
-			window.DOMUtils.hide(visualizeButton, "display-inline-block");
-		} else {
-			window.DOMUtils.show(visualizeButton, "display-inline-block");
-			visualizeButton.setAttribute("data-capture-uuid", captureData.uuid);
-		}
-	}
-
-	/**
-	 * Show modal loading state
-	 * @param {string} modalId - Modal ID
+	 * Show modal loading state (legacy / tests)
+	 * @param {string} modalId - Modal element id
 	 */
 	async showModalLoading(modalId) {
 		const modal = document.getElementById(modalId);
@@ -637,7 +115,6 @@ class DetailsActionManager {
 
 		const modalBody = modal.querySelector(".modal-body");
 		if (modalBody) {
-			// Store original content before showing loading
 			if (!modalBody.dataset.originalContent) {
 				modalBody.dataset.originalContent = modalBody.innerHTML;
 			}
@@ -648,196 +125,13 @@ class DetailsActionManager {
 		}
 	}
 
-	/**
-	 * Handle dataset details modal show
-	 * @param {Element} modal - Modal element
-	 * @param {Event} event - Bootstrap modal event
-	 */
-	handleDatasetDetailsModalShow(modal, event) {
-		// Get the triggering element (the element that opened the modal)
-		const triggerElement = event.relatedTarget;
-
-		if (!triggerElement) {
-			console.warn("No trigger element found for dataset details modal");
-			window.DOMUtils.showModalError(
-				this.modalId,
-				"Unable to load dataset details",
-			);
-			return;
-		}
-
-		// Extract dataset UUID from the triggering element
-		const datasetUuid = triggerElement.getAttribute("data-dataset-uuid");
-
-		if (!datasetUuid) {
-			console.warn("No dataset UUID found on trigger element:", triggerElement);
-			window.DOMUtils.showModalError(this.modalId, "Dataset UUID not found");
-			return;
-		}
-
-		// Load dataset details
-		this.loadDatasetDetailsForModal(datasetUuid);
-	}
-
-	/**
-	 * Load dataset details for modal
-	 * @param {string} datasetUuid - Dataset UUID
-	 */
-	async loadDatasetDetailsForModal(datasetUuid) {
-		try {
-			// Show loading state
-			window.DOMUtils.showModalLoading(this.modalId);
-
-			// Fetch dataset details
-			const response = await window.APIClient.get(
-				`/users/dataset-details/?dataset_uuid=${datasetUuid}`,
-			);
-
-			// Extract dataset data from the response
-			const datasetData = response.dataset;
-			const statistics = response.statistics;
-			const tree = response.tree;
-
-			// Populate modal with data
-			await this.populateDatasetDetailsModal(datasetData, statistics, tree);
-		} catch (error) {
-			console.error("Error loading dataset details:", error);
-			window.DOMUtils.showModalError(
-				this.modalId,
-				"Failed to load dataset details",
-			);
-		}
-	}
-
-	/**
-	 * Update file tree
-	 * @param {Element} modal - Modal element
-	 * @param {Object} tree - File tree data
-	 */
-	async updateFileTree(modal, tree) {
-		const tableBody = modal.querySelector("#dataset-file-tree-table tbody");
-		if (!tableBody || !tree) return;
-
-		// Build normalized rows for server-side rendering
-		const rows = this.buildTreeRows(tree, 0);
-
-		try {
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/modal_file_tree.html",
-					context: { rows: rows },
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (response.html) {
-				tableBody.innerHTML = response.html;
-			}
-		} catch (error) {
-			console.error("Error rendering file tree:", error);
-			await window.DOMUtils.renderError(tableBody, "Error loading file tree", {
-				format: "table",
-				colspan: 5,
-			});
-		}
-	}
-
-	/**
-	 * Build tree rows for server-side rendering
-	 * @param {Object} node - Tree node
-	 * @param {number} depth - Current depth for indentation
-	 * @returns {Array<Object>} Array of row objects for template
-	 */
-	buildTreeRows(node, depth = 0) {
-		const rows = [];
-
-		// Add files in this directory first
-		if (node.files && Array.isArray(node.files)) {
-			for (const file of node.files) {
-				rows.push({
-					indent_level: depth,
-					indent_range: [...Array(depth).keys()], // For template loop
-					icon: "bi-file-earmark",
-					icon_color: "text-primary",
-					name: file.name,
-					type: file.media_type || file.type || "File",
-					size: window.DOMUtils.formatFileSize(file.size || 0),
-					created_at: this.formatDate(file.created_at),
-					has_chevron: false,
-				});
-			}
-		}
-
-		// Add child directories
-		if (node.children && typeof node.children === "object") {
-			for (const childNode of Object.values(node.children)) {
-				if (childNode.type === "directory") {
-					// Add directory row
-					rows.push({
-						indent_level: depth,
-						indent_range: [...Array(depth).keys()], // For template loop
-						icon: "bi-folder",
-						icon_color: "text-warning",
-						name: `${childNode.name}/`,
-						type: "Directory",
-						size: window.DOMUtils.formatFileSize(childNode.size || 0),
-						created_at: this.formatDate(childNode.created_at),
-						has_chevron: true,
-					});
-
-					// Recursively add children
-					const childRows = this.buildTreeRows(childNode, depth + 1);
-					rows.push(...childRows);
-				}
-			}
-		}
-
-		return rows;
-	}
-
-	/**
-	 * Format date for display
-	 * @param {string} dateString - Date string
-	 * @returns {string} Formatted date
-	 */
-	formatDate(dateString) {
-		if (!dateString) return "Unknown";
-
-		try {
-			const date = new Date(dateString);
-			return date.toLocaleDateString("en-US", {
-				year: "numeric",
-				month: "short",
-				day: "numeric",
-				hour: "2-digit",
-				minute: "2-digit",
-			});
-		} catch (error) {
-			return "Invalid date";
-		}
-	}
-
-	/**
-	 * Cleanup resources
-	 */
 	cleanup() {
-		// Remove event listeners and clean up any resources
-		const detailsButtons = document.querySelectorAll(
-			".dataset-details-btn, .capture-details-btn",
-		);
-		for (const button of detailsButtons) {
-			button.removeEventListener("click", this.handleDatasetDetails);
-			button.removeEventListener("click", this.handleCaptureDetails);
-		}
+		// no-op
 	}
 }
 
-// Make class available globally
 window.DetailsActionManager = DetailsActionManager;
 
-// Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { DetailsActionManager };
 }

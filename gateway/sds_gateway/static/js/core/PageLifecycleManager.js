@@ -12,6 +12,7 @@ class PageLifecycleManager {
 		this.managers = [];
 		this.initialized = false;
 		this.config = config;
+		this._captureDetailsModalCleanup = null;
 
 		// Core managers
 		this.permissions = null;
@@ -166,6 +167,29 @@ class PageLifecycleManager {
 
 		// Initialize modals for each capture
 		this.initializeCaptureModals();
+
+		this.ensureCaptureDetailsModal();
+	}
+
+	/**
+	 * Global asset details modal (#asset-details-modal) + delegated clicks.
+	 */
+	ensureCaptureDetailsModal() {
+		if (this._captureDetailsModalCleanup || !window.ModalManager?.initFilesPageCaptureModals) {
+			return;
+		}
+		if (!this.config.permissions) {
+			return;
+		}
+		this._captureDetailsModalCleanup = window.ModalManager.initFilesPageCaptureModals({
+			permissions: this.config.permissions,
+		});
+		this.managers.push({
+			cleanup: () => {
+				this._captureDetailsModalCleanup?.();
+				this._captureDetailsModalCleanup = null;
+			},
+		});
 	}
 
 	/**
@@ -295,6 +319,11 @@ class PageLifecycleManager {
 	initializeDatasetModals() {
 		window.ModalManager.wireDatasetListModals(this.permissions, this.managers);
 		this.ensureDownloadActionManager();
+		const detachDetails =
+			window.ModalManager?.ensureDetailsModalClickDelegation?.();
+		if (detachDetails) {
+			this.managers.push({ cleanup: detachDetails });
+		}
 	}
 
 	/**

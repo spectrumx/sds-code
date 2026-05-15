@@ -191,8 +191,8 @@ describe("FileListPageController", () => {
 		});
 
 		mockModalManager = new MockModalManager({
-			modalId: "capture-modal",
-			modalBodyId: "capture-modal-body",
+			modalId: "asset-details-modal",
+			modalBodyId: "asset-details-modal-body",
 		});
 
 		MockModalManagerConstructor.mockImplementation(() => mockModalManager);

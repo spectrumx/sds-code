@@ -151,6 +151,8 @@
                                                             <li>
                                                                 <button class="dropdown-item capture-details-btn"
                                                                         type="button"
+                                                                        data-item-type="capture"
+                                                                        data-item-uuid="{{ item.uuid }}"
                                                                         data-uuid="{{ item.uuid }}"
                                                                         data-name="{{ item.name|default:'' }}"
                                                                         data-channel="{{ item.capture_uuid }}"
@@ -501,8 +503,7 @@
             </div>
         </div>
     </div>
-    <!-- Include capture modal for editing -->
-    {% include "users/partials/capture_modal.html" %}
+    {% include "users/partials/asset_details_modal.html" %}
     <!-- Include share modals for captures -->
     {% for item in items %}
         {% if item.is_capture %}
@@ -512,6 +513,7 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/core/ModalManager.js' %}"></script>
     <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
     <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
@@ -577,7 +579,7 @@
             try {
                 const needsFilesCaptureModals =
                     document.querySelector(".modal[data-item-uuid]") ||
-                    document.getElementById("capture-modal");
+                    document.getElementById("asset-details-modal");
 
                 let filesCaptureModalsCleanup = null;
                 if (needsFilesCaptureModals && window.ModalManager?.initFilesPageCaptureModals) {

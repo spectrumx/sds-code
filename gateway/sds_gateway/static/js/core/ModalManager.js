@@ -7,8 +7,12 @@ class ModalManager {
 	constructor(config) {
 		this.modalId = config.modalId;
 		this.modal = document.getElementById(this.modalId);
-		this.modalTitle = this.modal?.querySelector(".modal-title");
-		this.modalBody = this.modal?.querySelector(".modal-body");
+		this.modalTitle = config.modalTitleId
+			? document.getElementById(config.modalTitleId)
+			: this.modal?.querySelector(".modal-title");
+		this.modalBody = config.modalBodyId
+			? document.getElementById(config.modalBodyId)
+			: this.modal?.querySelector(".modal-body");
 
 		if (this.modal && window.bootstrap) {
 			this.bootstrapModal = new bootstrap.Modal(this.modal);
@@ -37,436 +41,168 @@ class ModalManager {
 		}
 	}
 
+	/**
+	 * @param {HTMLElement} startEl
+	 * @param {string[]} selectors
+	 * @returns {HTMLElement | null}
+	 */
+	static findDelegateTarget(startEl, selectors) {
+		if (!startEl || !selectors?.length) return null;
+		for (const sel of selectors) {
+			if (startEl.matches?.(sel)) return startEl;
+			const closest = startEl.closest?.(sel);
+			if (closest) return closest;
+		}
+		return null;
+	}
+
+	/**
+	 * @param {HTMLElement} startEl
+	 * @returns {{ cfg: object, target: HTMLElement } | null}
+	 */
+	static resolveDetailsModalFromTrigger(startEl) {
+		const registry = window.DetailsModalAssetRegistry;
+		if (!registry || !startEl) return null;
+		for (const key of Object.keys(registry)) {
+			const cfg = registry[key];
+			const selectors = cfg.delegateClickSelectors || [];
+			const target = ModalManager.findDelegateTarget(startEl, selectors);
+			if (target) return { cfg, target };
+		}
+		return null;
+	}
+
 	openCaptureModal(linkElement) {
-		if (!linkElement) return;
+		return this.openDetailsFromTrigger(linkElement);
+	}
+
+	/**
+	 * Load details modal body from server (registry-driven).
+	 * @param {HTMLElement} startEl
+	 */
+	async openDetailsFromTrigger(startEl) {
+		const resolved = ModalManager.resolveDetailsModalFromTrigger(startEl);
+		if (!resolved) return;
+
+		const { cfg, target } = resolved;
+		const uuid = cfg.resolveUuidFromTrigger(target);
+		if (!uuid || uuid === "null" || uuid === "undefined") {
+			console.warn("No valid UUID for details modal:", target);
+			return;
+		}
+
+		const shell =
+			typeof cfg.resolveShell === "function" ? cfg.resolveShell() : null;
+		if (!shell?.modal || !shell.bodyEl) {
+			console.warn("Details modal shell not found:", cfg.assetType, uuid);
+			return;
+		}
+
+		const { modal, titleEl, bodyEl } = shell;
+		this.modalTitle = titleEl || null;
+		this.modalBody = bodyEl;
+
+		if (cfg.assetType === "capture") {
+			const visualizeBtn = document.getElementById("visualize-btn");
+			visualizeBtn?.classList.add("d-none");
+		}
+
+		const loadingTitle = cfg.loadingTitle || "Loading...";
+		if (titleEl) {
+			titleEl.textContent = loadingTitle;
+		}
+		bodyEl.innerHTML = `
+				<div class="d-flex justify-content-center py-4">
+					<div class="spinner-border text-primary" role="status">
+						<span class="visually-hidden">${loadingTitle}</span>
+					</div>
+				</div>`;
+
+		const bsModal = ModalManager.getOrCreateBootstrapModal(modal);
+		if (bsModal) {
+			bsModal.show();
+		}
 
 		try {
-			// Reset visualize button to hidden state
-			const visualizeBtn = document.getElementById("visualize-btn");
-			if (visualizeBtn) {
-				visualizeBtn.classList.add("d-none");
+			const response = await fetch(cfg.buildDetailsUrl(uuid), {
+				credentials: "same-origin",
+				headers: { Accept: "application/json" },
+			});
+			if (!response.ok) {
+				throw new Error(`HTTP error ${response.status}`);
+			}
+			const data = await response.json();
+
+			this._nameEditIsEditing = false;
+
+			if (titleEl) {
+				titleEl.textContent = data.title || loadingTitle;
+			}
+			bodyEl.innerHTML = data.html || "";
+
+			const meta = data.meta || {};
+
+			if (cfg.assetType === "capture") {
+				this.currentCaptureData = {
+					uuid: meta.uuid || uuid,
+					name: meta.name || "",
+					topLevelDir: meta.top_level_dir || "",
+					captureType: meta.capture_type || "",
+				};
+
+				ModalManager.ensureDelegatedCaptureNameEditing(this, modal);
+				this.setupVisualizeFromMeta(meta);
+				await this.loadCaptureFilesSummary(cfg, uuid);
 			}
 
-			// Get all data attributes from the link with sanitization
-			const data = {
-				uuid: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-uuid") || "",
-				),
-				name: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-name") || "",
-				),
-				channel: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-channel") || "",
-				),
-				scanGroup: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-scan-group") || "",
-				),
-				captureType: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-capture-type") || "",
-				),
-				topLevelDir: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-top-level-dir") || "",
-				),
-				owner: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-owner") || "",
-				),
-				origin: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-origin") || "",
-				),
-				dataset: window.DOMUtils.escapeHtml(
-					linkElement.getAttribute("data-dataset") || "",
-				),
-				createdAt: linkElement.getAttribute("data-created-at") || "",
-				updatedAt: linkElement.getAttribute("data-updated-at") || "",
-				isPublic: linkElement.getAttribute("data-is-public") || "",
-				centerFrequencyGhz:
-					linkElement.getAttribute("data-center-frequency-ghz") || "",
-				isMultiChannel: linkElement.getAttribute("data-is-multi-channel") || "",
-				channels: linkElement.getAttribute("data-channels") || "",
-			};
-
-			// Parse owner field safely
-			const ownerDisplay = data.owner
-				? data.owner.split("'").find((part) => part.includes("@")) || "N/A"
-				: "N/A";
-
-			// Check if this is a composite capture
-			const isComposite =
-				data.isMultiChannel === "True" || data.isMultiChannel === "true";
-
-			let modalContent = `
-				<div class="mb-4">
-					<div class="d-flex align-items-center mb-3">
-						<h6 class="mb-0 fw-bold">
-							<i class="bi bi-info-circle me-2"></i>Basic Information
-						</h6>
-					</div>
-					<div class="mb-3">
-						<label for="capture-name-input" class="form-label fw-medium">
-							<strong>Name:</strong>
-						</label>
-						<div class="input-group">
-							<input type="text"
-								   class="form-control"
-								   id="capture-name-input"
-								   value="${data.name || ""}"
-								   placeholder="Enter capture name"
-								   maxlength="255"
-								   data-uuid="${data.uuid}">
-							<button class="btn btn-outline-secondary edit-name-btn"
-									type="button"
-									id="edit-name-btn"
-									title="Edit capture name">
-								<i class="bi bi-pencil"></i>
-							</button>
-							<button class="btn btn-outline-danger d-none"
-									type="button"
-									id="cancel-name-btn"
-									title="Cancel editing">
-								<i class="bi bi-x-lg"></i>
-							</button>
-							<button class="btn btn-outline-primary save-name-btn d-none"
-									type="button"
-									id="save-name-btn"
-									title="Save changes">
-								<i class="bi bi-check-lg"></i>
-							</button>
-						</div>
-						<div class="form-text">Click the edit button to modify the capture name</div>
-					</div>
-					<div class="row">
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Capture Type:</span>
-								<span class="ms-2">${data.captureType || "N/A"}</span>
-							</p>
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Origin:</span>
-								<span class="ms-2">${data.origin || "N/A"}</span>
-							</p>
-						</div>
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Owner:</span>
-								<span class="ms-2">${ownerDisplay}</span>
-							</p>
-						</div>
-					</div>
-			`;
-
-			// Handle composite vs single capture display
-			if (isComposite) {
-				modalContent += `
-					<div class="mb-2">
-						<span class="fw-medium text-muted">Channels:</span>
-						<span class="ms-2">${data.channel || "N/A"}</span>
-					</div>
-				`;
-			} else {
-				modalContent += `
-					<div class="mb-2">
-						<span class="fw-medium text-muted">Channel:</span>
-						<span class="ms-2">${data.channel || "N/A"}</span>
-					</div>
-				`;
+			if (typeof cfg.afterInject === "function") {
+				cfg.afterInject({ modal, meta, uuid, cfg });
 			}
-
-			modalContent += `
-				</div>
-				<div class="mb-4">
-					<div class="d-flex align-items-center mb-3">
-						<h6 class="mb-0 fw-bold">
-							<i class="bi bi-gear me-2"></i>Technical Details
-						</h6>
-					</div>
-					<div class="row">
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Scan Group:</span>
-								<span class="ms-2">${data.scanGroup || "N/A"}</span>
-							</p>
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Dataset:</span>
-								<span class="ms-2">${data.dataset || "N/A"}</span>
-							</p>
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Is Public:</span>
-								<span class="ms-2">${data.isPublic === "True" ? "Yes" : "No"}</span>
-							</p>
-						</div>
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Top Level Directory:</span>
-								<span class="ms-2 text-break">${data.topLevelDir || "N/A"}</span>
-							</p>
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Center Frequency:</span>
-								<span class="ms-2">
-									${data.centerFrequencyGhz && data.centerFrequencyGhz !== "None" ? `${Number.parseFloat(data.centerFrequencyGhz).toFixed(3)} GHz` : "N/A"}
-								</span>
-							</p>
-						</div>
-					</div>
-				</div>
-				<div class="mb-4">
-					<div class="d-flex align-items-center mb-3">
-						<h6 class="mb-0 fw-bold">
-							<i class="bi bi-clock me-2"></i>Timestamps
-						</h6>
-					</div>
-					<div class="row">
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Created At:</span>
-								<br>
-								<small class="text-muted">
-									${window.DOMUtils.formatDateForModal(data.createdAt)}
-								</small>
-							</p>
-						</div>
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Updated At:</span>
-								<br>
-								<small class="text-muted">
-									${window.DOMUtils.formatDateForModal(data.updatedAt)}
-								</small>
-							</p>
-						</div>
-					</div>
-				</div>
-				<!-- Files section placeholder -->
-				<div id="files-section-placeholder" class="mt-4">
-					<div class="d-flex justify-content-center py-3">
-						<div class="spinner-border spinner-border-sm me-2" role="status" style="color: #005a9c;">
-							<span class="visually-hidden">Loading files...</span>
-						</div>
-						<span class="text-muted">Loading files...</span>
-					</div>
-				</div>
-			`;
-
-			// Add composite-specific information if available
-			if (isComposite && data.channels) {
-				try {
-					// Convert Python dict syntax to valid JSON
-					let channelsData;
-					if (typeof data.channels === "string") {
-						// Handle Python dict syntax: {'key': 'value'} -> {"key": "value"}
-						const pythonDict = data.channels
-							.replace(/'/g, '"') // Replace single quotes with double quotes
-							.replace(/True/g, "true") // Replace Python True with JSON true
-							.replace(/False/g, "false") // Replace Python False with JSON false
-							.replace(/None/g, "null"); // Replace Python None with JSON null
-
-						channelsData = JSON.parse(pythonDict);
-					} else {
-						channelsData = data.channels;
-					}
-
-					if (Array.isArray(channelsData) && channelsData.length > 0) {
-						modalContent += `
-							<div class="mt-4">
-								<h6>Channel Details</h6>
-								<div class="accordion" id="channelsAccordion">
-						`;
-
-						for (let i = 0; i < channelsData.length; i++) {
-							const channel = channelsData[i];
-							const channelId = `channel-${i}`;
-
-							// Format channel metadata as key-value pairs
-							let metadataDisplay = "N/A";
-							if (
-								channel.channel_metadata &&
-								typeof channel.channel_metadata === "object"
-							) {
-								const metadata = channel.channel_metadata;
-								const metadataItems = [];
-
-								// Helper function to format values dynamically
-								const formatValue = (value, fieldName = "") => {
-									if (value === null || value === undefined) {
-										return "N/A";
-									}
-
-									if (typeof value === "boolean") {
-										return value ? "Yes" : "No";
-									}
-
-									// Handle string representations of booleans
-									if (typeof value === "string") {
-										if (value.toLowerCase() === "true") {
-											return "Yes";
-										}
-										if (value.toLowerCase() === "false") {
-											return "No";
-										}
-									}
-
-									if (typeof value === "number") {
-										const absValue = Math.abs(value);
-										const valueStr = value.toString();
-										const timeIndicators = [
-											"computer_time",
-											"start_bound",
-											"end_bound",
-											"init_utc_timestamp",
-										];
-										// Only format as timestamp if the field name contains "time"
-										if (
-											timeIndicators.includes(fieldName.toLowerCase()) &&
-											valueStr.length >= 10 &&
-											valueStr.length <= 13
-										) {
-											// Convert to milliseconds if it's in seconds
-											const timestamp =
-												valueStr.length === 10 ? value * 1000 : value;
-											return new Date(timestamp).toLocaleString();
-										}
-
-										// Only format for Giga (1e9) and Mega (1e6) ranges
-										if (absValue >= 1e9) {
-											return `${(value / 1e9).toFixed(3)} GHz`;
-										}
-										if (absValue >= 1e6) {
-											return `${(value / 1e6).toFixed(1)} MHz`;
-										}
-										return value.toString();
-									}
-
-									if (Array.isArray(value)) {
-										return value
-											.map((item) => formatValue(item, fieldName))
-											.join(", ");
-									}
-
-									if (typeof value === "object") {
-										return JSON.stringify(value);
-									}
-
-									return String(value);
-								};
-
-								// Helper function to format field names
-								const formatFieldName = (fieldName) => {
-									return fieldName
-										.replace(/_/g, " ")
-										.replace(/\b\w/g, (l) => l.toUpperCase());
-								};
-
-								// Loop through all metadata fields
-								if (Object.keys(metadata).length > 0) {
-									for (const [key, value] of Object.entries(metadata)) {
-										if (value !== undefined && value !== null) {
-											const formattedValue = formatValue(value, key);
-											const formattedKey = formatFieldName(key);
-											metadataItems.push(
-												`<strong>${formattedKey}:</strong> ${formattedValue}`,
-											);
-										}
-									}
-								} else {
-									metadataItems.push("<em>No metadata available</em>");
-								}
-
-								if (metadataItems.length > 0) {
-									metadataDisplay = metadataItems.join("<br>");
-								}
-							}
-
-							modalContent += `
-								<div class="accordion-item">
-									<h2 class="accordion-header" id="heading-${channelId}">
-										<button class="accordion-button ${i === 0 ? "" : "collapsed"}" type="button"
-												data-bs-toggle="collapse"
-												data-bs-target="#collapse-${channelId}"
-												aria-expanded="${i === 0 ? "true" : "false"}"
-												aria-controls="collapse-${channelId}">
-											<strong>${window.DOMUtils.escapeHtml(channel.channel || "N/A")}</strong>
-											<small class="text-muted ms-2">(Click to expand metadata)</small>
-										</button>
-									</h2>
-									<div id="collapse-${channelId}"
-										 class="accordion-collapse collapse ${i === 0 ? "show" : ""}"
-										 aria-labelledby="heading-${channelId}"
-										 data-bs-parent="#channelsAccordion">
-										<div class="accordion-body">
-											<div style="max-width: 100%; word-wrap: break-word;">
-												${metadataDisplay}
-											</div>
-										</div>
-									</div>
-								</div>
-							`;
-						}
-
-						modalContent += `
-								</div>
-							</div>
-						`;
-					}
-				} catch (e) {
-					console.error("Could not parse channels data for modal:", e);
-					console.error(
-						"Raw channels data that failed to parse:",
-						data.channels,
-					);
-
-					// Show a fallback message in the modal
-					modalContent += `
-						<div class="mt-4">
-							<h6>Channel Details</h6>
-							<div class="alert alert-warning">
-								<i class="fas fa-exclamation-triangle"></i>
-								Unable to display channel details due to data format issues.
-								<br><small>Raw data: ${window.DOMUtils.escapeHtml(String(data.channels).substring(0, 100))}...</small>
-							</div>
-						</div>
-					`;
-				}
-			}
-
-			const title = data.name
-				? data.name
-				: data.topLevelDir || "Unnamed Capture";
-			this.show(title, modalContent);
-
-			// Store capture data for later use
-			this.currentCaptureData = data;
-
-			// Setup name editing handlers after modal content is loaded
-			this.setupNameEditingHandlers();
-
-			// Setup visualize button for Digital RF captures
-			this.setupVisualizeButton(data);
-
-			// Load and display files for this capture
-			this.loadCaptureFiles(data.uuid);
 		} catch (error) {
-			console.error("Error opening capture modal:", error);
-			this.show("Error", "Error displaying capture details");
+			console.error("Error opening details modal:", error);
+			const errTitle = "Error";
+			const errBody =
+				cfg.assetType === "capture"
+					? "Error displaying capture details"
+					: "Error displaying dataset details";
+			if (titleEl) {
+				titleEl.textContent = errTitle;
+			}
+			bodyEl.innerHTML = `<p class="text-danger mb-0">${errBody}</p>`;
+		}
+	}
+
+	_showDetailsLoadingState() {
+		if (this.modalTitle) {
+			this.modalTitle.textContent = "Loading...";
+		}
+		if (this.modalBody) {
+			this.modalBody.innerHTML = `
+				<div class="d-flex justify-content-center py-4">
+					<div class="spinner-border text-primary" role="status">
+						<span class="visually-hidden">Loading capture details...</span>
+					</div>
+				</div>`;
 		}
 	}
 
 	/**
-	 * Setup visualize button for Digital RF captures
+	 * Configure visualize header button from server meta.
+	 * @param {{ visualize_enabled?: boolean, uuid?: string, capture_type?: string }} meta
 	 */
-	setupVisualizeButton(captureData) {
+	setupVisualizeFromMeta(meta) {
 		const visualizeBtn = document.getElementById("visualize-btn");
-		if (!visualizeBtn) return;
+		if (!visualizeBtn || !meta) return;
 
-		// Show button only for Digital RF captures
-		if (captureData.captureType === "drf") {
+		if (meta.visualize_enabled) {
 			visualizeBtn.classList.remove("d-none");
-
-			// Set up click handler to open visualization modal
+			visualizeBtn.dataset.captureUuid = meta.uuid || "";
+			visualizeBtn.dataset.captureType = meta.capture_type || "";
 			visualizeBtn.onclick = () => {
-				// Use the VisualizationModal instance to open with capture data
 				if (window.visualizationModalInstance) {
 					window.visualizationModalInstance.openWithCaptureData(
-						captureData.uuid,
-						captureData.captureType,
+						meta.uuid,
+						meta.capture_type,
 					);
 				}
 			};
@@ -476,118 +212,147 @@ class ModalManager {
 	}
 
 	/**
-	 * Setup handlers for name editing functionality
+	 * One delegated listener on the asset details modal for name edit.
+	 * @param {ModalManager} modalManager
+	 * @param {HTMLElement} [modalEl] capture modal root (defaults to modalManager.modal)
 	 */
-	setupNameEditingHandlers() {
-		const nameInput = document.getElementById("capture-name-input");
-		const editBtn = document.getElementById("edit-name-btn");
-		const saveBtn = document.getElementById("save-name-btn");
-		const cancelBtn = document.getElementById("cancel-name-btn");
+	static ensureDelegatedCaptureNameEditing(modalManager, modalEl) {
+		const modal = modalEl || modalManager.modal;
+		if (!modal) {
+			return;
+		}
+		if (
+			modal.dataset.nameDelegationWired === "1" &&
+			!modal.querySelector("#capture-name-input")
+		) {
+			delete modal.dataset.nameDelegationWired;
+		}
+		if (modal.dataset.nameDelegationWired === "1") {
+			return;
+		}
+		modal.dataset.nameDelegationWired = "1";
 
-		if (!nameInput || !editBtn || !saveBtn || !cancelBtn) return;
-
-		// Initially disable the input
-		nameInput.disabled = true;
-		let originalName = nameInput.value;
-		let isEditing = false;
-
-		const startEditing = () => {
-			nameInput.disabled = false;
-			nameInput.focus();
-			nameInput.select();
-			editBtn.classList.add("d-none");
-			saveBtn.classList.remove("d-none");
-			cancelBtn.classList.remove("d-none");
-			isEditing = true;
-		};
-
-		const stopEditing = () => {
-			nameInput.disabled = true;
-			editBtn.classList.remove("d-none");
-			saveBtn.classList.add("d-none");
-			cancelBtn.classList.add("d-none");
-			isEditing = false;
-		};
-
-		const cancelEditing = () => {
-			nameInput.value = originalName;
-			stopEditing();
-		};
-
-		// Edit button handler
-		editBtn.addEventListener("click", () => {
-			if (!isEditing) {
-				startEditing();
-			}
+		const getControls = () => ({
+			nameInput: modal.querySelector("#capture-name-input"),
+			editBtn: modal.querySelector("#edit-name-btn"),
+			saveBtn: modal.querySelector("#save-name-btn"),
+			cancelBtn: modal.querySelector("#cancel-name-btn"),
 		});
 
-		// Cancel button handler
-		cancelBtn.addEventListener("click", cancelEditing);
+		const stopEditing = (controls) => {
+			if (!controls.nameInput) return;
+			controls.nameInput.disabled = true;
+			controls.editBtn?.classList.remove("d-none");
+			controls.saveBtn?.classList.add("d-none");
+			controls.cancelBtn?.classList.add("d-none");
+		};
 
-		// Save button handler
-		saveBtn.addEventListener("click", async () => {
-			const newName = nameInput.value.trim();
-			const uuid = nameInput.getAttribute("data-uuid");
+		const startEditing = (controls, originalName) => {
+			if (!controls.nameInput) return;
+			controls.nameInput.disabled = false;
+			controls.nameInput.focus();
+			controls.nameInput.select();
+			controls.editBtn?.classList.add("d-none");
+			controls.saveBtn?.classList.remove("d-none");
+			controls.cancelBtn?.classList.remove("d-none");
+			return originalName;
+		};
 
-			if (!uuid) {
-				console.error("No UUID found for capture");
+		modalManager._nameEditOriginal = "";
+		modalManager._nameEditIsEditing = false;
+
+		modal.addEventListener("click", async (e) => {
+			const controls = getControls();
+			if (!controls.nameInput || !controls.editBtn) return;
+
+			const t = e.target;
+
+			if (t.closest("#edit-name-btn")) {
+				e.preventDefault();
+				if (!modalManager._nameEditIsEditing) {
+					modalManager._nameEditOriginal = controls.nameInput.value;
+					startEditing(controls, modalManager._nameEditOriginal);
+					modalManager._nameEditIsEditing = true;
+				}
 				return;
 			}
 
-			// Disable buttons during save
-			editBtn.disabled = true;
-			saveBtn.disabled = true;
-			cancelBtn.disabled = true;
-			saveBtn.innerHTML =
-				'<span class="spinner-border spinner-border-sm"></span>';
+			if (t.closest("#cancel-name-btn")) {
+				e.preventDefault();
+				controls.nameInput.value = modalManager._nameEditOriginal;
+				stopEditing(controls);
+				modalManager._nameEditIsEditing = false;
+				return;
+			}
 
-			try {
-				await this.updateCaptureName(uuid, newName);
+			if (t.closest("#save-name-btn")) {
+				e.preventDefault();
+				const newName = controls.nameInput.value.trim();
+				const uuid = controls.nameInput.getAttribute("data-uuid");
+				if (!uuid) return;
 
-				// Success - update UI
-				originalName = newName;
-				stopEditing();
+				controls.editBtn.disabled = true;
+				controls.saveBtn.disabled = true;
+				controls.cancelBtn.disabled = true;
+				controls.saveBtn.innerHTML =
+					'<span class="spinner-border spinner-border-sm"></span>';
 
-				// Update the table display
-				this.updateTableNameDisplay(uuid, newName);
-
-				// Update modal title using stored capture data
-				if (this.modalTitle && this.currentCaptureData) {
-					this.currentCaptureData.name = newName;
-					this.modalTitle.textContent =
-						newName || this.currentCaptureData.topLevelDir || "Unnamed Capture";
+				try {
+					await modalManager.updateCaptureName(uuid, newName);
+					modalManager._nameEditOriginal = newName;
+					stopEditing(controls);
+					modalManager._nameEditIsEditing = false;
+					modalManager.updateTableNameDisplay(uuid, newName);
+					if (modalManager.modalTitle && modalManager.currentCaptureData) {
+						modalManager.currentCaptureData.name = newName;
+						modalManager.modalTitle.textContent =
+							newName ||
+							modalManager.currentCaptureData.topLevelDir ||
+							"Unnamed Capture";
+					}
+					modalManager.showSuccessMessage("Capture name updated successfully!");
+				} catch (err) {
+					console.error("Error updating capture name:", err);
+					modalManager.showErrorMessage(
+						"Failed to update capture name. Please try again.",
+					);
+					controls.nameInput.value = modalManager._nameEditOriginal;
+				} finally {
+					controls.editBtn.disabled = false;
+					controls.saveBtn.disabled = false;
+					controls.cancelBtn.disabled = false;
+					controls.saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
 				}
-
-				// Show success message
-				this.showSuccessMessage("Capture name updated successfully!");
-			} catch (error) {
-				console.error("Error updating capture name:", error);
-				this.showErrorMessage(
-					"Failed to update capture name. Please try again.",
-				);
-				// Revert to original name
-				nameInput.value = originalName;
-			} finally {
-				// Re-enable buttons and restore icons
-				editBtn.disabled = false;
-				saveBtn.disabled = false;
-				cancelBtn.disabled = false;
-				saveBtn.innerHTML = '<i class="bi bi-check-lg"></i>';
 			}
 		});
 
-		// Handle Enter key to save
-		nameInput.addEventListener("keypress", (e) => {
-			if (e.key === "Enter" && !nameInput.disabled) {
-				saveBtn.click();
+		modal.addEventListener("keypress", (e) => {
+			if (e.target.id !== "capture-name-input") return;
+			if (e.key === "Enter" && !e.target.disabled) {
+				const saveBtn = modal.querySelector("#save-name-btn");
+				saveBtn?.click();
 			}
 		});
 
-		// Handle Escape key to cancel
-		nameInput.addEventListener("keydown", (e) => {
-			if (e.key === "Escape" && !nameInput.disabled) {
-				cancelEditing();
+		modal.addEventListener("keydown", (e) => {
+			if (e.target.id !== "capture-name-input") return;
+			if (e.key === "Escape" && !e.target.disabled) {
+				const controls = getControls();
+				controls.nameInput.value = modalManager._nameEditOriginal;
+				stopEditing(controls);
+				modalManager._nameEditIsEditing = false;
 			}
+		});
+	}
+
+	/**
+	 * @deprecated Use setupVisualizeFromMeta
+	 */
+	setupVisualizeButton(captureData) {
+		this.setupVisualizeFromMeta({
+			visualize_enabled: captureData.captureType === "drf",
+			uuid: captureData.uuid,
+			capture_type: captureData.captureType,
 		});
 	}
 
@@ -639,7 +404,7 @@ class ModalManager {
 	 * Clear existing alert messages from the modal
 	 */
 	clearAlerts() {
-		const modalBody = document.getElementById("capture-modal-body");
+		const modalBody = document.getElementById("asset-details-modal-body");
 		if (modalBody) {
 			const existingAlerts = modalBody.querySelectorAll(".alert");
 			for (const alert of existingAlerts) {
@@ -664,7 +429,7 @@ class ModalManager {
 		`;
 
 		// Insert at the top of the modal body
-		const modalBody = document.getElementById("capture-modal-body");
+		const modalBody = document.getElementById("asset-details-modal-body");
 		if (modalBody) {
 			modalBody.insertBefore(alert, modalBody.firstChild);
 
@@ -693,7 +458,7 @@ class ModalManager {
 		`;
 
 		// Insert at the top of the modal body
-		const modalBody = document.getElementById("capture-modal-body");
+		const modalBody = document.getElementById("asset-details-modal-body");
 		if (modalBody) {
 			modalBody.insertBefore(alert, modalBody.firstChild);
 
@@ -707,71 +472,43 @@ class ModalManager {
 	}
 
 	/**
-	 * Load and display files associated with the capture
+	 * Load files summary HTML from server (registry-driven).
+	 * @param {{ buildFilesSummaryUrl?: (uuid: string) => string }} cfg
+	 * @param {string} captureUuid
 	 */
-	async loadCaptureFiles(captureUuid) {
+	async loadCaptureFilesSummary(cfg, captureUuid) {
+		const placeholder = document.getElementById("files-section-placeholder");
+		if (!placeholder || !cfg?.buildFilesSummaryUrl) {
+			return;
+		}
 		try {
-			const response = await fetch(`/api/v1/assets/captures/${captureUuid}/`, {
-				method: "GET",
-				headers: {
-					"Content-Type": "application/json",
-					"X-CSRFToken": this.getCSRFToken(),
-				},
+			const response = await fetch(cfg.buildFilesSummaryUrl(captureUuid), {
+				credentials: "same-origin",
+				headers: { Accept: "application/json" },
 			});
-
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
-
-			const captureData = await response.json();
-			console.log("Raw capture data:", captureData);
-
-			const files = captureData.files || [];
-			const filesCount = captureData.files_count || 0;
-			const totalSize = captureData.total_file_size || 0;
-
-			console.log("Files info:", {
-				filesCount,
-				totalSize,
-				numFiles: files.length,
-			});
-
-			// Update files section with simple summary
-			const filesSection = document.getElementById("files-section-placeholder");
-			if (filesSection) {
-				filesSection.innerHTML = `
-					<div class="row">
-						<div class="col-12">
-							<h6 class="mb-3">
-								<i class="bi bi-files me-2"></i>Files Summary
-							</h6>
-						</div>
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Number of Files:</span>
-								<span class="ms-2">${filesCount}</span>
-							</p>
-						</div>
-						<div class="col-md-6">
-							<p class="mb-2">
-								<span class="fw-medium text-muted">Total Size:</span>
-								<span class="ms-2">${window.DOMUtils.formatFileSize(totalSize)}</span>
-							</p>
-						</div>
-					</div>
-				`;
-			}
+			const data = await response.json();
+			placeholder.innerHTML = data.html || "";
 		} catch (error) {
 			console.error("Error loading capture files:", error);
-			const filesSection = document.getElementById("files-section-placeholder");
-			if (filesSection) {
-				filesSection.innerHTML = `
-					<div class="alert alert-warning">
-						<i class="bi bi-exclamation-triangle me-2"></i>
-						Error loading files information
-					</div>
-				`;
-			}
+			placeholder.innerHTML = `
+				<div class="alert alert-warning">
+					<i class="bi bi-exclamation-triangle me-2"></i>
+					Error loading files information
+				</div>
+			`;
+		}
+	}
+
+	/**
+	 * @deprecated Use loadCaptureFilesSummary with registry config
+	 */
+	async loadCaptureFiles(captureUuid) {
+		const cfg = window.DetailsModalAssetRegistry?.capture;
+		if (cfg) {
+			await this.loadCaptureFilesSummary(cfg, captureUuid);
 		}
 	}
 
@@ -965,11 +702,11 @@ class ModalManager {
 	}
 
 	/**
-	 * Delegated document clicks → capture detail modal (replaces per-page CapturesTableManager wiring).
+	 * Delegated document clicks → details modals (capture + dataset registry).
 	 * @param {ModalManager} modalManager
 	 * @returns {() => void} cleanup
 	 */
-	static attachDocumentCaptureClickDelegation(modalManager) {
+	static attachDocumentDetailsClickDelegation(modalManager) {
 		const handler = (e) => {
 			if (
 				e.target.matches('[data-bs-toggle="dropdown"]') ||
@@ -977,18 +714,64 @@ class ModalManager {
 			) {
 				return;
 			}
-			const selectors = [".capture-details-btn", ".capture-link", ".view-capture-btn"];
-			for (const sel of selectors) {
-				if (e.target.matches(sel) || e.target.closest(sel)) {
-					e.preventDefault();
-					const el = e.target.matches(sel) ? e.target : e.target.closest(sel);
-					modalManager?.openCaptureModal?.(el);
-					return;
-				}
-			}
+			const resolved = ModalManager.resolveDetailsModalFromTrigger(e.target);
+			if (!resolved) return;
+			e.preventDefault();
+			const { target } = resolved;
+			void modalManager?.openDetailsFromTrigger?.(target);
 		};
 		document.addEventListener("click", handler);
-		return () => document.removeEventListener("click", handler);
+		return () => {
+			document.removeEventListener("click", handler);
+			if (typeof document !== "undefined" && document.body) {
+				document.body.dataset.detailsAssetClickWired = "";
+			}
+		};
+	}
+
+	/**
+	 * Coordinator ModalManager for registry-driven details (capture singleton or noop shell).
+	 */
+	static getOrCreateDetailsClickCoordinator() {
+		if (typeof window !== "undefined" && window.filesCaptureModalManager) {
+			return window.filesCaptureModalManager;
+		}
+		if (typeof window !== "undefined" && !window.detailsModalClickCoordinator) {
+			window.detailsModalClickCoordinator = new ModalManager({
+				modalId: "asset-details-modal",
+				modalBodyId: "asset-details-modal-body",
+				modalTitleId: "asset-details-modal-label",
+			});
+		}
+		return typeof window !== "undefined"
+			? window.detailsModalClickCoordinator
+			: null;
+	}
+
+	/**
+	 * Single global document delegation for DetailsModalAssetRegistry (idempotent).
+	 * @returns {() => void} cleanup
+	 */
+	static ensureDetailsModalClickDelegation() {
+		if (
+			typeof document === "undefined" ||
+			document.body?.dataset?.detailsAssetClickWired === "1"
+		) {
+			return () => {};
+		}
+		document.body.dataset.detailsAssetClickWired = "1";
+		const mgr = ModalManager.getOrCreateDetailsClickCoordinator();
+		if (!mgr) {
+			return () => {};
+		}
+		return ModalManager.attachDocumentDetailsClickDelegation(mgr);
+	}
+
+	/**
+	 * @deprecated Use attachDocumentDetailsClickDelegation
+	 */
+	static attachDocumentCaptureClickDelegation(modalManager) {
+		return ModalManager.attachDocumentDetailsClickDelegation(modalManager);
 	}
 
 	/**
@@ -1001,16 +784,13 @@ class ModalManager {
 		const bound = [];
 
 		const modalManager = new ModalManager({
-			modalId: "capture-modal",
-			modalBodyId: "capture-modal-body",
-			modalTitleId: "capture-modal-label",
+			modalId: "asset-details-modal",
+			modalBodyId: "asset-details-modal-body",
+			modalTitleId: "asset-details-modal-label",
 		});
 		window.filesCaptureModalManager = modalManager;
 
-		const detachClicks =
-			typeof ModalManager.attachDocumentCaptureClickDelegation === "function"
-				? ModalManager.attachDocumentCaptureClickDelegation(modalManager)
-				: null;
+		const detachClicks = ModalManager.ensureDetailsModalClickDelegation();
 
 		if (!permConfig || !window.PermissionsManager || !window.ShareActionManager) {
 			return () => {
@@ -1146,16 +926,6 @@ class ModalManager {
 				});
 				managersOut.push(versioningManager);
 				modal.versioningActionManager = versioningManager;
-			}
-
-			if (window.DetailsActionManager) {
-				const detailsManager = new window.DetailsActionManager({
-					permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				managersOut.push(detailsManager);
-				modal.detailsActionManager = detailsManager;
 			}
 		}
 	}

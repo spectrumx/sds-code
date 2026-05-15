@@ -59,10 +59,11 @@
                                                 <div class="card-body d-flex flex-column">
                                                     <h5 class="card-title">
                                                         <a href="#"
-                                                           class="dataset-name-link text-decoration-none"
-                                                           data-bs-toggle="modal"
-                                                           data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
-                                                           data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</a>
+                                                           class="dataset-name-link text-decoration-none dataset-details-open"
+                                                           data-dataset-uuid="{{ dataset.uuid }}"
+                                                           data-item-uuid="{{ dataset.uuid }}"
+                                                           data-item-type="dataset"
+                                                           aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                                         {% if dataset.is_public %}<i class="bi bi-globe ms-1 text-primary" title="Public"></i>{% endif %}
                                                     </h5>
                                                     <div class="mb-2">
@@ -163,13 +164,12 @@
             </div>
         </div>
     </main>
-    <!-- Dataset details modals (one per card; IDs must match data-bs-target above) -->
-    {% for dataset in latest_datasets %}
-        {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
-    {% endfor %}
+    {% include "users/partials/asset_details_modal.html" %}
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
+    <script src="{% static 'js/core/ModalManager.js' %}"></script>
     <!-- Action components -->
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <!-- Keyword chip input component -->
@@ -177,27 +177,8 @@
     {# djlint:off #}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Initialize DetailsActionManager for dataset details modal
-            // For the home page, we use viewer-level permissions since we're showing public datasets
-            if (typeof DetailsActionManager !== 'undefined' && typeof PermissionsManager !== 'undefined') {
-                const permissions = new PermissionsManager({
-                    userPermissionLevel: window.PermissionLevels.VIEWER,
-                    currentUserId: {{ request.user.id|default:"null" }},
-                    isOwner: false,
-                    datasetPermissions: {
-                        canEditMetadata: false,
-                        canAddAssets: false,
-                        canRemoveAnyAssets: false,
-                        canRemoveOwnAssets: false,
-                        canShare: false,
-                        canDownload: true, // Public datasets can be downloaded
-                        canDelete: false
-                    }
-                });
-
-                window.detailsActionManager = new DetailsActionManager({
-                    permissions: permissions
-                });
+            if (window.ModalManager?.ensureDetailsModalClickDelegation) {
+                window.ModalManager.ensureDetailsModalClickDelegation();
             }
         });
 </script>

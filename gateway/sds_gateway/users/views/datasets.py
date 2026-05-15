@@ -1328,6 +1328,65 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 user_dataset_list_view = ListDatasetsView.as_view()
 
 
+def load_dataset_details_bundle(
+    request: HttpRequest, dataset_uuid: UUID
+) -> dict[str, Any] | None:
+    """
+    Build dataset details payload (dataset dict, tree, statistics).
+
+    Returns None if the dataset does not exist or is not visible to the request user.
+    On success, includes ``dataset_orm`` for server-rendered templates (omit from JSON).
+    """
+    try:
+        dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
+    except Dataset.DoesNotExist:
+        return None
+
+    has_public_access = (
+        dataset.is_public and dataset.status == DatasetStatus.FINAL
+    )
+    has_user_access = request.user.is_authenticated and user_has_access_to_item(
+        request.user, dataset_uuid, ItemType.DATASET
+    )
+
+    if not (has_public_access or has_user_access):
+        return None
+
+    dataset_data = get_dataset_serializer(dataset, has_user_access=has_user_access)
+    detail_helper = DatasetDetailsView()
+    files_queryset = detail_helper._get_dataset_files(dataset)
+
+    total_files = files_queryset.count()
+    captures_count = (
+        files_queryset.filter(Q(capture__isnull=False) | Q(captures__isnull=False))
+        .distinct()
+        .count()
+    )
+    artifacts_count = files_queryset.filter(
+        capture__isnull=True,
+        captures__isnull=True,
+    ).count()
+    total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
+
+    base_dir = sanitize_path_rel_to_user(
+        unsafe_path="/",
+        user=dataset.owner,
+    )
+    tree_data = detail_helper._get_directory_tree(files_queryset, str(base_dir))
+
+    return {
+        "dataset": dataset_data,
+        "tree": tree_data,
+        "statistics": {
+            "total_files": total_files,
+            "captures": captures_count,
+            "artifacts": artifacts_count,
+            "total_size": total_size,
+        },
+        "dataset_orm": dataset,
+    }
+
+
 class DatasetDetailsView(FileTreeMixin, View):
     """View to handle dataset details modal requests."""
 
@@ -1369,65 +1428,13 @@ class DatasetDetailsView(FileTreeMixin, View):
             return JsonResponse({"error": "Invalid dataset UUID"}, status=400)
 
         try:
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
-
-            has_public_access = (
-                dataset.is_public and dataset.status == DatasetStatus.FINAL
-            )
-            has_user_access = request.user.is_authenticated and user_has_access_to_item(
-                request.user, dataset_uuid, ItemType.DATASET
-            )
-
-            if not (has_public_access or has_user_access):
+            bundle = load_dataset_details_bundle(request, dataset_uuid)
+            if bundle is None:
                 return JsonResponse(
                     {"error": "Dataset not found or access denied"}, status=404
                 )
-
-            # Get dataset information
-            dataset_data = get_dataset_serializer(
-                dataset, has_user_access=has_user_access
-            )
-
-            # Get all files associated with the dataset
-            files_queryset = self._get_dataset_files(dataset)
-
-            # Calculate statistics (check both deprecated FK and M2M for capture links)
-            total_files = files_queryset.count()
-            captures_count = (
-                files_queryset.filter(
-                    Q(capture__isnull=False) | Q(captures__isnull=False)
-                )
-                .distinct()
-                .count()
-            )
-            artifacts_count = files_queryset.filter(
-                capture__isnull=True,
-                captures__isnull=True,
-            ).count()
-            total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
-
-            base_dir = sanitize_path_rel_to_user(
-                unsafe_path="/",
-                user=dataset.owner,
-            )
-
-            tree_data = self._get_directory_tree(files_queryset, str(base_dir))
-
-            response_data = {
-                "dataset": dataset_data,
-                "tree": tree_data,
-                "statistics": {
-                    "total_files": total_files,
-                    "captures": captures_count,
-                    "artifacts": artifacts_count,
-                    "total_size": total_size,
-                },
-            }
-
-            return JsonResponse(response_data)
-
-        except Dataset.DoesNotExist:
-            return JsonResponse({"error": "Dataset not found"}, status=404)
+            safe = {k: v for k, v in bundle.items() if k != "dataset_orm"}
+            return JsonResponse(safe)
         except Exception:  # noqa: BLE001
             log.exception("Error retrieving dataset details")
             return JsonResponse({"error": "Internal server error"}, status=500)
