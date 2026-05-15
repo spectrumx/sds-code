@@ -1039,6 +1039,48 @@ def filter_by_frequency_range(
     return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
+def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build dropdown_menu.html items for a serialized dataset list row."""
+    uuid = str(row.get("uuid") or "")
+    if not uuid:
+        return []
+    items: list[dict[str, Any]] = []
+    if row.get("is_owner"):
+        items.extend(
+            (
+                {
+                    "label": "Share",
+                    "icon": "person-plus",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#shareModal-{uuid}",
+                    "data_attrs": {},
+                },
+            )
+        )
+    items.append(
+        {
+            "label": "Download",
+            "icon": "download",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#webDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    items.append(
+        {
+            "label": "SDK",
+            "icon": "code-slash",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#sdkDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    return items
+
+
 def serialize_datasets_for_user(
     datasets: QuerySet[Dataset], user: User | None
 ) -> list[dict[str, Any]]:
@@ -1065,6 +1107,9 @@ def serialize_datasets_for_user(
             "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
         )
         dataset_data["dataset"] = dataset
+        dataset_data["dropdown_menu_items"] = _dataset_list_dropdown_menu_items(
+            dataset_data
+        )
         serialized_datasets.append(dataset_data)
     return serialized_datasets
 
@@ -1164,6 +1209,10 @@ class SearchPublishedDatasetsView(View):
 user_search_datasets_view = SearchPublishedDatasetsView.as_view()
 
 
+DATASET_LIST_TABLE_HEADERS = ["Name", "Authors", "Created", "Actions"]
+DATASET_LIST_NO_ASSETS_MESSAGE = "No datasets yet. Create one with Add Dataset."
+
+
 class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
@@ -1189,18 +1238,22 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             # Return table and modals so the client can update both after list refresh
             table_html = render_to_string(
-                "users/components/dataset_list_table.html",
+                "users/components/asset_list_table.html",
                 {
                     "page_obj": page_obj,
                     "sort_by": sort_by,
                     "sort_order": sort_order,
                     "ajax_fragment": True,
+                    "asset_type": "dataset",
+                    "asset_row_template": "users/components/dataset_list_table_row.html",
+                    "table_headers": DATASET_LIST_TABLE_HEADERS,
+                    "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
                 },
                 request=request,
             )
             modals_html = render_to_string(
                 "users/components/dataset_list_modals.html",
-                {"page_obj": page_obj},
+                {"page_obj": page_obj, "page_type": "dataset-list"},
                 request=request,
             )
             # Separator used by ListRefreshManager to split table vs modals
@@ -1214,6 +1267,11 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "page_obj": page_obj,
                 "sort_by": sort_by,
                 "sort_order": sort_order,
+                "ajax_fragment": False,
+                "asset_type": "dataset",
+                "asset_row_template": "users/components/asset_list_table_row.html",
+                "table_headers": DATASET_LIST_TABLE_HEADERS,
+                "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
             },
         )
 

@@ -26,7 +26,7 @@
                     </a>
                 </div>
                 <hr />
-                {% include "users/components/dataset_list_table.html" %}
+                {% include "users/components/asset_list_table.html" with page_obj=page_obj asset_type=asset_type table_headers=table_headers no_assets_message=no_assets_message asset_row_template=asset_row_template ajax_fragment=ajax_fragment %}
             </div>
         </div>
     </div>
@@ -51,6 +51,7 @@
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
+    <script src="{% static 'js/core/ModalManager.js' %}"></script>
     <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

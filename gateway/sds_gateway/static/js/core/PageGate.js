@@ -79,28 +79,6 @@
 		document.head.appendChild(style);
 	}
 
-	function ensureComponentsShim() {
-		if (window.components) return;
-		const domUtils =
-			typeof window.DOMUtils?.showAlert === "function" ? window.DOMUtils : null;
-		window.components = {
-			showError(message) {
-				if (domUtils) {
-					void domUtils.showAlert(message, "error");
-				} else {
-					console.error(message);
-				}
-			},
-			showSuccess(message) {
-				if (domUtils) {
-					void domUtils.showAlert(message, "success");
-				} else {
-					console.log(message);
-				}
-			},
-		};
-	}
-
 	function wireVisualizationTriggers() {
 		if (window.VisualizationModal && !window.visualizationModalInstance) {
 			window.visualizationModalInstance = new window.VisualizationModal();
@@ -119,7 +97,8 @@
 				captureUuid &&
 				captureType &&
 				window.visualizationModalInstance &&
-				typeof window.visualizationModalInstance.openWithCaptureData === "function"
+				typeof window.visualizationModalInstance.openWithCaptureData ===
+					"function"
 			) {
 				window.visualizationModalInstance.openWithCaptureData(
 					captureUuid,
@@ -152,7 +131,6 @@
 		injectGatewayChromeStyles();
 
 		onReady(() => {
-			ensureComponentsShim();
 			if (!checkBootstrapPresent()) {
 				console.warn(
 					"Bootstrap not detected. Some UI features may not work properly.",
@@ -168,7 +146,6 @@
 		checkBootstrapPresent,
 		checkUploadFeatures,
 		injectGatewayChromeStyles,
-		ensureComponentsShim,
 		wireVisualizationTriggers,
 	};
 

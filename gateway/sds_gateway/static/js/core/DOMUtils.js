@@ -1,6 +1,6 @@
 /**
  * DOM Utility Functions
- * Provides basic DOM manipulation utilities (show, hide, showAlert)
+ * Provides basic DOM manipulation utilities
  *
  * NOTE: This class does NOT generate HTML from user data.
  * All HTML containing server data should be rendered server-side using Django templates.
@@ -9,7 +9,17 @@
  * - formatFileSize(bytes) - Format file size
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
- * - showAlert(message, type) - Show Bootstrap toast notification
+ * - showMessage(message, opts) - Show Bootstrap toast notification
+ * - logError(error, triggeredBy) - Log error to console
+ * - getUserFriendlyErrorMessage(error) - Get user-friendly error message
+ * - initIconDropdowns(root) - Initialize icon dropdowns
+ * - initializeListDropdowns(root) - Initialize list dropdowns
+ * - renderLoading(container, text, options) - Render loading state using Django template
+ * - renderContent(container, options) - Render content using Django template
+ * - renderTable(container, rows, options) - Render table rows using Django template
+ * - renderSelectOptions(selectElement, choices, currentValue) - Render select options using Django template
+ * - renderPagination(container, pagination) - Render pagination using Django template
+ * - renderDropdown(options) - Render dropdown menu using Django template
  */
 class DOMUtils {
 	/**
@@ -63,18 +73,6 @@ class DOMUtils {
 
 		el.classList.remove(displayClass);
 		el.classList.add("display-none");
-	}
-
-	/**
-	 * Escape text for safe HTML interpolation (textContent round-trip).
-	 * @param {string} text
-	 * @returns {string}
-	 */
-	escapeHtml(text) {
-		if (!text) return "";
-		const div = document.createElement("div");
-		div.textContent = text;
-		return div.innerHTML;
 	}
 
 	formatDate(dateString) {
@@ -150,224 +148,128 @@ class DOMUtils {
 	}
 
 	/**
-	 * Deduped error surface: console + optional toast (no legacy globals).
+	 * Unified user-visible messaging (server-rendered HTML).
 	 * @param {string} message
-	 * @param {string} context
-	 * @param {Error|null} error
+	 * @param {object} [opts]
+	 * @param {'success'|'error'|'warning'|'info'|'danger'} [opts.variant='info'] - danger maps like Bootstrap
+	 * @param {'toast'|'replace'|'append'} [opts.placement='toast']
+	 * @param {Element|string|null} [opts.target] - for replace/append (selector or element)
+	 * @param {'toast'|'inline'|'alert'|'list'|'table'} [opts.presentation='toast'] - must match template branches
+	 * @param {object} [opts.templateContext] - extra keys passed to Django (error_list, colspan, icon, …)
+	 * @param {Error|null} [opts.error] - error object to log
+	 * @param {Element|string|null} [opts.triggeredBy] - element to log error for
+	 * @param {boolean} [opts.log] - log error to console
+	 * @param {boolean} [opts.autoRemove] - for ephemeral modal alerts (timeout ms in opts.autoRemoveMs)
+	 * @param {number} [opts.autoRemoveMs] - timeout ms for auto removal of ephemeral modal alerts
 	 */
-	showError(message, context = "", error = null) {
-		if (!this._notificationDedup) {
-			this._notificationDedup = new Set();
-		}
-		const messageKey = `${context}:${message}`;
-		if (this._notificationDedup.has(messageKey)) {
-			if (error) {
-				console.error(`[${context}]`, error);
-			}
-			return;
-		}
-		this._notificationDedup.add(messageKey);
+	async showMessage(message, opts = {}) {
+		const {
+			variant = "info",
+			placement = "toast",
+			target = null,
+			presentation = placement === "toast" ? "toast" : "alert",
+			templateContext = {},
+			error = null,
+			triggeredBy = null,
+			log = false,
+			autoRemove = false,
+			autoRemoveMs = 4000,
+		} = opts;
 
-		if (error) {
-			console.error(`[${context}]`, {
-				message: error.message,
-				stack: error.stack,
-				userMessage: message,
-			});
-		} else {
-			console.warn(`[${context}]`, message);
+		const type =
+			variant === "danger" || variant === "error" ? "error" : variant;
+
+		// Log error if log is true and type is error
+		if (log && error) {
+			this.logError(error, triggeredBy);
 		}
 
-		void this.showAlert(message, "error");
+		const context = {
+			message: message ?? "",
+			type,
+			presentation, // toast | inline | alert | list | table
+			...templateContext,
+		};
+
+		const response = await window.APIClient.post(
+			"/users/render-html/",
+			{
+				template: "users/components/message.html",
+				context,
+			},
+			null,
+			true,
+		);
+
+		if (!response?.html) return false;
+
+		const wrap = document.createElement("div");
+		wrap.innerHTML = response.html;
+		const node = wrap.firstElementChild;
+		if (!node) return false;
+
+		if (placement === "toast") {
+			const toastHost = document.getElementById("toast-container");
+			if (!toastHost || !window.bootstrap?.Toast) return false;
+			node.id =
+				node.id || `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+			toastHost.appendChild(node);
+			const t = new bootstrap.Toast(node);
+			t.show();
+			node.addEventListener("hidden.bs.toast", () => node.remove());
+			return true;
+		}
+
+		const el =
+			typeof target === "string" ? document.querySelector(target) : target;
+		if (!el) return false;
+
+		if (placement === "append") el.insertBefore(node, el.firstChild);
+		else el.innerHTML = "";
+		if (placement === "replace") el.appendChild(node);
+
+		if (autoRemove && presentation === "alert") {
+			setTimeout(() => node.remove(), autoRemoveMs);
+		}
+		return true;
 	}
 
-	getUserFriendlyErrorMessage(error, _context = "") {
+	logError(error, triggeredBy = null) {
+		console.error(
+			triggeredBy ? triggeredBy : "",
+			this.getUserFriendlyErrorMessage(error),
+		);
+	}
+
+	getUserFriendlyErrorMessage(error) {
 		if (!error) return "An unexpected error occurred";
 
 		if (error.name === "TypeError" && error.message.includes("Cannot read")) {
 			return "Configuration error: Some components are not properly loaded";
 		}
+		if (error.name === "TypeError" && error.message.includes("JSON")) {
+			return "Invalid response format: Please try again or contact support";
+		}
 		if (error.name === "ReferenceError") {
 			return "Component error: Required functionality is not available";
 		}
+		if (error.name === "NetworkError" || error.message.includes("fetch")) {
+			return "Network error: Please check your connection and try again";
+		}
+		if (error.message.includes("403") || error.message.includes("Forbidden")) {
+			return "Access denied: You don't have permission to perform this action";
+		}
+		if (error.message.includes("404") || error.message.includes("Not Found")) {
+			return "Resource not found: The requested asset may have been moved or deleted";
+		}
+		if (
+			error.message.includes("500") ||
+			error.message.includes("Internal Server Error")
+		) {
+			return "Server error: Please try again later or contact support";
+		}
 
 		return error.message || "An unexpected error occurred";
-	}
-
-	/**
-	 * Show global toast notification
-	 * Renders toast using Django template toast.html
-	 * @param {string} message - Toast message
-	 * @param {string} type - Toast type (success, error, warning, info)
-	 */
-	async showAlert(message, type = "success") {
-		const toastContainer = document.getElementById("toast-container");
-		if (!toastContainer) {
-			console.warn("Toast container not found");
-			return;
-		}
-
-		const toastId = `toast-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-
-		try {
-			// Render toast using Django template
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/toast.html",
-					context: {
-						message: message,
-						type: type,
-					},
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (!response.html) {
-				console.error("No HTML returned from toast template");
-				return;
-			}
-
-			// Create a temporary container to parse the HTML
-			const tempDiv = document.createElement("div");
-			tempDiv.innerHTML = response.html;
-			const toastDiv = tempDiv.firstElementChild;
-
-			if (!toastDiv) {
-				console.error("Failed to parse toast HTML");
-				return;
-			}
-
-			// Set unique ID for the toast
-			toastDiv.id = toastId;
-
-			// Append to toast container
-			toastContainer.appendChild(toastDiv);
-
-			// Initialize and show Bootstrap toast
-			if (!window.bootstrap || !bootstrap.Toast) {
-				console.error("Bootstrap not available");
-				return;
-			}
-
-			const toast = new bootstrap.Toast(toastDiv);
-			toast.show();
-			toastDiv.addEventListener("hidden.bs.toast", () => toastDiv.remove());
-		} catch (error) {
-			console.error("Error rendering toast template:", error);
-		}
-	}
-
-	/**
-	 * Show modal loading state
-	 * @param {string} modalId - Modal ID
-	 */
-	async showModalLoading(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody) {
-			// Store original content before showing loading
-			if (!modalBody.dataset.originalContent) {
-				modalBody.dataset.originalContent = modalBody.innerHTML;
-			}
-
-			await this.renderLoading(modalBody, "Loading modal...", {
-				format: "modal",
-			});
-		}
-	}
-
-	/**
-	 * Clear modal loading state and restore original content
-	 * @param {string} modalId - Modal ID
-	 */
-	clearModalLoading(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody?.dataset.originalContent) {
-			// Restore original content
-			modalBody.innerHTML = modalBody.dataset.originalContent;
-			// Clean up the stored content
-			delete modalBody.dataset.originalContent;
-		}
-	}
-
-	/**
-	 * Show modal error
-	 * @param {string} modalId - Modal ID
-	 * @param {string} message - Error message
-	 */
-	async showModalError(modalId, message) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody) {
-			await this.renderError(modalBody, message, {
-				format: "alert",
-				alert_type: "danger",
-				icon: "exclamation-triangle",
-			});
-		}
-
-		// Show modal even with error
-		this.openModal(modalId);
-	}
-
-	/**
-	 * Open modal
-	 * @param {string} modalId - Modal ID
-	 */
-	openModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		// Check if modal instance already exists
-		let bootstrapModal = bootstrap.Modal.getInstance(modal);
-
-		// If instance exists but is in a bad state (no _config), dispose and recreate
-		if (
-			bootstrapModal &&
-			(!bootstrapModal._config || !bootstrapModal._config.backdrop)
-		) {
-			try {
-				bootstrapModal.dispose();
-				bootstrapModal = null;
-			} catch (_e) {
-				// If disposal fails, force remove the instance
-				bootstrapModal = null;
-			}
-		}
-
-		// If no instance exists, create one with default config
-		if (!bootstrapModal) {
-			bootstrapModal = new bootstrap.Modal(modal, {
-				backdrop: true,
-				keyboard: true,
-				focus: true,
-			});
-		}
-
-		bootstrapModal.show();
-	}
-
-	/**
-	 * Close modal
-	 * @param {string} modalId - Modal ID
-	 */
-	closeModal(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const bootstrapModal = bootstrap.Modal.getInstance(modal);
-		if (!bootstrapModal) return;
-
-		bootstrapModal.hide();
 	}
 
 	/**
@@ -432,51 +334,6 @@ class DOMUtils {
 	 */
 	initializeListDropdowns(root = document) {
 		this.initIconDropdowns(root);
-	}
-
-	/**
-	 * Render error using Django template
-	 * @param {Element|string} container - Container element or selector
-	 * @param {string} message - Error message
-	 * @param {Object} options - Additional options (format, colspan, error_list, etc.)
-	 * @returns {Promise<boolean>} Success status
-	 */
-	async renderError(container, message, options = {}) {
-		const el =
-			typeof container === "string"
-				? document.querySelector(container)
-				: container;
-		if (!el) {
-			console.warn("Container not found for renderError:", container);
-			return false;
-		}
-
-		const context = {
-			message: message,
-			format: options.format || "inline",
-			...options,
-		};
-
-		try {
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/error.html",
-					context: context,
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (response.html) {
-				el.innerHTML = response.html;
-				return true;
-			}
-			return false;
-		} catch (error) {
-			console.error("Error rendering error template:", error);
-			return false;
-		}
 	}
 
 	/**
@@ -781,7 +638,7 @@ class DOMUtils {
 window.DOMUtils = new DOMUtils();
 
 // Also expose showAlert as global function for convenience
-window.showAlert = window.DOMUtils.showAlert.bind(window.DOMUtils);
+window.showMessage = window.DOMUtils.showMessage.bind(window.DOMUtils);
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {

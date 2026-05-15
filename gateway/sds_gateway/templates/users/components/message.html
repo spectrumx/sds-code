@@ -1,18 +1,26 @@
 {% comment %}
-Error Component - Generalized
-Renders errors in various formats: inline, table, alert, or list
-Context:
-  - message: Simple error message string
-  - error_list: List of tuples [(field, message), ...]
-  - format: 'inline' | 'table' | 'alert' | 'list' (default: 'inline')
-  - icon: Icon name (default: 'exclamation-triangle')
-  - alert_type: Alert variant for alert format (default: 'danger')
-  - colspan: Number of columns for table format (default: 5)
-  - show_field_names: Show field names in list/alert (default: False)
-  - dismissible: Show close button for alert format (default: True)
+  Context:
+  - message, type (success|error|warning|info)
+  - presentation: toast | inline | alert | list | table
+  - optional: error_list, colspan, icon, alert_type, dismissible, show_field_names
 {% endcomment %}
-{% if format == 'table' %}
-    {# Table row error format #}
+{% if presentation == "toast" %}
+    {% with toast_type=type|default:""|lower %}
+        <div class="toast align-items-center {% if 'success' in toast_type %}bg-success text-white {% elif 'error' in toast_type or 'danger' in toast_type %}bg-danger text-white {% elif 'warning' in toast_type %}bg-warning text-dark {% else %}bg-info text-white{% endif %}"
+             role="alert"
+             aria-live="assertive"
+             aria-atomic="true"
+             data-bs-delay="10000">
+            <div class="d-flex">
+                <div class="toast-body">{{ message }}</div>
+                <button type="button"
+                        class="btn-close {% if 'warning' not in toast_type %}btn-close-white{% endif %} me-2 m-auto"
+                        data-bs-dismiss="toast"
+                        aria-label="Close"></button>
+            </div>
+        </div>
+    {% endwith %}
+{% elif presentation == "table" %}
     <tr>
         <td colspan="{{ colspan|default:5 }}" class="text-center text-danger">
             {% if message %}
@@ -22,9 +30,8 @@ Context:
             {% endif %}
         </td>
     </tr>
-{% elif format == 'alert' %}
-    {# Alert box error format #}
-    <div class="alert alert-{{ alert_type|default:'danger' }}{% if dismissible|default:True %} alert-dismissible fade show{% endif %}"
+{% elif presentation == "alert" %}
+    <div class="alert alert-{{ alert_type|default:'danger' }}{% if dismissible|default:True %} alert-dismissible fade show{% endif %} js-ephemeral-message"
          role="alert">
         <i class="bi bi-{{ icon|default:'exclamation-triangle' }} me-2"></i>
         {% if message %}
@@ -47,8 +54,7 @@ Context:
                     aria-label="Close"></button>
         {% endif %}
     </div>
-{% elif format == 'list' %}
-    {# List error format #}
+{% elif presentation == "list" %}
     <ul class="mb-0 list-unstyled">
         {% if error_list %}
             {% for field, msg in error_list %}
@@ -62,6 +68,5 @@ Context:
         {% endif %}
     </ul>
 {% else %}
-    {# Inline error format (default) #}
     <span class="text-danger">{{ message|default:"Error loading data" }}</span>
 {% endif %}

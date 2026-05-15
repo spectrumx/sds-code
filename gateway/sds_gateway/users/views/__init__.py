@@ -55,11 +55,9 @@ from .files import FileDetailView
 from .files import FileDownloadView
 from .files import FileH5InfoView
 from .files import FilesView
-from .files import ListFilesView
 from .files import files_view
 from .files import user_check_file_exists_view
 from .files import user_file_detail_view
-from .files import user_file_list_view
 
 # Share group views
 from .share_groups import ShareGroupListView
@@ -110,7 +108,6 @@ __all__ = [
     "KeywordAutocompleteAPIView",
     "ListCapturesView",
     "ListDatasetsView",
-    "ListFilesView",
     "NewAPIKeyView",
     "QuickAddCaptureToDatasetView",
     "RenderHTMLFragmentView",
@@ -148,7 +145,6 @@ __all__ = [
     "user_detail_view",
     "user_download_item_view",
     "user_file_detail_view",
-    "user_file_list_view",
     "user_group_captures_view",
     "user_publish_dataset_view",
     "user_redirect_view",

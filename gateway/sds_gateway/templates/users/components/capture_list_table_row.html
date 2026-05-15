@@ -1,0 +1,58 @@
+{% comment %}
+Single source for the capture list table (full page + AJAX refresh).
+
+Context:
+- capture: capture object
+- dropdown_menu_items: list of dropdown menu items
+{% endcomment %}
+{% load tz %}
+
+<tr class="capture-row" data-capture-uuid="{{ capture.uuid }}">
+    <td class="capture-select-column" headers="select-header">
+        {% if capture.is_owner %}
+            <input type="checkbox"
+                   class="capture-select-checkbox form-check-input"
+                   data-capture-uuid="{{ capture.uuid }}"
+                   aria-label="Select capture {{ capture.name|default:capture.uuid }}" />
+        {% else %}
+            <span class="text-muted" aria-hidden="true">—</span>
+        {% endif %}
+    </td>
+    <td headers="name-header">
+        <a href="#"
+           class="capture-link"
+           data-bs-toggle="modal"
+           data-bs-target="#captureDetailsModal-{{ capture.uuid }}"
+           data-uuid="{{ capture.uuid }}"
+           aria-label="View details for capture {{ capture.name|default:capture.uuid }}"
+           title="View capture details: {{ capture.name|default:capture.uuid }}">
+            {{ capture.name|default:"Unnamed Capture" }}
+        </a>
+        {% if capture.is_shared_with_me %}
+            <span class="ms-2 align-middle"
+                  data-bs-toggle="tooltip"
+                  title="Shared with you">
+                <i class="bi bi-people-fill text-success"></i>
+            </span>
+        {% endif %}
+    </td>
+    <td headers="top-level-dir-header"
+        class="text-truncate"
+        title="{{ capture.top_level_dir|default:'' }}">{{ capture.top_level_dir|default:"-" }}</td>
+    <td headers="type-header">{{ capture.capture_type_display }}</td>
+    <td headers="created-header" class="text-nowrap">
+        {% if capture.capture.created_at %}
+            {% localtime on %}
+            <div class="d-flex align-items-center gap-2">
+                <span class="bg-transparent pe-2">{{ capture.capture.created_at|date:"Y-m-d" }}</span>
+                <span class="text-muted bg-transparent">{{ capture.capture.created_at|date:"H:i:s T" }}</span>
+            </div>
+        {% endlocaltime %}
+    {% else %}
+        -
+    {% endif %}
+</td>
+<td headers="actions-header" class="text-center">
+    {% include "users/components/dropdown_menu.html" with items=dropdown_menu_items %}
+</td>
+</tr>

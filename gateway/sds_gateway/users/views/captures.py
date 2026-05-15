@@ -437,10 +437,14 @@ def _get_filtered_and_sorted_captures(
     return unique_captures
 
 
+CAPTURES_LIST_TABLE_HEADERS = ["Name", "Directory", "Type", "Created", "Actions"]
+CAPTURES_LIST_NO_ASSETS_MESSAGE = "No captures yet. Create one with Upload Capture."
+
+
 class ListCapturesView(Auth0LoginRequiredMixin, View):
     """Handle HTML requests for the captures list page."""
 
-    template_name = "users/file_list.html"
+    template_name = "users/capture_list.html"
     default_items_per_page = 25
     max_items_per_page = 100
 
@@ -483,6 +487,10 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             table_ctx = {
                 "captures": page_obj,
+                "asset_type": "capture",
+                "asset_row_template": "users/components/capture_list_table_row.html",
+                "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
                 "sort_by": params["sort_by"],
                 "sort_order": params["sort_order"],
                 "search": params["search"],
@@ -495,12 +503,12 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
                 "request": request,
             }
             table_html = render_to_string(
-                "users/components/capture_list_table_fragment.html",
+                "users/components/asset_list_table.html",
                 table_ctx,
                 request=request,
             )
             modals_html = render_to_string(
-                "users/components/capture_list_modals_fragment.html",
+                "users/components/capture_list_modals.html",
                 {"captures": page_obj.object_list, "request": request},
                 request=request,
             )
@@ -512,6 +520,10 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             self.template_name,
             {
                 "captures": page_obj,
+                "asset_type": "capture",
+                "asset_row_template": "users/components/capture_list_table_row.html",
+                "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
                 "sort_by": params["sort_by"],
                 "sort_order": params["sort_order"],
                 "search": params["search"],

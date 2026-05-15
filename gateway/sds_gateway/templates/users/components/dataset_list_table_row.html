@@ -1,0 +1,79 @@
+{% comment %}
+Single source for the dataset list table (full page + AJAX refresh).
+
+Context:
+- dataset: dataset object
+- dropdown_menu_items: list of dropdown menu items
+{% endcomment %}
+{% load tz %}
+
+<tr class="clickable-row" data-dataset-uuid="{{ dataset.uuid }}">
+    <td class="text-nowrap">
+        {% if dataset.is_owner %}
+            <a href="#"
+               class="dataset-name-link"
+               data-bs-toggle="modal"
+               data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
+               data-dataset-uuid="{{ dataset.uuid }}"
+               aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
+        {% else %}
+            <span class="text-muted dataset-name-link"
+                  data-bs-toggle="modal"
+                  data-bs-target="#datasetDetailsModal-{{ dataset.uuid }}"
+                  data-dataset-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
+        {% endif %}
+        {% if dataset.status == 'draft' %}
+            <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
+        {% endif %}
+        {% if dataset.is_public %}<i class="bi bi-globe me-1 text-primary" title="Public"></i>{% endif %}
+        {% if dataset.is_shared_with_me %}
+            <span class="ms-2 align-middle"
+                  data-bs-toggle="tooltip"
+                  title="Shared with you">
+                <i class="bi bi-people-fill text-success"></i>
+            </span>
+        {% endif %}
+    </td>
+    <td class="text-break">
+        {% if dataset.authors %}
+            {% for author in dataset.authors %}
+                {% if forloop.counter <= 2 %}
+                    {% if author.name %}
+                        {% if author.orcid_id %}
+                            <a href="https://orcid.org/{{ author.orcid_id }}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="text-decoration-none"
+                               title="View {{ author.name }}'s ORCID profile">
+                                {{ author.name }}
+                                <i class="bi bi-box-arrow-up-right text-muted sort-icon"></i>
+                            </a>
+                        {% else %}
+                            {{ author.name }}
+                        {% endif %}
+                        {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %},{% endif %}
+                    {% else %}
+                        {{ author }}
+                        {% if not forloop.last and forloop.counter < 2 and dataset.authors|length > 1 %},{% endif %}
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+            {% if dataset.authors|length > 2 %}<span class="text-muted">...</span>{% endif %}
+        {% else %}
+            -
+        {% endif %}
+    </td>
+    <td class="text-nowrap">
+        {% if dataset.dataset.created_at %}
+            {% localtime on %}
+            <div class="d-flex align-items-center gap-2">
+                <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y-m-d" }}</span>
+                <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
+            </div>
+        {% endlocaltime %}
+    {% else %}
+        -
+    {% endif %}
+</td>
+<td class="text-center">{% include "users/components/dropdown_menu.html" with items=dropdown_menu_items %}</td>
+</tr>

@@ -1,7 +1,6 @@
 import json
 from typing import cast
 
-from django.core.paginator import Paginator
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -36,77 +35,6 @@ from sds_gateway.users.item_models import Item
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
-from sds_gateway.visualizations.config import get_visualization_compatibility
-
-
-class ListFilesView(Auth0LoginRequiredMixin, View):
-    template_name = "users/file_list.html"
-    items_per_page = 25
-
-    def get(self, request, *args, **kwargs) -> HttpResponse:
-        # Get query parameters
-        sort_by = request.GET.get("sort_by", "created_at")
-        sort_order = request.GET.get("sort_order", "desc")
-
-        # Get filter parameters
-        search = request.GET.get("search", "")
-        date_start = request.GET.get("date_start", "")
-        date_end = request.GET.get("date_end", "")
-        center_freq = request.GET.get("center_freq", "")
-        bandwidth = request.GET.get("bandwidth", "")
-        location = request.GET.get("location", "")
-
-        # Base queryset
-        files_qs = request.user.files.filter(is_deleted=False)
-
-        # Apply search filter
-        if search:
-            files_qs = files_qs.filter(name__icontains=search)
-
-        # Apply date range filter
-        if date_start:
-            files_qs = files_qs.filter(created_at__gte=date_start)
-        if date_end:
-            files_qs = files_qs.filter(created_at__lte=date_end)
-
-        # Apply other filters
-        if center_freq:
-            files_qs = files_qs.filter(center_frequency=center_freq)
-        if bandwidth:
-            files_qs = files_qs.filter(bandwidth=bandwidth)
-        if location:
-            files_qs = files_qs.filter(location=location)
-
-        # Handle sorting
-        if sort_by:
-            if sort_order == "desc":
-                files_qs = files_qs.order_by(f"-{sort_by}")
-            else:
-                files_qs = files_qs.order_by(sort_by)
-
-        # Paginate the results
-        paginator = Paginator(files_qs, self.items_per_page)
-        files_page = paginator.get_page(request.GET.get("page", 1))
-
-        # Get visualization compatibility data
-        visualization_compatibility = get_visualization_compatibility()
-
-        return render(
-            request,
-            template_name=self.template_name,
-            context={
-                "files": files_page,
-                "total_pages": paginator.num_pages,
-                "current_page": files_page.number,
-                "total_items": paginator.count,
-                "sort_by": sort_by,
-                "sort_order": sort_order,
-                "visualization_compatibility": visualization_compatibility,
-            },
-        )
-
-
-user_file_list_view = ListFilesView.as_view()
 
 
 class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
