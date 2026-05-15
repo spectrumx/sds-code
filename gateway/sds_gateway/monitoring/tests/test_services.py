@@ -33,8 +33,7 @@ def test_default_services_include_core_dependencies() -> None:
         for service_definition in get_default_service_definitions()
     }
 
-    # TODO: review after integrating seaweedfs
-    assert service_names == {"minio", "postgres"}
+    assert service_names == {"primary-storage", "secondary", "postgres"}
 
 
 def test_record_service_checks_persists_history_and_snapshot() -> None:

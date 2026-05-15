@@ -1,6 +1,8 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
 # ruff: noqa: F405, ERA001
 
+import os
+
 import sentry_sdk
 from django.utils.log import DEFAULT_LOGGING
 from loguru import logger as log
@@ -198,6 +200,14 @@ if SENTRY_DSN:
         # see https://docs.sentry.io/platforms/python/data-management/data-collected/
         send_default_pii=False,
     )
+
+# CELERY
+# ------------------------------------------------------------------------------
+# Worker concurrency: override with env CELERY_WORKER_CONCURRENCY.
+_nproc = os.cpu_count() or 1
+CELERY_WORKER_CONCURRENCY: int = env.int(
+    "CELERY_WORKER_CONCURRENCY", default=min(8, _nproc)
+)
 
 # DJANGO-REST-FRAMEWORK
 # -------------------------------------------------------------------------------

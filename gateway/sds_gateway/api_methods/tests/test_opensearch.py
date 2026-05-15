@@ -1,6 +1,7 @@
 """Tests for OpenSearch index reset and reindexing."""
 
 import base64
+import contextlib
 import json
 import uuid
 from pathlib import Path
@@ -22,6 +23,25 @@ from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_captur
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.users.models import User
+
+
+def _clear_create_index_block(client) -> None:
+    """Clear cluster.blocks.create_index if set via _cluster/settings API.
+
+    The OpenSearch cluster can have a persistent ``cluster.blocks.create_index``
+    gate set to ``true`` (typically via ``init_indices`` or previous test
+    runs).  When that flag is true *every* ``indices.create()`` call fails
+    with ``FORBIDDEN/10/cluster create-index blocked (api)`` -- a 403.
+    This helper resets it to ``false`` before any create-index operation.
+    """
+    with contextlib.suppress(Exception):
+        client.cluster.put_settings(
+            body={
+                "persistent": {
+                    "cluster.blocks.create_index": False,
+                },
+            },
+        )
 
 
 class OpenSearchHealthCheckTest(APITestCase):
@@ -228,6 +248,8 @@ class OpenSearchRHIndexResetTest(APITestCase):
                 index=self.capture.index_name,
                 ignore=[400, 404],
             )
+
+        _clear_create_index_block(self.client)
 
         self.client.indices.create(
             index=self.capture.index_name,
@@ -670,6 +692,7 @@ class OpenSearchDRFIndexResetTest(APITestCase):
                 index=self.capture.index_name,
                 ignore=[400, 404],
             )
+        _clear_create_index_block(self.client)
         self.client.indices.create(
             index=self.capture.index_name,
             body=original_index_config,

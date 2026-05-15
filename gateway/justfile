@@ -14,7 +14,7 @@ app_container := shell(env_selection_script + ' $1', "app_container")
 compose_file := shell(env_selection_script + ' $1', "compose_file")
 env := shell(env_selection_script + ' $1', "env")
 env_file := shell(env_selection_script + ' $1', "env_file")
-docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file + " --env-file ./.envs/" + env + "/storage.env"
 gwy_root := justfile_directory()
 git_root := gwy_root + "/.."
 uv_cmd := docker_compose + " run '" + app_container + "' uv"
@@ -146,7 +146,6 @@ dev-setup:
 [group('utilities')]
 env:
     #!/usr/bin/env bash
-    set -euo pipefail
     echo -e "\nSelected env:\n"
     echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
     echo -e "\tEnvironment file: \e[34m        '{{ env_file }}'\e[0m"

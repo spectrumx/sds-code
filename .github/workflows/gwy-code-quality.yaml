@@ -90,8 +90,8 @@ jobs:
               run: |
                   npm install -g rust-just
 
-            - name: Deploy action
-              run: ./scripts/deploy.sh ci
+            - name: Deploy action (RustFS only — no SeaweedFS)
+              run: SDS_SKIP_SFS=true ./scripts/deploy.sh ci
               working-directory: ./gateway
 
             - name: Run tests
