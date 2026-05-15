@@ -16,7 +16,7 @@
     ]
 
     name            = "spectrumx"
-    version         = "0.1.18"
+    version         = "0.1.19"
     description     = "SpectrumX Data System SDK"
     readme          = "./docs/README.md"
     requires-python = ">=3.11"
@@ -40,7 +40,7 @@
     ]
 
     [project.urls]
-        Changelog     = "https://github.com/spectrumx/sds-code/blob/master/sdk/docs/changelog.md"
+        Changelog     = "https://github.com/spectrumx/sds-code/blob/master/sdk/docs/mkdocs/changelog.md"
         Documentation = "https://github.com/spectrumx/sds-code/tree/master/sdk/docs"
         Issues        = "https://github.com/spectrumx/sds-code/issues"
         Repository    = "https://github.com/spectrumx/sds-code/tree/master/sdk"

@@ -32,6 +32,7 @@ NOT_IMPLEMENTED = "This example is not yet implemented."
 SDS_HOST = "sds-dev.crc.nd.edu"  # shouldn't matter for dry-runs
 
 if TYPE_CHECKING:
+    from spectrumx.models.datasets import Dataset
     from spectrumx.models.files import File
 
 
@@ -237,6 +238,14 @@ def check_file_listing_usage() -> None:
         print(f"\tProcessing {file_entry.name} of size {file_entry.size} B...")
         # do_something_with_the_file(file_entry)
 
+    # list_files with time filtering (new in v0.1.19):
+    # from datetime import datetime, timezone
+    # files_time_filtered = sds.list_files(
+    #     sds_path=reference_name,
+    #     start_time=datetime(2025, 1, 1, tzinfo=timezone.utc),
+    #     end_time=datetime(2026, 12, 31, tzinfo=timezone.utc),
+    # )
+
 
 def check_capture_usage() -> None:
     """Basic capture usage example."""
@@ -310,11 +319,56 @@ def check_download_modes() -> None:
         verbose=True,
     )
 
-    ds_uuid = "123e4567-e89b-12d3-a456-426614174000"
+    ds_uuid = "123e4567-e89b-42d3-a456-426614174000"
     sds.download_dataset(
         dataset_uuid=ds_uuid,
         to_local_path=Path("sds-downloads") / "datasets" / ds_uuid,
     )
+
+    # download_dataset with capture paths and artifacts_only filtering (new in v0.1.19):
+    sds.download_dataset(
+        dataset_uuid=ds_uuid,
+        to_local_path=Path("sds-downloads") / "datasets" / ds_uuid / "filtered",
+        capture_uuids=[],
+        top_level_dirs=[],
+        artifacts_only=True,
+    )
+
+    # download with time filtering (new in v0.1.19):
+    sds.download(
+        from_sds_path=reference_name,
+        to_local_path=Path("sds-downloads")
+        / "files"
+        / reference_name
+        / "time_filtered",
+        overwrite=False,
+        verbose=True,
+    )
+
+
+def check_dataset_api() -> None:
+    """Dataset API methods (new in v0.1.19)."""
+
+    sds = Client(host=SDS_HOST)
+    sds.authenticate()
+
+    ds_uuid = "123e4567-e89b-42d3-a456-426614174000"  # valid UUID4 for dry-run
+
+    # get_dataset returns a Dataset model with captures and files
+    dataset: Dataset = sds.get_dataset(dataset_uuid=ds_uuid)
+    print(f"Dataset uuid={dataset.uuid}")
+
+    # list_dataset_captures returns raw capture dicts
+    captures = sds.list_dataset_captures(dataset_uuid=ds_uuid)
+    print(f"Dataset has {len(captures)} capture(s)")
+
+    # list_dataset_artifact_files returns raw file dicts
+    artifact_files = sds.list_dataset_artifact_files(dataset_uuid=ds_uuid)
+    print(f"Dataset has {len(artifact_files)} artifact file(s)")
+
+    # access the gateway property
+    gw = sds.gateway
+    _ = gw.base_url  # ensure it's accessible
 
 
 def check_experiments() -> None:
@@ -355,6 +409,7 @@ def main() -> None:
         CheckCaller(call_fn=check_error_handling, name="Error handling"),
         CheckCaller(call_fn=check_file_listing_usage, name="File listing usage"),
         CheckCaller(call_fn=check_capture_usage, name="Capture usage"),
+        CheckCaller(call_fn=check_dataset_api, name="Dataset API"),
         CheckCaller(call_fn=check_experiments, name="Experimental features"),
         CheckCaller(call_fn=check_download_modes, name="Download usage"),
     ]

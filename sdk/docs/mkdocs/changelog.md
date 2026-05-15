@@ -1,6 +1,6 @@
 # SpectrumX SDK Changelog
 
-## `0.1.19` - YYYY-MM-DD
+## `0.1.19` - 2026-05-15
 
 + Features:
     + [**Added `start_time` and `end_time` parameters to `list_files` and `download`**](https://github.com/spectrumx/sds-code/pull/278): this gives users the ability to filter file directory downloads associated with DigitalRF captures based on a time span within the capture bounds (similar to time filtering in the web UI on SDS)
@@ -10,6 +10,11 @@
 
 + Observability:
     + [**Added `captures` and `files` attributes to `Dataset` model**](https://github.com/spectrumx/sds-code/pull/278): This allows visibility from the dataset side into attached captures and files.
+    + [**Added `capture_start_iso_utc`, `capture_end_iso_utc`, `capture_start_display`, and `capture_end_display` fields to the `Capture` model**](https://github.com/spectrumx/sds-code/pull/278): Users can now inspect the indexed capture time bounds from OpenSearch on capture metadata, both in UTC and in a display-formatted time zone.
+    + [**Added `gateway` property to `Client`**](https://github.com/spectrumx/sds-code/pull/278): Advanced users and test code can now access the underlying `GatewayClient` directly via `sds.gateway`.
+
++ Housekeeping:
+    + [**Paginator now surfaces API warnings**](https://github.com/spectrumx/sds-code/pull/278): When the server returns warning messages in paginated responses, they are now logged automatically via the SDK's logger.
 
 ## `0.1.18` - 2026-04-30
 

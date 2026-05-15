@@ -1264,7 +1264,7 @@ wheels = [
 
 [[package]]
 name = "spectrumx"
-version = "0.1.18"
+version = "0.1.19"
 source = { editable = "." }
 dependencies = [
     { name = "anyio", extra = ["trio"] },
