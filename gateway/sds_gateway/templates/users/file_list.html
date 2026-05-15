@@ -341,7 +341,9 @@
                     </div>
                 </div>
                 <!-- Captures Table -->
-                {% include "users/partials/captures_page_table.html" %}
+                <div id="capture-list-ajax-wrapper">
+                    {% include "users/partials/captures_page_table.html" %}
+                </div>
             </main>
         </div>
     </div>
@@ -349,29 +351,62 @@
     {% include "users/partials/capture_modal.html" %}
     <!-- Quick Add to Dataset Modal (single or multiple captures) -->
     {% include "users/partials/quick_add_to_dataset_modal.html" %}
-    <!-- Per-capture Share and Download modals -->
-    {% for cap in captures %}
-        {% if cap.capture %}
-            {% include "users/partials/share_modal.html" with item=cap.capture item_type="capture" %}
-            {% include "users/partials/web_download_modal.html" with item=cap.capture item_type="capture" %}
-        {% endif %}
-    {% endfor %}
+    <div id="capture-list-modals-container">
+        <!-- Per-capture Share and Download modals (replaced on AJAX list refresh) -->
+        {% for cap in captures %}
+            {% if cap.capture %}
+                {% include "users/partials/share_modal.html" with item=cap.capture item_type="capture" %}
+                {% include "users/partials/web_download_modal.html" with item=cap.capture item_type="capture" %}
+            {% endif %}
+        {% endfor %}
+    </div>
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
     <!-- Action components -->
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script type="module" src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script type="module"
             src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
     <script type="module"
             src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
-    <!-- Page-specific components -->
-    <script src="{% static 'js/components.js' %}"></script>
-    <script src="{% static 'js/file-list.js' %}"></script>
+    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
+    <script src="{% static 'js/core/PageController.js' %}"></script>
+    {# djlint:off #}
+    <script>
+        window.__FILE_LIST_PAGE_LIFECYCLE__ = {
+            pageType: 'capture-list',
+            permissions: {
+                userPermissionLevel: 'owner',
+                currentUserId: {{ request.user.id }},
+                isOwner: true,
+                capturePermissions: {
+                    canEditMetadata: false,
+                    canAddAssets: false,
+                    canRemoveAnyAssets: false,
+                    canRemoveOwnAssets: false,
+                    canShare: true,
+                    canDownload: true,
+                    canDelete: false
+                }
+            }
+        };
+        window.__FILE_LIST_LIST_REFRESH__ = {
+            containerSelector: '#capture-list-ajax-wrapper',
+            modalsContainerSelector: '#capture-list-modals-container',
+            url: '{% url "users:capture_list" %}',
+            itemType: 'capture'
+        };
+    </script>
+    {# djlint:on #}
+    <script src="{% static 'js/captures/FileListPageController.js' %}"></script>
     <!-- Upload Capture Modal JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
-    <script src="{% static 'js/file_list_upload_capture_modal.js' %}"></script>
+    <script src="{% static 'js/upload/UploadUtils.js' %}"></script>
+    <script src="{% static 'js/upload/UploadManager.js' %}"></script>
     <!-- Pass Django context data to JavaScript -->
     {# djlint:off #}
     <script>
@@ -455,70 +490,15 @@
             }
         });
 
-        // Initialize PageLifecycleManager for capture list page (download manager only)
         document.addEventListener('DOMContentLoaded', function() {
-            const pageConfig = {
-                pageType: 'capture-list-minimal', // Custom page type for minimal managers
-                permissions: {
-                    userPermissionLevel: 'owner',
-                    currentUserId: {{ request.user.id }},
-                    isOwner: true,
-                    capturePermissions: {
-                        canEditMetadata: false, // Only owners can edit metadata (determined per-capture)
-                        canAddAssets: false,
-                        canRemoveAnyAssets: false,
-                        canRemoveOwnAssets: false,
-                        canShare: true, // Allow sharing for capture owners (determined per-capture)
-                        canDownload: true, // Allow downloads for all users (shared and owners)
-                        canDelete: false
-                    }
-                }
-            };
-
-            // Initialize managers for captures (use window.* — classes are attached by module/scripts)
-            const permissionsManager = new window.PermissionsManager(pageConfig.permissions);
-
-            // Initialize download manager
-            const downloadManager = new window.DownloadActionManager({
-                permissions: permissionsManager
-            });
-
-            // Initialize visualization modal
             if (window.VisualizationModal) {
                 new window.VisualizationModal();
             }
 
-            // Quick add to dataset modal ("Add capture(s) to dataset" flow)
             if (window.QuickAddToDatasetManager && document.getElementById("quickAddToDatasetModal")) {
                 new window.QuickAddToDatasetManager();
             }
 
-            window.currentDownloadManager = downloadManager;
-
-            // Initialize share action managers for each capture modal
-            for (const modal of document.querySelectorAll('.modal[data-item-uuid]')) {
-                const itemUuid = modal.getAttribute('data-item-uuid');
-                const itemType = modal.getAttribute('data-item-type');
-
-                if (window.ShareActionManager && itemUuid && itemType === 'capture') {
-                    const shareManager = new ShareActionManager({
-                        itemUuid: itemUuid,
-                        itemType: itemType,
-                        permissions: permissionsManager
-                    });
-                    // Store the handler on the modal element
-                    modal.shareActionManager = shareManager;
-                }
-
-                // Reset selections when modal is hidden
-                modal.addEventListener('hidden.bs.modal', function() {
-                    if (modal.shareActionManager) {
-                        modal.shareActionManager.clearSelections();
-                    }
-                });
-            }
-
-            // Check for download alert messages
             const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
             if (downloadAlert) {
                 const alertData = JSON.parse(downloadAlert);

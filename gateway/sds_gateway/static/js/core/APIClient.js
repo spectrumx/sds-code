@@ -299,9 +299,19 @@ class ListRefreshManager {
 	 * @returns {Promise<string>} HTML content of the table
 	 */
 	async loadTable(params = {}, options = {}) {
-		const { page = 1, sort_by = "created_at", sort_order = "desc" } = params;
+		const {
+			showLoading = true,
+			onSuccess = null,
+			onError = null,
+			loadingMessage = null,
+		} = options;
 
-		const { showLoading = true, onSuccess = null, onError = null } = options;
+		const queryParams = {
+			page: 1,
+			sort_by: "created_at",
+			sort_order: "desc",
+			...params,
+		};
 
 		// Validate container exists
 		if (!this.container) {
@@ -315,24 +325,18 @@ class ListRefreshManager {
 
 		// Show loading state if requested
 		if (showLoading) {
-			await window.DOMUtils?.renderLoading(
-				this.container,
-				"Loading datasets...",
-				{ format: "spinner", size: "sm" },
-			).catch(() => {
-				// Fallback if DOMUtils is not available
-				this.container.innerHTML =
-					'<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+			const msg =
+				loadingMessage ||
+				`Loading ${this.itemType ? `${this.itemType} ` : ""}list...`;
+			await window.DOMUtils.renderLoading(this.container, msg, {
+				format: "spinner",
+				size: "sm",
 			});
 		}
 
 		try {
 			// Make GET request with query parameters
-			const html = await window.APIClient.get(this.url, {
-				page: page,
-				sort_by: sort_by,
-				sort_order: sort_order,
-			});
+			const html = await window.APIClient.get(this.url, queryParams);
 
 			// Update container(s) with HTML response
 			if (typeof html === "string") {
@@ -363,14 +367,11 @@ class ListRefreshManager {
 			console.error(`Error loading ${this.itemType} list table:`, error);
 
 			// Show error state
-			await window.DOMUtils?.renderError(
+			await window.DOMUtils.renderError(
 				this.container,
 				`Failed to load ${this.itemType} list. Please try again.`,
 				{ format: "alert" },
-			).catch(() => {
-				// Fallback if DOMUtils is not available
-				this.container.innerHTML = `<div class="alert alert-danger">Failed to load ${this.itemType} list. Please refresh the page.</div>`;
-			});
+			);
 
 			// Call error callback if provided
 			if (onError) {

@@ -15,6 +15,7 @@ from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.views import View
 from loguru import logger as log
 from rest_framework import status
@@ -478,6 +479,33 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
 
         # Get visualization compatibility data
         visualization_compatibility = get_visualization_compatibility()
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            table_ctx = {
+                "captures": page_obj,
+                "sort_by": params["sort_by"],
+                "sort_order": params["sort_order"],
+                "search": params["search"],
+                "date_start": params["date_start"],
+                "date_end": params["date_end"],
+                "capture_type": params["cap_type"],
+                "min_freq": params["min_freq"],
+                "max_freq": params["max_freq"],
+                "items_per_page": params["items_per_page"],
+                "request": request,
+            }
+            table_html = render_to_string(
+                "users/components/capture_list_table_fragment.html",
+                table_ctx,
+                request=request,
+            )
+            modals_html = render_to_string(
+                "users/components/capture_list_modals_fragment.html",
+                {"captures": page_obj.object_list, "request": request},
+                request=request,
+            )
+            list_refresh_sep = "<!-- LIST_REFRESH_SEP -->"
+            return HttpResponse(table_html + list_refresh_sep + modals_html)
 
         return render(
             request,

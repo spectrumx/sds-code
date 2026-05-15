@@ -24,11 +24,9 @@ module.exports = {
 		// Exclude specific legacy files
 		"!sds_gateway/static/js/components.js",
 		"!sds_gateway/static/js/file_list_upload_capture_modal.js",
-		"!sds_gateway/static/js/file-list.js",
-		"!sds_gateway/static/js/file-manager.js",
-		"!sds_gateway/static/js/files-ui.js",
+		"!sds_gateway/static/js/file-list.js", // legacy path (not shipped at this URL)
+		"!sds_gateway/static/js/upload/UploadManager.js",
 		"!sds_gateway/static/js/vendors.js",
-		"!sds_gateway/static/js/files-upload.js",
 		"!sds_gateway/static/js/theme.js",
 	],
 

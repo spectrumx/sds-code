@@ -40,15 +40,18 @@
     <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
     <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>
     <!-- Dataset components -->
+    <script src="{% static 'js/dataset/AuthorsManager.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetCreationHandler.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetEditingHandler.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetModeManager.js' %}"></script>
     <!-- Action components -->
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
+    <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
@@ -74,8 +77,8 @@
                 });
             });
 
-            // Initialize PageLifecycleManager for dataset list page
-            const pageConfig = {
+            window.PageController.initListPage({
+                pageLifecycleConfig: {
                 pageType: 'dataset-list',
                 permissions: {
                     userPermissionLevel: 'owner', // User is always owner of their own datasets
@@ -91,20 +94,13 @@
                         canDelete: true
                     }
                 }
-            };
-
-            // Initialize the page lifecycle manager
-            // This will automatically handle all modal initialization including share modals
-            window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
-
-
-            // Initialize ListRefreshManager for dataset list
-            // The change in case differentiates the instance from the class.
-            window.listRefreshManager = new ListRefreshManager({
+                },
+                listRefreshConfig: {
                 containerSelector: '#dataset-list-ajax-wrapper',
                 modalsContainerSelector: '#dataset-modals-container',
                 url: '/users/dataset-list/',
                 itemType: 'dataset'
+                }
             });
 
             // Initialize PublishActionManager for publish modals

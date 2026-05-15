@@ -219,12 +219,13 @@
 </div>
 <!-- Pagination -->
 {% if captures and captures.paginator.num_pages > 1 %}
-    <nav aria-label="Search results pagination" class="mt-4">
-        <ul class="pagination justify-content-center" id="pagination-controls">
+    <nav aria-label="Search results pagination" class="mt-4" id="captures-pagination">
+        <ul class="pagination justify-content-center">
             <!-- Previous button -->
             <li class="page-item {% if not captures.has_previous %}disabled{% endif %}">
                 <a class="page-link"
-                   href="{% if captures.has_previous %}?page={{ captures.previous_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                   href="#"
+                   data-page="{% if captures.has_previous %}{{ captures.previous_page_number }}{% endif %}"
                    aria-label="Go to previous page"
                    {% if not captures.has_previous %}aria-disabled="true" tabindex="-1"{% endif %}>
                     <span aria-hidden="true">«</span>
@@ -236,12 +237,14 @@
                 <li class="page-item {% if num == captures.number %}active{% endif %}">
                     {% if num == captures.number %}
                         <a class="page-link"
-                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                           href="#"
+                           data-page="{{ num }}"
                            aria-label="Go to page {{ num }}"
                            aria-current="page">{{ num }}</a>
                     {% else %}
                         <a class="page-link"
-                           href="?page={{ num }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}"
+                           href="#"
+                           data-page="{{ num }}"
                            aria-label="Go to page {{ num }}">{{ num }}</a>
                     {% endif %}
                 </li>
@@ -249,7 +252,8 @@
             <!-- Next button -->
             <li class="page-item {% if not captures.has_next %}disabled{% endif %}">
                 <a class="page-link"
-                   href="{% if captures.has_next %}?page={{ captures.next_page_number }}&search={{ search }}&sort_by={{ sort_by }}&sort_order={{ sort_order }}&date_start={{ request.GET.date_start }}&date_end={{ request.GET.date_end }}&items_per_page={{ items_per_page|default:25 }}{% else %}#{% endif %}"
+                   href="#"
+                   data-page="{% if captures.has_next %}{{ captures.next_page_number }}{% endif %}"
                    aria-label="Go to next page"
                    {% if not captures.has_next %}aria-disabled="true" tabindex="-1"{% endif %}>
                     <span aria-hidden="true">»</span>
