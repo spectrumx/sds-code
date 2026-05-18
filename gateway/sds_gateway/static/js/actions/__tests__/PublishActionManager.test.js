@@ -51,7 +51,7 @@ describe("PublishActionManager", () => {
 		};
 
 		window.DOMUtils = {
-			showAlert: jest.fn(),
+			showMessage: jest.fn(),
 		};
 
 		window.location = { reload: jest.fn() };
@@ -80,9 +80,13 @@ describe("PublishActionManager", () => {
 				is_public: "true",
 			},
 		);
-		expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+		expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 			"Dataset published successfully",
-			"success",
+			expect.objectContaining({
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			}),
 		);
 	});
 
@@ -128,9 +132,13 @@ describe("PublishActionManager", () => {
 			mockPublicOption,
 		);
 
-		expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+		expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 			"Validation failed",
-			"error",
+			expect.objectContaining({
+				variant: "danger",
+				placement: "toast",
+				presentation: "toast",
+			}),
 		);
 		expect(publishBtn.disabled).toBe(false);
 		expect(publishBtn.innerHTML).toBe("Publish");

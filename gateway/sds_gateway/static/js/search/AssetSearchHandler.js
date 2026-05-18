@@ -463,9 +463,12 @@ class AssetSearchHandler {
 			// Attach event handlers to rendered rows
 			this.attachCaptureRowHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading captures", {
-				format: "table",
-				colspan: 7,
+			await window.DOMUtils.showMessage("Error loading captures", {
+				variant: "danger",
+				placement: "replace",
+				target: tbody,
+				presentation: "table",
+				templateContext: { colspan: 7 },
 			});
 		}
 
@@ -1125,8 +1128,11 @@ class AssetSearchHandler {
 		const errorContainer = document.getElementById("formErrors");
 		const errorContent = errorContainer?.querySelector(".error-content");
 		if (errorContainer && errorContent) {
-			await window.DOMUtils.renderError(errorContent, message, {
-				format: "list",
+			await window.DOMUtils.showMessage(message, {
+				variant: "danger",
+				placement: "replace",
+				target: errorContent,
+				presentation: "list",
 			});
 			window.DOMUtils.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1184,9 +1190,12 @@ class AssetSearchHandler {
 			// Attach event handlers to remove buttons
 			this.attachFileRemovalHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading files", {
-				format: "table",
-				colspan: 6,
+			await window.DOMUtils.showMessage("Error loading files", {
+				variant: "danger",
+				placement: "replace",
+				target: tbody,
+				presentation: "table",
+				templateContext: { colspan: 6 },
 			});
 		}
 	}

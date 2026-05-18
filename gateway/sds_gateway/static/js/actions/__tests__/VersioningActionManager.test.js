@@ -5,6 +5,7 @@
 
 // Import the VersioningActionManager class
 import { VersioningActionManager } from "../VersioningActionManager.js";
+import { flushMicrotasks } from "../../tests-config/testHelpers.js";
 
 describe("VersioningActionManager", () => {
 	let versioningManager;
@@ -48,7 +49,7 @@ describe("VersioningActionManager", () => {
 		global.window.DOMUtils = {
 			showModalLoading: jest.fn().mockResolvedValue(true),
 			closeModal: jest.fn(),
-			showAlert: jest.fn(),
+			showMessage: jest.fn(),
 		};
 
 		// Mock APIClient
@@ -191,14 +192,18 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(global.window.DOMUtils.closeModal).toHaveBeenCalledWith(
 				"versioningModal-test-dataset-uuid",
 			);
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Dataset version updated to v3 successfully",
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -214,7 +219,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(global.window.listRefreshManager.loadTable).toHaveBeenCalled();
 		});
@@ -239,7 +244,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(console.warn).toHaveBeenCalledWith(
 				"listRefreshManager not available, reloading page",
@@ -259,11 +264,15 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Version creation failed",
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 			expect(global.window.DOMUtils.closeModal).not.toHaveBeenCalled();
 		});
@@ -279,11 +288,15 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Network error",
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -294,7 +307,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(mockButton.disabled).toBe(false);
 			expect(mockButton.dataset.processing).toBe("false");
@@ -311,7 +324,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(mockButton.disabled).toBe(false);
 			expect(mockButton.dataset.processing).toBe("false");
@@ -342,11 +355,15 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				expect.stringMatching(/Failed to create dataset version|Network error/),
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -363,11 +380,15 @@ describe("VersioningActionManager", () => {
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				expect.stringContaining("successfully"),
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 	});

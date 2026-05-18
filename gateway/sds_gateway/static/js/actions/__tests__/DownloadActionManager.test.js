@@ -71,8 +71,7 @@ describe("DownloadActionManager", () => {
 		const domUtils = {
 			show: jest.fn(),
 			hide: jest.fn(),
-			showAlert: jest.fn(),
-			renderError: jest.fn().mockResolvedValue(true),
+			showMessage: jest.fn().mockResolvedValue(true),
 			renderLoading: jest.fn().mockResolvedValue(true),
 			renderContent: jest.fn().mockResolvedValue(true),
 			renderTable: jest.fn().mockResolvedValue(true),
@@ -96,7 +95,7 @@ describe("DownloadActionManager", () => {
 					Promise.resolve({ success: true, message: "Download requested" }),
 			}),
 		);
-		global.window.showAlert = jest.fn();
+		global.window.showMessage = jest.fn().mockResolvedValue(true);
 
 		// Mock bootstrap globally
 		global.bootstrap = {
@@ -148,7 +147,7 @@ describe("DownloadActionManager", () => {
 				closeModal: jest.fn(),
 				renderLoading: jest.fn().mockResolvedValue(true),
 				renderContent: jest.fn().mockResolvedValue(true),
-				showAlert: jest.fn(),
+				showMessage: jest.fn(),
 			};
 
 			mockButton = {
@@ -278,10 +277,14 @@ describe("DownloadActionManager", () => {
 				"warning",
 			);
 
-			// showToast calls DOMUtils.showAlert, not window.showAlert directly
-			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			// showToast calls DOMUtils.showMessage
+			expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"You don't have permission to download this dataset",
-				"warning",
+				expect.objectContaining({
+					variant: "warning",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 	});
@@ -294,7 +297,7 @@ describe("DownloadActionManager", () => {
 				closeModal: jest.fn(),
 				renderLoading: jest.fn().mockResolvedValue(true),
 				renderContent: jest.fn().mockResolvedValue(true),
-				showAlert: jest.fn(),
+				showMessage: jest.fn(),
 			};
 			downloadManager = new DownloadActionManager({
 				permissions: mockPermissions,
@@ -360,10 +363,14 @@ describe("DownloadActionManager", () => {
 				"warning",
 			);
 
-			// showToast calls DOMUtils.showAlert, not window.showAlert directly
-			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			// showToast calls DOMUtils.showMessage
+			expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"You don't have permission to download this capture",
-				"warning",
+				expect.objectContaining({
+					variant: "warning",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 	});

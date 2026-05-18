@@ -42,9 +42,11 @@
             <!-- Permission constants (must be loaded first) -->
             <script src="{% static 'js/constants/PermissionLevels.js' %}"></script>
             <!-- Core JavaScript files - available globally -->
+            <script src="{% static 'js/core/BaseManager.js' %}"></script>
             <script src="{% static 'js/core/APIClient.js' %}"></script>
             <script src="{% static 'js/core/PermissionsManager.js' %}"></script>
             <script src="{% static 'js/core/DOMUtils.js' %}"></script>
+            <script src="{% static 'js/core/UserInputController.js' %}"></script>
             <script src="{% static 'js/core/PageGate.js' %}"></script>
             <script src="{% static 'js/core/PageLifecycleManager.js' %}"></script>
             <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
@@ -189,10 +191,10 @@
                         <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
                     {% endfor %}
                 {% endif %}
-                {% comment %} Django messages rendered as toasts {% endcomment %}
+                {% comment %} Django messages: server-rendered toasts via message.html {% endcomment %}
                 {% if messages %}
                     {% for message in messages %}
-                        {% include "users/components/toast.html" with message=message type=message.level_tag|default:"info" %}
+                        {% include "users/components/message.html" with message=message type=message.level_tag|default:"info" presentation="toast" %}
                     {% endfor %}
                 {% endif %}
                 {% block body %}

@@ -1526,11 +1526,11 @@ class CaptureTypeSelector {
 
 		// Validate capture type
 		if (!this.validateCaptureType(selectedType)) {
-			if (window.DOMUtils?.showError) {
-				window.DOMUtils.showError(
-					"Invalid capture type selected",
-					"capture-type-validation",
-				);
+		if (window.DOMUtils?.showMessage) {
+			void window.DOMUtils.showMessage(
+				"Invalid capture type selected",
+				{ variant: "danger", placement: "toast" },
+			);
 			} else {
 				console.warn("Invalid capture type selected");
 			}

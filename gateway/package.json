@@ -2,6 +2,7 @@
 	"name": "sds_gateway",
 	"version": "0.0.1",
 	"devDependencies": {
+		"fallow": "^2.74.0",
 		"@babel/core": "^7.25.2",
 		"@babel/plugin-transform-runtime": "^7.25.4",
 		"@babel/preset-env": "^7.25.4",
@@ -50,6 +51,8 @@
 		"test": "jest --config sds_gateway/static/js/tests-config/jest.config.js",
 		"test:watch": "jest --config sds_gateway/static/js/tests-config/jest.config.js --watch",
 		"test:coverage": "jest --config sds_gateway/static/js/tests-config/jest.config.js --coverage",
-		"test:ci": "jest --config sds_gateway/static/js/tests-config/jest.config.js --ci --coverage --watchAll=false"
+		"test:ci": "jest --config sds_gateway/static/js/tests-config/jest.config.js --ci --coverage --watchAll=false",
+		"fallow": "fallow --summary",
+		"fallow:static-js": "node scripts/fallow-static-js-dead-code.cjs"
 	}
 }

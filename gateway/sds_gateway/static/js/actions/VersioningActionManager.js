@@ -77,9 +77,13 @@ class VersioningActionManager {
 						if (modalEl) {
 							modalEl.removeEventListener("hidden.bs.modal", onHidden);
 						}
-						window.DOMUtils.showAlert(
+						void window.DOMUtils?.showMessage?.(
 							`Dataset version updated to v${response.version} successfully`,
-							"success",
+							{
+								variant: "success",
+								placement: "toast",
+								presentation: "toast",
+							},
 						);
 						if (
 							window.listRefreshManager &&
@@ -107,17 +111,25 @@ class VersioningActionManager {
 					}
 				} else {
 					// show error message and error message from response
-					window.DOMUtils.showAlert(
+					void window.DOMUtils?.showMessage?.(
 						response.error || "Failed to create dataset version",
-						"error",
+						{
+							variant: "danger",
+							placement: "toast",
+							presentation: "toast",
+						},
 					);
 				}
 			})
 			.catch((error) => {
 				// show error message and error message from error
-				window.DOMUtils.showAlert(
+				void window.DOMUtils?.showMessage?.(
 					error.message || "Failed to create dataset version",
-					"error",
+					{
+						variant: "danger",
+						placement: "toast",
+						presentation: "toast",
+					},
 				);
 			})
 			.finally(() => {

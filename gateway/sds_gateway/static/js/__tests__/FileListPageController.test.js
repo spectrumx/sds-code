@@ -63,8 +63,8 @@ global.window.DOMUtils = {
 		return d.toISOString().split("T")[0];
 	}),
 	initIconDropdowns: jest.fn(),
+	showMessage: jest.fn().mockResolvedValue(true),
 	renderLoading: jest.fn().mockResolvedValue(true),
-	renderError: jest.fn().mockResolvedValue(true),
 };
 
 global.bootstrap.Dropdown = jest

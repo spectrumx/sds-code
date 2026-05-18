@@ -51,6 +51,7 @@
     <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DownloadInstructionsManager.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
@@ -117,7 +118,18 @@
             const downloadAlert = sessionStorage.getItem('datasetDownloadAlert');
             if (downloadAlert) {
                 const alertData = JSON.parse(downloadAlert);
-                showAlert(alertData.message, alertData.type);
+                const raw = alertData.type || "info";
+                const variant =
+                    raw === "error" || raw === "danger"
+                        ? "danger"
+                        : ["success", "warning", "info"].includes(raw)
+                          ? raw
+                          : "info";
+                void window.DOMUtils?.showMessage?.(alertData.message, {
+                    variant: variant,
+                    placement: "toast",
+                    presentation: "toast",
+                });
                 sessionStorage.removeItem('datasetDownloadAlert');
             }
 

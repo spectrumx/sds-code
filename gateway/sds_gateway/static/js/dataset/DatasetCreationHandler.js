@@ -2,12 +2,13 @@
  * Dataset Creation Handler
  * Handles dataset creation workflow and form management
  */
-class DatasetCreationHandler {
+class DatasetCreationHandler extends BaseManager {
 	/**
 	 * Initialize dataset creation handler
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.form = document.getElementById(config.formId);
 		this.steps = config.steps || [];
 		this.currentStep = 0;
@@ -772,22 +773,29 @@ class DatasetCreationHandler {
 				context.message = "An unexpected error occurred. Please try again.";
 			}
 
-			context.format = "alert";
-			context.alert_type = "danger";
-			context.icon = "exclamation-triangle-fill";
+			const messageText = context.message ?? "";
+			const templateContext = {
+				alert_type: "danger",
+				icon: "exclamation-triangle-fill",
+			};
+			if (context.error_list) {
+				templateContext.error_list = context.error_list;
+				templateContext.show_field_names = context.show_field_names;
+			}
 
-			// Use DOMUtils to render error
-			const success = await window.DOMUtils.renderError(
-				errorContainer,
-				context.message,
-				context,
-			);
+			const success = await window.DOMUtils.showMessage(messageText, {
+				variant: "danger",
+				placement: "replace",
+				target: errorContainer,
+				presentation: "alert",
+				templateContext,
+			});
 			if (success) {
 				window.DOMUtils.show(errorContainer);
 				errorContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
 			}
-		} catch (renderError) {
-			console.error("Error rendering error message:", renderError);
+		} catch (err) {
+			console.error("Error rendering error message:", err);
 			// Fallback to simple text
 			errorContainer.textContent = "An error occurred. Please try again.";
 			window.DOMUtils.show(errorContainer);
@@ -896,11 +904,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures table:", error);
-				await window.DOMUtils.renderError(
-					capturesTableBody,
-					"Error loading captures",
-					{ format: "table", colspan: 6 },
-				);
+				await window.DOMUtils.showMessage("Error loading captures", {
+					variant: "danger",
+					placement: "replace",
+					target: capturesTableBody,
+					presentation: "table",
+					templateContext: { colspan: 6 },
+				});
 			}
 		} else {
 			capturesTableBody.innerHTML =
@@ -976,11 +986,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures panel:", error);
-				await window.DOMUtils.renderError(
-					selectedCapturesBody,
-					"Error loading captures",
-					{ format: "table", colspan: 3 },
-				);
+				await window.DOMUtils.showMessage("Error loading captures", {
+					variant: "danger",
+					placement: "replace",
+					target: selectedCapturesBody,
+					presentation: "table",
+					templateContext: { colspan: 3 },
+				});
 			}
 		} else {
 			selectedCapturesBody.innerHTML =
@@ -1037,11 +1049,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering files table:", error);
-				await window.DOMUtils.renderError(
-					filesTableBody,
-					"Error loading files",
-					{ format: "table", colspan: 5 },
-				);
+				await window.DOMUtils.showMessage("Error loading files", {
+					variant: "danger",
+					placement: "replace",
+					target: filesTableBody,
+					presentation: "table",
+					templateContext: { colspan: 5 },
+				});
 			}
 		} else {
 			filesTableBody.innerHTML =
@@ -1280,10 +1294,12 @@ class DatasetCreationHandler {
 					authorsList.innerHTML = response.html;
 				}
 			} catch (error) {
-				console.error("Error rendering authors:", error);
-				// Fallback: show error message
-				authorsList.innerHTML =
-					'<div class="alert alert-danger">Error loading authors</div>';
+				this.logError?.(error, authorsList);
+				await this.showMessageInTarget("Error loading authors", authorsList, {
+					variant: "danger",
+					presentation: "alert",
+					templateContext: { icon: "exclamation-triangle" },
+				});
 			}
 
 			// Update hidden field

@@ -50,7 +50,9 @@ class DetailsActionManager {
 		} catch (error) {
 			console.warn("Clipboard API failed, trying fallback method:", error);
 			try {
-				DetailsActionManager.fallbackCopyToClipboard(uuid);
+				window.UserInputController.execCommandCopyFallback(
+					uuid,
+				);
 				await DetailsActionManager.showCopyFeedback(event.target, "Copied!");
 			} catch (fallbackError) {
 				console.error("Failed to copy UUID:", fallbackError);
@@ -60,23 +62,6 @@ class DetailsActionManager {
 					"error",
 				);
 			}
-		}
-	}
-
-	static fallbackCopyToClipboard(text) {
-		const textArea = document.createElement("textarea");
-		textArea.value = text;
-		textArea.style.position = "fixed";
-		textArea.style.left = "-999999px";
-		textArea.style.top = "-999999px";
-		document.body.appendChild(textArea);
-		textArea.focus();
-		textArea.select();
-
-		try {
-			document.execCommand("copy");
-		} finally {
-			document.body.removeChild(textArea);
 		}
 	}
 

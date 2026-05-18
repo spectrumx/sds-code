@@ -131,6 +131,20 @@ class APIClient {
 	}
 
 	/**
+	 * @param {Record<string, unknown>} data
+	 * @returns {FormData}
+	 */
+	_formDataFromObject(data) {
+		const formData = new FormData();
+		for (const [key, value] of Object.entries(data)) {
+			if (value !== null && value !== undefined) {
+				formData.append(key, value);
+			}
+		}
+		return formData;
+	}
+
+	/**
 	 * Make POST request
 	 * @param {string} url - Request URL
 	 * @param {Object} data - Request data
@@ -153,12 +167,7 @@ class APIClient {
 			);
 		}
 
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -178,12 +187,7 @@ class APIClient {
 	 * @returns {Promise<Object>} Response data
 	 */
 	async patch(url, data = {}, loadingState = null) {
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -203,12 +207,7 @@ class APIClient {
 	 * @returns {Promise<Object>} Response data
 	 */
 	async put(url, data = {}, loadingState = null) {
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -366,10 +365,14 @@ class ListRefreshManager {
 			console.error(`Error loading ${this.itemType} list table:`, error);
 
 			// Show error state
-			await window.DOMUtils.renderError(
-				this.container,
+			await window.DOMUtils.showMessage(
 				`Failed to load ${this.itemType} list. Please try again.`,
-				{ format: "alert" },
+				{
+					variant: "danger",
+					placement: "replace",
+					target: this.container,
+					presentation: "alert",
+				},
 			);
 
 			// Call error callback if provided

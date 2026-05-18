@@ -34,13 +34,11 @@ describe("ShareGroupManager", () => {
 			DOMUtils: {
 				show: jest.fn(),
 				hide: jest.fn(),
-				showAlert: jest.fn(),
-				renderError: jest.fn().mockResolvedValue(true),
+				showMessage: jest.fn().mockResolvedValue(true),
 				renderLoading: jest.fn().mockResolvedValue(true),
 				renderContent: jest.fn().mockResolvedValue(true),
 				renderTable: jest.fn().mockResolvedValue(true),
 			},
-			showAlert: jest.fn(),
 		};
 
 		// Minimal Bootstrap mock
@@ -205,17 +203,23 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test.each([
-			["with global showAlert available", true],
-			["with missing global showAlert", false],
-		])("should show alert %s", (description, hasShowAlert) => {
-			if (!hasShowAlert) {
-				global.window.showAlert = undefined;
-			}
+		test("domToast path uses showMessage when group name missing", async () => {
+			document.getElementById = jest.fn((id) => {
+				if (id === "groupName") return { value: "" };
+				return null;
+			});
+			global.window.DOMUtils.showMessage = jest.fn();
+			const mgr = new ShareGroupManager(mockConfig);
+			await mgr.handleCreateGroup({});
 
-			expect(() => {
-				shareGroupManager.showAlert("Test message", "success");
-			}).not.toThrow();
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
+				"Group name is required",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
+			);
 		});
 	});
 

@@ -41,12 +41,13 @@ function parseUtcStringToEpochMs(str) {
 	return Number.isFinite(d.getTime()) ? d.getTime() : Number.NaN;
 }
 
-class DownloadActionManager {
+class DownloadActionManager extends BaseManager {
 	/**
 	 * Initialize download action manager
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.permissions = config.permissions;
 		this.initializeEventListeners();
 	}
@@ -647,23 +648,6 @@ class DownloadActionManager {
 
 		// Use centralized openModal method
 		window.DOMUtils.openModal(modalId);
-	}
-
-	/**
-	 * Show toast notification - Wrapper for global showAlert
-	 * @param {string} message - Toast message
-	 * @param {string} type - Toast type (success, danger, warning, info)
-	 */
-	showToast(message, type = "success") {
-		// Map DownloadActionManager types to DOMUtils.showAlert types
-		const mappedType = type === "danger" ? "error" : type;
-
-		// Use DOMUtils.showAlert for toast notifications
-		if (window.DOMUtils) {
-			window.DOMUtils.showAlert(message, mappedType);
-		} else {
-			console.error("DOMUtils not available");
-		}
 	}
 
 	/**

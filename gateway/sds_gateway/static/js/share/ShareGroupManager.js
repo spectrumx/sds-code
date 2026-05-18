@@ -3,12 +3,13 @@
  * Handles all share group operations including creating, managing members, and deleting groups
  * Refactored to use core components and centralized management
  */
-class ShareGroupManager {
+class ShareGroupManager extends BaseManager {
 	/**
 	 * Initialize share group manager
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config = {}) {
+		super();
 		this.currentGroupUuid = null;
 		this.currentGroupName = null;
 		this.pendingDeleteGroupUuid = null;
@@ -61,7 +62,7 @@ class ShareGroupManager {
 		const groupName = document.getElementById("groupName").value;
 
 		if (!groupName.trim()) {
-			this.showAlert("Group name is required", "error");
+			this.errorMessage("Group name is required");
 			return;
 		}
 
@@ -80,7 +81,7 @@ class ShareGroupManager {
 
 			if (response.success) {
 				// Show success message
-				this.showAlert(response.message, "success");
+				this.successMessage(response.message);
 
 				// Close the create modal
 				window.DOMUtils.closeModal("createGroupModal");
@@ -99,7 +100,7 @@ class ShareGroupManager {
 					);
 				}, 500);
 			} else {
-				this.showAlert(response.error, "error");
+				this.errorMessage(response.error);
 			}
 		} catch (error) {
 			// Extract specific error message from the response
@@ -111,7 +112,7 @@ class ShareGroupManager {
 					"Bad request - please check the form data and try again.";
 			}
 
-			this.showAlert(errorMessage, "error");
+			this.errorMessage(errorMessage);
 		}
 	}
 
@@ -139,7 +140,7 @@ class ShareGroupManager {
 			: [];
 
 		if (selectedUsers.length === 0) {
-			this.showAlert("Please select at least one user to add.", "error");
+			this.errorMessage("Please select at least one user to add.");
 			return;
 		}
 
@@ -161,12 +162,12 @@ class ShareGroupManager {
 
 			if (response.success) {
 				// Show success message in toast
-				this.showAlert(response.message, "success");
+				this.successMessage(response.message);
 
 				// Show any errors as warnings
 				if (response.errors && response.errors.length > 0) {
 					for (const error of response.errors) {
-						this.showAlert(error, "warning");
+						this.warningMessage(error);
 					}
 				}
 
@@ -187,7 +188,7 @@ class ShareGroupManager {
 					);
 				}
 			} else {
-				this.showAlert(response.error, "error");
+				this.errorMessage(response.error);
 			}
 		} catch (error) {
 			// Extract specific error message from the response
@@ -196,7 +197,7 @@ class ShareGroupManager {
 				errorMessage = error.data.error;
 			}
 
-			this.showAlert(errorMessage, "error");
+			this.errorMessage(errorMessage);
 		}
 	}
 
@@ -305,12 +306,12 @@ class ShareGroupManager {
 
 				if (response.success) {
 					// Show success message in toast
-					this.showAlert(response.message, "success");
+					this.successMessage(response.message);
 
 					// Show any errors as warnings
 					if (response.errors && response.errors.length > 0) {
 						for (const error of response.errors) {
-							this.showAlert(error, "warning");
+							this.warningMessage(error);
 						}
 					}
 
@@ -330,7 +331,7 @@ class ShareGroupManager {
 						);
 					}
 				} else {
-					this.showAlert(response.error, "error");
+					this.errorMessage(response.error);
 				}
 			} catch (error) {
 				// Extract specific error message from the response
@@ -339,7 +340,7 @@ class ShareGroupManager {
 					errorMessage = error.data.error;
 				}
 
-				this.showAlert(errorMessage, "error");
+				this.errorMessage(errorMessage);
 			} finally {
 				button.innerHTML = originalText;
 				button.disabled = false;
@@ -393,7 +394,7 @@ class ShareGroupManager {
 				localStorage.setItem("shareGroupSuccessMessage", response.message);
 				setTimeout(() => window.location.reload(), 1000);
 			} else {
-				this.showAlert(response.error, "error");
+				this.errorMessage(response.error);
 			}
 		} catch (error) {
 			// Extract specific error message from the response
@@ -402,7 +403,7 @@ class ShareGroupManager {
 				errorMessage = error.data.error;
 			}
 
-			this.showAlert(errorMessage, "error");
+			this.errorMessage(errorMessage);
 		} finally {
 			// Reset button state
 			button.innerHTML = originalText;
@@ -421,6 +422,7 @@ class ShareGroupManager {
 		if (!this.currentGroupUuid) return;
 
 		const membersList = document.getElementById("currentMembers");
+		if (!membersList) return;
 
 		// Clear member count and show loading state
 		const memberCountElement = document.getElementById("memberCount");
@@ -529,8 +531,15 @@ class ShareGroupManager {
 					});
 				} catch (renderError) {
 					console.error("Error rendering members:", renderError);
-					membersList.innerHTML =
-						'<tr><td class="p-2 shadow-sm"><div class="text-center text-danger">Error loading members</div></td></tr>';
+					await this.showMessageInTarget(
+						"Error loading members",
+						membersList,
+						{
+							variant: "danger",
+							presentation: "table",
+							templateContext: { colspan: 1 },
+						},
+					);
 				}
 
 				// Update member count
@@ -551,24 +560,23 @@ class ShareGroupManager {
 				// Update save button state after loading members
 				this.updateSaveButtonState();
 			} else {
-				// Show error state using centralized renderError
-				const errorDiv = document.createElement("div");
-				await window.DOMUtils.renderError(errorDiv, "Error loading members", {
-					format: "alert",
-					alert_type: "danger",
-					icon: "exclamation-triangle",
-				});
-				membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
+				await this.showMessageInTarget(
+					response.error || "Error loading members",
+					membersList,
+					{
+						variant: "danger",
+						presentation: "table",
+						templateContext: { colspan: 1 },
+					},
+				);
 			}
 		} catch (error) {
-			// Show error state using centralized renderError
-			const errorDiv = document.createElement("div");
-			await window.DOMUtils.renderError(errorDiv, "Error loading members", {
-				format: "alert",
-				alert_type: "danger",
-				icon: "exclamation-triangle",
+			console.error("Error loading members:", error);
+			await this.showMessageInTarget("Error loading members", membersList, {
+				variant: "danger",
+				presentation: "table",
+				templateContext: { colspan: 1 },
 			});
-			membersList.innerHTML = `<tr><td class="p-2 shadow-sm">${errorDiv.innerHTML}</td></tr>`;
 		}
 	}
 
@@ -930,94 +938,20 @@ class ShareGroupManager {
 	 * @param {Element} input - Search input element
 	 */
 	setupSearchInput(input) {
-		// Prevent duplicate event listener attachment
-		if (input.dataset.searchSetup === "true") {
-			return;
-		}
-		input.dataset.searchSetup = "true";
-
-		const dropdown = this.getDropdownForInput(input);
-		const form = input.closest("form");
-		const inputId = input.id;
-		if (!this.shareGroupUserSearchHandler.selectedUsersMap[inputId]) {
-			this.shareGroupUserSearchHandler.selectedUsersMap[inputId] = [];
-		}
-
-		// Debounced search on input
-		input.addEventListener("input", (e) => {
-			clearTimeout(this.shareGroupUserSearchHandler.searchTimeout);
-			const query = e.target.value.trim();
-
-			if (query.length < 2) {
-				this.hideDropdown(dropdown);
-				return;
-			}
-
-			this.shareGroupUserSearchHandler.searchTimeout = setTimeout(() => {
-				this.shareGroupUserSearchHandler.searchUsers(query, dropdown);
-			}, 300);
+		const handler = this.shareGroupUserSearchHandler;
+		window.UserInputController.bindUserSearchInput(input, {
+			selectedUsersMap: handler.selectedUsersMap,
+			getSearchTimeout: () => handler.searchTimeout,
+			setSearchTimeout: (id) => {
+				handler.searchTimeout = id;
+			},
+			getDropdownForInput: (inp) => this.getDropdownForInput(inp),
+			hideDropdown: (d) => this.hideDropdown(d),
+			navigateDropdown: (items, idx, dir) =>
+				this.navigateDropdown(items, idx, dir),
+			searchUsers: (query, d) => handler.searchUsers(query, d),
+			selectUser: (item, inp) => handler.selectUser(item, inp),
 		});
-
-		// Handle keyboard navigation
-		input.addEventListener("keydown", (e) => {
-			const visibleItems = dropdown.querySelectorAll(
-				".list-group-item:not(.no-results)",
-			);
-			const currentIndex = Array.from(visibleItems).findIndex((item) =>
-				item.classList.contains("selected"),
-			);
-
-			switch (e.key) {
-				case "ArrowDown":
-					e.preventDefault();
-					this.navigateDropdown(visibleItems, currentIndex, 1);
-					break;
-				case "ArrowUp":
-					e.preventDefault();
-					this.navigateDropdown(visibleItems, currentIndex, -1);
-					break;
-				case "Enter": {
-					e.preventDefault();
-					const selectedItem = dropdown.querySelector(
-						".list-group-item.selected",
-					);
-					if (selectedItem) {
-						this.shareGroupUserSearchHandler.selectUser(selectedItem, input);
-					}
-					break;
-				}
-				case "Escape":
-					this.hideDropdown(dropdown);
-					input.blur();
-					break;
-			}
-		});
-
-		// Handle clicks outside to close dropdown
-		document.addEventListener("click", (e) => {
-			if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-				this.hideDropdown(dropdown);
-			}
-		});
-
-		// Handle dropdown item clicks
-		dropdown.addEventListener("click", (e) => {
-			const item = e.target.closest(".list-group-item");
-			if (item && !item.classList.contains("no-results")) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.shareGroupUserSearchHandler.selectUser(item, input);
-			}
-		});
-
-		// On form submit, set input value to comma-separated emails
-		if (form) {
-			form.addEventListener("submit", (e) => {
-				input.value = this.shareGroupUserSearchHandler.selectedUsersMap[inputId]
-					.map((u) => u.email)
-					.join(",");
-			});
-		}
 	}
 
 	/**
@@ -1261,20 +1195,6 @@ class ShareGroupManager {
 				emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
 			}
 			memberEmailsElement.innerHTML = emailsHtml;
-		}
-	}
-
-	/**
-	 * Show Alert Function - Wrapper for global showAlert
-	 * @param {string} message - Alert message
-	 * @param {string} type - Alert type (info, success, warning, error)
-	 */
-	showAlert(message, type = "info") {
-		// Use DOMUtils.showAlert for toast notifications
-		if (window.DOMUtils) {
-			window.DOMUtils.showAlert(message, type);
-		} else {
-			console.error("DOMUtils not available");
 		}
 	}
 

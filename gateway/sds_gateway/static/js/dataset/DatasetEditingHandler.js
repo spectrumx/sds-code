@@ -2,12 +2,13 @@
  * Dataset Editing Handler
  * Handles dataset editing workflow with pending changes management
  */
-class DatasetEditingHandler {
+class DatasetEditingHandler extends BaseManager {
 	/**
 	 * Initialize dataset editing handler
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.datasetUuid = config.datasetUuid;
 		this.permissions = config.permissions; // PermissionsManager instance
 		this.currentUserId = config.currentUserId;
@@ -288,11 +289,13 @@ class DatasetEditingHandler {
 			);
 
 			if (!success) {
-				await window.DOMUtils.renderError(
-					currentCapturesList,
-					"Error loading captures",
-					{ format: "table", colspan: 4 },
-				);
+				await window.DOMUtils.showMessage("Error loading captures", {
+					variant: "danger",
+					placement: "replace",
+					target: currentCapturesList,
+					presentation: "table",
+					templateContext: { colspan: 4 },
+				});
 			}
 
 			if (currentCapturesCount) {
@@ -375,11 +378,13 @@ class DatasetEditingHandler {
 			);
 
 			if (!success) {
-				await window.DOMUtils.renderError(
-					selectedFilesBody,
-					"Error loading files",
-					{ format: "table", colspan: 6 },
-				);
+				await window.DOMUtils.showMessage("Error loading files", {
+					variant: "danger",
+					placement: "replace",
+					target: selectedFilesBody,
+					presentation: "table",
+					templateContext: { colspan: 6 },
+				});
 			}
 
 			// Update the display input
@@ -656,9 +661,12 @@ class DatasetEditingHandler {
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(pendingList, "Error loading changes", {
-				format: "table",
-				colspan: 3,
+			await window.DOMUtils.showMessage("Error loading changes", {
+				variant: "danger",
+				placement: "replace",
+				target: pendingList,
+				presentation: "table",
+				templateContext: { colspan: 3 },
 			});
 		}
 
@@ -720,9 +728,12 @@ class DatasetEditingHandler {
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(pendingList, "Error loading changes", {
-				format: "table",
-				colspan: 3,
+			await window.DOMUtils.showMessage("Error loading changes", {
+				variant: "danger",
+				placement: "replace",
+				target: pendingList,
+				presentation: "table",
+				templateContext: { colspan: 3 },
 			});
 		}
 
@@ -1234,10 +1245,12 @@ class DatasetEditingHandler {
 					authorsList.innerHTML = response.html;
 				}
 			} catch (error) {
-				console.error("Error rendering authors:", error);
-				// Fallback: show error message
-				authorsList.innerHTML =
-					'<div class="alert alert-danger">Error loading authors</div>';
+				this.logError?.(error, authorsList);
+				await this.showMessageInTarget("Error loading authors", authorsList, {
+					variant: "danger",
+					presentation: "alert",
+					templateContext: { icon: "exclamation-triangle" },
+				});
 			}
 
 			// Update hidden field
@@ -1366,15 +1379,9 @@ class DatasetEditingHandler {
 			}
 		};
 
-		/**
-		 * Show notification using DOMUtils
-		 */
+		/** Show toast via {@link BaseManager#showToast}. */
 		this.showNotification = (message, type = "info") => {
-			if (window.DOMUtils) {
-				window.DOMUtils.showAlert(message, type);
-			} else {
-				console.error("DOMUtils not available");
-			}
+			this.showToast(message, type);
 		};
 
 		// Event listeners

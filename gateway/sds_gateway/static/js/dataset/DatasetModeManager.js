@@ -811,9 +811,12 @@ class DatasetModeManager {
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(pendingTable, "Error loading changes", {
-				format: "table",
-				colspan: 5,
+			await window.DOMUtils.showMessage("Error loading changes", {
+				variant: "danger",
+				placement: "replace",
+				target: pendingTable,
+				presentation: "table",
+				templateContext: { colspan: 5 },
 			});
 		}
 

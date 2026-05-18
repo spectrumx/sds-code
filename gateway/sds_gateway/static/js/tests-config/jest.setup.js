@@ -95,6 +95,12 @@ Object.defineProperty(mockWindow.location, "href", {
 global.document = mockDOM;
 global.window = mockWindow;
 
+// Classes referenced by `extends` / static calls in browser bundles
+const { BaseManager } = require("../core/BaseManager.js");
+global.BaseManager = BaseManager;
+const { UserInputController } = require("../core/UserInputController.js");
+global.UserInputController = UserInputController;
+
 // Mock console methods to reduce noise in tests
 global.console = {
 	...console,
@@ -259,22 +265,11 @@ global.window.APIClient = class MockAPIClient {
 	}
 };
 
-// Mock DOMUtils
-global.window.DOMUtils = {
-	show: jest.fn(),
-	hide: jest.fn(),
-	showAlert: jest.fn(),
-	renderError: jest.fn().mockResolvedValue(true),
-	renderLoading: jest.fn().mockResolvedValue(true),
-	renderContent: jest.fn().mockResolvedValue(true),
-	renderTable: jest.fn().mockResolvedValue(true),
-	renderSelectOptions: jest.fn().mockResolvedValue(true),
-	renderPagination: jest.fn().mockResolvedValue(true),
-	renderDropdown: jest.fn().mockResolvedValue("<div>Mock Dropdown</div>"),
-};
+// Mock DOMUtils (shared shape; tests may override fields)
+const { createMockDOMUtils } = require("./testHelpers.js");
+global.window.DOMUtils = createMockDOMUtils();
 
-// Mock global showAlert function
-global.window.showAlert = jest.fn();
+global.window.showMessage = jest.fn().mockResolvedValue(true);
 global.window.showToast = jest.fn();
 global.window.hideToast = jest.fn();
 

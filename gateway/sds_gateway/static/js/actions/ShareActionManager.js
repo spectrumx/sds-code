@@ -4,12 +4,13 @@
  * Share Action Manager
  * Handles all sharing-related actions and user management
  */
-window.ShareActionManager = class ShareActionManager {
+class ShareActionManager extends BaseManager {
 	/**
 	 * Initialize share action manager
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.itemUuid = config.itemUuid;
 		this.itemType = config.itemType;
 		this.permissions = config.permissions;
@@ -78,90 +79,40 @@ window.ShareActionManager = class ShareActionManager {
 	 * @param {Element} input - Search input element
 	 */
 	setupSearchInput(input) {
-		// Prevent duplicate event listener attachment
-		if (input.dataset.searchSetup === "true") {
-			return;
+		window.UserInputController.bindUserSearchInput(input, {
+			selectedUsersMap: this.selectedUsersMap,
+			getSearchTimeout: () => this.searchTimeout,
+			setSearchTimeout: (id) => {
+				this.searchTimeout = id;
+			},
+			getDropdownForInput: (inp) => this.getDropdownForInput(inp),
+			hideDropdown: (d) => this.hideDropdown(d),
+			navigateDropdown: (items, idx, dir) =>
+				this.navigateDropdown(items, idx, dir),
+			searchUsers: (query, d) => this.searchUsers(query, d),
+			selectUser: (item, inp) => this.selectUser(item, inp),
+		});
+	}
+
+	/**
+	 * Push a default viewer user if missing, refresh chips, clear input, close dropdown.
+	 * @param {HTMLInputElement} input
+	 * @param {string} userEmail
+	 * @param {string} userName
+	 */
+	_commitViewerSelection(input, userEmail, userName) {
+		if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
+			this.selectedUsersMap[input.id].push({
+				name: userName,
+				email: userEmail,
+				type: "user",
+				permission_level: window.PermissionLevels.VIEWER,
+			});
+			this.renderChips(input);
 		}
-		input.dataset.searchSetup = "true";
-
-		const dropdown = this.getDropdownForInput(input);
-		const form = input.closest("form");
-		const inputId = input.id;
-		if (!this.selectedUsersMap[inputId]) this.selectedUsersMap[inputId] = [];
-
-		// Debounced search on input
-		input.addEventListener("input", (e) => {
-			clearTimeout(this.searchTimeout);
-			const query = e.target.value.trim();
-
-			if (query.length < 2) {
-				this.hideDropdown(dropdown);
-				return;
-			}
-
-			this.searchTimeout = setTimeout(() => {
-				this.searchUsers(query, dropdown);
-			}, 300);
-		});
-
-		// Handle keyboard navigation
-		input.addEventListener("keydown", (e) => {
-			const visibleItems = dropdown.querySelectorAll(
-				".list-group-item:not(.no-results)",
-			);
-			const currentIndex = Array.from(visibleItems).findIndex((item) =>
-				item.classList.contains("selected"),
-			);
-
-			switch (e.key) {
-				case "ArrowDown":
-					e.preventDefault();
-					this.navigateDropdown(visibleItems, currentIndex, 1);
-					break;
-				case "ArrowUp":
-					e.preventDefault();
-					this.navigateDropdown(visibleItems, currentIndex, -1);
-					break;
-				case "Enter": {
-					e.preventDefault();
-					const selectedItem = dropdown.querySelector(
-						".list-group-item.selected",
-					);
-					if (selectedItem) {
-						this.selectUser(selectedItem, input);
-					}
-					break;
-				}
-				case "Escape":
-					this.hideDropdown(dropdown);
-					input.blur();
-					break;
-			}
-		});
-
-		// Handle clicks outside to close dropdown
-		document.addEventListener("click", (e) => {
-			if (!input.contains(e.target) && !dropdown.contains(e.target)) {
-				this.hideDropdown(dropdown);
-			}
-		});
-
-		// Handle dropdown item clicks
-		dropdown.addEventListener("click", (e) => {
-			const item = e.target.closest(".list-group-item");
-			if (item && !item.classList.contains("no-results")) {
-				e.preventDefault();
-				e.stopPropagation();
-				this.selectUser(item, input);
-			}
-		});
-
-		// On form submit, set input value to comma-separated emails
-		form.addEventListener("submit", (e) => {
-			input.value = this.selectedUsersMap[inputId]
-				.map((u) => u.email)
-				.join(",");
-		});
+		input.value = "";
+		this.hideDropdown(input.closest(".user-search-dropdown"));
+		input.focus();
 	}
 
 	/**
@@ -327,7 +278,7 @@ window.ShareActionManager = class ShareActionManager {
 				return;
 			}
 			console.error("Error searching users:", error);
-			this.displayError(dropdown);
+			await this.displayError(dropdown);
 		} finally {
 			this.currentRequest = null;
 		}
@@ -361,10 +312,14 @@ window.ShareActionManager = class ShareActionManager {
 	 * Display error in dropdown
 	 * @param {Element} dropdown - Dropdown element
 	 */
-	displayError(dropdown) {
+	async displayError(dropdown) {
 		const listGroup = dropdown.querySelector(".list-group");
-		listGroup.innerHTML =
-			'<div class="list-group-item no-results">Error loading users</div>';
+		if (!listGroup) return;
+		await this.showMessageInTarget("Error loading users", listGroup, {
+			variant: "danger",
+			presentation: "alert",
+			templateContext: { dismissible: false },
+		});
 		this.showDropdown(dropdown);
 	}
 
@@ -467,35 +422,11 @@ window.ShareActionManager = class ShareActionManager {
 			}
 
 			// If we get here, user is not in the group, so add them normally
-			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
-				this.selectedUsersMap[input.id].push({
-					name: userName,
-					email: userEmail,
-					type: "user",
-					permission_level: window.PermissionLevels.VIEWER, // Default permission level
-				});
-				this.renderChips(input);
-			}
-
-			input.value = "";
-			this.hideDropdown(input.closest(".user-search-dropdown"));
-			input.focus();
+			this._commitViewerSelection(input, userEmail, userName);
 		} catch (error) {
 			console.error("Error checking if user is in group:", error);
 			// If there's an error, just add the user normally
-			if (!this.selectedUsersMap[input.id].some((u) => u.email === userEmail)) {
-				this.selectedUsersMap[input.id].push({
-					name: userName,
-					email: userEmail,
-					type: "user",
-					permission_level: window.PermissionLevels.VIEWER, // Default permission level
-				});
-				this.renderChips(input);
-			}
-
-			input.value = "";
-			this.hideDropdown(input.closest(".user-search-dropdown"));
-			input.focus();
+			this._commitViewerSelection(input, userEmail, userName);
 		}
 	}
 
@@ -570,10 +501,11 @@ window.ShareActionManager = class ShareActionManager {
 				this.attachChipEventHandlers(chipContainer, inputId, input);
 			}
 		} catch (error) {
-			console.error("Error rendering user chips:", error);
-			// Fallback: show error message
-			chipContainer.innerHTML =
-				'<div class="text-danger">Error loading users</div>';
+			this.logError?.(error, chipContainer);
+			await this.showMessageInTarget("Error loading users", chipContainer, {
+				variant: "danger",
+				presentation: "inline",
+			});
 		}
 
 		// Toggle notify/message and users-with-access sections
@@ -1096,23 +1028,6 @@ window.ShareActionManager = class ShareActionManager {
 
 		// Call toggleTextarea immediately to set initial state
 		toggleTextarea();
-	}
-
-	/**
-	 * Show toast notification - Wrapper for global showAlert
-	 * @param {string} message - Toast message
-	 * @param {string} type - Toast type (success, danger, warning, info)
-	 */
-	showToast(message, type = "success") {
-		// Map ShareActionManager types to showAlert types
-		const mappedType = type === "danger" ? "error" : type;
-
-		// Use DOMUtils.showAlert for toast notifications
-		if (window.DOMUtils) {
-			window.DOMUtils.showAlert(message, mappedType);
-		} else {
-			console.error("DOMUtils not available");
-		}
 	}
 };
 

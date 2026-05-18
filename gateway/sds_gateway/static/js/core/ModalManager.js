@@ -493,12 +493,19 @@ class ModalManager {
 			placeholder.innerHTML = data.html || "";
 		} catch (error) {
 			console.error("Error loading capture files:", error);
-			placeholder.innerHTML = `
-				<div class="alert alert-warning">
-					<i class="bi bi-exclamation-triangle me-2"></i>
-					Error loading files information
-				</div>
-			`;
+			await window.DOMUtils?.showMessage?.(
+				"Error loading files information",
+				{
+					variant: "warning",
+					placement: "replace",
+					target: placeholder,
+					presentation: "alert",
+					templateContext: {
+						alert_type: "warning",
+						icon: "exclamation-triangle",
+					},
+				},
+			);
 		}
 	}
 
@@ -887,6 +894,37 @@ class ModalManager {
 	}
 
 	/**
+	 * Share managers for list modals (dataset + capture).
+	 * @param {Element} modal
+	 * @param {PermissionsManager|null} permissions
+	 * @param {unknown[]} managersOut
+	 * @param {string} contextLabel - log context when UUID/permissions missing
+	 * @returns {string|null} data-item-uuid when wired, else null
+	 */
+	static _wireShareManagerForListModal(modal, permissions, managersOut, contextLabel) {
+		const itemUuid = modal.getAttribute("data-item-uuid");
+		const itemType = modal.getAttribute("data-item-type");
+
+		if (!itemUuid || !permissions) {
+			console.warn(
+				`No item UUID or permissions found for ${contextLabel}: ${modal}`,
+			);
+			return null;
+		}
+
+		if (window.ShareActionManager) {
+			const shareManager = new window.ShareActionManager({
+				permissions,
+				itemUuid: itemUuid,
+				itemType: itemType,
+			});
+			managersOut.push(shareManager);
+			modal.shareActionManager = shareManager;
+		}
+		return itemUuid;
+	}
+
+	/**
 	 * Share / versioning / details managers for dataset modals (list + edit pages).
 	 * @param {PermissionsManager|null} permissions
 	 * @param {unknown[]} managersOut
@@ -899,25 +937,13 @@ class ModalManager {
 		);
 
 		for (const modal of datasetModals) {
-			const itemUuid = modal.getAttribute("data-item-uuid");
-			const itemType = modal.getAttribute("data-item-type");
-
-			if (!itemUuid || !permissions) {
-				console.warn(
-					`No item UUID or permissions found for dataset modal: ${modal}`,
-				);
-				continue;
-			}
-
-			if (window.ShareActionManager) {
-				const shareManager = new window.ShareActionManager({
-					permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				managersOut.push(shareManager);
-				modal.shareActionManager = shareManager;
-			}
+			const itemUuid = ModalManager._wireShareManagerForListModal(
+				modal,
+				permissions,
+				managersOut,
+				"dataset modal",
+			);
+			if (!itemUuid) continue;
 
 			if (window.VersioningActionManager && !modal.versioningActionManager) {
 				const versioningManager = new window.VersioningActionManager({
@@ -941,25 +967,12 @@ class ModalManager {
 		);
 
 		for (const modal of captureModals) {
-			const itemUuid = modal.getAttribute("data-item-uuid");
-			const itemType = modal.getAttribute("data-item-type");
-
-			if (!itemUuid || !permissions) {
-				console.warn(
-					`No item UUID or permissions found for capture modal: ${modal}`,
-				);
-				continue;
-			}
-
-			if (window.ShareActionManager) {
-				const shareManager = new window.ShareActionManager({
-					permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				managersOut.push(shareManager);
-				modal.shareActionManager = shareManager;
-			}
+			ModalManager._wireShareManagerForListModal(
+				modal,
+				permissions,
+				managersOut,
+				"capture modal",
+			);
 		}
 	}
 }

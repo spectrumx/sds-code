@@ -9,12 +9,11 @@
  * - formatFileSize(bytes) - Format file size
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
- * - showMessage(message, opts) - Show Bootstrap toast notification
+ * - showMessage(message, opts) - User-visible messages (toast / inline) via Django template
  * - logError(error, triggeredBy) - Log error to console
  * - getUserFriendlyErrorMessage(error) - Get user-friendly error message
  * - initIconDropdowns(root) - Initialize icon dropdowns
  * - initializeListDropdowns(root) - Initialize list dropdowns
- * - renderLoading(container, text, options) - Render loading state using Django template
  * - renderContent(container, options) - Render content using Django template
  * - renderTable(container, rows, options) - Render table rows using Django template
  * - renderSelectOptions(selectElement, choices, currentValue) - Render select options using Django template
@@ -163,75 +162,98 @@ class DOMUtils {
 	 * @param {number} [opts.autoRemoveMs] - timeout ms for auto removal of ephemeral modal alerts
 	 */
 	async showMessage(message, opts = {}) {
-		const {
-			variant = "info",
-			placement = "toast",
-			target = null,
-			presentation = placement === "toast" ? "toast" : "alert",
-			templateContext = {},
-			error = null,
-			triggeredBy = null,
-			log = false,
-			autoRemove = false,
-			autoRemoveMs = 4000,
-		} = opts;
+		try {
+			const {
+				variant = "info",
+				placement = "toast",
+				target = null,
+				presentation = placement === "toast" ? "toast" : "alert",
+				templateContext = {},
+				error = null,
+				triggeredBy = null,
+				log = false,
+				autoRemove = false,
+				autoRemoveMs = 4000,
+			} = opts;
 
-		const type =
-			variant === "danger" || variant === "error" ? "error" : variant;
+			const type =
+				variant === "danger" || variant === "error" ? "error" : variant;
 
-		// Log error if log is true and type is error
-		if (log && error) {
-			this.logError(error, triggeredBy);
-		}
+			if (log && error) {
+				this.logError(error, triggeredBy);
+			}
 
-		const context = {
-			message: message ?? "",
-			type,
-			presentation, // toast | inline | alert | list | table
-			...templateContext,
-		};
+			const context = {
+				message: message ?? "",
+				type,
+				presentation, // toast | inline | alert | list | table
+				...templateContext,
+			};
 
-		const response = await window.APIClient.post(
-			"/users/render-html/",
-			{
-				template: "users/components/message.html",
-				context,
-			},
-			null,
-			true,
-		);
+			const response = await window.APIClient.post(
+				"/users/render-html/",
+				{
+					template: "users/components/message.html",
+					context,
+				},
+				null,
+				true,
+			);
 
-		if (!response?.html) return false;
+			if (!response?.html) {
+				console.error("showMessage: no HTML from render-html");
+				return false;
+			}
 
-		const wrap = document.createElement("div");
-		wrap.innerHTML = response.html;
-		const node = wrap.firstElementChild;
-		if (!node) return false;
+			const wrap = document.createElement("div");
+			wrap.innerHTML = response.html;
+			const node = wrap.firstElementChild;
+			if (!node) {
+				console.error("showMessage: failed to parse message HTML");
+				return false;
+			}
 
-		if (placement === "toast") {
-			const toastHost = document.getElementById("toast-container");
-			if (!toastHost || !window.bootstrap?.Toast) return false;
-			node.id =
-				node.id || `toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-			toastHost.appendChild(node);
-			const t = new bootstrap.Toast(node);
-			t.show();
-			node.addEventListener("hidden.bs.toast", () => node.remove());
+			if (placement === "toast") {
+				const toastHost = document.getElementById("toast-container");
+				const BS = window.bootstrap;
+				if (!toastHost || !BS?.Toast) {
+					console.error(
+						"showMessage: toast container or Bootstrap Toast not available",
+					);
+					return false;
+				}
+				node.id =
+					node.id ||
+					`toast-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+				toastHost.appendChild(node);
+				const t = new BS.Toast(node);
+				t.show();
+				node.addEventListener("hidden.bs.toast", () => node.remove());
+				return true;
+			}
+
+			const el =
+				typeof target === "string" ? document.querySelector(target) : target;
+			if (!el) {
+				console.warn("showMessage: target not found:", target);
+				return false;
+			}
+
+			if (placement === "append") {
+				el.insertBefore(node, el.firstChild);
+			} else if (placement === "replace") {
+				el.innerHTML = "";
+				el.appendChild(node);
+			}
+
+			if (autoRemove && presentation === "alert") {
+				setTimeout(() => node.remove(), autoRemoveMs);
+			}
 			return true;
+		} catch (err) {
+			console.error("showMessage failed:", err);
+			return false;
 		}
-
-		const el =
-			typeof target === "string" ? document.querySelector(target) : target;
-		if (!el) return false;
-
-		if (placement === "append") el.insertBefore(node, el.firstChild);
-		else el.innerHTML = "";
-		if (placement === "replace") el.appendChild(node);
-
-		if (autoRemove && presentation === "alert") {
-			setTimeout(() => node.remove(), autoRemoveMs);
-		}
-		return true;
 	}
 
 	logError(error, triggeredBy = null) {
@@ -637,7 +659,6 @@ class DOMUtils {
 // Create global instance
 window.DOMUtils = new DOMUtils();
 
-// Also expose showAlert as global function for convenience
 window.showMessage = window.DOMUtils.showMessage.bind(window.DOMUtils);
 
 // Export for ES6 modules (Jest testing) - only if in module context

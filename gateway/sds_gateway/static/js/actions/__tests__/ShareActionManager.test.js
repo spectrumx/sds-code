@@ -38,8 +38,7 @@ describe("ShareActionManager", () => {
 		global.window.DOMUtils = {
 			show: jest.fn(),
 			hide: jest.fn(),
-			showAlert: jest.fn(),
-			renderError: jest.fn().mockResolvedValue(true),
+			showMessage: jest.fn().mockResolvedValue(true),
 			renderLoading: jest.fn().mockResolvedValue(true),
 			renderContent: jest.fn().mockResolvedValue(true),
 			renderTable: jest.fn().mockResolvedValue(true),
@@ -50,8 +49,6 @@ describe("ShareActionManager", () => {
 			closeModal: jest.fn(),
 		};
 
-		// Mock window.showAlert
-		global.window.showAlert = jest.fn();
 		global.window.APIClient = global.APIClient;
 	});
 
@@ -301,8 +298,7 @@ describe("ShareActionManager", () => {
 			});
 
 			window.DOMUtils = {
-				showToast: jest.fn(),
-				showAlert: jest.fn(),
+				showMessage: jest.fn(),
 			};
 
 			window.location = { reload: jest.fn() };
@@ -344,9 +340,13 @@ describe("ShareActionManager", () => {
 					]),
 				}),
 			);
-			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Dataset shared successfully",
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 

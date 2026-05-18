@@ -15,8 +15,7 @@ global.APIClient = {
 global.window.DOMUtils = {
 	show: jest.fn(),
 	hide: jest.fn(),
-	showAlert: jest.fn(),
-	renderError: jest.fn().mockResolvedValue(true),
+	showMessage: jest.fn().mockResolvedValue(true),
 	renderLoading: jest.fn().mockResolvedValue(true),
 	renderContent: jest.fn().mockResolvedValue(true),
 	renderTable: jest.fn().mockResolvedValue(true),

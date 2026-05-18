@@ -14,6 +14,19 @@ function mountPaginationPage(url) {
 	window.history.replaceState({}, "", url);
 }
 
+/** Click the page link with `data-page` and assert `onPageChange` receives that number. */
+function expectDataPageLinkInvokesOnPageChange(rootSelector, onPageChange, pageNum = 4) {
+	const root = document.querySelector(rootSelector);
+	const link =
+		root?.querySelector(`a.page-link[data-page="${pageNum}"]`) ??
+		Array.from(document.querySelectorAll("a.page-link")).find(
+			(a) => a.getAttribute("data-page") === String(pageNum),
+		);
+	expect(link).toBeTruthy();
+	link.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
+	expect(onPageChange).toHaveBeenCalledWith(pageNum);
+}
+
 describe("deprecated components.js PaginationManager — click invokes onPageChange", () => {
 	let DeprecatedPaginationManager;
 
@@ -40,12 +53,7 @@ describe("deprecated components.js PaginationManager — click invokes onPageCha
 			onPageChange,
 		});
 		mgr.update(paginationPayload);
-		const linkTo4 = Array.from(
-			document.querySelectorAll("a.page-link"),
-		).find((a) => a.getAttribute("data-page") === "4");
-		expect(linkTo4).toBeTruthy();
-		linkTo4.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-		expect(onPageChange).toHaveBeenCalledWith(4);
+		expectDataPageLinkInvokesOnPageChange("#pag-host", onPageChange, 4);
 	});
 });
 
@@ -68,9 +76,6 @@ describe("PageLifecycleManager.wireServerRenderedPagination", () => {
 	test("clicking a server-rendered page link calls onPageChange with that page number", () => {
 		const onPageChange = jest.fn();
 		PageLifecycleManager.wireServerRenderedPagination("pag-host-core", onPageChange);
-		const linkTo4 = document.querySelector("#pag-host-core a.page-link");
-		expect(linkTo4).toBeTruthy();
-		linkTo4.dispatchEvent(new window.MouseEvent("click", { bubbles: true }));
-		expect(onPageChange).toHaveBeenCalledWith(4);
+		expectDataPageLinkInvokesOnPageChange("#pag-host-core", onPageChange, 4);
 	});
 });
