@@ -44,7 +44,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.4.13
+      rev: v2.4.15
       hooks:
           - id: biome-check
             additional_dependencies: [ "@biomejs/biome@^1.0.0" ]
@@ -58,7 +58,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.12
+      rev: v0.15.13
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
@@ -91,7 +91,7 @@ repos:
 
     # linter for markdown files - see .markdownlint.yaml to configure rules
     - repo: https://github.com/rvben/rumdl-pre-commit
-      rev: v0.1.62
+      rev: v0.1.94
       hooks:
           - id: rumdl # Lint only (fails on issues)
           - id: rumdl-fmt # Auto-format and fail if issues remain

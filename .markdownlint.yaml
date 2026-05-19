@@ -39,5 +39,9 @@ ul-indent:
 ul-style:
     style: consistent
 
+# MD046: Code block style (consistent per file)
+code-block-style:
+    style: consistent
+
 # MD059: Link text should be descriptive
 descriptive-link-text: false
