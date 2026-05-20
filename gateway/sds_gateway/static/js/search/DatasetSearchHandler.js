@@ -8,9 +8,16 @@ class DatasetSearchHandler {
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
-		this.searchForm = document.getElementById(config.searchFormId);
-		this.searchButton = document.getElementById(config.searchButtonId);
-		this.clearButton = document.getElementById(config.clearButtonId);
+		const searchEls =
+			window.getConfiguredSearchElements?.(config) ||
+			{
+				searchForm: document.getElementById(config.searchFormId),
+				searchButton: document.getElementById(config.searchButtonId),
+				clearButton: document.getElementById(config.clearButtonId),
+			};
+		this.searchForm = searchEls.searchForm;
+		this.searchButton = searchEls.searchButton;
+		this.clearButton = searchEls.clearButton;
 		this.resultsContainer = document.getElementById(config.resultsContainerId);
 		this.resultsTbody = document.getElementById(config.resultsTbodyId);
 		this.resultsCount = document.getElementById(config.resultsCountId);

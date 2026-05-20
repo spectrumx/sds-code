@@ -6,42 +6,26 @@
 // Import the ShareGroupManager class
 import { ShareGroupManager } from "../ShareGroupManager.js";
 
+const { setupStandardUnitTest } = require("../../tests-config/testHelpers.js");
+
 describe("ShareGroupManager", () => {
 	let shareGroupManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Mock configuration
 		mockConfig = {
 			apiEndpoint: "/users/share-groups/",
 		};
 
-		// Minimal DOM mocks
-		document.getElementById = jest.fn(() => null);
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Minimal API mocks
-		global.window = {
-			APIClient: {
+		setupStandardUnitTest({
+			useModalDomUtils: true,
+			apiClientOverrides: {
 				request: jest.fn().mockResolvedValue({ success: true }),
 				get: jest.fn().mockResolvedValue({ success: true }),
 				post: jest.fn().mockResolvedValue({ html: "<div>Test HTML</div>" }),
 			},
-			DOMUtils: {
-				show: jest.fn(),
-				hide: jest.fn(),
-				showMessage: jest.fn().mockResolvedValue(true),
-				renderLoading: jest.fn().mockResolvedValue(true),
-				renderContent: jest.fn().mockResolvedValue(true),
-				renderTable: jest.fn().mockResolvedValue(true),
-			},
-		};
+		});
 
-		// Minimal Bootstrap mock
 		global.bootstrap = {
 			Modal: jest.fn().mockImplementation(() => ({
 				show: jest.fn(),

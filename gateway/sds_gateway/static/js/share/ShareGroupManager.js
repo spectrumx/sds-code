@@ -27,6 +27,42 @@ class ShareGroupManager extends BaseManager {
 	}
 
 	/**
+	 * @param {Record<string, string>} fields
+	 */
+	/**
+	 * @param {object} response
+	 * @param {{ defaultError?: string }} [opts]
+	 * @returns {boolean}
+	 */
+	handleShareGroupResponse(response, opts = {}) {
+		if (response.success) {
+			this.successMessage(response.message);
+			if (response.errors?.length) {
+				for (const error of response.errors) {
+					this.warningMessage(error);
+				}
+			}
+			return true;
+		}
+		this.errorMessage(response.error || opts.defaultError || "Request failed.");
+		return false;
+	}
+
+	async postShareGroupAction(fields) {
+		const formData = new URLSearchParams();
+		for (const [key, value] of Object.entries(fields)) {
+			formData.append(key, value);
+		}
+		return window.APIClient.request(this.config.apiEndpoint, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/x-www-form-urlencoded",
+			},
+			body: formData,
+		});
+	}
+
+	/**
 	 * Initialize all event listeners
 	 */
 	initializeEventListeners() {
@@ -66,17 +102,10 @@ class ShareGroupManager extends BaseManager {
 			return;
 		}
 
-		const formData = new URLSearchParams();
-		formData.append("action", "create");
-		formData.append("name", groupName);
-
 		try {
-			const response = await window.APIClient.request(this.config.apiEndpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: formData,
+			const response = await this.postShareGroupAction({
+				action: "create",
+				name: groupName,
 			});
 
 			if (response.success) {
@@ -146,49 +175,32 @@ class ShareGroupManager extends BaseManager {
 
 		const userEmails = selectedUsers.map((user) => user.email).join(",");
 
-		const formData = new URLSearchParams();
-		formData.append("action", "add_members");
-		formData.append("group_uuid", this.currentGroupUuid);
-		formData.append("user_emails", userEmails);
-
 		try {
-			const response = await window.APIClient.request(this.config.apiEndpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: formData,
+			const response = await this.postShareGroupAction({
+				action: "add_members",
+				group_uuid: this.currentGroupUuid,
+				user_emails: userEmails,
 			});
 
-			if (response.success) {
-				// Show success message in toast
-				this.successMessage(response.message);
-
-				// Show any errors as warnings
-				if (response.errors && response.errors.length > 0) {
-					for (const error of response.errors) {
-						this.warningMessage(error);
-					}
-				}
-
+			if (
+				this.handleShareGroupResponse(response, {
+					defaultError: "An error occurred while adding members.",
+				})
+			) {
 				if (this.shareGroupUserSearchHandler) {
 					this.shareGroupUserSearchHandler.resetShareGroup();
 				}
-				// Clear pending removals when members are added
 				this.pendingRemovals.clear();
 				this.loadCurrentMembers();
 				this.updateSaveButtonState();
 
-				// Update table member info by adding the new members
-				if (response.added_users && response.added_users.length > 0) {
+				if (response.added_users?.length) {
 					this.updateTableMemberEmails(
 						this.currentGroupUuid,
 						response.added_users,
 						"add",
 					);
 				}
-			} else {
-				this.errorMessage(response.error);
 			}
 		} catch (error) {
 			// Extract specific error message from the response
@@ -284,38 +296,18 @@ class ShareGroupManager extends BaseManager {
 
 		// Handle pending removals
 		if (this.pendingRemovals.size > 0) {
-			const formData = new URLSearchParams();
-			formData.append("action", "remove_members");
-			formData.append("group_uuid", this.currentGroupUuid);
-			formData.append(
-				"user_emails",
-				Array.from(this.pendingRemovals).join(","),
-			);
-
 			try {
-				const response = await window.APIClient.request(
-					this.config.apiEndpoint,
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/x-www-form-urlencoded",
-						},
-						body: formData,
-					},
-				);
+				const response = await this.postShareGroupAction({
+					action: "remove_members",
+					group_uuid: this.currentGroupUuid,
+					user_emails: Array.from(this.pendingRemovals).join(","),
+				});
 
-				if (response.success) {
-					// Show success message in toast
-					this.successMessage(response.message);
-
-					// Show any errors as warnings
-					if (response.errors && response.errors.length > 0) {
-						for (const error of response.errors) {
-							this.warningMessage(error);
-						}
-					}
-
-					// Clear pending removals
+				if (
+					this.handleShareGroupResponse(response, {
+						defaultError: "An error occurred while removing members.",
+					})
+				) {
 					this.pendingRemovals.clear();
 					// Reset all remove buttons
 					this.resetRemoveButtons();
@@ -330,11 +322,8 @@ class ShareGroupManager extends BaseManager {
 							"remove",
 						);
 					}
-				} else {
-					this.errorMessage(response.error);
 				}
 			} catch (error) {
-				// Extract specific error message from the response
 				let errorMessage = "An error occurred while removing members.";
 				if (error.data?.error) {
 					errorMessage = error.data.error;

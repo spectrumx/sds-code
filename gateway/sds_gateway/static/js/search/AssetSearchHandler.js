@@ -9,9 +9,16 @@ class AssetSearchHandler {
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
-		this.searchForm = document.getElementById(config.searchFormId);
-		this.searchButton = document.getElementById(config.searchButtonId);
-		this.clearButton = document.getElementById(config.clearButtonId);
+		const searchEls =
+			window.getConfiguredSearchElements?.(config) ||
+			{
+				searchForm: document.getElementById(config.searchFormId),
+				searchButton: document.getElementById(config.searchButtonId),
+				clearButton: document.getElementById(config.clearButtonId),
+			};
+		this.searchForm = searchEls.searchForm;
+		this.searchButton = searchEls.searchButton;
+		this.clearButton = searchEls.clearButton;
 		this.tableBody = document.getElementById(config.tableBodyId);
 		this.paginationContainer = document.getElementById(
 			config.paginationContainerId,
@@ -43,6 +50,21 @@ class AssetSearchHandler {
 		}
 
 		this.initializeEventListeners();
+	}
+
+	/**
+	 * @param {{ page?: string }} [extra]
+	 */
+	getFileSearchParams(extra = {}) {
+		const fileNameInput = document.getElementById("file-name");
+		const directoryInput = document.getElementById("file-directory");
+		const extensionSelect = document.getElementById("file-extension");
+		return {
+			file_name: fileNameInput?.value || "",
+			directory: directoryInput?.value || "",
+			file_extension: extensionSelect?.value || "",
+			...extra,
+		};
 	}
 
 	/**
@@ -591,19 +613,9 @@ class AssetSearchHandler {
 					const data = await this.fetchCaptures(params);
 					this.updateCapturesTable(data);
 				} else {
-					// Get current search values for files
-					const fileNameInput = document.getElementById("file-name");
-					const directoryInput = document.getElementById("file-directory");
-					const extensionSelect = document.getElementById("file-extension");
-
-					const params = {
-						file_name: fileNameInput?.value || "",
-						directory: directoryInput?.value || "",
-						file_extension: extensionSelect?.value || "",
-						page: page,
-					};
-
-					const data = await this.fetchFiles(params);
+					const data = await this.fetchFiles(
+						this.getFileSearchParams({ page }),
+					);
 					this.updateFilesTable(data);
 				}
 			});
@@ -784,17 +796,8 @@ class AssetSearchHandler {
 	 */
 	async loadFileTree() {
 		try {
-			// Get current values from form fields
-			const fileNameInput = document.getElementById("file-name");
-			const directoryInput = document.getElementById("file-directory");
+			const params = this.getFileSearchParams();
 			const extensionSelect = document.getElementById("file-extension");
-
-			const params = {
-				file_name: fileNameInput?.value || "",
-				directory: directoryInput?.value || "",
-				file_extension: extensionSelect?.value || "",
-			};
-
 			const data = await this.fetchFiles(params);
 			if (!data.tree) {
 				console.error("No tree data received:", data);

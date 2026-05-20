@@ -16,15 +16,17 @@ import { DatasetEditingHandler } from "../DatasetEditingHandler.js";
 // Import the DatasetModeManager class
 import { DatasetModeManager } from "../DatasetModeManager.js";
 
+const {
+	createPermissionsManagerMockInstance,
+} = require("../../tests-config/testHelpers.js");
+
 describe("DatasetModeManager", () => {
 	let modeManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
 		jest.clearAllMocks();
 
-		// Mock config for edit mode
 		mockConfig = {
 			datasetUuid: "test-dataset-uuid",
 			userPermissionLevel: "owner",
@@ -36,19 +38,9 @@ describe("DatasetModeManager", () => {
 			},
 		};
 
-		// Mock PermissionsManager instance
-		const mockPermissions = {
-			canEditMetadata: jest.fn(() => true),
-			canAddAssets: jest.fn(() => true),
-			canRemoveAnyAssets: jest.fn(() => true),
-			canRemoveOwnAssets: jest.fn(() => true),
-			canShare: jest.fn(() => true),
-			canDownload: jest.fn(() => true),
-			canView: jest.fn(() => true),
-		};
-
-		// Mock the constructor
-		PermissionsManager.mockImplementation(() => mockPermissions);
+		PermissionsManager.mockImplementation(() =>
+			createPermissionsManagerMockInstance(),
+		);
 
 		// Mock handler instances
 		const mockEditingHandler = {

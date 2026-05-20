@@ -1216,32 +1216,12 @@ class UploadManager {
 		container.insertBefore(div, container.firstChild);
 	}
 
-	// Enhanced error message formatting
 	getUserFriendlyErrorMessage(error, context = "") {
-		if (!error) return "An unexpected error occurred";
-
-		// Handle common error types
-		if (error.name === "NetworkError" || error.message.includes("fetch")) {
-			return "Network error: Please check your connection and try again";
-		}
-		if (error.name === "TypeError" && error.message.includes("JSON")) {
-			return "Invalid response format: Please try again or contact support";
-		}
-		if (error.message.includes("403") || error.message.includes("Forbidden")) {
-			return "Access denied: You don't have permission to perform this action";
-		}
-		if (error.message.includes("404") || error.message.includes("Not Found")) {
-			return "Resource not found: The requested file or directory may have been moved or deleted";
-		}
-		if (
-			error.message.includes("500") ||
-			error.message.includes("Internal Server Error")
-		) {
-			return "Server error: Please try again later or contact support";
-		}
-
-		// Default user-friendly message
-		return error.message || "An unexpected error occurred";
+		return (
+			window.DOMUtils?.getUserFriendlyErrorMessage(error, context) ||
+			error?.message ||
+			"An unexpected error occurred"
+		);
 	}
 
 	escapeHtml(unsafe) {

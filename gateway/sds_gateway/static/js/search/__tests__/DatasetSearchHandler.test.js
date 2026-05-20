@@ -6,6 +6,15 @@
 // Import the DatasetSearchHandler class
 import { DatasetSearchHandler } from "../DatasetSearchHandler.js";
 
+const {
+	setupStandardUnitTest,
+	createMockFormElement,
+	createMockButtonElement,
+	createDefaultDatasetSearchConfig,
+	createDatasetSearchGetElementByIdMap,
+	installMockDatasetListLocation,
+} = require("../../tests-config/testHelpers.js");
+
 describe("DatasetSearchHandler", () => {
 	let searchHandler;
 	let mockConfig;
@@ -17,70 +26,27 @@ describe("DatasetSearchHandler", () => {
 	let mockResultsCount;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
+		mockForm = createMockFormElement();
+		mockSearchButton = createMockButtonElement();
+		mockClearButton = createMockButtonElement();
+		mockResultsContainer = { innerHTML: "" };
+		mockResultsTbody = { innerHTML: "" };
+		mockResultsCount = { textContent: "" };
 
-		// Mock DOM elements
-		mockForm = {
-			addEventListener: jest.fn(),
-			querySelectorAll: jest.fn(() => []),
-		};
-
-		mockSearchButton = {
-			addEventListener: jest.fn(),
-		};
-
-		mockClearButton = {
-			addEventListener: jest.fn(),
-		};
-
-		mockResultsContainer = {
-			innerHTML: "",
-		};
-
-		mockResultsTbody = {
-			innerHTML: "",
-		};
-
-		mockResultsCount = {
-			textContent: "",
-		};
-
-		// Mock document methods
-		document.getElementById = jest.fn((id) => {
-			const elements = {
-				"search-form": mockForm,
-				"search-button": mockSearchButton,
-				"clear-button": mockClearButton,
-				"results-container": mockResultsContainer,
-				"results-tbody": mockResultsTbody,
-				"results-count": mockResultsCount,
-			};
-			return elements[id] || null;
+		setupStandardUnitTest({
+			getElementByIdMap: createDatasetSearchGetElementByIdMap({
+				mockForm,
+				mockSearchButton,
+				mockClearButton,
+				mockResultsContainer,
+				mockResultsTbody,
+				mockResultsCount,
+			}),
+			apiClient: false,
 		});
 
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Mock config
-		mockConfig = {
-			searchFormId: "search-form",
-			searchButtonId: "search-button",
-			clearButtonId: "clear-button",
-			resultsContainerId: "results-container",
-			resultsTbodyId: "results-tbody",
-			resultsCountId: "results-count",
-		};
-
-		// Mock window.location
-		Object.defineProperty(window, "location", {
-			value: {
-				href: "http://localhost:8000/datasets/",
-				pathname: "/datasets/",
-				search: "",
-			},
-			writable: true,
-		});
+		mockConfig = createDefaultDatasetSearchConfig();
+		installMockDatasetListLocation();
 	});
 
 	describe("Initialization", () => {

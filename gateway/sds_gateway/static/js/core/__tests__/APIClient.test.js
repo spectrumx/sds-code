@@ -18,6 +18,8 @@ class APIError extends Error {
 
 global.APIError = APIError;
 
+const { installMockWindowOrigin } = require("../../tests-config/testHelpers.js");
+
 describe("APIClient", () => {
 	let apiClient;
 	let mockFetch;
@@ -267,29 +269,7 @@ describe("APIClient", () => {
 
 	describe("Convenience Methods", () => {
 		beforeEach(() => {
-			// Mock window.location.origin for URL construction
-			// jsdom's location.origin is read-only, so we replace the entire location object
-			if (!global.window) {
-				global.window = {};
-			}
-			// Replace location with a simple object that has origin
-			Object.defineProperty(global.window, "location", {
-				value: {
-					origin: "http://localhost:8000",
-				},
-				writable: true,
-				configurable: true,
-			});
-			// Ensure window is also accessible as window (not just global.window)
-			if (typeof window !== "undefined") {
-				Object.defineProperty(window, "location", {
-					value: {
-						origin: "http://localhost:8000",
-					},
-					writable: true,
-					configurable: true,
-				});
-			}
+			installMockWindowOrigin();
 		});
 
 		test("should make GET request", async () => {
@@ -422,19 +402,7 @@ describe("APIClient", () => {
 
 	describe("URL Parameter Handling", () => {
 		beforeEach(() => {
-			// Mock window.location.origin for URL construction
-			// jsdom's location.origin is read-only, so we replace the entire location object
-			if (!global.window) {
-				global.window = {};
-			}
-			// Replace location with a simple object that has origin
-			Object.defineProperty(global.window, "location", {
-				value: {
-					origin: "http://localhost:8000",
-				},
-				writable: true,
-				configurable: true,
-			});
+			installMockWindowOrigin();
 		});
 
 		test("should handle empty parameters", async () => {

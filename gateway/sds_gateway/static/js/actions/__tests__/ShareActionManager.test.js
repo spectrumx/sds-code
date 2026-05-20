@@ -6,15 +6,13 @@
 // Import the ShareActionManager class
 import { ShareActionManager } from "../ShareActionManager.js";
 
+const { setupStandardUnitTest } = require("../../tests-config/testHelpers.js");
+
 describe("ShareActionManager", () => {
 	let shareManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Mock config
 		mockConfig = {
 			itemUuid: "test-uuid",
 			itemType: "dataset",
@@ -23,33 +21,12 @@ describe("ShareActionManager", () => {
 			},
 		};
 
-		// Minimal DOM mocks
-		document.getElementById = jest.fn(() => null);
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Minimal API mocks
-		global.APIClient = {
-			post: jest.fn().mockResolvedValue({ success: true }),
-			get: jest.fn().mockResolvedValue([]),
-		};
-
-		// Mock DOMUtils (replaces HTMLInjectionManager)
-		global.window.DOMUtils = {
-			show: jest.fn(),
-			hide: jest.fn(),
-			showMessage: jest.fn().mockResolvedValue(true),
-			renderLoading: jest.fn().mockResolvedValue(true),
-			renderContent: jest.fn().mockResolvedValue(true),
-			renderTable: jest.fn().mockResolvedValue(true),
-			showModalLoading: jest.fn().mockResolvedValue(true),
-			clearModalLoading: jest.fn(),
-			showModalError: jest.fn().mockResolvedValue(true),
-			openModal: jest.fn(),
-			closeModal: jest.fn(),
-		};
-
-		global.window.APIClient = global.APIClient;
+		setupStandardUnitTest({
+			useModalDomUtils: true,
+			apiClientOverrides: {
+				get: jest.fn().mockResolvedValue([]),
+			},
+		});
 	});
 
 	describe("Initialization", () => {

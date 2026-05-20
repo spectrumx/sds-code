@@ -417,58 +417,46 @@ class ModalManager {
 	 * Show success message
 	 */
 	showSuccessMessage(message) {
-		// Clear existing alerts first
-		this.clearAlerts();
-
-		// Create a temporary alert
-		const alert = document.createElement("div");
-		alert.className = "alert alert-success alert-dismissible fade show";
-		alert.innerHTML = `
-			${message}
-			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-		`;
-
-		// Insert at the top of the modal body
-		const modalBody = document.getElementById("asset-details-modal-body");
-		if (modalBody) {
-			modalBody.insertBefore(alert, modalBody.firstChild);
-
-			// Auto-dismiss after 3 seconds
-			setTimeout(() => {
-				if (alert.parentNode) {
-					alert.remove();
-				}
-			}, 3000);
-		}
+		this.showModalAlert("success", message, 3000);
 	}
 
 	/**
 	 * Show error message
 	 */
 	showErrorMessage(message) {
-		// Clear existing alerts first
+		this.showModalAlert("danger", message, 5000);
+	}
+
+	/**
+	 * @param {"success"|"danger"} variant
+	 * @param {string} message
+	 * @param {number} autoDismissMs
+	 */
+	async showModalAlert(variant, message, autoDismissMs) {
 		this.clearAlerts();
 
-		// Create a temporary alert
-		const alert = document.createElement("div");
-		alert.className = "alert alert-danger alert-dismissible fade show";
-		alert.innerHTML = `
-			${message}
-			<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-		`;
-
-		// Insert at the top of the modal body
 		const modalBody = document.getElementById("asset-details-modal-body");
-		if (modalBody) {
-			modalBody.insertBefore(alert, modalBody.firstChild);
-
-			// Auto-dismiss after 5 seconds
-			setTimeout(() => {
-				if (alert.parentNode) {
-					alert.remove();
-				}
-			}, 5000);
+		if (!modalBody || !window.DOMUtils?.showMessage) {
+			return false;
 		}
+
+		const alertType = variant === "success" ? "success" : "danger";
+		const icon =
+			variant === "success" ? "check-circle" : "exclamation-triangle";
+
+		return window.DOMUtils.showMessage(message, {
+			variant,
+			placement: "append",
+			target: modalBody,
+			presentation: "alert",
+			templateContext: {
+				alert_type: alertType,
+				icon,
+				dismissible: true,
+			},
+			autoRemove: true,
+			autoRemoveMs: autoDismissMs,
+		});
 	}
 
 	/**

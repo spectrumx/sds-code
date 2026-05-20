@@ -10,6 +10,8 @@
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
  * - showMessage(message, opts) - User-visible messages (toast / inline) via Django template
+ * - showVisualizationPanel(message, detailLine, opts) - Spectrogram/waterfall status panel
+ * - hideVisualizationPanel(target) - Hide visualization status/error panel
  * - logError(error, triggeredBy) - Log error to console
  * - getUserFriendlyErrorMessage(error) - Get user-friendly error message
  * - initIconDropdowns(root) - Initialize icon dropdowns
@@ -153,7 +155,7 @@ class DOMUtils {
 	 * @param {'success'|'error'|'warning'|'info'|'danger'} [opts.variant='info'] - danger maps like Bootstrap
 	 * @param {'toast'|'replace'|'append'} [opts.placement='toast']
 	 * @param {Element|string|null} [opts.target] - for replace/append (selector or element)
-	 * @param {'toast'|'inline'|'alert'|'list'|'table'} [opts.presentation='toast'] - must match template branches
+	 * @param {'toast'|'inline'|'alert'|'list'|'table'|'visualization_panel'} [opts.presentation='toast'] - must match template branches
 	 * @param {object} [opts.templateContext] - extra keys passed to Django (error_list, colspan, icon, …)
 	 * @param {Error|null} [opts.error] - error object to log
 	 * @param {Element|string|null} [opts.triggeredBy] - element to log error for
@@ -256,6 +258,56 @@ class DOMUtils {
 		}
 	}
 
+	/**
+	 * Server-rendered message in #visualizationErrorDisplay (or custom target).
+	 * @param {string} message
+	 * @param {string|null} [detailLine]
+	 * @param {object} [opts]
+	 * @param {Element|string} [opts.target='#visualizationErrorDisplay']
+	 * @param {'success'|'error'|'warning'|'info'|'danger'} [opts.variant='info']
+	 * @param {() => void} [opts.beforeShow]
+	 */
+	async showVisualizationPanel(message, detailLine = null, opts = {}) {
+		const {
+			target = "#visualizationErrorDisplay",
+			variant = "info",
+			beforeShow,
+		} = opts;
+
+		const el =
+			typeof target === "string" ? document.querySelector(target) : target;
+		if (!el) {
+			console.warn("showVisualizationPanel: target not found:", target);
+			return false;
+		}
+
+		beforeShow?.();
+
+		const ok = await this.showMessage(message ?? "", {
+			variant,
+			placement: "replace",
+			target: el,
+			presentation: "visualization_panel",
+			templateContext: { detail_line: detailLine || "" },
+		});
+
+		if (ok) {
+			el.classList.remove("d-none");
+		}
+		return ok;
+	}
+
+	/**
+	 * @param {Element|string} [target='#visualizationErrorDisplay']
+	 */
+	hideVisualizationPanel(target = "#visualizationErrorDisplay") {
+		const el =
+			typeof target === "string" ? document.querySelector(target) : target;
+		if (el) {
+			el.classList.add("d-none");
+		}
+	}
+
 	logError(error, triggeredBy = null) {
 		console.error(
 			triggeredBy ? triggeredBy : "",
@@ -263,7 +315,7 @@ class DOMUtils {
 		);
 	}
 
-	getUserFriendlyErrorMessage(error) {
+	getUserFriendlyErrorMessage(error, context = "") {
 		if (!error) return "An unexpected error occurred";
 
 		if (error.name === "TypeError" && error.message.includes("Cannot read")) {
@@ -282,7 +334,13 @@ class DOMUtils {
 			return "Access denied: You don't have permission to perform this action";
 		}
 		if (error.message.includes("404") || error.message.includes("Not Found")) {
-			return "Resource not found: The requested asset may have been moved or deleted";
+			const fileContext =
+				context === "upload-handler" ||
+				context === "file-preview" ||
+				String(context).includes("upload");
+			return fileContext
+				? "Resource not found: The requested file or directory may have been moved or deleted"
+				: "Resource not found: The requested asset may have been moved or deleted";
 		}
 		if (
 			error.message.includes("500") ||

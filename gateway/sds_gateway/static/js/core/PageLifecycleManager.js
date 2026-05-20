@@ -94,8 +94,7 @@ class PageLifecycleManager {
 	/**
 	 * Initialize dataset create page
 	 */
-	initializeDatasetCreatePage() {
-		// Initialize dataset mode manager for creation
+	_initDatasetModeAndSearch(afterInit) {
 		if (window.DatasetModeManager) {
 			this.datasetModeManager = new window.DatasetModeManager({
 				...this.config.dataset,
@@ -106,39 +105,28 @@ class PageLifecycleManager {
 			});
 		}
 		this.managers.push(this.datasetModeManager);
-
-		// Initialize search handlers
 		this.initializeSearchHandlers();
+		afterInit?.();
+	}
+
+	initializeDatasetCreatePage() {
+		this._initDatasetModeAndSearch();
 	}
 
 	/**
 	 * Initialize dataset edit page
 	 */
 	initializeDatasetEditPage() {
-		// Initialize dataset mode manager for editing
-		if (window.DatasetModeManager) {
-			this.datasetModeManager = new window.DatasetModeManager({
-				...this.config.dataset,
-				userPermissionLevel: this.config.permissions?.userPermissionLevel,
-				currentUserId: this.config.permissions?.currentUserId,
-				isOwner: this.config.permissions?.isOwner,
-				datasetPermissions: this.config.permissions?.datasetPermissions,
-			});
-		}
-		this.managers.push(this.datasetModeManager);
-
-		// Initialize search handlers
-		this.initializeSearchHandlers();
-
-		// Initialize share action manager for the dataset
-		if (this.config.dataset?.datasetUuid && window.ShareActionManager) {
-			this.shareActionManager = new window.ShareActionManager({
-				itemUuid: this.config.dataset.datasetUuid,
-				itemType: "dataset",
-				permissions: this.permissions,
-			});
-			this.managers.push(this.shareActionManager);
-		}
+		this._initDatasetModeAndSearch(() => {
+			if (this.config.dataset?.datasetUuid && window.ShareActionManager) {
+				this.shareActionManager = new window.ShareActionManager({
+					itemUuid: this.config.dataset.datasetUuid,
+					itemType: "dataset",
+					permissions: this.permissions,
+				});
+				this.managers.push(this.shareActionManager);
+			}
+		});
 	}
 
 	/**

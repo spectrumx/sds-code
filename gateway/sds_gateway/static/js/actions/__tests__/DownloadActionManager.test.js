@@ -6,6 +6,13 @@
 // Import the DownloadActionManager class
 import { DownloadActionManager } from "../DownloadActionManager.js";
 
+const {
+	setupStandardUnitTest,
+	createMockWebDownloadButton,
+	createMockWebDownloadModal,
+	installWebDownloadDomMocks,
+} = require("../../tests-config/testHelpers.js");
+
 describe("DownloadActionManager", () => {
 	let downloadManager;
 	let mockButton;
@@ -13,89 +20,39 @@ describe("DownloadActionManager", () => {
 	let mockPermissions;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Create mock permissions manager
 		mockPermissions = {
 			canDownload: jest.fn(() => true),
 		};
 
-		// Mock DOM elements
-		mockButton = {
-			dataset: { downloadSetup: "false" },
-			addEventListener: jest.fn(),
-			removeEventListener: jest.fn(),
-			getAttribute: jest.fn((attr) => {
-				if (attr === "data-dataset-uuid") return "test-dataset-uuid";
-				if (attr === "data-dataset-name") return "Test Dataset";
-				if (attr === "data-capture-uuid") return "test-capture-uuid";
-				if (attr === "data-capture-name") return "Test Capture";
-				return null;
-			}),
-			click: jest.fn(),
-			disabled: false,
-			textContent: "Download",
-			innerHTML: "Download",
-			parentNode: {
-				replaceChild: jest.fn(),
+		setupStandardUnitTest({
+			useModalDomUtils: true,
+			apiClientOverrides: {
+				post: jest.fn().mockResolvedValue({
+					success: true,
+					message: "Download request submitted successfully!",
+				}),
 			},
-			cloneNode: jest.fn(() => mockButton),
-		};
-
-		mockModal = {
-			addEventListener: jest.fn(),
-			querySelector: jest.fn(),
-			querySelectorAll: jest.fn(() => []),
-			getAttribute: jest.fn(),
-			setAttribute: jest.fn(),
-			removeEventListener: jest.fn(),
-		};
-
-		// Mock document methods
-		document.querySelector = jest.fn(() => mockButton);
-		document.querySelectorAll = jest.fn((selector) => {
-			if (selector === ".web-download-btn") return [mockButton];
-			return [];
+			window: {
+				fetch: jest.fn(() =>
+					Promise.resolve({
+						ok: true,
+						json: () =>
+							Promise.resolve({
+								success: true,
+								message: "Download requested",
+							}),
+					}),
+				),
+				showMessage: jest.fn().mockResolvedValue(true),
+			},
 		});
 
-		document.getElementById = jest.fn((id) => {
-			if (id.startsWith("webDownloadModal-")) return mockModal;
-			if (id.startsWith("webDownloadModalLabel-")) return { innerHTML: "" };
-			if (id.startsWith("webDownloadDatasetName-")) return { textContent: "" };
-			if (id.startsWith("confirmWebDownloadBtn-")) return mockButton;
-			return null;
+		mockButton = createMockWebDownloadButton({
+			"data-item-uuid": "test-dataset-uuid",
+			"data-item-type": "dataset",
 		});
-
-		// Mock window objects (augment global window so code under test sees DOMUtils)
-		const domUtils = {
-			show: jest.fn(),
-			hide: jest.fn(),
-			showMessage: jest.fn().mockResolvedValue(true),
-			renderLoading: jest.fn().mockResolvedValue(true),
-			renderContent: jest.fn().mockResolvedValue(true),
-			renderTable: jest.fn().mockResolvedValue(true),
-			showModalLoading: jest.fn().mockResolvedValue(true),
-			clearModalLoading: jest.fn(),
-			showModalError: jest.fn().mockResolvedValue(true),
-			openModal: jest.fn(),
-			closeModal: jest.fn(),
-		};
-		global.window.DOMUtils = domUtils;
-		global.window.APIClient = {
-			post: jest.fn().mockResolvedValue({
-				success: true,
-				message: "Download request submitted successfully!",
-			}),
-		};
-		global.window.fetch = jest.fn(() =>
-			Promise.resolve({
-				ok: true,
-				json: () =>
-					Promise.resolve({ success: true, message: "Download requested" }),
-			}),
-		);
-		global.window.showMessage = jest.fn().mockResolvedValue(true);
+		mockModal = createMockWebDownloadModal();
+		installWebDownloadDomMocks(mockButton, mockModal);
 
 		// Mock bootstrap globally
 		global.bootstrap = {

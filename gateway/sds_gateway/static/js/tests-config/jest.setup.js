@@ -274,9 +274,13 @@ global.window.showToast = jest.fn();
 global.window.hideToast = jest.fn();
 
 const { AuthorsManager } = require("../dataset/AuthorsManager.js");
+const { DatasetAuthorsUI } = require("../dataset/DatasetAuthorsUI.js");
+const { DatasetPendingChanges } = require("../dataset/DatasetPendingChanges.js");
 const { UserSearchDropdown } = require("../share/UserSearchDropdown.js");
 const { UploadUtils } = require("../upload/UploadUtils.js");
 global.window.AuthorsManager = AuthorsManager;
+global.window.DatasetAuthorsUI = DatasetAuthorsUI;
+global.window.DatasetPendingChanges = DatasetPendingChanges;
 global.window.UserSearchDropdown = UserSearchDropdown;
 global.window.UploadUtils = UploadUtils;
 global.window.ChunkUploadPipeline = UploadUtils;

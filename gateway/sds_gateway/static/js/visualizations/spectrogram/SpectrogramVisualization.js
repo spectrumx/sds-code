@@ -3,7 +3,11 @@
  * Orchestrates all spectrogram components and handles the main functionality
  */
 
-import { generateErrorMessage, setupErrorDisplay } from "../errorHandler.js";
+import {
+	startAsyncJobPolling,
+	stopAsyncJobPolling,
+} from "../common/asyncJobPolling.js";
+import { generateErrorMessage } from "../processingErrorMessages.js";
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
 import {
@@ -163,13 +167,7 @@ export class SpectrogramVisualization {
 	 * Start polling for job status
 	 */
 	startStatusPolling() {
-		if (this.pollingInterval) {
-			clearInterval(this.pollingInterval);
-		}
-
-		this.pollingInterval = setInterval(async () => {
-			await this.checkJobStatus();
-		}, 3000); // Poll every 3 seconds
+		startAsyncJobPolling(this, () => this.checkJobStatus());
 	}
 
 	/**
@@ -223,10 +221,7 @@ export class SpectrogramVisualization {
 	 * Stop status polling
 	 */
 	stopStatusPolling() {
-		if (this.pollingInterval) {
-			clearInterval(this.pollingInterval);
-			this.pollingInterval = null;
-		}
+		stopAsyncJobPolling(this);
 	}
 
 	/**
@@ -491,26 +486,14 @@ export class SpectrogramVisualization {
 	/**
 	 * Show non-error status message
 	 */
-	showStatus(message, detail = null) {
-		if (!this.errorDisplay) {
+	async showStatus(message, detail = null) {
+		if (!this.errorDisplay || !window.DOMUtils?.showVisualizationPanel) {
 			return;
 		}
-
-		const messageElement = this.errorDisplay.querySelector(
-			"p.error-message-text",
-		);
-		const errorDetailElement = this.errorDisplay.querySelector(
-			"p.error-detail-line",
-		);
-
-		setupErrorDisplay({
-			messageElement,
-			errorDetailElement,
-			message,
-			errorDetail: detail,
+		await window.DOMUtils.showVisualizationPanel(message, detail, {
+			target: this.errorDisplay,
+			variant: "info",
 		});
-
-		this.errorDisplay.classList.remove("d-none");
 	}
 
 	/**
@@ -520,22 +503,7 @@ export class SpectrogramVisualization {
 		if (!this.errorDisplay) {
 			return;
 		}
-
-		const messageElement = this.errorDisplay.querySelector(
-			"p.error-message-text",
-		);
-		const errorDetailElement = this.errorDisplay.querySelector(
-			"p.error-detail-line",
-		);
-
-		setupErrorDisplay({
-			messageElement,
-			errorDetailElement,
-			message: "",
-			errorDetail: null,
-		});
-
-		this.errorDisplay.classList.add("d-none");
+		window.DOMUtils?.hideVisualizationPanel?.(this.errorDisplay);
 	}
 
 	/**
@@ -569,29 +537,15 @@ export class SpectrogramVisualization {
 	/**
 	 * Show error message with details
 	 */
-	showErrorWithDetails(message, errorDetail = null) {
-		// Clear image
-		if (this.renderer) {
-			this.renderer.clearImage();
+	async showErrorWithDetails(message, errorDetail = null) {
+		if (!this.errorDisplay || !window.DOMUtils?.showVisualizationPanel) {
+			return;
 		}
-
-		// Setup error display using the centralized handler
-		const errorDisplay = document.getElementById("visualizationErrorDisplay");
-		if (errorDisplay) {
-			const messageElement = errorDisplay.querySelector("p.error-message-text");
-			const errorDetailElement = errorDisplay.querySelector(
-				"p.error-detail-line",
-			);
-
-			setupErrorDisplay({
-				messageElement,
-				errorDetailElement,
-				message,
-				errorDetail,
-			});
-
-			errorDisplay.classList.remove("d-none");
-		}
+		await window.DOMUtils.showVisualizationPanel(message, errorDetail, {
+			target: this.errorDisplay,
+			variant: "danger",
+			beforeShow: () => this.renderer?.clearImage(),
+		});
 	}
 
 	/**

@@ -197,17 +197,7 @@ class DatasetEditingHandler extends BaseManager {
 	 * Initialize file browser modal handlers
 	 */
 	initializeFileBrowserModal() {
-		// Modal show/hide handlers
-		const modal = document.getElementById("fileTreeModal");
-		if (modal) {
-			modal.addEventListener("show.bs.modal", () => {
-				this.onFileModalShow();
-			});
-
-			modal.addEventListener("hidden.bs.modal", () => {
-				this.onFileModalHide();
-			});
-		}
+		window.AuthorsManager?.bindFileTreeModalHandlers(this);
 	}
 
 	/**
@@ -617,65 +607,16 @@ class DatasetEditingHandler extends BaseManager {
 	async updatePendingCapturesList() {
 		const pendingList = document.getElementById("pending-captures-list");
 		const pendingCount = document.querySelector(".pending-changes-count");
+		if (!pendingList) return;
 
-		const allChanges = Array.from(this.pendingCaptures.entries());
-
-		if (allChanges.length === 0) {
-			pendingList.innerHTML =
-				'<tr><td colspan="3" class="text-center text-muted">No pending capture changes</td></tr>';
-			if (pendingCount) {
-				pendingCount.textContent = "0";
-			}
-			return;
-		}
-
-		// Normalize for generic table_rows template
-		const rows = allChanges.map(([id, change]) => ({
-			data_attrs: { "change-id": id },
-			cells: [
-				{
-					kind: "html",
-					tag: "span",
-					class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
-					text: change.action === "add" ? "Add" : "Remove",
-				},
-				{ kind: "text", value: change.data.type },
-			],
-			actions: [
-				{
-					label: "Cancel",
-					css_class: "btn-secondary",
-					extra_class: "cancel-change",
-					data_attrs: {
-						"capture-id": id,
-						"change-type": "capture",
-					},
-				},
-			],
-		}));
-
-		// Render using DOMUtils
-		const success = await window.DOMUtils.renderTable(pendingList, rows, {
-			empty_message: "No pending capture changes",
-			empty_colspan: 3,
+		await window.DatasetPendingChanges.renderPendingTable(this, {
+			listElement: pendingList,
+			countElement: pendingCount,
+			entries: Array.from(this.pendingCaptures.entries()),
+			valueKey: "type",
+			entityAttr: "capture",
+			emptyMessage: "No pending capture changes",
 		});
-
-		if (!success) {
-			await window.DOMUtils.showMessage("Error loading changes", {
-				variant: "danger",
-				placement: "replace",
-				target: pendingList,
-				presentation: "table",
-				templateContext: { colspan: 3 },
-			});
-		}
-
-		if (pendingCount) {
-			pendingCount.textContent = allChanges.length;
-		}
-
-		// Add event listeners for cancel buttons
-		this.addCancelButtonListeners();
 	}
 
 	/**
@@ -684,65 +625,16 @@ class DatasetEditingHandler extends BaseManager {
 	async updatePendingFilesList() {
 		const pendingList = document.getElementById("pending-files-list");
 		const pendingCount = document.querySelector(".pending-files-changes-count");
+		if (!pendingList) return;
 
-		const allChanges = Array.from(this.pendingFiles.entries());
-
-		if (allChanges.length === 0) {
-			pendingList.innerHTML =
-				'<tr><td colspan="3" class="text-center text-muted">No pending file changes</td></tr>';
-			if (pendingCount) {
-				pendingCount.textContent = "0";
-			}
-			return;
-		}
-
-		// Normalize for generic table_rows template
-		const rows = allChanges.map(([id, change]) => ({
-			data_attrs: { "change-id": id },
-			cells: [
-				{
-					kind: "html",
-					tag: "span",
-					class: `badge bg-${change.action === "add" ? "success" : "danger"}`,
-					text: change.action === "add" ? "Add" : "Remove",
-				},
-				{ kind: "text", value: change.data.name },
-			],
-			actions: [
-				{
-					label: "Cancel",
-					css_class: "btn-secondary",
-					extra_class: "cancel-change",
-					data_attrs: {
-						"file-id": id,
-						"change-type": "file",
-					},
-				},
-			],
-		}));
-
-		// Render using DOMUtils
-		const success = await window.DOMUtils.renderTable(pendingList, rows, {
-			empty_message: "No pending file changes",
-			empty_colspan: 3,
+		await window.DatasetPendingChanges.renderPendingTable(this, {
+			listElement: pendingList,
+			countElement: pendingCount,
+			entries: Array.from(this.pendingFiles.entries()),
+			valueKey: "name",
+			entityAttr: "file",
+			emptyMessage: "No pending file changes",
 		});
-
-		if (!success) {
-			await window.DOMUtils.showMessage("Error loading changes", {
-				variant: "danger",
-				placement: "replace",
-				target: pendingList,
-				presentation: "table",
-				templateContext: { colspan: 3 },
-			});
-		}
-
-		if (pendingCount) {
-			pendingCount.textContent = allChanges.length;
-		}
-
-		// Add event listeners for cancel buttons
-		this.addCancelButtonListeners();
 	}
 
 	/**
@@ -1064,21 +956,21 @@ class DatasetEditingHandler extends BaseManager {
 					window.location.href = result.redirect_url || "/users/dataset-list/";
 				} else {
 					// Show error message
-					this.showNotification(
+					this.showToast(
 						result.message || "An error occurred while updating the dataset.",
 						"error",
 					);
 				}
 			} else {
 				// Handle error response
-				this.showNotification(
+				this.showToast(
 					"An error occurred while updating the dataset.",
 					"error",
 				);
 			}
 		} catch (error) {
 			console.error("Error submitting form:", error);
-			this.showNotification(
+			this.showToast(
 				"An error occurred while updating the dataset.",
 				"error",
 			);
@@ -1096,457 +988,10 @@ class DatasetEditingHandler extends BaseManager {
 	 * Initialize authors management for edit mode
 	 */
 	initializeAuthorsManagement() {
-		// Always set up global functions for review display, regardless of edit permissions
-		window.updateDatasetAuthors = (authorsField) =>
-			this.updateDatasetAuthors(authorsField);
-		window.formatAuthors = (authors) => this.formatAuthors(authors);
-
-		const authorsContainer = document.getElementById("authors-container");
-		const authorsList = authorsContainer?.querySelector(".authors-list");
-		const addAuthorBtn = document.getElementById("add-author-btn");
-		const authorsHiddenField = document.getElementById("id_authors");
-
-		if (!authorsContainer || !authorsList || !authorsHiddenField) return;
-
-		// Get initial authors from the hidden field
-		let authors = [];
-		let originalAuthors = []; // Store original authors for edit mode
-		try {
-			const initialAuthors = authorsHiddenField.value;
-			if (initialAuthors && initialAuthors.trim() !== "") {
-				authors = JSON.parse(initialAuthors);
-			}
-		} catch (e) {
-			console.error("Error parsing initial authors:", e);
-		}
-
-		// Get original authors from dataset context
-		const datasetAuthors = this.initialAuthors || [];
-		originalAuthors = Array.isArray(datasetAuthors) ? datasetAuthors : [];
-
-		// Convert to consistent format
-		originalAuthors = originalAuthors.map((author) => {
-			if (typeof author === "string") {
-				return { name: author, orcid_id: "" };
-			}
-			return author;
+		window.DatasetAuthorsUI?.mount(this, {
+			mode: "edit",
+			initialAuthors: this.initialAuthors,
 		});
-
-		// Convert legacy string authors to new format if needed
-		authors = authors.map((author) => {
-			if (typeof author === "string") {
-				return {
-					name: author,
-					orcid_id: "",
-				};
-			}
-			return author;
-		});
-
-		// Track author changes for edit mode
-		const authorChanges = {
-			added: [],
-			removed: [],
-			modified: {}, // index -> {old: string, new: string}
-		};
-
-		// Detect initial changes by comparing current authors with original authors
-		if (originalAuthors.length > 0) {
-			// Find new authors (authors in current list but not in original list)
-			for (const [index, author] of authors.entries()) {
-				const authorName = typeof author === "string" ? author : author.name;
-				const authorOrcid = typeof author === "string" ? "" : author.orcid_id;
-
-				// Check if this author exists in the original authors
-				const existsInOriginal = originalAuthors.some((origAuthor) => {
-					const origName =
-						typeof origAuthor === "string" ? origAuthor : origAuthor.name;
-					const origOrcid =
-						typeof origAuthor === "string" ? "" : origAuthor.orcid_id;
-					return origName === authorName && origOrcid === authorOrcid;
-				});
-
-				if (!existsInOriginal) {
-					authorChanges.added.push(index);
-				}
-			}
-
-			// Find removed authors (authors in original list but not in current list)
-			for (const [origIndex, origAuthor] of originalAuthors.entries()) {
-				const origName =
-					typeof origAuthor === "string" ? origAuthor : origAuthor.name;
-				const origOrcid =
-					typeof origAuthor === "string" ? "" : origAuthor.orcid_id;
-
-				// Check if this author exists in the current authors
-				const existsInCurrent = authors.some((author) => {
-					const authorName = typeof author === "string" ? author : author.name;
-					const authorOrcid = typeof author === "string" ? "" : author.orcid_id;
-					return authorName === origName && authorOrcid === origOrcid;
-				});
-
-				if (!existsInCurrent) {
-					// Find the index in the current authors array
-					const currentIndex = authors.findIndex((author) => {
-						const authorName =
-							typeof author === "string" ? author : author.name;
-						return authorName === origName;
-					});
-					if (currentIndex >= 0) {
-						authorChanges.removed.push(currentIndex);
-					}
-				}
-			}
-		}
-
-		/**
-		 * Update authors display
-		 */
-		const updateAuthorsDisplay = async () => {
-			try {
-				// Normalize authors for server-side rendering
-				const normalizedAuthors = authors.map((author, index) => {
-					const authorName =
-						typeof author === "string" ? author : author.name || "";
-					const authorOrcid =
-						typeof author === "string" ? "" : author.orcid_id || "";
-					const isMarkedForRemoval = authorChanges.removed.includes(index);
-
-					// Use existing stable ID or generate one
-					const stableId = author._stableId || `author-${index}-${Date.now()}`;
-
-					// Store stable ID back to author object
-					if (!author._stableId) {
-						author._stableId = stableId;
-					}
-
-					return {
-						index: index,
-						name: authorName,
-						orcid_id: authorOrcid,
-						stable_id: stableId,
-						is_primary: index === 0,
-						is_marked_for_removal: isMarkedForRemoval,
-					};
-				});
-
-				// Render using server-side template
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/author_list_items.html",
-						context: { authors: normalizedAuthors },
-					},
-					null,
-					true,
-				); // true = send as JSON
-
-				if (response.html) {
-					authorsList.innerHTML = response.html;
-				}
-			} catch (error) {
-				this.logError?.(error, authorsList);
-				await this.showMessageInTarget("Error loading authors", authorsList, {
-					variant: "danger",
-					presentation: "alert",
-					templateContext: { icon: "exclamation-triangle" },
-				});
-			}
-
-			// Update hidden field
-			authorsHiddenField.value = JSON.stringify(authors);
-
-			// Show/hide add button based on permissions
-			if (addAuthorBtn) {
-				if (this.permissions?.canEditMetadata) {
-					window.DOMUtils.show(addAuthorBtn);
-				} else {
-					window.DOMUtils.hide(addAuthorBtn);
-				}
-			}
-		};
-
-		/**
-		 * Add new author
-		 */
-		const addAuthor = () => {
-			const newIndex = authors.length;
-			authors.push({
-				name: "",
-				orcid_id: "",
-			});
-
-			// Track as added for change management
-			if (!authorChanges.added.includes(newIndex)) {
-				authorChanges.added.push(newIndex);
-			}
-
-			updateAuthorsDisplay();
-
-			// Focus on the new name input
-			const newInput = authorsList.querySelector(
-				`input[data-index="${newIndex}"][data-field="name"]`,
-			);
-			if (newInput) {
-				newInput.focus();
-			}
-
-			// Update review display
-			if (window.updateReviewDatasetDisplay) {
-				window.updateReviewDatasetDisplay();
-			}
-		};
-
-		/**
-		 * Remove author
-		 */
-		const removeAuthor = (index) => {
-			if (index > 0) {
-				// Don't remove the primary author
-				// Check if this is a newly added author
-				const isNewlyAdded = authorChanges.added.includes(index);
-
-				if (isNewlyAdded) {
-					// If it's a newly added author, completely remove it
-					authors.splice(index, 1);
-
-					// Remove from the added list
-					const addIndex = authorChanges.added.indexOf(index);
-					if (addIndex > -1) {
-						authorChanges.added.splice(addIndex, 1);
-					}
-
-					// Adjust indices in the added list for authors that come after this one
-					authorChanges.added = authorChanges.added.map((addedIndex) =>
-						addedIndex > index ? addedIndex - 1 : addedIndex,
-					);
-
-					// Adjust indices in the removed list for authors that come after this one
-					authorChanges.removed = authorChanges.removed.map((removedIndex) =>
-						removedIndex > index ? removedIndex - 1 : removedIndex,
-					);
-
-					// Adjust indices in the modified list for authors that come after this one
-					const newModified = {};
-					for (const [modifiedIndex, changes] of Object.entries(
-						authorChanges.modified,
-					)) {
-						const numIndex = Number.parseInt(modifiedIndex);
-						if (numIndex > index) {
-							newModified[numIndex - 1] = changes;
-						} else if (numIndex < index) {
-							newModified[numIndex] = changes;
-						}
-					}
-					authorChanges.modified = newModified;
-				} else {
-					// For existing authors, mark for removal instead of actually removing
-					if (!authorChanges.removed.includes(index)) {
-						authorChanges.removed.push(index);
-					}
-				}
-
-				updateAuthorsDisplay();
-
-				// Update review display
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			} else {
-				// Show warning that primary author cannot be removed
-				this.showNotification(
-					"The primary author cannot be removed. This is the dataset creator.",
-					"warning",
-				);
-			}
-		};
-
-		/**
-		 * Cancel author removal
-		 */
-		const cancelAuthorRemoval = (index) => {
-			if (authorChanges.removed.includes(index)) {
-				const removeIndex = authorChanges.removed.indexOf(index);
-				if (removeIndex > -1) {
-					authorChanges.removed.splice(removeIndex, 1);
-				}
-				updateAuthorsDisplay();
-
-				// Update review display
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		};
-
-		/** Show toast via {@link BaseManager#showToast}. */
-		this.showNotification = (message, type = "info") => {
-			this.showToast(message, type);
-		};
-
-		// Event listeners
-		if (addAuthorBtn) {
-			addAuthorBtn.addEventListener("click", addAuthor);
-		}
-
-		// Handle input changes
-		authorsList.addEventListener("input", (e) => {
-			if (
-				e.target.classList.contains("author-name-input") ||
-				e.target.classList.contains("author-orcid-input")
-			) {
-				const index = Number.parseInt(e.target.dataset.index);
-				const field = e.target.dataset.field;
-
-				// Ensure author object exists
-				if (!authors[index] || typeof authors[index] === "string") {
-					authors[index] = {
-						name: typeof authors[index] === "string" ? authors[index] : "",
-						orcid_id: "",
-					};
-				}
-
-				const oldValue = authors[index][field];
-				authors[index][field] = e.target.value;
-
-				// Track modifications in edit mode
-				if (index < originalAuthors.length) {
-					const originalAuthor = originalAuthors[index];
-					const originalValue =
-						typeof originalAuthor === "string"
-							? field === "name"
-								? originalAuthor
-								: ""
-							: originalAuthor[field] || "";
-
-					if (e.target.value !== originalValue) {
-						if (!authorChanges.modified[index]) {
-							authorChanges.modified[index] = {};
-						}
-						authorChanges.modified[index][field] = {
-							old: originalValue,
-							new: e.target.value,
-						};
-					} else {
-						if (authorChanges.modified[index]) {
-							delete authorChanges.modified[index][field];
-							if (Object.keys(authorChanges.modified[index]).length === 0) {
-								delete authorChanges.modified[index];
-							}
-						}
-					}
-				}
-
-				// Only update display if we need to remove empty authors
-				let needsUpdate = false;
-				if (
-					index > 0 &&
-					!authors[index].name.trim() &&
-					!authors[index].orcid_id.trim()
-				) {
-					authors.splice(index, 1);
-					needsUpdate = true;
-				}
-
-				authorsHiddenField.value = JSON.stringify(authors);
-
-				// Only call updateAuthorsDisplay if we actually removed an author
-				if (needsUpdate) {
-					updateAuthorsDisplay();
-				}
-
-				// Update review display if we're on the review step
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		});
-
-		// Handle remove and cancel buttons
-		authorsList.addEventListener("click", (e) => {
-			const removeButton = e.target.closest(".remove-author");
-			const cancelButton = e.target.closest(".cancel-remove-author");
-
-			if (removeButton) {
-				e.preventDefault();
-				e.stopPropagation();
-				const index = Number.parseInt(removeButton.dataset.index);
-				removeAuthor(index);
-			} else if (cancelButton) {
-				e.preventDefault();
-				e.stopPropagation();
-				const index = Number.parseInt(cancelButton.dataset.index);
-				cancelAuthorRemoval(index);
-			}
-		});
-
-		// Initial display
-		updateAuthorsDisplay();
-
-		// Store authors and changes for external access
-		this.authors = authors;
-		this.originalAuthors = originalAuthors;
-		this.authorChanges = authorChanges;
-		this.updateAuthorsDisplay = updateAuthorsDisplay;
-
-		// Make functions available globally for review display
-		window.getAuthorChanges = () => authorChanges;
-		window.calculateAuthorChanges = (originalAuthors, currentAuthors) =>
-			this.calculateAuthorChanges(originalAuthors, currentAuthors);
-		window.getCurrentAuthorsWithDOMIds = () =>
-			this.getCurrentAuthorsWithDOMIds();
-		window.captureAuthorsWithDOMIds = (authors) =>
-			this.captureAuthorsWithDOMIds(authors);
-		window.cancelAuthorAddition = (index) => {
-			if (authorChanges.added.includes(index)) {
-				const removeIndex = authorChanges.added.indexOf(index);
-				if (removeIndex > -1) {
-					authorChanges.added.splice(removeIndex, 1);
-				}
-				authors.splice(index, 1);
-				updateAuthorsDisplay();
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		};
-
-		window.cancelAuthorRemoval = (index) => {
-			if (authorChanges.removed.includes(index)) {
-				const removeIndex = authorChanges.removed.indexOf(index);
-				if (removeIndex > -1) {
-					authorChanges.removed.splice(removeIndex, 1);
-				}
-				updateAuthorsDisplay();
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		};
-
-		window.cancelAuthorModification = (index, field) => {
-			if (authorChanges.modified[index]?.[field]) {
-				delete authorChanges.modified[index][field];
-				if (Object.keys(authorChanges.modified[index]).length === 0) {
-					delete authorChanges.modified[index];
-				}
-				// Restore original value
-				if (originalAuthors[index]) {
-					const originalAuthor = originalAuthors[index];
-					const originalValue =
-						typeof originalAuthor === "string"
-							? field === "name"
-								? originalAuthor
-								: ""
-							: originalAuthor[field] || "";
-					authors[index][field] = originalValue;
-				}
-				updateAuthorsDisplay();
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		};
 	}
 
 	/**
