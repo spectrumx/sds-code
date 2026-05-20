@@ -6,27 +6,19 @@
 // Import the ShareActionManager class
 import { ShareActionManager } from "../ShareActionManager.js";
 
-const { setupStandardUnitTest } = require("../../tests-config/testHelpers.js");
+const {
+	createDefaultShareActionConfig,
+	setupShareActionStandardTest,
+	createShareSearchTestContext,
+} = require("../../__tests__/helpers/actionTestMocks.js");
 
 describe("ShareActionManager", () => {
 	let shareManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		mockConfig = {
-			itemUuid: "test-uuid",
-			itemType: "dataset",
-			permissions: {
-				canShare: true,
-			},
-		};
-
-		setupStandardUnitTest({
-			useModalDomUtils: true,
-			apiClientOverrides: {
-				get: jest.fn().mockResolvedValue([]),
-			},
-		});
+		mockConfig = createDefaultShareActionConfig();
+		setupShareActionStandardTest();
 	});
 
 	describe("Initialization", () => {
@@ -48,31 +40,12 @@ describe("ShareActionManager", () => {
 	});
 
 	describe("Searching Users", () => {
-		let shareManager;
 		let mockAPIClient;
 		let mockDropdown;
 
 		beforeEach(() => {
-			mockAPIClient = {
-				get: jest.fn(),
-				post: jest.fn(),
-			};
-			window.APIClient = mockAPIClient;
-
-			mockDropdown = {
-				querySelector: jest.fn(() => ({
-					innerHTML: "",
-				})),
-			};
-
-			shareManager = new ShareActionManager({
-				itemUuid: "test-uuid",
-				itemType: "dataset",
-				permissions: {},
-			});
-			shareManager.displayResults = jest.fn();
-			shareManager.displayError = jest.fn();
-			shareManager.showDropdown = jest.fn();
+			({ mockAPIClient, mockDropdown, shareManager } =
+				createShareSearchTestContext(ShareActionManager));
 		});
 
 		test("should cancel previous request when new search starts", async () => {

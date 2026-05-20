@@ -310,6 +310,153 @@ function flushMicrotasks() {
 	return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
+/** @param {object} opts */
+function createMockFetchResponse(opts = {}) {
+	const {
+		ok = true,
+		status = ok ? 200 : 404,
+		contentType = "application/json",
+		jsonData = { success: true },
+		textData = "plain text",
+		jsonReject,
+	} = opts;
+	const headers = { get: jest.fn(() => contentType) };
+	const response = {
+		ok,
+		status,
+		statusText: opts.statusText ?? (ok ? "OK" : "Not Found"),
+		headers,
+		json: jsonReject
+			? jest.fn().mockRejectedValue(jsonReject)
+			: jest.fn().mockResolvedValue(jsonData),
+		text: jest.fn().mockResolvedValue(textData),
+	};
+	return response;
+}
+
+function mockFetchResolved(mockFetch, responseOpts) {
+	mockFetch.mockResolvedValue(createMockFetchResponse(responseOpts));
+}
+
+function installMinimalDocumentForApiClient() {
+	global.document = {
+		querySelector: jest.fn(() => null),
+		cookie: "",
+	};
+}
+
+function installCsrfMetaToken(token = "test-csrf-token") {
+	const mockMetaToken = {
+		getAttribute: jest.fn(() => token),
+	};
+	global.document.querySelector = jest.fn((selector) => {
+		if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
+		if (selector === '[name="csrfmiddlewaretoken"]') return null;
+		return null;
+	});
+	return mockMetaToken;
+}
+
+function createMockDatasetHandlerInstance(mode = "edit") {
+	const base = {
+		initialize: jest.fn(),
+		setupEventListeners: jest.fn(),
+		filesSearchHandler: {
+			initialize: jest.fn(),
+			search: jest.fn(),
+		},
+	};
+	if (mode === "edit") {
+		return {
+			...base,
+			loadDatasetData: jest.fn(),
+			markCaptureForRemoval: jest.fn(),
+			markFileForRemoval: jest.fn(),
+			getPendingChanges: jest.fn(),
+		};
+	}
+	return {
+		...base,
+		navigateStep: jest.fn(),
+		validateCurrentStep: jest.fn(),
+		updateReviewStep: jest.fn(),
+	};
+}
+
+function installDatasetModeHandlerMocks(
+	DatasetEditingHandler,
+	DatasetCreationHandler,
+) {
+	const editing = createMockDatasetHandlerInstance("edit");
+	const creation = createMockDatasetHandlerInstance("creation");
+	DatasetEditingHandler.mockImplementation(() => editing);
+	DatasetCreationHandler.mockImplementation(() => creation);
+	return { editing, creation };
+}
+
+/**
+ * DOM fixture for DatasetModeManager publish/submit tests.
+ */
+function createPublishingSubmitDomFixture(opts = {}) {
+	const {
+		publicChecked = true,
+		statusValue = "final",
+		publishToggleChecked = true,
+		includePublicOption = true,
+		includeStatus = true,
+	} = opts;
+	const submitBtn = document.createElement("button");
+	submitBtn.id = "submitForm";
+	submitBtn.classList = { contains: jest.fn(() => false) };
+	Object.defineProperty(submitBtn, "offsetParent", {
+		get: () => submitBtn,
+		configurable: true,
+	});
+	const elements = {
+		submitForm: submitBtn,
+	};
+	if (opts.includePublishToggle !== false) {
+		const publishToggle = document.createElement("input");
+		publishToggle.id = "publish-dataset-toggle";
+		publishToggle.checked = publishToggleChecked;
+		elements["publish-dataset-toggle"] = publishToggle;
+	}
+	if (includeStatus) {
+		const statusField = document.createElement("input");
+		statusField.id = "id_status";
+		statusField.value = statusValue;
+		elements.id_status = statusField;
+	}
+	if (includePublicOption) {
+		const publicOption = document.createElement("input");
+		publicOption.id = "public-option";
+		publicOption.checked = publicChecked;
+		elements["public-option"] = publicOption;
+	}
+	return {
+		submitBtn,
+		elements,
+		install() {
+			installDocumentGetByIdMap(elements);
+			window.getComputedStyle = jest.fn(() => ({ display: "block" }));
+		},
+	};
+}
+
+function createDatasetModeManagerMockConfig(overrides = {}) {
+	return {
+		datasetUuid: "test-dataset-uuid",
+		userPermissionLevel: "owner",
+		currentUserId: 1,
+		isOwner: true,
+		datasetPermissions: {
+			canEditMetadata: true,
+			canAddAssets: true,
+		},
+		...overrides,
+	};
+}
+
 module.exports = {
 	createMockDOMUtils,
 	createMockDOMUtilsWithModals,
@@ -334,4 +481,12 @@ module.exports = {
 	createPermissionsManagerMockInstance,
 	installMockDatasetListLocation,
 	flushMicrotasks,
+	createMockFetchResponse,
+	mockFetchResolved,
+	installMinimalDocumentForApiClient,
+	installCsrfMetaToken,
+	createMockDatasetHandlerInstance,
+	installDatasetModeHandlerMocks,
+	createPublishingSubmitDomFixture,
+	createDatasetModeManagerMockConfig,
 };

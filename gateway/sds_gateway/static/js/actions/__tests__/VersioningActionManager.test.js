@@ -6,6 +6,10 @@
 // Import the VersioningActionManager class
 import { VersioningActionManager } from "../VersioningActionManager.js";
 import { flushMicrotasks } from "../../tests-config/testHelpers.js";
+const {
+	setupVersioningActionTestEnvironment,
+	createVersionCreationClickEvent,
+} = require("../../__tests__/helpers/actionTestMocks.js");
 
 describe("VersioningActionManager", () => {
 	let versioningManager;
@@ -14,61 +18,8 @@ describe("VersioningActionManager", () => {
 	let mockPermissions;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Create mock permissions
-		mockPermissions = {
-			canEditMetadata: jest.fn(() => true),
-			canShare: jest.fn(() => true),
-		};
-
-		// Mock config
-		mockConfig = {
-			datasetUuid: "test-dataset-uuid",
-			permissions: mockPermissions,
-		};
-
-		// Mock button element
-		mockButton = {
-			id: "createVersionBtn-test-dataset-uuid",
-			dataset: { versionSetup: "false", processing: "false" },
-			addEventListener: jest.fn(),
-			disabled: false,
-			click: jest.fn(),
-		};
-
-		// Mock document methods
-		document.getElementById = jest.fn((id) => {
-			if (id === `createVersionBtn-${mockConfig.datasetUuid}`)
-				return mockButton;
-			return null;
-		});
-
-		// Mock DOMUtils
-		global.window.DOMUtils = {
-			showModalLoading: jest.fn().mockResolvedValue(true),
-			closeModal: jest.fn(),
-			showMessage: jest.fn(),
-		};
-
-		// Mock APIClient
-		global.window.APIClient = {
-			post: jest.fn().mockResolvedValue({
-				success: true,
-				version: 2,
-			}),
-		};
-
-		// Mock listRefreshManager
-		global.window.listRefreshManager = {
-			loadTable: jest.fn().mockResolvedValue(true),
-		};
-
-		// Mock window.location
-		global.window.location = {
-			reload: jest.fn(),
-		};
+		({ mockConfig, mockPermissions, mockButton } =
+			setupVersioningActionTestEnvironment());
 	});
 
 	describe("Initialization", () => {
@@ -115,10 +66,7 @@ describe("VersioningActionManager", () => {
 		});
 
 		test("should handle version creation click", () => {
-			const event = {
-				preventDefault: jest.fn(),
-				stopPropagation: jest.fn(),
-			};
+			const event = createVersionCreationClickEvent();
 
 			// Get the click handler from addEventListener
 			const clickHandler = mockButton.addEventListener.mock.calls.find(
@@ -137,7 +85,7 @@ describe("VersioningActionManager", () => {
 			mockButton.dataset.processing = "true";
 
 			versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -146,7 +94,7 @@ describe("VersioningActionManager", () => {
 
 		test("should show modal loading state", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -157,7 +105,7 @@ describe("VersioningActionManager", () => {
 
 		test("should disable button during processing", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -167,7 +115,7 @@ describe("VersioningActionManager", () => {
 
 		test("should make API call to dataset-versioning endpoint", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -187,7 +135,7 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -214,7 +162,7 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -239,7 +187,7 @@ describe("VersioningActionManager", () => {
 			console.warn = jest.fn();
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -259,7 +207,7 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -283,7 +231,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -302,7 +250,7 @@ describe("VersioningActionManager", () => {
 
 		test("should re-enable button after processing", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -319,7 +267,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -350,7 +298,7 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -375,7 +323,7 @@ describe("VersioningActionManager", () => {
 			document.getElementById = jest.fn(() => null);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 

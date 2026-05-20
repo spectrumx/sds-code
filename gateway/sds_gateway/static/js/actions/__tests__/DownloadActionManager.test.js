@@ -7,11 +7,8 @@
 import { DownloadActionManager } from "../DownloadActionManager.js";
 
 const {
-	setupStandardUnitTest,
-	createMockWebDownloadButton,
-	createMockWebDownloadModal,
-	installWebDownloadDomMocks,
-} = require("../../tests-config/testHelpers.js");
+	setupDownloadActionTestEnvironment,
+} = require("../../__tests__/helpers/actionTestMocks.js");
 
 describe("DownloadActionManager", () => {
 	let downloadManager;
@@ -20,52 +17,8 @@ describe("DownloadActionManager", () => {
 	let mockPermissions;
 
 	beforeEach(() => {
-		mockPermissions = {
-			canDownload: jest.fn(() => true),
-		};
-
-		setupStandardUnitTest({
-			useModalDomUtils: true,
-			apiClientOverrides: {
-				post: jest.fn().mockResolvedValue({
-					success: true,
-					message: "Download request submitted successfully!",
-				}),
-			},
-			window: {
-				fetch: jest.fn(() =>
-					Promise.resolve({
-						ok: true,
-						json: () =>
-							Promise.resolve({
-								success: true,
-								message: "Download requested",
-							}),
-					}),
-				),
-				showMessage: jest.fn().mockResolvedValue(true),
-			},
-		});
-
-		mockButton = createMockWebDownloadButton({
-			"data-item-uuid": "test-dataset-uuid",
-			"data-item-type": "dataset",
-		});
-		mockModal = createMockWebDownloadModal();
-		installWebDownloadDomMocks(mockButton, mockModal);
-
-		// Mock bootstrap globally
-		global.bootstrap = {
-			Modal: jest.fn().mockImplementation(() => ({
-				show: jest.fn(),
-				hide: jest.fn(),
-			})),
-		};
-
-		// Mock bootstrap.Modal.getInstance
-		global.bootstrap.Modal.getInstance = jest.fn(() => ({
-			hide: jest.fn(),
-		}));
+		({ mockPermissions, mockButton, mockModal } =
+			setupDownloadActionTestEnvironment());
 	});
 
 	describe("Initialization", () => {
