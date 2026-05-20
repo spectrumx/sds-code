@@ -7,7 +7,10 @@ import {
 	startAsyncJobPolling,
 	stopAsyncJobPolling,
 } from "../common/asyncJobPolling.js";
-import { generateErrorMessage } from "../processingErrorMessages.js";
+import {
+	extractApiResponseDetail,
+	generateErrorMessage,
+} from "../processingErrorMessages.js";
 import { SpectrogramControls } from "./SpectrogramControls.js";
 import { SpectrogramRenderer } from "./SpectrogramRenderer.js";
 import {
@@ -281,7 +284,7 @@ export class SpectrogramVisualization {
 
 		const responseData = await this.safeParseJson(response);
 		const processingStatus = responseData?.processing_status;
-		const responseDetail = this.extractResponseDetail(responseData);
+		const responseDetail = extractApiResponseDetail(responseData);
 
 		const details = [];
 		if (processingStatus) {
@@ -312,52 +315,6 @@ export class SpectrogramVisualization {
 		} catch {
 			return null;
 		}
-	}
-
-	/**
-	 * Extract a readable error detail from API response payload
-	 */
-	extractResponseDetail(responseData) {
-		if (!responseData) {
-			return null;
-		}
-
-		if (typeof responseData === "string") {
-			return responseData;
-		}
-
-		const detailFields = ["detail", "error", "message"];
-		for (const fieldName of detailFields) {
-			if (typeof responseData[fieldName] === "string") {
-				return responseData[fieldName];
-			}
-		}
-
-		if (Array.isArray(responseData.errors)) {
-			return responseData.errors.join(", ");
-		}
-
-		if (
-			responseData.errors &&
-			typeof responseData.errors === "object" &&
-			!Array.isArray(responseData.errors)
-		) {
-			const firstFieldErrors = Object.entries(responseData.errors)[0];
-			if (!firstFieldErrors) {
-				return null;
-			}
-
-			const [fieldName, fieldValue] = firstFieldErrors;
-			if (Array.isArray(fieldValue)) {
-				return `${fieldName}: ${fieldValue.join(", ")}`;
-			}
-
-			if (typeof fieldValue === "string") {
-				return `${fieldName}: ${fieldValue}`;
-			}
-		}
-
-		return null;
 	}
 
 	/**

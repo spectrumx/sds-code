@@ -96,6 +96,10 @@ global.document = mockDOM;
 global.window = mockWindow;
 
 require("../search/ConfiguredSearchElements.js");
+require("../actions/quickAdd/quickAddApi.js");
+require("../actions/download/captureDownloadSlider.js");
+require("../dataset/datasetFormSnapshot.js");
+require("../upload/captureUploadXhr.js");
 
 // Classes referenced by `extends` / static calls in browser bundles
 const { BaseManager } = require("../core/BaseManager.js");

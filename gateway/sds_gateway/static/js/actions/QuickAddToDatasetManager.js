@@ -176,23 +176,15 @@ class QuickAddToDatasetManager extends BaseManager {
 		}
 	}
 
-	/**
-	 * Build a concise summary from quick-add counts (added, skipped, failed count).
-	 * API returns detailed JSON; we show one short line.
-	 * Failed = request threw (non-2xx HTTP or network) or response.success false or per-capture errors in 200 body.
-	 */
 	formatQuickAddSummary(added, skipped, failedCount, firstErrorMessage) {
-		const parts = [];
-		if (added > 0) parts.push(`${added} added`);
-		if (skipped > 0) parts.push(`${skipped} already in dataset`);
-		if (failedCount > 0) {
-			parts.push(`${failedCount} failed`);
-			if (firstErrorMessage != null) {
-				const text = String(firstErrorMessage);
-				if (text) parts.push(`: ${text}`);
-			}
-		}
-		return parts.length ? `${parts.join(", ")}.` : "Done.";
+		return (
+			window.QuickAddApi?.formatQuickAddSummary?.(
+				added,
+				skipped,
+				failedCount,
+				firstErrorMessage,
+			) ?? "Done."
+		);
 	}
 
 	_notifyGlobalToast(msg, alertType) {
@@ -230,34 +222,12 @@ class QuickAddToDatasetManager extends BaseManager {
 			if (this.confirmBtn) this.confirmBtn.disabled = false;
 			return;
 		}
-		let totalAdded = 0;
-		let totalSkipped = 0;
-		const errorMessages = [];
-		for (const captureUuid of this.currentCaptureUuids) {
-			try {
-				const response = await window.APIClient.post(
-					this.quickAddUrl,
-					{
-						dataset_uuid: datasetUuid,
-						capture_uuid: captureUuid,
-					},
-					null,
-					true,
-				);
-				if (response.success) {
-					totalAdded += response.added?.length ?? 0;
-					totalSkipped += response.skipped?.length ?? 0;
-					if (response.errors?.length) {
-						errorMessages.push(...(response.errors || []));
-					}
-				} else {
-					errorMessages.push(response.error || "Request failed");
-				}
-			} catch (err) {
-				// APIClient throws on non-2xx (and on network errors), so failed = exception or 4xx/5xx
-				errorMessages.push(err?.data?.error || err?.message || String(err));
-			}
-		}
+		const { totalAdded, totalSkipped, errorMessages } =
+			await window.QuickAddApi.postQuickAddCaptures(
+				this.quickAddUrl,
+				datasetUuid,
+				this.currentCaptureUuids,
+			);
 		const errorCount = errorMessages.length;
 		const hasErrors = errorCount > 0;
 		const hasSuccess = totalAdded > 0 || totalSkipped > 0;
@@ -278,29 +248,27 @@ class QuickAddToDatasetManager extends BaseManager {
 
 	async handleSingleAdd(datasetUuid) {
 		try {
-			const response = await window.APIClient.post(
+			const result = await window.QuickAddApi.postQuickAddCapture(
 				this.quickAddUrl,
-				{
-					dataset_uuid: datasetUuid,
-					capture_uuid: this.currentCaptureUuid,
-				},
-				null,
-				true,
+				datasetUuid,
+				this.currentCaptureUuid,
 			);
-			if (response.success) {
-				const added = response.added?.length ?? 0;
-				const skipped = response.skipped?.length ?? 0;
-				const errorCount = response.errors?.length ?? 0;
-				const firstError = response.errors?.[0];
+			if (result.success) {
 				const msg = this.formatQuickAddSummary(
-					added,
-					skipped,
-					errorCount,
-					firstError,
+					result.added,
+					result.skipped,
+					result.errors.length,
+					result.errors[0],
 				);
-				this._closeWithToast(msg, errorCount > 0 ? "warning" : "success");
+				this._closeWithToast(
+					msg,
+					result.errors.length > 0 ? "warning" : "success",
+				);
 			} else {
-				this.showInlineMessage(response.error || "Request failed.", "danger");
+				this.showInlineMessage(
+					result.errors[0] || "Request failed.",
+					"danger",
+				);
 				if (this.confirmBtn) this.confirmBtn.disabled = false;
 			}
 		} catch (err) {

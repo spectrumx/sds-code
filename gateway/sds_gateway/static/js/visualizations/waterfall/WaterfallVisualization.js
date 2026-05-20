@@ -761,6 +761,11 @@ class WaterfallVisualization {
 		);
 		this.calculatePowerBounds();
 		this.isStreamingMode = false;
+		this._finalizeLoadedWaterfallDisplay();
+	}
+
+	/** Shared UI refresh after waterfall data is parsed and bounds are set. */
+	_finalizeLoadedWaterfallDisplay() {
 		this.isLoading = false;
 		this.showLoading(false);
 		this.controls.setTotalSlices(this.totalSlices);
@@ -875,15 +880,7 @@ class WaterfallVisualization {
 				await this.calculatePowerBoundsFromSamples();
 			}
 
-			this.isLoading = false;
-			this.showLoading(false);
-
-			this.controls.setTotalSlices(this.totalSlices);
-			this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
-			this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
-			this.updateColorLegend();
-
-			this.render();
+			this._finalizeLoadedWaterfallDisplay();
 
 			// Prefetch in background so scrolling is smooth (don't block initial display)
 			// Cap to one batch on load so we don't make many API calls without user scroll
@@ -1002,15 +999,7 @@ class WaterfallVisualization {
 			await this.loadSliceRange(initialEnd, prefetchEnd);
 		}
 
-		this.isLoading = false;
-		this.showLoading(false);
-
-		this.controls.setTotalSlices(this.totalSlices);
-		this.waterfallRenderer.setScaleBounds(this.scaleMin, this.scaleMax);
-		this.periodogramChart.updateYAxisBounds(this.scaleMin, this.scaleMax);
-		this.updateColorLegend();
-
-		this.render();
+		this._finalizeLoadedWaterfallDisplay();
 		this.prefetchAhead();
 	}
 

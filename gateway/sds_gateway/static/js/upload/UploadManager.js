@@ -476,69 +476,16 @@ class UploadManager {
 			uploadText.classList.add("d-none");
 			uploadSpinner.classList.remove("d-none");
 
-			// Make request with progress (XHR for upload progress events)
-			const response = await new Promise((resolve, reject) => {
-				const xhr = new XMLHttpRequest();
-				xhr.open("POST", "/users/upload-files/");
-				xhr.withCredentials = true;
-				xhr.setRequestHeader("X-CSRFToken", this.getCsrfToken());
-				xhr.setRequestHeader("Accept", "application/json");
-
-				// Progress UI elements + smoothing state
-				const wrap = document.getElementById("captureUploadProgressWrap");
-				const bar = document.getElementById("captureUploadProgressBar");
-				const text = document.getElementById("captureUploadProgressText");
-				if (wrap) wrap.classList.remove("d-none");
-				if (bar) {
-					bar.classList.add("progress-bar-striped", "progress-bar-animated");
-					bar.style.width = "100%";
-					bar.setAttribute("aria-valuenow", "100");
-					bar.textContent = "";
-				}
-				if (text) text.textContent = "Uploading…";
-
-				xhr.upload.onprogress = () => {
-					// Keep indeterminate to match button spinner timing (no file count)
-					if (text) text.textContent = "Uploading…";
-				};
-
-				xhr.onerror = () => reject(new Error("Network error during upload"));
-				xhr.upload.onloadstart = () => {
-					if (text) text.textContent = "Starting upload…";
-				};
-				xhr.upload.onloadend = () => {
-					if (bar) {
-						bar.classList.add("progress-bar-striped", "progress-bar-animated");
-						bar.style.width = "100%";
-						bar.setAttribute("aria-valuenow", "100");
-						bar.textContent = "";
-					}
-					if (text) text.textContent = "Processing on server…";
-				};
-				xhr.onload = () => {
-					// Build a Response-like object compatible with existing code
-					const status = xhr.status;
-					const headers = new Headers({
-						"content-type": xhr.getResponseHeader("content-type") || "",
-					});
-					const bodyText = xhr.responseText || "";
-					const responseLike = {
-						ok: status >= 200 && status < 300,
-						status,
-						headers,
-						json: async () => {
-							try {
-								return JSON.parse(bodyText);
-							} catch {
-								return {};
-							}
-						},
-						text: async () => bodyText,
-					};
-					resolve(responseLike);
-				};
-
-				xhr.send(formData);
+			const postUpload =
+				window.postCaptureUploadFormData ||
+				((fd, token) =>
+					Promise.reject(
+						new Error("postCaptureUploadFormData not loaded"),
+					));
+			const response = await postUpload(formData, this.getCsrfToken(), {
+				wrap: "captureUploadProgressWrap",
+				bar: "captureUploadProgressBar",
+				text: "captureUploadProgressText",
 			});
 
 			let result = null;
