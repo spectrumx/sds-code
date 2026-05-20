@@ -9,16 +9,7 @@ class AssetSearchHandler {
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
-		const searchEls =
-			window.getConfiguredSearchElements?.(config) ||
-			{
-				searchForm: document.getElementById(config.searchFormId),
-				searchButton: document.getElementById(config.searchButtonId),
-				clearButton: document.getElementById(config.clearButtonId),
-			};
-		this.searchForm = searchEls.searchForm;
-		this.searchButton = searchEls.searchButton;
-		this.clearButton = searchEls.clearButton;
+		window.applySearchCoreElements(this, config);
 		this.tableBody = document.getElementById(config.tableBodyId);
 		this.paginationContainer = document.getElementById(
 			config.paginationContainerId,

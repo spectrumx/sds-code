@@ -11,4 +11,16 @@ function getConfiguredSearchElements(config) {
 	};
 }
 
+/**
+ * @param {object} target - Handler instance (AssetSearchHandler or DatasetSearchHandler)
+ * @param {object} config
+ */
+function applySearchCoreElements(target, config) {
+	const searchEls = getConfiguredSearchElements(config);
+	target.searchForm = searchEls.searchForm;
+	target.searchButton = searchEls.searchButton;
+	target.clearButton = searchEls.clearButton;
+}
+
 window.getConfiguredSearchElements = getConfiguredSearchElements;
+window.applySearchCoreElements = applySearchCoreElements;

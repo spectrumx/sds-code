@@ -123,21 +123,14 @@ describe("DatasetEditingHandler", () => {
 		});
 
 		test("should handle contributor permissions correctly", () => {
-			const contributorPermissions = {
+			const contributorPermissions = createMockPermissionsManager({
 				userPermissionLevel: "contributor",
 				isOwner: false,
-				currentUserId: 1,
-				datasetPermissions: { canEditMetadata: true },
-				canEditMetadata: jest.fn(() => true),
-				canAddAssets: jest.fn(() => true),
-				canRemoveOwnAssets: jest.fn(() => true),
 				canRemoveAnyAssets: jest.fn(() => false),
 				canShare: jest.fn(() => false),
-				canDownload: jest.fn(() => true),
-				canView: jest.fn(() => true),
 				canAddAsset: jest.fn((asset) => asset.owner_id === 1),
 				canRemoveAsset: jest.fn((asset) => asset.owner_id === 1),
-			};
+			});
 
 			const contributorHandler = new DatasetEditingHandler({
 				...mockConfig,

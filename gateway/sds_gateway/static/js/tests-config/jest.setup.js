@@ -95,6 +95,8 @@ Object.defineProperty(mockWindow.location, "href", {
 global.document = mockDOM;
 global.window = mockWindow;
 
+require("../search/ConfiguredSearchElements.js");
+
 // Classes referenced by `extends` / static calls in browser bundles
 const { BaseManager } = require("../core/BaseManager.js");
 global.BaseManager = BaseManager;
