@@ -123,6 +123,8 @@ def _get_captures_for_template(
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
         capture_data["is_shared_with_me"] = capture.owner != request.user
+        if capture_data["is_owner"] and not capture_data.get("permission_level"):
+            capture_data["permission_level"] = PermissionLevel.OWNER
         capture_data["owner_name"] = capture.owner.name or "Owner"
         capture_data["owner_email"] = capture.owner.email or ""
 

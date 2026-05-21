@@ -391,7 +391,7 @@ class ListRefreshManager {
 	async _reinitializeEventListeners() {
 		// Re-initialize Bootstrap dropdowns
 		if (typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
-			window.DOMUtils.initializeListDropdowns();
+			window.DOMUtils.initIconDropdowns(this.container ?? document);
 		}
 
 		// Bootstrap modal instances on replaced markup (share/version/download shells)

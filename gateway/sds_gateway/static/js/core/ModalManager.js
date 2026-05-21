@@ -11,10 +11,9 @@
  * - static prepareBootstrapModalInstances(root) - Used by initializeModal
  */
 
-import BaseManager from "./BaseManager.js";
-
 class ModalManager extends BaseManager {
 	constructor(config = {}) {
+		super();
 		this.modalId = config.modalId;
 		if (config.modalId) {
 			this.modal = document.getElementById(this.modalId);
@@ -25,24 +24,44 @@ class ModalManager extends BaseManager {
 				? document.getElementById(config.modalBodyId)
 				: this.modal?.querySelector(".modal-body");
 		}
-		super();
 	}
 
 	/**
 	 * @param {string | HTMLElement} idOrElement
 	 */
-	openModal(modalId) {
+	/**
+	 * @param {string} modalId
+	 * @param {{ trigger?: HTMLElement|null }} [options]
+	 */
+	openModal(modalId, options = {}) {
 		const element = document.getElementById(modalId);
-		const inst = ModalManager.getOrCreateBootstrapModal(
-			element,
-			{
-				backdrop: true,
-				keyboard: true,
-				focus: true,
-			},
-		);
+		if (!element) return null;
+		const onShown = () => {
+			ModalManager._onModalShown(element, options);
+		};
+		element.addEventListener("shown.bs.modal", onShown, { once: true });
+		const inst = ModalManager.getOrCreateBootstrapModal(element, {
+			backdrop: true,
+			keyboard: true,
+			focus: true,
+		});
 		if (inst) inst.show();
 		return inst;
+	}
+
+	/**
+	 * @param {HTMLElement} modal
+	 * @param {{ trigger?: HTMLElement|null }} [options]
+	 */
+	static _onModalShown(modal, options = {}) {
+		const downloadManager =
+			options.downloadActionManager ?? window.downloadActionManager;
+		if (
+			modal?.id?.startsWith("webDownloadModal-") &&
+			downloadManager?.prepareWebDownloadModal
+		) {
+			downloadManager.prepareWebDownloadModal(modal, options.trigger ?? null);
+		}
 	}
 
 	/**
@@ -65,6 +84,7 @@ class ModalManager extends BaseManager {
 	 * @param {boolean} [config.detailsClickDelegation]
 	 * @param {boolean} [config.wireAllDataItemModalsShare]
 	 * @param {boolean} [config.registerFilesCaptureCoordinator]
+	 * @param {object} [config.downloadActionManager]
 	 * @returns {() => void} cleanup
 	 */
 	static initializeModal(config = {}) {
@@ -149,6 +169,15 @@ class ModalManager extends BaseManager {
 					modal.removeEventListener("hidden.bs.modal", onHidden);
 				}
 			});
+		}
+
+		if (config.downloadActionManager) {
+			cleanups.push(
+				ModalManager._wireWebDownloadModalTriggers(
+					root,
+					config.downloadActionManager,
+				),
+			);
 		}
 
 		return () => {
@@ -260,6 +289,29 @@ class ModalManager extends BaseManager {
 				"capture modal",
 			);
 		}
+	}
+
+	/**
+	 * Route list-page download menu items through openModal (not raw data-bs-toggle).
+	 * @param {ParentNode} root
+	 * @param {object} downloadActionManager
+	 * @returns {() => void}
+	 */
+	static _wireWebDownloadModalTriggers(root, downloadActionManager) {
+		const handler = (event) => {
+			const toggle = event.target.closest(
+				'[data-bs-toggle="modal"][data-bs-target^="#webDownloadModal"],' +
+					'[data-bs-toggle="modal"][href^="#webDownloadModal"]',
+			);
+			if (!toggle || !root.contains(toggle)) {
+				return;
+			}
+			event.preventDefault();
+			event.stopPropagation();
+			downloadActionManager.openWebDownloadFromToggle(toggle);
+		};
+		root.addEventListener("click", handler, true);
+		return () => root.removeEventListener("click", handler, true);
 	}
 }
 

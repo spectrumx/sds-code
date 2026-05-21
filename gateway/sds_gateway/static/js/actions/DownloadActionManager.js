@@ -27,6 +27,51 @@ class DownloadActionManager extends ModalManager {
 	}
 
 	/**
+	 * List dropdown download (wired by ModalManager._wireWebDownloadModalTriggers).
+	 * @param {HTMLElement} toggle
+	 */
+	openWebDownloadFromToggle(toggle) {
+		const target =
+			toggle.getAttribute("data-bs-target") ||
+			toggle.getAttribute("href") ||
+			"";
+		const modalId = target.startsWith("#") ? target.slice(1) : target;
+		if (!modalId.startsWith("webDownloadModal-")) {
+			return;
+		}
+		const itemUuid = modalId.replace("webDownloadModal-", "");
+		const modal = document.getElementById(modalId);
+		const itemType = modal?.getAttribute("data-item-type") || "dataset";
+
+		if (!this.permissions.canDownload()) {
+			this.showToast(
+				`You don't have permission to download this ${itemType}`,
+				"warning",
+			);
+			return;
+		}
+
+		this.openModal(modalId, {
+			trigger: toggle,
+			downloadActionManager: this,
+		});
+	}
+
+	/**
+	 * After ModalManager opens a web download modal (shown.bs.modal).
+	 * @param {HTMLElement} modal
+	 * @param {HTMLElement|null} triggerButton
+	 */
+	prepareWebDownloadModal(modal, triggerButton) {
+		const itemUuid = modal.id.replace("webDownloadModal-", "");
+		const itemType = modal.getAttribute("data-item-type") || "dataset";
+		if (itemType === "capture") {
+			this.setTemporalSliderAttrs(modal.id, modal, itemUuid);
+		}
+		this.wireWebDownloadConfirm(modal.id, itemUuid, itemType, triggerButton);
+	}
+
+	/**
 	 * Initialize web download buttons on the table rows
 	 */
 	initializeWebDownloadButtons() {
@@ -77,37 +122,37 @@ class DownloadActionManager extends ModalManager {
 		init(modalId, durationMs, fileCadenceMs, opts);
 	}
 
-	setTemporalSliderAttrs(modalId, button, itemUuid) {
-		// Initialize temporal slider from button data attributes (clears or builds slider)
+	setTemporalSliderAttrs(modalId, sourceEl, itemUuid) {
+		// Initialize temporal slider from data attributes on trigger button or modal
 		const durationMs = Number.parseInt(
-			button.getAttribute("data-length-of-capture-ms"),
+			sourceEl.getAttribute("data-length-of-capture-ms"),
 			10,
 		);
 		const fileCadenceMs = Number.parseInt(
-			button.getAttribute("data-file-cadence-ms"),
+			sourceEl.getAttribute("data-file-cadence-ms"),
 			10,
 		);
 		const perDataFileSize = Number.parseFloat(
-			button.getAttribute("data-per-data-file-size"),
+			sourceEl.getAttribute("data-per-data-file-size"),
 		);
 		const dataFilesCount = Number.parseInt(
-			button.getAttribute("data-data-files-count"),
+			sourceEl.getAttribute("data-data-files-count"),
 			10,
 		);
 		const dataFilesTotalSize = Number.parseInt(
-			button.getAttribute("data-total-data-file-size"),
+			sourceEl.getAttribute("data-total-data-file-size"),
 			10,
 		);
 		const totalSize = Number.parseInt(
-			button.getAttribute("data-total-size"),
+			sourceEl.getAttribute("data-total-size"),
 			10,
 		);
 		const totalFilesCount = Number.parseInt(
-			button.getAttribute("data-total-files-count"),
+			sourceEl.getAttribute("data-total-files-count"),
 			10,
 		);
 		const captureStartEpochSec = Number.parseInt(
-			button.getAttribute("data-capture-start-epoch-sec"),
+			sourceEl.getAttribute("data-capture-start-epoch-sec"),
 			10,
 		);
 		this.initializeCaptureDownloadSlider(
@@ -188,33 +233,37 @@ class DownloadActionManager extends ModalManager {
 	 */
 	async initializeWebDownloadModal(itemUuid, itemType, button) {
 		const modalId = `webDownloadModal-${itemUuid}`;
-		// Show the modal
-		this.openModal(modalId);
+		this.openModal(modalId, {
+			trigger: button,
+			downloadActionManager: this,
+		});
+	}
 
-		if (itemType === "capture") {
-			this.setTemporalSliderAttrs(modalId, button, itemUuid);
-		}
-
-		// Handle confirm download
+	/**
+	 * @param {string} modalId
+	 * @param {string} itemUuid
+	 * @param {string} itemType
+	 * @param {HTMLElement|null} triggerButton - row/menu button; null when opened via data-bs-toggle
+	 */
+	wireWebDownloadConfirm(modalId, itemUuid, itemType, triggerButton) {
 		const confirmBtn = document.getElementById(
 			`confirmWebDownloadBtn-${itemUuid}`,
 		);
 		if (!confirmBtn) return;
 
-		// Remove any existing event listeners
 		const newConfirmBtn = confirmBtn.cloneNode(true);
 		confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
 
+		const statusEl = triggerButton ?? newConfirmBtn;
+
 		newConfirmBtn.onclick = async () => {
-			// Show loading state
-			const originalContent = button.innerHTML;
-			await window.DOMUtils.renderLoading(button, "Processing...", {
+			const originalContent = statusEl.innerHTML;
+			await window.DOMUtils.renderLoading(statusEl, "Processing...", {
 				format: "spinner",
 				size: "sm",
 			});
-			button.disabled = true;
+			statusEl.disabled = true;
 
-			// Close modal
 			this.closeModal(modalId);
 
 			let body = {};
@@ -222,6 +271,11 @@ class DownloadActionManager extends ModalManager {
 			try {
 				if (itemType === "capture") {
 					const result = this.addTimeFilteringToFetchRequest(modalId);
+					if (!result) {
+						statusEl.innerHTML = originalContent;
+						statusEl.disabled = false;
+						return;
+					}
 					body = result.body;
 					isJson = result.isJson;
 				}
@@ -233,7 +287,7 @@ class DownloadActionManager extends ModalManager {
 				);
 
 				if (response.success === true) {
-					await window.DOMUtils.renderContent(button, {
+					await window.DOMUtils.renderContent(statusEl, {
 						icon: "check-circle",
 						color: "success",
 						text: "Download Requested",
@@ -244,7 +298,7 @@ class DownloadActionManager extends ModalManager {
 						"success",
 					);
 				} else {
-					await window.DOMUtils.renderContent(button, {
+					await window.DOMUtils.renderContent(statusEl, {
 						icon: "exclamation-triangle",
 						color: "danger",
 						text: "Request Failed",
@@ -256,7 +310,7 @@ class DownloadActionManager extends ModalManager {
 				}
 			} catch (error) {
 				console.error("Download error:", error);
-				await window.DOMUtils.renderContent(button, {
+				await window.DOMUtils.renderContent(statusEl, {
 					icon: "exclamation-triangle",
 					color: "danger",
 					text: "Request Failed",
@@ -266,10 +320,9 @@ class DownloadActionManager extends ModalManager {
 					"danger",
 				);
 			} finally {
-				// Reset button after 3 seconds
 				setTimeout(() => {
-					button.innerHTML = originalContent;
-					button.disabled = false;
+					statusEl.innerHTML = originalContent;
+					statusEl.disabled = false;
 				}, 3000);
 			}
 		};

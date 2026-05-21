@@ -63,6 +63,20 @@ class PageController {
 				listRefreshConfig,
 			);
 		}
+		PageController._initListIconDropdowns(listRefreshConfig);
+	}
+
+	/**
+	 * Bootstrap icon dropdowns in list table markup (SSR + after AJAX refresh).
+	 * @param {{ containerSelector?: string }|undefined} listRefreshConfig
+	 */
+	static _initListIconDropdowns(listRefreshConfig) {
+		if (!window.DOMUtils?.initIconDropdowns) return;
+		const root = listRefreshConfig?.containerSelector
+			? document.querySelector(listRefreshConfig.containerSelector) ||
+				document
+			: document;
+		window.DOMUtils.initIconDropdowns(root);
 	}
 
 	// Hooks (override in subclasses)

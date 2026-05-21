@@ -1128,7 +1128,7 @@ describe("DOMUtils", () => {
 		});
 	});
 
-	describe("initializeListDropdowns()", () => {
+	describe("initIconDropdowns()", () => {
 		let mockToggle;
 		let mockDropdownMenu;
 
@@ -1174,7 +1174,7 @@ describe("DOMUtils", () => {
 		});
 
 		test("should initialize dropdowns for all toggle buttons", () => {
-			domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
 			expect(document.querySelectorAll).toHaveBeenCalledWith(
 				".btn-icon-dropdown",
@@ -1201,13 +1201,13 @@ describe("DOMUtils", () => {
 			};
 			global.bootstrap.Dropdown.getInstance = jest.fn(() => existingInstance);
 
-			domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
 			expect(existingInstance.dispose).toHaveBeenCalled();
 		});
 
 		test("should move dropdown menu to body on show", () => {
-			domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
 			const showHandler = global.document.addEventListener.mock.calls.find(
 				(call) => call[0] === "show.bs.dropdown",
@@ -1232,7 +1232,7 @@ describe("DOMUtils", () => {
 				stopPropagation: jest.fn(),
 			};
 
-			domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
 			const clickHandler = global.document.addEventListener.mock.calls.find(
 				(call) => call[0] === "click",
@@ -1248,7 +1248,7 @@ describe("DOMUtils", () => {
 			mockToggle.nextElementSibling = null;
 
 			expect(() => {
-				domUtils.initializeListDropdowns();
+				domUtils.initIconDropdowns();
 			}).not.toThrow();
 		});
 	});

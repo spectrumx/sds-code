@@ -308,30 +308,32 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
+		this.ensureDownloadActionManager();
 		const detach = window.ModalManager?.initializeModal?.({
 			bootstrap: true,
 			wireListModals: "dataset",
 			permissions: this.permissions ?? this.config?.permissions,
 			managersOut: this.managers,
 			detailsClickDelegation: true,
+			downloadActionManager: this.downloadActionManager,
 		});
 		if (detach) {
 			this.managers.push({ cleanup: detach });
 		}
-		this.ensureDownloadActionManager();
 	}
 
 	/**
 	 * Initialize capture modals
 	 */
 	initializeCaptureModals() {
+		this.ensureDownloadActionManager();
 		window.ModalManager?.initializeModal?.({
 			bootstrap: true,
 			wireListModals: "capture",
 			permissions: this.permissions ?? this.config?.permissions,
 			managersOut: this.managers,
+			downloadActionManager: this.downloadActionManager,
 		});
-		this.ensureDownloadActionManager();
 	}
 
 	/**

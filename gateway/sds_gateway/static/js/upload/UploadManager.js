@@ -118,22 +118,6 @@ class UploadManager extends ModalManager {
 		}
 	}
 
-	convertToFiles(itemsOrFiles) {
-		return UploadUtils.convertToFiles(itemsOrFiles);
-	}
-
-	// Collect files from a directory or mixed drop using the File System API (Chrome/WebKit)
-	async collectFilesFromDataTransfer(dataTransfer) {
-		return UploadUtils.collectFilesFromDataTransfer(dataTransfer);
-	}
-
-	stripHtml(html) {
-		if (!html) return "";
-		const div = document.createElement("div");
-		div.innerHTML = html;
-		return (div.textContent || div.innerText || "").trim();
-	}
-
 	init() {
 		// Get container and data
 		this.container = document.querySelector(".files-container");
@@ -141,37 +125,6 @@ class UploadManager extends ModalManager {
 			this.showError("Files container not found", null, "initialization");
 			return;
 		}
-
-		// Get data attributes
-		this.currentDir = this.container.dataset.currentDir;
-		this.userEmail = this.container.dataset.userEmail;
-
-		// Get all file cards for data
-		const fileCards = document.querySelectorAll(".file-card:not(.header)");
-		const items = Array.from(fileCards).map((card) => ({
-			type: card.dataset.type,
-			name: card.querySelector(".file-name").textContent,
-			path: card.dataset.path,
-			uuid: card.dataset.uuid,
-			is_capture: card.dataset.isCapture === "true",
-
-			is_shared: card.dataset.isShared === "true",
-			capture_uuid: card.dataset.captureUuid,
-			description: card.dataset.description,
-			modified_at: card.querySelector(".file-meta").textContent.trim(),
-			shared_by: card.querySelector(".file-shared").textContent.trim(),
-		}));
-
-		// Get dataset options
-		const datasetSelect = document.getElementById("datasetSelect");
-		const datasets = datasetSelect
-			? Array.from(datasetSelect.options)
-					.slice(1)
-					.map((opt) => ({
-						name: opt.text,
-						uuid: opt.value,
-					}))
-			: [];
 
 		// Initialize all handlers
 		this.initializeEventListeners();
@@ -275,7 +228,7 @@ class UploadManager extends ModalManager {
 			uploadZone.classList.remove("drag-over");
 			const dt = e.dataTransfer;
 			if (dt) {
-				const files = await this.collectFilesFromDataTransfer(dt);
+				const files = await UploadUtils.collectFilesFromDataTransfer(dt);
 				this.droppedFiles = files;
 				// Clear any existing input selection so we rely on dropped files on submit
 				try {
@@ -288,50 +241,8 @@ class UploadManager extends ModalManager {
 		// Handle file input change
 		fileInput.addEventListener("change", (e) => {
 			this.droppedFiles = null; // prefer explicit file input selection
-			this.handleFileSelection(this.convertToFiles(e.target.files));
+			this.handleFileSelection(UploadUtils.convertToFiles(e.target.files));
 		});
-
-		// Toggle DRF/RH input groups
-		const typeSelect = document.getElementById("captureTypeSelect");
-		const channelGroup = document.getElementById("channelInputGroup");
-		const scanGroup = document.getElementById("scanGroupInputGroup");
-		const channelInput = document.getElementById("captureChannelsInput");
-
-		if (typeSelect) {
-			typeSelect.addEventListener("change", () => {
-				const v = typeSelect.value;
-
-				// Use Bootstrap classes instead of inline styles
-				if (channelGroup) {
-					if (v === "drf") {
-						channelGroup.classList.remove("d-none");
-						channelGroup.style.display = "";
-					} else {
-						channelGroup.classList.add("d-none");
-					}
-				}
-
-				if (scanGroup) {
-					if (v === "rh") {
-						scanGroup.classList.remove("d-none");
-						scanGroup.style.display = "";
-					} else {
-						scanGroup.classList.add("d-none");
-					}
-				}
-
-				if (channelInput) {
-					if (v === "drf") {
-						channelInput.setAttribute("required", "required");
-					} else {
-						channelInput.removeAttribute("required");
-					}
-				}
-			});
-
-			// Trigger change event to set initial state
-			typeSelect.dispatchEvent(new Event("change"));
-		}
 
 		// Check for globally dropped files when modal opens
 		if (window.selectedFiles?.length) {
@@ -377,17 +288,7 @@ class UploadManager extends ModalManager {
 					const onConfirm = () => {
 						this.closeModal("downloadModal");
 						this.activeModals.delete("downloadModal");
-
-						// Use unified download handler if available
-						if (window.components?.handleDownload) {
-							const dummyButton = document.createElement("button");
-							dummyButton.style.display = "none";
-							window.components.handleDownload(
-								"capture",
-								captureUuid,
-								dummyButton,
-							);
-						}
+						this.postDownloadItem("capture", captureUuid);
 					};
 					confirmBtn.addEventListener("click", onConfirm, { once: true });
 				}
@@ -418,24 +319,7 @@ class UploadManager extends ModalManager {
 					const onConfirm = () => {
 						this.closeModal("downloadModal");
 						this.activeModals.delete("downloadModal");
-						fetch(
-							`/users/download-item/dataset/${encodeURIComponent(datasetUuid)}/`,
-							{
-								method: "POST",
-								headers: {
-									"Content-Type": "application/json",
-									"X-CSRFToken": this.getCsrfToken(),
-								},
-							},
-						)
-							.then(async (r) => {
-								try {
-									return await r.json();
-								} catch (_) {
-									return {};
-								}
-							})
-							.catch(() => {});
+						this.postDownloadItem("dataset", datasetUuid);
 					};
 					confirmBtn.addEventListener("click", onConfirm, { once: true });
 				}
@@ -469,132 +353,28 @@ class UploadManager extends ModalManager {
 		});
 	}
 
-	async handleUpload(formData, submitBtn, modalId, options = {}) {
-		const uploadText = submitBtn.querySelector(".upload-text");
-		const uploadSpinner = submitBtn.querySelector(".upload-spinner");
-
-		try {
-			// Update UI
-			submitBtn.disabled = true;
-			uploadText.classList.add("d-none");
-			uploadSpinner.classList.remove("d-none");
-
-			const postUpload =
-				window.postCaptureUploadFormData ||
-				((fd, token) =>
-					Promise.reject(
-						new Error("postCaptureUploadFormData not loaded"),
-					));
-			const response = await postUpload(formData, this.getCsrfToken(), {
-				wrap: "captureUploadProgressWrap",
-				bar: "captureUploadProgressBar",
-				text: "captureUploadProgressText",
-			});
-
-			let result = null;
-			let fallbackText = "";
-			try {
-				const contentType = response.headers.get("content-type") || "";
-				if (contentType.includes("application/json")) {
-					result = await response.json();
-				} else {
-					fallbackText = await response.text();
-				}
-			} catch (_) {}
-
-			if (response.ok) {
-				// Build a concise success message for inline banner
-				let successMessage = "Upload complete.";
-				if (result && (result.files_uploaded || result.total_files)) {
-					const uploaded = result.files_uploaded ?? result.total_uploaded ?? 0;
-					const total = result.total_files ?? result.total_uploaded ?? 0;
-					successMessage = `Upload complete: ${uploaded} / ${total} file${total === 1 ? "" : "s"} uploaded.`;
-					if (Array.isArray(result.errors) && result.errors.length) {
-						successMessage += " Some items were skipped or failed.";
-					}
-				}
+	postDownloadItem(itemType, itemUuid) {
+		const csrf = window.APIClient
+			? new window.APIClient().getCSRFToken()
+			: document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+		fetch(
+			`/users/download-item/${itemType}/${encodeURIComponent(itemUuid)}/`,
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					"X-CSRFToken": csrf,
+				},
+			},
+		)
+			.then(async (r) => {
 				try {
-					sessionStorage.setItem(
-						"filesAlert",
-						JSON.stringify({
-							message: successMessage,
-							type: "success",
-						}),
-					);
-				} catch (_) {}
-				// Reload to show inline banner on main page
-				window.location.reload();
-			} else {
-				let message = "";
-				if (result && (result.detail || result.error || result.message)) {
-					message = result.detail || result.error || result.message;
-				} else if (fallbackText) {
-					message = this.stripHtml(fallbackText)
-						.split("\n")
-						.slice(0, 3)
-						.join(" ");
+					return await r.json();
+				} catch (_) {
+					return {};
 				}
-				if (!message) message = `Upload failed (${response.status})`;
-				// Friendly mapping for common statuses
-				if (response.status === 409) {
-					message =
-						"Upload skipped: a file with the same checksum already exists. Use PATCH to replace, or change the file.";
-				}
-				throw new Error(message);
-			}
-		} catch (error) {
-			const userMessage = this.getUserFriendlyErrorMessage(
-				error,
-				"upload-handler",
-			);
-			try {
-				sessionStorage.setItem(
-					"filesAlert",
-					JSON.stringify({
-						message: `Upload failed: ${userMessage}`,
-						type: "error",
-					}),
-				);
-				// Reload to display the banner via template startup script
-				window.location.reload();
-			} catch (_) {
-				this.showError(
-					`Upload failed: ${userMessage}`,
-					error,
-					"upload-handler",
-				);
-			}
-		} finally {
-			// Reset UI
-			submitBtn.disabled = false;
-			uploadText.classList.remove("d-none");
-			uploadSpinner.classList.add("d-none");
-		}
-	}
-
-	showUploadSuccess(result, modalId) {
-		const resultModalId = "uploadResultModal";
-		const resultEl = document.getElementById(resultModalId);
-		const resultBody = document.getElementById("uploadResultModalBody");
-		if (!resultEl || !resultBody) return;
-
-		resultBody.innerHTML = `
-            <div class="alert alert-success">
-              <h6>Upload Complete!</h6>
-        ${
-					result.files_uploaded
-						? `<p>Files uploaded: ${result.files_uploaded} / ${result.total_files}</p>`
-						: "<p>File uploaded successfully!</p>"
-				}
-              ${result.errors ? `<p>Errors: ${result.errors.join("<br>")}</p>` : ""}
-            </div>
-          `;
-
-		const uploadModalEl = document.getElementById(modalId);
-		if (uploadModalEl) {
-			this.closeModal(modalId);
-		}
-		this.openModal(resultModalId);
+			})
+			.catch(() => {});
 	}
 
 	// File preview methods
@@ -616,10 +396,10 @@ class UploadManager extends ModalManager {
 					"file-preview",
 				);
 			} else {
-				const userMessage = this.getUserFriendlyErrorMessage(
-					error,
-					"file-preview",
-				);
+				const userMessage =
+					window.DOMUtils?.getUserFriendlyErrorMessage(error, "file-preview") ||
+					error?.message ||
+					"An unexpected error occurred";
 				this.showError(userMessage, error, "file-preview");
 			}
 		}
@@ -678,19 +458,16 @@ class UploadManager extends ModalManager {
 		return fileName.split(".").pop().toLowerCase();
 	}
 
-	// Helper method to show success message with fallbacks
 	showSuccessMessage(message) {
-		if (window.components?.showSuccess) {
-			window.components.showSuccess(message);
-		} else {
-			const live = document.getElementById("aria-live-region");
-			if (live) live.textContent = message;
+		if (window.DOMUtils?.showMessage) {
+			void window.DOMUtils.showMessage(message, {
+				variant: "success",
+				placement: "toast",
+			});
+			return;
 		}
-	}
-
-	// Helper method to get CSRF token
-	getCsrfToken() {
-		return document.querySelector("[name=csrfmiddlewaretoken]")?.value || "";
+		const live = document.getElementById("aria-live-region");
+		if (live) live.textContent = message;
 	}
 
 	// Helper method to check if file has extension
@@ -1111,9 +888,11 @@ class UploadManager extends ModalManager {
 			console.warn(`UploadManager Warning [${context}]:`, message);
 		}
 
-		// Show user-friendly error message
-		if (window.components?.showError) {
-			window.components.showError(message);
+		if (window.DOMUtils?.showMessage) {
+			void window.DOMUtils.showMessage(message, {
+				variant: "danger",
+				placement: "toast",
+			});
 			return;
 		}
 		const live = document.getElementById("aria-live-region");
@@ -1130,23 +909,6 @@ class UploadManager extends ModalManager {
 			`${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`,
 		);
 		container.insertBefore(div, container.firstChild);
-	}
-
-	getUserFriendlyErrorMessage(error, context = "") {
-		return (
-			window.DOMUtils?.getUserFriendlyErrorMessage(error, context) ||
-			error?.message ||
-			"An unexpected error occurred"
-		);
-	}
-
-	escapeHtml(unsafe) {
-		return unsafe
-			.replace(/&/g, "&amp;")
-			.replace(/</g, "&lt;")
-			.replace(/>/g, "&gt;")
-			.replace(/"/g, "&quot;")
-			.replace(/'/g, "&#039;");
 	}
 
 	// Memory management and cleanup
@@ -1183,12 +945,6 @@ class UploadManager extends ModalManager {
 		return false;
 	}
 
-	// Track event handler for cleanup
-	bindEventHandler(element, event, handler) {
-		this.boundHandlers.set(element, handler);
-		element.addEventListener(event, handler);
-	}
-
 	handleFileSelection(files) {
 		const selectedFilesList = document.getElementById("selectedFilesList");
 		const selectedFiles = document.getElementById("selectedFiles");
@@ -1221,36 +977,6 @@ class UploadManager extends ModalManager {
 			selectedFiles.classList.add("has-files");
 		} else {
 			selectedFiles.classList.remove("has-files");
-		}
-	}
-
-	renderFileTree(node, container, path = "") {
-		for (const [name, value] of Object.entries(node)) {
-			let li;
-			if (value instanceof File) {
-				// Render file
-				li = this.createElement(
-					"li",
-					"",
-					`
-          <i class="bi bi-file-text"></i>
-          <span>${name}</span>
-        `,
-				);
-			} else {
-				// Render directory
-				li = this.createElement(
-					"li",
-					"",
-					`
-          <i class="bi bi-folder"></i>
-          <span>${name}</span>
-          <ul></ul>
-        `,
-				);
-				this.renderFileTree(value, li.querySelector("ul"), `${path + name}/`);
-			}
-			container.appendChild(li);
 		}
 	}
 
@@ -1386,16 +1112,6 @@ class CaptureTypeSelector {
 			"captureScanGroupInput",
 		);
 		this.uploadModal = document.getElementById("uploadCaptureModal");
-
-		// Log which elements were found for debugging
-		console.log("CaptureTypeSelector elements found:", {
-			captureTypeSelect: !!this.captureTypeSelect,
-			channelInputGroup: !!this.channelInputGroup,
-			scanGroupInputGroup: !!this.scanGroupInputGroup,
-			captureChannelsInput: !!this.captureChannelsInput,
-			captureScanGroupInput: !!this.captureScanGroupInput,
-			uploadModal: !!this.uploadModal,
-		});
 	}
 
 	setupEventListeners() {
@@ -1408,6 +1124,7 @@ class CaptureTypeSelector {
 			const changeHandler = (e) => this.handleTypeChange(e);
 			this.boundHandlers.set(this.captureTypeSelect, changeHandler);
 			this.captureTypeSelect.addEventListener("change", changeHandler);
+			this.handleTypeChange({ target: this.captureTypeSelect });
 		}
 
 		if (this.uploadModal) {
@@ -1420,16 +1137,16 @@ class CaptureTypeSelector {
 	handleTypeChange(event) {
 		const selectedType = event.target.value;
 
-		// Validate capture type
+		if (!selectedType) {
+			this.hideInputGroups();
+			this.clearRequiredAttributes();
+			return;
+		}
+
 		if (!this.validateCaptureType(selectedType)) {
-		if (window.DOMUtils?.showMessage) {
-			void window.DOMUtils.showMessage(
-				"Invalid capture type selected",
-				{ variant: "danger", placement: "toast" },
-			);
-			} else {
-				console.warn("Invalid capture type selected");
-			}
+			console.warn("Invalid capture type selected:", selectedType);
+			this.hideInputGroups();
+			this.clearRequiredAttributes();
 			return;
 		}
 
@@ -1487,24 +1204,6 @@ class CaptureTypeSelector {
 		return validTypes.includes(type);
 	}
 
-	validateChannelInput(channels) {
-		if (!channels || typeof channels !== "string") return false;
-		// Basic validation for channel input (can be enhanced based on requirements)
-		return channels.trim().length > 0 && channels.length <= 1000;
-	}
-
-	validateScanGroupInput(scanGroup) {
-		if (!scanGroup || typeof scanGroup !== "string") return false;
-		// Basic validation for scan group input
-		return scanGroup.trim().length > 0 && scanGroup.length <= 255;
-	}
-
-	sanitizeInput(input) {
-		if (!input || typeof input !== "string") return "";
-		// Remove potentially dangerous characters
-		return input.replace(/[<>:"/\\|?*]/g, "_").trim();
-	}
-
 	// Memory management and cleanup
 	cleanup() {
 		// Remove all bound event handlers
@@ -1555,8 +1254,9 @@ class CaptureTypeSelector {
 }
 
 /** Single-file upload modal (not capture batch). */
-class FileUploadHandler {
+class FileUploadHandler extends ModalManager {
 	constructor() {
+		super();
 		this.uploadForm = document.getElementById("uploadFileForm");
 		this.fileInput = document.getElementById("fileInput");
 		this.folderInput = document.getElementById("folderInput");
@@ -1695,10 +1395,8 @@ class FileUploadHandler {
 						: `${fileCount} files uploaded successfully!`;
 				this.showResult("success", successMsg);
 				this.clearModal();
-				const uploadModalEl = document.getElementById("uploadFileModal");
-				if (uploadModalEl && window.ModalManager?.hideModalElement) {
-					window.ModalManager.hideModalElement(uploadModalEl);
-				}
+				this.closeModal("uploadFileModal");
+
 				if (window.filesBrowserManager?.loadFiles) {
 					window.filesBrowserManager.loadFiles();
 				} else {
@@ -1755,8 +1453,9 @@ class FileUploadHandler {
 	}
 }
 
-class UploadCaptureModalController {
+class UploadCaptureModalController extends ModalManager {
 	constructor(options = {}) {
+		super();
 		this.options = options;
 
 		this.isProcessing = false;
@@ -1812,9 +1511,10 @@ class UploadCaptureModalController {
 	}
 
 	clearExistingResultModal() {
-		const existingResultModal = document.getElementById("uploadResultModal");
-		if (!existingResultModal || !window.ModalManager?.hideModalElement) return;
-		window.ModalManager.hideModalElement(existingResultModal);
+		const resultModalId = "uploadResultModal";
+		const existingResultModal = document.getElementById(resultModalId);
+		if (!existingResultModal) return;
+		this.closeModal(resultModalId);
 	}
 
 	clearUploadSessionStorage() {

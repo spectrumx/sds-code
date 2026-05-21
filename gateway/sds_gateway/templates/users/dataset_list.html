@@ -64,29 +64,6 @@
     <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
-                const dropdown = new bootstrap.Dropdown(toggle, {
-                    container: 'body',
-                    boundary: 'viewport',
-                    popperConfig: {
-                        modifiers: [{
-                            name: 'preventOverflow',
-                            options: {
-                                boundary: 'viewport'
-                            }
-                        }]
-                    }
-                });
-
-                // Manually move dropdown to body when shown
-                toggle.addEventListener('show.bs.dropdown', function() {
-                    const dropdownMenu = toggle.nextElementSibling;
-                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
-                        document.body.appendChild(dropdownMenu);
-                    }
-                });
-            });
-
             window.PageController.initListPage({
                 pageLifecycleConfig: {
                 pageType: 'dataset-list',
@@ -136,16 +113,6 @@
                 });
                 sessionStorage.removeItem('datasetDownloadAlert');
             }
-
-            // Prevent row click when clicking on dropdown elements
-            document.addEventListener('click', function(event) {
-                if (event.target.closest('.dropdown') ||
-                    event.target.closest('.btn-icon-dropdown') ||
-                    event.target.closest('.dropdown-toggle') ||
-                    event.target.closest('.dropdown-menu')) {
-                    event.stopPropagation();
-                }
-            });
 
         });
 </script>

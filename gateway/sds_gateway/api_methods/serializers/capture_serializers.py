@@ -15,6 +15,7 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
@@ -171,13 +172,13 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         return check_if_shared(capture.uuid, ItemType.CAPTURE)
 
     def get_permission_level(self, capture: Capture) -> PermissionLevel | None:
-        """Get the current user's permission level for this dataset."""
+        """Get the current user's permission level for this capture."""
         request = self.context.get("request")
         if not request or not hasattr(request, "user"):
             return None
 
         # Check if user is the owner
-        if obj.owner == request.user:
+        if capture.owner == request.user:
             return PermissionLevel.OWNER
 
         # Check for shared permissions

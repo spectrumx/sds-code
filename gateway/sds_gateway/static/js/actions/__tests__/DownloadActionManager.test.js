@@ -127,6 +127,15 @@ describe("DownloadActionManager", () => {
 				mockButton,
 			);
 
+			downloadManager.prepareWebDownloadModal(
+				{
+					id: "webDownloadModal-test-item-uuid",
+					getAttribute: (attr) =>
+						attr === "data-item-type" ? "dataset" : null,
+				},
+				mockButton,
+			);
+
 			// Simulate confirm button click using the same clone the code assigned onclick to
 			if (clonedConfirmBtn && typeof clonedConfirmBtn.onclick === "function") {
 				await clonedConfirmBtn.onclick();
@@ -215,9 +224,12 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should configure temporal slider when opening web download for capture", async () => {
+		test("should configure temporal slider when web download modal is shown for capture", () => {
 			const spy = jest
 				.spyOn(downloadManager, "setTemporalSliderAttrs")
+				.mockImplementation(() => {});
+			jest
+				.spyOn(downloadManager, "wireWebDownloadConfirm")
 				.mockImplementation(() => {});
 
 			document.getElementById = jest.fn((id) => {
@@ -244,15 +256,17 @@ describe("DownloadActionManager", () => {
 				}),
 			};
 
-			await downloadManager.initializeWebDownloadModal(
-				"test-capture-uuid",
-				"capture",
-				captureBtn,
-			);
+			const modal = {
+				id: "webDownloadModal-test-capture-uuid",
+				getAttribute: (attr) =>
+					attr === "data-item-type" ? "capture" : null,
+			};
+
+			downloadManager.prepareWebDownloadModal(modal, captureBtn);
 
 			expect(spy).toHaveBeenCalledWith(
 				"webDownloadModal-test-capture-uuid",
-				captureBtn,
+				modal,
 				"test-capture-uuid",
 			);
 			spy.mockRestore();
@@ -502,7 +516,13 @@ describe("DownloadActionManager", () => {
 				btn,
 			);
 
-			expect(openSpy).toHaveBeenCalledWith(modalId);
+			expect(openSpy).toHaveBeenCalledWith(
+				modalId,
+				expect.objectContaining({
+					trigger: btn,
+					downloadActionManager: downloadManager,
+				}),
+			);
 			openSpy.mockRestore();
 		});
 	});

@@ -15,7 +15,6 @@
  * - logError(error, triggeredBy) - Log error to console
  * - getUserFriendlyErrorMessage(error) - Get user-friendly error message
  * - initIconDropdowns(root) - Initialize icon dropdowns
- * - initializeListDropdowns(root) - Initialize list dropdowns
  * - renderContent(container, options) - Render content using Django template
  * - renderTable(container, rows, options) - Render table rows using Django template
  * - renderSelectOptions(selectElement, choices, currentValue) - Render select options using Django template
@@ -420,13 +419,6 @@ class DOMUtils {
 				},
 			});
 		}
-	}
-
-	/**
-	 * @param {ParentNode} [root]
-	 */
-	initializeListDropdowns(root = document) {
-		this.initIconDropdowns(root);
 	}
 
 	/**

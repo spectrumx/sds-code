@@ -183,6 +183,9 @@ BaseManager = class {
 	}
 };
 
+if (typeof window !== "undefined") {
+	window.BaseManager = BaseManager;
+}
 if (typeof module !== "undefined" && module.exports) {
 	module.exports = { BaseManager };
 }

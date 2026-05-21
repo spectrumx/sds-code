@@ -10,8 +10,10 @@
      aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="share-modal-label-{{ item.uuid }}">Share {{ item_type|title }}: {{ item.name }}</h5>
+            <div class="modal-header flex-nowrap gap-2">
+                <h5 class="modal-title text-truncate mb-0 min-w-0"
+                    id="share-modal-label-{{ item.uuid }}"
+                    title="Share {{ item_type|title }}: {{ item.name|default:'Unnamed' }}">Share {{ item_type|title }}: {{ item.name|default:"Unnamed" }}</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal"
