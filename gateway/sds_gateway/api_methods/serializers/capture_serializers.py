@@ -115,6 +115,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     share_permissions = serializers.SerializerMethodField()
     is_shared = serializers.SerializerMethodField()
     is_shared_with_me = serializers.SerializerMethodField()
+    permission_level = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
@@ -168,6 +169,27 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
             True if the capture has enabled share permissions, False otherwise.
         """
         return check_if_shared(capture.uuid, ItemType.CAPTURE)
+
+    def get_permission_level(self, capture: Capture) -> PermissionLevel | None:
+        """Get the current user's permission level for this dataset."""
+        request = self.context.get("request")
+        if not request or not hasattr(request, "user"):
+            return None
+
+        # Check if user is the owner
+        if obj.owner == request.user:
+            return PermissionLevel.OWNER
+
+        # Check for shared permissions
+        permission = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=capture.uuid,
+            is_enabled=True,
+            is_deleted=False,
+        ).first()
+
+        return permission.permission_level if permission else None
 
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.

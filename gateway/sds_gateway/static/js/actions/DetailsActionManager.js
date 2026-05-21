@@ -3,17 +3,6 @@
  * Thin helpers for details UI (e.g. dataset UUID copy after server-rendered modal HTML).
  */
 class DetailsActionManager {
-	constructor(config) {
-		this.permissions = config.permissions;
-		this.itemUuid = config.itemUuid;
-		this.itemType = config.itemType;
-		this.initializeEventListeners();
-	}
-
-	initializeEventListeners() {
-		// Per-instance wiring removed; dataset/capture details load via ModalManager + registry.
-	}
-
 	/**
 	 * Wire UUID copy on a dataset details modal after HTML injection.
 	 * @param {Element} modal
@@ -50,9 +39,7 @@ class DetailsActionManager {
 		} catch (error) {
 			console.warn("Clipboard API failed, trying fallback method:", error);
 			try {
-				window.UserInputController.execCommandCopyFallback(
-					uuid,
-				);
+				window.UserInputController.execCommandCopyFallback(uuid);
 				await DetailsActionManager.showCopyFeedback(event.target, "Copied!");
 			} catch (fallbackError) {
 				console.error("Failed to copy UUID:", fallbackError);
@@ -88,30 +75,6 @@ class DetailsActionManager {
 				new bs.Tooltip(copyButton);
 			}
 		}, 2000);
-	}
-
-	/**
-	 * Show modal loading state (legacy / tests)
-	 * @param {string} modalId - Modal element id
-	 */
-	async showModalLoading(modalId) {
-		const modal = document.getElementById(modalId);
-		if (!modal) return;
-
-		const modalBody = modal.querySelector(".modal-body");
-		if (modalBody) {
-			if (!modalBody.dataset.originalContent) {
-				modalBody.dataset.originalContent = modalBody.innerHTML;
-			}
-
-			await window.DOMUtils.renderLoading(modalBody, "Loading details...", {
-				format: "modal",
-			});
-		}
-	}
-
-	cleanup() {
-		// no-op
 	}
 }
 

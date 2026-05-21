@@ -185,6 +185,12 @@ def build_capture_details_modal_context(
     )
     uuid_str = str(capture_dict.get("uuid", capture_uuid))
 
+    files = capture_dict.get("files") or []
+    files_count = len(files) if isinstance(files, list) else 0
+    total_size = capture_dict.get("total_file_size")
+    if total_size is None:
+        total_size = 0
+
     return {
         "capture": capture_dict,
         "capture_uuid": uuid_str,
@@ -195,6 +201,8 @@ def build_capture_details_modal_context(
         "accordion_channels": _accordion_channels(capture_dict),
         "is_public_yesno": "Yes" if capture_dict.get("is_public") else "No",
         "dataset_display": _dataset_display(capture_dict),
+        "files_count": files_count,
+        "total_size": int(total_size) if total_size is not None else 0,
     }
 
 
@@ -226,24 +234,6 @@ def finalize_capture_modal_json(ctx: dict[str, Any], html: str) -> dict[str, Any
         "html": html,
         "title": capture_details_title(cap),
         "meta": capture_details_meta(cap),
-    }
-
-
-def build_capture_files_summary_context(
-    request: HttpRequest, capture_uuid: UUID
-) -> dict[str, Any] | None:
-    base = build_capture_details_modal_context(request, capture_uuid)
-    if base is None:
-        return None
-    cap = base["capture"]
-    files = cap.get("files") or []
-    files_count = len(files) if isinstance(files, list) else 0
-    total_size = cap.get("total_file_size")
-    if total_size is None:
-        total_size = 0
-    return {
-        "files_count": files_count,
-        "total_size": int(total_size) if total_size is not None else 0,
     }
 
 

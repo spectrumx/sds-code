@@ -4,7 +4,8 @@ Single source for the dataset list table (full page + AJAX refresh).
 Context:
 - page_obj, sort_by, sort_order (required)
 - asset_type: "dataset" | "capture" | "file" (default: "asset")
-- table_headers: list of table headers
+- table_headers: list of { label, col_class, aria_label?, text_align? }
+- table_class: extra class on <table> (e.g. capture-list-table)
 - no_assets_message: message to display if no assets are found
 - asset_row_template: template to render for each asset row
 - ajax_fragment: True for AJAX partial (omit outer #dataset-list-ajax-wrapper)
@@ -25,27 +26,19 @@ Context:
     <div id="dynamic-table-container" class="table-and-pagination">
         <div class="table-container">
             <div class="table-responsive">
-                {% if not page_obj %}
-                    <table class="table table-striped table-hover datasets-table-fixed">
+                {% if not page_obj.object_list %}
+                    <table class="table table-striped table-hover datasets-table-fixed {{ table_class|default:'' }}">
                         <caption class="visually-hidden">Your {{ asset_type|default:"asset" }} list</caption>
-                        <thead>
-                            <tr>
-                                {% for header in table_headers %}<th scope="col" class="w-5">{{ header }}</th>{% endfor %}
-                            </tr>
-                        </thead>
+                        {% include "users/components/asset_list_table_thead.html" %}
                     </table>
                     <div class="alert alert-info" role="alert">
                         <h4 class="alert-heading">No {{ asset_type|default:"asset" }}s yet</h4>
                         <p>{{ no_assets_message }}</p>
                     </div>
                 {% else %}
-                    <table class="table table-striped table-hover datasets-table-fixed">
+                    <table class="table table-striped table-hover datasets-table-fixed {{ table_class|default:'' }}">
                         <caption class="visually-hidden">Your {{ asset_type|default:"asset" }} list</caption>
-                        <thead>
-                            <tr>
-                                {% for header in table_headers %}<th scope="col" class="w-5">{{ header }}</th>{% endfor %}
-                            </tr>
-                        </thead>
+                        {% include "users/components/asset_list_table_thead.html" %}
                         <tbody>
                             {% for asset in page_obj %}
                                 {% if "dataset_list_table_row" in asset_row_template %}

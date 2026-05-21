@@ -258,6 +258,10 @@ function setupStandardUnitTest(opts = {}) {
 		DOMUtils: domUtils,
 		...opts.window,
 	});
+	if (opts.useModalDomUtils) {
+		const { ModalManager } = require("../core/ModalManager.js");
+		mergeWindowMocks({ ModalManager });
+	}
 	if (opts.apiClient !== false) {
 		const api = createMockAPIClient(opts.apiClientOverrides);
 		global.APIClient = api;

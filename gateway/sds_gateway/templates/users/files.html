@@ -513,8 +513,7 @@
 {% endblock content %}
 {% block javascript %}
     {{ block.super }}
-    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
-    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
     <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
     <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
@@ -583,8 +582,11 @@
                     document.getElementById("asset-details-modal");
 
                 let filesCaptureModalsCleanup = null;
-                if (needsFilesCaptureModals && window.ModalManager?.initFilesPageCaptureModals) {
-                    filesCaptureModalsCleanup = window.ModalManager.initFilesPageCaptureModals({
+                if (needsFilesCaptureModals && window.ModalManager?.initializeModal) {
+                    filesCaptureModalsCleanup = window.ModalManager.initializeModal({
+                        registerFilesCaptureCoordinator: true,
+                        detailsClickDelegation: true,
+                        wireAllDataItemModalsShare: Boolean(window.filesSharePagePermissions),
                         permissions: window.filesSharePagePermissions,
                     });
                 }

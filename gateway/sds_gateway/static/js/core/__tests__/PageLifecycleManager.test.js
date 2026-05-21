@@ -292,9 +292,7 @@ describe("PageLifecycleManager", () => {
 			global.window.DownloadActionManager = jest
 				.fn()
 				.mockImplementation(() => ({}));
-			jest.spyOn(ModalManager, "ensureDetailsModalClickDelegation").mockReturnValue(
-				jest.fn(),
-			);
+			jest.spyOn(ModalManager, "initializeModal");
 		});
 
 		test("should pre-initialize all modals with proper Bootstrap config", () => {
@@ -420,7 +418,12 @@ describe("PageLifecycleManager", () => {
 
 			lifecycleManager.initializeDatasetModals();
 
-			expect(ModalManager.ensureDetailsModalClickDelegation).toHaveBeenCalled();
+			expect(ModalManager.initializeModal).toHaveBeenCalledWith(
+				expect.objectContaining({
+					detailsClickDelegation: true,
+					wireListModals: "dataset",
+				}),
+			);
 		});
 
 		test("should initialize capture modals", () => {

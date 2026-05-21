@@ -27,9 +27,6 @@
 		buildDetailsUrl(uuid) {
 			return `/users/details-modal/capture/${encodeURIComponent(uuid)}/`;
 		},
-		buildFilesSummaryUrl(uuid) {
-			return `/users/details-modal/capture/${encodeURIComponent(uuid)}/?fragment=files`;
-		},
 		resolveUuidFromTrigger(el) {
 			if (!el) return "";
 			return (
@@ -41,6 +38,11 @@
 		},
 		resolveShell() {
 			return resolveAssetDetailsShell();
+		},
+		afterInject(ctx) {
+			if (window.CaptureDetailsModalBehavior?.afterInject) {
+				window.CaptureDetailsModalBehavior.afterInject(ctx);
+			}
 		},
 		loadingTitle: "Loading capture details...",
 	};

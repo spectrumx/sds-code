@@ -76,6 +76,19 @@ class DOMUtils {
 		el.classList.add("display-none");
 	}
 
+	/**
+	 * Remove alert elements inside a container (e.g. modal body).
+	 * @param {Element|string} target
+	 */
+	clearAlerts(target) {
+		const el =
+			typeof target === "string" ? document.querySelector(target) : target;
+		if (!el) return;
+		for (const alert of el.querySelectorAll(".alert")) {
+			alert.remove();
+		}
+	}
+
 	formatDate(dateString) {
 		if (!dateString) return "<div>-</div>";
 

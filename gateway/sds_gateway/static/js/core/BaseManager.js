@@ -3,8 +3,6 @@
  */
 BaseManager = class {
 	constructor() {
-		this.openModal = window.ModalManager?.showModalElement ?? (() => {});
-		this.closeModal = window.ModalManager?.hideModalElement ?? (() => {});
 		this.showMessage = window.DOMUtils?.showMessage;
 		this.getCSRFToken = window.APIClient?.getCSRFToken;
 		this.logError = window.DOMUtils?.logError;

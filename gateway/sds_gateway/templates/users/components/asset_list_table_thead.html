@@ -1,0 +1,12 @@
+{% comment %}
+table_headers: list of { label, col_class, aria_label?, text_align? }
+{% endcomment %}
+<thead>
+    <tr>
+        {% for header in table_headers %}
+            <th scope="col"
+                class="{{ header.col_class }}{% if header.text_align %} text-{{ header.text_align }}{% endif %}"
+                {% if header.aria_label %}aria-label="{{ header.aria_label }}"{% endif %}>{{ header.label }}</th>
+        {% endfor %}
+    </tr>
+</thead>

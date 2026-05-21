@@ -1044,8 +1044,16 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     uuid = str(row.get("uuid") or "")
     if not uuid:
         return []
+
+    is_owner = row.get("is_owner")
+    permission_level = row.get("permission_level")
+    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
+    is_co_owner = permission_level == PermissionLevel.CO_OWNER
+    dataset_published = row.get("status") == DatasetStatus.FINAL or row.get("is_public")
+
     items: list[dict[str, Any]] = []
-    if row.get("is_owner"):
+    if is_owner or is_contributor or is_co_owner:
+        # Share button
         items.extend(
             (
                 {
@@ -1058,6 +1066,45 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                 },
             )
         )
+
+        # Edit button
+        items.append(
+            {
+                "label": "Edit",
+                "icon": "pencil",
+                "type": "link",
+                "href": f"{reverse('users:group_captures')}?dataset_uuid={uuid}",
+                "data_attrs": {},
+            }
+        )
+
+    if is_owner or is_co_owner:
+        # Create new version button
+        items.append(
+            {
+                "label": "Create New Version",
+                "icon": "folder-symlink",
+                "type": "button",
+                "modal_toggle": True,
+                "modal_target": f"#versioningModal-{uuid}",
+                "data_attrs": {},
+            }
+        )
+        # Publish button
+        if not dataset_published:
+            items.append(
+                {
+                    "label": "Publish",
+                    "icon": "globe",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#publishModal-{uuid}",
+                    "data_attrs": {},
+                }
+            )
+
+
+    # Web download button
     items.append(
         {
             "label": "Download",
@@ -1068,6 +1115,8 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
             "data_attrs": {},
         }
     )
+
+    # SDK download instructions button
     items.append(
         {
             "label": "SDK",
@@ -1209,7 +1258,13 @@ class SearchPublishedDatasetsView(View):
 user_search_datasets_view = SearchPublishedDatasetsView.as_view()
 
 
-DATASET_LIST_TABLE_HEADERS = ["Name", "Authors", "Created", "Actions"]
+DATASET_LIST_TABLE_HEADERS = [
+    {"label": "Name", "col_class": "w-35"},
+    {"label": "Authors", "col_class": "w-25"},
+    {"label": "Created", "col_class": "w-25"},
+    {"label": "Actions", "col_class": "w-10", "text_align": "center"},
+]
+DATASET_LIST_TABLE_CLASS = ""
 DATASET_LIST_NO_ASSETS_MESSAGE = "No datasets yet. Create one with Add Dataset."
 
 
@@ -1247,6 +1302,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "asset_type": "dataset",
                     "asset_row_template": "users/components/dataset_list_table_row.html",
                     "table_headers": DATASET_LIST_TABLE_HEADERS,
+                    "table_class": DATASET_LIST_TABLE_CLASS,
                     "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
                 },
                 request=request,
@@ -1271,6 +1327,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "asset_type": "dataset",
                 "asset_row_template": "users/components/asset_list_table_row.html",
                 "table_headers": DATASET_LIST_TABLE_HEADERS,
+                "table_class": DATASET_LIST_TABLE_CLASS,
                 "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
             },
         )

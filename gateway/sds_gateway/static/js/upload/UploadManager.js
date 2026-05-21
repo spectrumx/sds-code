@@ -2,8 +2,9 @@
  * Files browser: grid navigation, previews, drag/drop, upload modal wiring.
  * Primary entry script for the files page (replaces the former FileManager module).
  */
-class UploadManager {
-	constructor() {
+class UploadManager extends ModalManager {
+	constructor(config = {}) {
+		super(config);
 		// Check browser compatibility before proceeding
 		if (!this.checkBrowserSupport()) {
 			this.showError(
@@ -78,9 +79,7 @@ class UploadManager {
 			return;
 		}
 
-		if (window.ModalManager?.openModalElement) {
-			window.ModalManager.openModalElement(uploadModalEl);
-		}
+		window.ModalManager.openModal("uploadCaptureModal");
 
 		// Wait a bit for modal to fully open, then trigger file selection
 		setTimeout(() => {
@@ -369,6 +368,7 @@ class UploadManager {
 				if (nameEl) nameEl.textContent = captureName;
 
 				// Show modal using helper method
+				this.activeModals.add("downloadModal");
 				this.openModal("downloadModal");
 
 				// Confirm handler
@@ -376,6 +376,7 @@ class UploadManager {
 				if (confirmBtn) {
 					const onConfirm = () => {
 						this.closeModal("downloadModal");
+						this.activeModals.delete("downloadModal");
 
 						// Use unified download handler if available
 						if (window.components?.handleDownload) {
@@ -410,11 +411,13 @@ class UploadManager {
 					return;
 				}
 				// Show modal using helper method
+				this.activeModals.add("downloadModal");
 				this.openModal("downloadModal");
 				const confirmBtn = document.getElementById("confirmDownloadBtn");
 				if (confirmBtn) {
 					const onConfirm = () => {
 						this.closeModal("downloadModal");
+						this.activeModals.delete("downloadModal");
 						fetch(
 							`/users/download-item/dataset/${encodeURIComponent(datasetUuid)}/`,
 							{
@@ -570,7 +573,8 @@ class UploadManager {
 	}
 
 	showUploadSuccess(result, modalId) {
-		const resultEl = document.getElementById("uploadResultModal");
+		const resultModalId = "uploadResultModal";
+		const resultEl = document.getElementById(resultModalId);
 		const resultBody = document.getElementById("uploadResultModalBody");
 		if (!resultEl || !resultBody) return;
 
@@ -587,12 +591,10 @@ class UploadManager {
           `;
 
 		const uploadModalEl = document.getElementById(modalId);
-		if (uploadModalEl && window.ModalManager?.hideModalElement) {
-			window.ModalManager.hideModalElement(uploadModalEl);
+		if (uploadModalEl) {
+			this.closeModal(modalId);
 		}
-		if (window.ModalManager?.openModalElement) {
-			window.ModalManager.openModalElement(resultEl);
-		}
+		this.openModal(resultModalId);
 	}
 
 	// File preview methods
@@ -640,7 +642,8 @@ class UploadManager {
 	}
 
 	showPreviewModal(fileName, content) {
-		const modal = document.getElementById("filePreviewModal");
+		const previewModalId = "filePreviewModal";
+		const modal = document.getElementById(previewModalId);
 		const modalTitle = modal.querySelector(".modal-title");
 		const previewContent = modal.querySelector(".preview-content");
 
@@ -667,46 +670,12 @@ class UploadManager {
 			previewContent.appendChild(preElement);
 		}
 
-		if (window.ModalManager?.openModalElement) {
-			window.ModalManager.openModalElement(modal);
-		}
+		this.openModal(previewModalId);
 	}
 
 	// Helper methods for syntax highlighting
 	getFileExtension(fileName) {
 		return fileName.split(".").pop().toLowerCase();
-	}
-
-	// Helper method to open modal with fallbacks
-	openModal(modalId) {
-		this.activeModals.add(modalId);
-
-		if (window.components?.openCustomModal) {
-			window.components.openCustomModal(modalId);
-		} else if (typeof openCustomModal === "function") {
-			openCustomModal(modalId);
-		} else if (window.openCustomModal) {
-			window.openCustomModal(modalId);
-		} else {
-			const modal = document.getElementById(modalId);
-			if (modal) modal.style.display = "block";
-		}
-	}
-
-	// Helper method to close modal with fallbacks
-	closeModal(modalId) {
-		this.activeModals.delete(modalId);
-
-		if (window.components?.closeCustomModal) {
-			window.components.closeCustomModal(modalId);
-		} else if (typeof closeCustomModal === "function") {
-			closeCustomModal(modalId);
-		} else if (window.closeCustomModal) {
-			window.closeCustomModal(modalId);
-		} else {
-			const modal = document.getElementById(modalId);
-			if (modal) modal.style.display = "none";
-		}
 	}
 
 	// Helper method to show success message with fallbacks
@@ -1763,16 +1732,17 @@ class FileUploadHandler {
 	}
 
 	showResult(type, message) {
-		const resultModal = document.getElementById("uploadResultModal");
+		const resultModalId = "uploadResultModal";
+		const resultModal = document.getElementById(resultModalId);
 		const resultBody = document.getElementById("uploadResultModalBody");
 
-		if (resultModal && resultBody && window.ModalManager?.openModalElement) {
+		if (resultModal && resultBody) {
 			resultBody.innerHTML = `
 				<div class="alert alert-${type === "success" ? "success" : "danger"}">
 					${message}
 				</div>
 			`;
-			window.ModalManager.openModalElement(resultModal);
+			this.openModal(resultModalId);
 		} else {
 			alert(message);
 		}
@@ -2461,15 +2431,17 @@ class UploadCaptureModalController {
 			return;
 		}
 
+		const resultModalId = "uploadResultModal";
 		const modalBody = document.getElementById("uploadResultModalBody");
-		const resultModalEl = document.getElementById("uploadResultModal");
-		if (!modalBody || !resultModalEl || !window.ModalManager?.openModalElement) {
+		const resultModalEl = document.getElementById(resultModalId);
+		if (!modalBody || !resultModalEl) {
 			return;
 		}
 
-		const captureModalEl = document.getElementById("uploadCaptureModal");
-		if (captureModalEl && window.ModalManager.hideModalElement) {
-			window.ModalManager.hideModalElement(captureModalEl);
+		const uploadCaptureModalId = "uploadCaptureModal";
+		const captureModalEl = document.getElementById(uploadCaptureModalId);
+		if (captureModalEl) {
+			this.closeModal(uploadCaptureModalId);
 		}
 
 		let msg = "";
@@ -2508,7 +2480,7 @@ class UploadCaptureModalController {
 		}
 
 		modalBody.innerHTML = msg;
-		window.ModalManager.openModalElement(resultModalEl);
+		this.openModal(resultModalId);
 
 		if (result.file_upload_status === "success") {
 			resultModalEl.addEventListener(
@@ -2538,8 +2510,14 @@ if (typeof module !== "undefined" && module.exports) {
 	};
 }
 
-if (typeof window !== "undefined" && process.env.NODE_ENV !== "test") {
-	document.addEventListener("DOMContentLoaded", () => {
-		new UploadManager();
-	});
+if (typeof window !== "undefined") {
+	const isNodeTestEnv =
+		typeof process !== "undefined" &&
+		process.env &&
+		process.env.NODE_ENV === "test";
+	if (!isNodeTestEnv) {
+		document.addEventListener("DOMContentLoaded", () => {
+			new UploadManager();
+		});
+	}
 }

@@ -40,8 +40,7 @@
     <!-- Action components -->
     <script src="{% static 'js/actions/download/captureDownloadSlider.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
-    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
-    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <!-- Keyword chip input component -->
     <script src="{% static 'js/search/KeywordChipInput.js' %}"></script>
@@ -69,9 +68,7 @@
             // Initialize the page lifecycle manager
             window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
 
-            if (window.ModalManager?.ensureDetailsModalClickDelegation) {
-                window.ModalManager.ensureDetailsModalClickDelegation();
-            }
+            window.ModalManager?.initializeModal?.({ detailsClickDelegation: true });
 
             // Initialize keyword chip input
             if (typeof KeywordChipInputInitializer !== 'undefined') {

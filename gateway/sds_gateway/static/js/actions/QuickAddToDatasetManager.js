@@ -2,10 +2,11 @@
  * Quick Add to Dataset Manager
  * Handles opening the quick-add modal, loading datasets, and adding a capture to a dataset.
  */
-class QuickAddToDatasetManager extends BaseManager {
+class QuickAddToDatasetManager extends ModalManager {
 	constructor() {
 		super();
-		this.modalEl = document.getElementById("quickAddToDatasetModal");
+		this.modalId = "quickAddToDatasetModal";
+		this.modalEl = document.getElementById(this.modalId);
 		this.currentCaptureUuid = null;
 		this.currentCaptureName = null;
 		/** @type {string[]|null} When set, call quick-add API once per UUID (e.g. from file list "Add" button) */
@@ -30,7 +31,7 @@ class QuickAddToDatasetManager extends BaseManager {
 			this.currentCaptureUuid = btn.getAttribute("data-capture-uuid");
 			this.currentCaptureName =
 				btn.getAttribute("data-capture-name") || "This capture";
-			this.openModal();
+			this.openModal(this.modalId);
 		});
 
 		if (!this.modalEl) return;
@@ -75,15 +76,6 @@ class QuickAddToDatasetManager extends BaseManager {
 		// Add button click
 		if (this.confirmBtn) {
 			this.confirmBtn.addEventListener("click", () => this.handleAdd());
-		}
-	}
-
-	openModal() {
-		if (!this.modalEl) return;
-		const Modal = window.bootstrap?.Modal;
-		if (Modal) {
-			const modal = Modal.getOrCreateInstance(this.modalEl);
-			modal.show();
 		}
 	}
 
@@ -202,10 +194,9 @@ class QuickAddToDatasetManager extends BaseManager {
 			window.fileListController?.exitSelectionMode?.();
 			this._notifyGlobalToast(msg, alertType);
 		};
-		const modal = window.bootstrap?.Modal?.getInstance(this.modalEl);
-		if (modal) {
+		if (this.modalEl) {
 			this.modalEl.addEventListener("hidden.bs.modal", afterClose);
-			modal.hide();
+			this.closeModal(this.modalEl);
 		} else {
 			window.fileListController?.exitSelectionMode?.();
 			this._notifyGlobalToast(msg, alertType);

@@ -168,8 +168,7 @@
 {% endblock body %}
 {% block javascript %}
     {{ block.super }}
-    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
-    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
     <!-- Action components -->
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <!-- Keyword chip input component -->
@@ -177,9 +176,7 @@
     {# djlint:off #}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.ModalManager?.ensureDetailsModalClickDelegation) {
-                window.ModalManager.ensureDetailsModalClickDelegation();
-            }
+            window.ModalManager?.initializeModal?.({ detailsClickDelegation: true });
         });
 </script>
     {# djlint:on #}

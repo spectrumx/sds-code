@@ -2,12 +2,13 @@
  * Versioning Action Manager
  * Handles version creation and managing dataset versions
  */
-class VersioningActionManager {
+class VersioningActionManager extends ModalManager {
 	/**
 	 * Initialize versioning action manager
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.permissions = config.permissions;
 		this.datasetUuid = config.datasetUuid;
 		this.initializeEventListeners();
@@ -60,7 +61,7 @@ class VersioningActionManager {
 		versionCreationButton.dataset.processing = "true";
 
 		// show loading state
-		window.DOMUtils.showModalLoading(this.modalId);
+		void ModalManager.showModalLoading(this.modalId);
 
 		// disable button
 		versionCreationButton.disabled = true;
@@ -105,7 +106,7 @@ class VersioningActionManager {
 					if (modalEl) {
 						modalEl.addEventListener("hidden.bs.modal", onHidden);
 					}
-					window.DOMUtils.closeModal(this.modalId);
+					this.closeModal(this.modalId);
 					if (!modalEl) {
 						onHidden();
 					}

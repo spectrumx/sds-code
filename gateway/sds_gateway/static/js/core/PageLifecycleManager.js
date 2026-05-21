@@ -163,13 +163,16 @@ class PageLifecycleManager {
 	 * Global asset details modal (#asset-details-modal) + delegated clicks.
 	 */
 	ensureCaptureDetailsModal() {
-		if (this._captureDetailsModalCleanup || !window.ModalManager?.initFilesPageCaptureModals) {
+		if (this._captureDetailsModalCleanup || !window.ModalManager?.initializeModal) {
 			return;
 		}
 		if (!this.config.permissions) {
 			return;
 		}
-		this._captureDetailsModalCleanup = window.ModalManager.initFilesPageCaptureModals({
+		this._captureDetailsModalCleanup = window.ModalManager.initializeModal({
+			registerFilesCaptureCoordinator: true,
+			detailsClickDelegation: true,
+			wireAllDataItemModalsShare: true,
 			permissions: this.config.permissions,
 		});
 		this.managers.push({
@@ -305,20 +308,29 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
-		window.ModalManager.wireDatasetListModals(this.permissions, this.managers);
-		this.ensureDownloadActionManager();
-		const detachDetails =
-			window.ModalManager?.ensureDetailsModalClickDelegation?.();
-		if (detachDetails) {
-			this.managers.push({ cleanup: detachDetails });
+		const detach = window.ModalManager?.initializeModal?.({
+			bootstrap: true,
+			wireListModals: "dataset",
+			permissions: this.permissions ?? this.config?.permissions,
+			managersOut: this.managers,
+			detailsClickDelegation: true,
+		});
+		if (detach) {
+			this.managers.push({ cleanup: detach });
 		}
+		this.ensureDownloadActionManager();
 	}
 
 	/**
 	 * Initialize capture modals
 	 */
 	initializeCaptureModals() {
-		window.ModalManager.wireCaptureListModals(this.permissions, this.managers);
+		window.ModalManager?.initializeModal?.({
+			bootstrap: true,
+			wireListModals: "capture",
+			permissions: this.permissions ?? this.config?.permissions,
+			managersOut: this.managers,
+		});
 		this.ensureDownloadActionManager();
 	}
 

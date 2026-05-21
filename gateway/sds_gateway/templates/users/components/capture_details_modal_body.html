@@ -159,13 +159,6 @@ Capture details modal body — rendered server-side for ModalManager injection.
         </div>
     </div>
 {% endif %}
-<div id="files-section-placeholder" class="mt-4">
-    <div class="d-flex justify-content-center py-3">
-        <div class="spinner-border spinner-border-sm me-2"
-             role="status"
-             style="color: #005a9c;">
-            <span class="visually-hidden">Loading files...</span>
-        </div>
-        <span class="text-muted">Loading files...</span>
-    </div>
+<div class="mt-4">
+    {% include "users/components/capture_files_summary_fragment.html" %}
 </div>

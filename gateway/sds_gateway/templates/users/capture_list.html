@@ -211,10 +211,6 @@
                             </div>
                             <p class="mt-2 text-muted">Searching captures...</p>
                         </div>
-                        <!-- Upload Capture Modal -->
-                        {% include "users/partials/upload_capture_modal.html" %}
-                        <!-- Upload Result Modal -->
-                        {% include "users/partials/upload_result_modal.html" %}
                         <!-- Captures Table -->
                         <div id="capture-list-ajax-wrapper">
                             {% include "users/components/asset_list_table.html" with page_obj=page_obj asset_type=asset_type table_headers=table_headers no_assets_message=no_assets_message asset_row_template=asset_row_template ajax_fragment=ajax_fragment %}
@@ -227,9 +223,13 @@
     <!-- Quick Add to Dataset Modal (single or multiple captures) -->
     {% include "users/partials/quick_add_to_dataset_modal.html" %}
     {% include "users/partials/asset_details_modal.html" %}
+    <!-- Upload Capture Modal -->
+    {% include "users/partials/upload_capture_modal.html" %}
+    <!-- Upload Result Modal -->
+    {% include "users/partials/upload_result_modal.html" %}
     <div id="capture-list-modals-container">
         <!-- Per-capture Share and Download modals (replaced on AJAX list refresh) -->
-        {% include "users/components/capture_list_modals.html" with captures=page_obj %}
+        {% include "users/components/capture_list_modals.html" with captures=page_obj.object_list %}
     </div>
 {% endblock body %}
 {% block javascript %}
@@ -242,8 +242,7 @@
     <script src="{% static 'js/actions/quickAdd/quickAddApi.js' %}"></script>
     <script type="module"
             src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
-    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
-    <script src="{% static 'js/core/ModalManager.js' %}"></script>
+    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
     <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <script src="{% static 'js/constants/FileListConfig.js' %}"></script>

@@ -4,6 +4,7 @@
  */
 
 // Import the VersioningActionManager class
+import { ModalManager } from "../../core/ModalManager.js";
 import { VersioningActionManager } from "../VersioningActionManager.js";
 import { flushMicrotasks } from "../../tests-config/testHelpers.js";
 const {
@@ -63,6 +64,8 @@ describe("VersioningActionManager", () => {
 	describe("Version Creation", () => {
 		beforeEach(() => {
 			versioningManager = new VersioningActionManager(mockConfig);
+			jest.spyOn(ModalManager, "showModalLoading").mockResolvedValue(undefined);
+			jest.spyOn(versioningManager, "closeModal").mockImplementation(() => {});
 		});
 
 		test("should handle version creation click", () => {
@@ -98,7 +101,7 @@ describe("VersioningActionManager", () => {
 				mockButton,
 			);
 
-			expect(global.window.DOMUtils.showModalLoading).toHaveBeenCalledWith(
+			expect(ModalManager.showModalLoading).toHaveBeenCalledWith(
 				"versioningModal-test-dataset-uuid",
 			);
 		});
@@ -142,7 +145,7 @@ describe("VersioningActionManager", () => {
 			// Wait for promises to resolve
 			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.closeModal).toHaveBeenCalledWith(
+			expect(versioningManager.closeModal).toHaveBeenCalledWith(
 				"versioningModal-test-dataset-uuid",
 			);
 			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
@@ -222,7 +225,7 @@ describe("VersioningActionManager", () => {
 					presentation: "toast",
 				}),
 			);
-			expect(global.window.DOMUtils.closeModal).not.toHaveBeenCalled();
+			expect(versioningManager.closeModal).not.toHaveBeenCalled();
 		});
 
 		test("should handle API exception", async () => {

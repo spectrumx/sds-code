@@ -69,6 +69,45 @@ def _parse_items_per_page(
     return min(n, max_items)
 
 
+def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build dropdown_menu.html items for a serialized capture list row."""
+    uuid = str(row.get("uuid") or "")
+    if not uuid:
+        return []
+    
+    is_owner = row.get("is_owner")
+    permission_level = row.get("permission_level")
+    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
+    is_co_owner = permission_level == PermissionLevel.CO_OWNER
+    
+    items: list[dict[str, Any]] = []
+    if is_owner or is_contributor or is_co_owner:
+        items.extend(
+            (
+                {
+                    "label": "Share",
+                    "icon": "person-plus",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#shareModal-{uuid}",
+                    "data_attrs": {},
+                },
+            )
+        )
+
+    items.append(
+        {
+            "label": "Download",
+            "icon": "download",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#webDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    return items
+
+
 def _get_captures_for_template(
     captures: QuerySet[Capture] | list[Capture] | Page[Capture],
     request: HttpRequest,
@@ -89,6 +128,9 @@ def _get_captures_for_template(
 
         # Add the original model instance for template use
         capture_data["capture"] = capture
+        capture_data["dropdown_menu_items"] = _capture_list_dropdown_menu_items(
+            capture_data,
+        )
 
         # Add shared users data for share modal
         if user_has_access_to_item(request.user, capture.uuid, ItemType.CAPTURE):
@@ -437,7 +479,15 @@ def _get_filtered_and_sorted_captures(
     return unique_captures
 
 
-CAPTURES_LIST_TABLE_HEADERS = ["Name", "Directory", "Type", "Created", "Actions"]
+CAPTURES_LIST_TABLE_HEADERS = [
+    {"label": "", "col_class": "capture-col-select", "aria_label": "Select"},
+    {"label": "Name", "col_class": "capture-col-name"},
+    {"label": "Directory", "col_class": "capture-col-directory"},
+    {"label": "Type", "col_class": "capture-col-type"},
+    {"label": "Created", "col_class": "capture-col-created"},
+    {"label": "Actions", "col_class": "capture-col-actions", "text_align": "center"},
+]
+CAPTURES_LIST_TABLE_CLASS = "capture-list-table"
 CAPTURES_LIST_NO_ASSETS_MESSAGE = "No captures yet. Create one with Upload Capture."
 
 
@@ -486,10 +536,11 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
 
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             table_ctx = {
-                "captures": page_obj,
+                "page_obj": page_obj,
                 "asset_type": "capture",
                 "asset_row_template": "users/components/capture_list_table_row.html",
                 "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "table_class": CAPTURES_LIST_TABLE_CLASS,
                 "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
                 "sort_by": params["sort_by"],
                 "sort_order": params["sort_order"],
@@ -519,10 +570,11 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
             request,
             self.template_name,
             {
-                "captures": page_obj,
+                "page_obj": page_obj,
                 "asset_type": "capture",
                 "asset_row_template": "users/components/capture_list_table_row.html",
                 "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "table_class": CAPTURES_LIST_TABLE_CLASS,
                 "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
                 "sort_by": params["sort_by"],
                 "sort_order": params["sort_order"],

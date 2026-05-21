@@ -4,7 +4,7 @@
  * Temporal slider: {@link initializeCaptureDownloadSlider} in download/captureDownloadSlider.js
  */
 
-class DownloadActionManager extends BaseManager {
+class DownloadActionManager extends ModalManager {
 	/**
 	 * Initialize download action manager
 	 * @param {Object} config - Configuration object
@@ -189,7 +189,7 @@ class DownloadActionManager extends BaseManager {
 	async initializeWebDownloadModal(itemUuid, itemType, button) {
 		const modalId = `webDownloadModal-${itemUuid}`;
 		// Show the modal
-		window.DOMUtils.openModal(modalId);
+		this.openModal(modalId);
 
 		if (itemType === "capture") {
 			this.setTemporalSliderAttrs(modalId, button, itemUuid);
@@ -215,7 +215,7 @@ class DownloadActionManager extends BaseManager {
 			button.disabled = true;
 
 			// Close modal
-			window.DOMUtils.closeModal(modalId);
+			this.closeModal(modalId);
 
 			let body = {};
 			let isJson = false;
@@ -332,7 +332,7 @@ class DownloadActionManager extends BaseManager {
 		);
 
 		// Use centralized openModal method
-		window.DOMUtils.openModal(modalId);
+		this.openModal(modalId);
 	}
 
 	/**
@@ -350,16 +350,6 @@ class DownloadActionManager extends BaseManager {
 		// For example, checking if item is public, if user owns it, etc.
 
 		return true;
-	}
-
-	/**
-	 * Close a modal by id (delegates to DOMUtils.closeModal)
-	 * @param {string} modalId - Modal element id
-	 */
-	closeCustomModal(modalId) {
-		if (window.DOMUtils?.closeModal) {
-			window.DOMUtils.closeModal(modalId);
-		}
 	}
 
 	/**

@@ -3,7 +3,7 @@
  * Handles all share group operations including creating, managing members, and deleting groups
  * Refactored to use core components and centralized management
  */
-class ShareGroupManager extends BaseManager {
+class ShareGroupManager extends ModalManager {
 	/**
 	 * Initialize share group manager
 	 * @param {Object} config - Configuration object
@@ -113,7 +113,7 @@ class ShareGroupManager extends BaseManager {
 				this.successMessage(response.message);
 
 				// Close the create modal
-				window.DOMUtils.closeModal("createGroupModal");
+				this.closeModal("createGroupModal");
 
 				// Clear the form
 				document.getElementById("groupName").value = "";
@@ -376,7 +376,7 @@ class ShareGroupManager extends BaseManager {
 			});
 
 			// Hide the confirmation modal
-			window.DOMUtils.closeModal("deleteGroupModal");
+			this.closeModal("deleteGroupModal");
 
 			if (response.success) {
 				// Store success message for after page reload
@@ -700,10 +700,10 @@ class ShareGroupManager extends BaseManager {
 		// Hide any other open modals first
 		const openModals = document.querySelectorAll(".modal.show");
 		for (const modal of openModals) {
-			window.DOMUtils.closeModal(modal.id);
+			this.closeModal(modal.id);
 		}
 
-		window.DOMUtils.openModal("deleteGroupModal");
+		this.openModal("deleteGroupModal");
 	}
 
 	/**
@@ -1263,7 +1263,7 @@ class ShareGroupManager extends BaseManager {
 		this.loadSharedAssetsInfo();
 
 		// Show the modal
-		window.DOMUtils.openModal("share-modal-sharegroup");
+		this.openModal("share-modal-sharegroup");
 	}
 }
 

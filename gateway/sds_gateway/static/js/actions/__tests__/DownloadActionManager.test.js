@@ -4,6 +4,7 @@
  */
 
 // Import the DownloadActionManager class
+import { ModalManager } from "../../core/ModalManager.js";
 import { DownloadActionManager } from "../DownloadActionManager.js";
 
 const {
@@ -458,7 +459,10 @@ describe("DownloadActionManager", () => {
 			expect(typeof downloadManager.openSDKDownloadModal).toBe("function");
 		});
 
-		test("should use DOMUtils.openModal for opening modals", async () => {
+		test("should use ModalManager.openModal for opening modals", async () => {
+			const openSpy = jest
+				.spyOn(ModalManager.prototype, "openModal")
+				.mockImplementation(() => {});
 			const modalId = "webDownloadModal-test-uuid";
 			const confirmBtn = {
 				dataset: {},
@@ -498,7 +502,8 @@ describe("DownloadActionManager", () => {
 				btn,
 			);
 
-			expect(global.window.DOMUtils.openModal).toHaveBeenCalledWith(modalId);
+			expect(openSpy).toHaveBeenCalledWith(modalId);
+			openSpy.mockRestore();
 		});
 	});
 
@@ -563,7 +568,7 @@ describe("DownloadActionManager", () => {
 
 		test("should handle missing modal elements", () => {
 			expect(() => {
-				downloadManager.closeCustomModal("test-modal");
+				downloadManager.closeModal("test-modal");
 			}).not.toThrow();
 		});
 	});

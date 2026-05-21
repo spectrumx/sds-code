@@ -395,9 +395,7 @@ class ListRefreshManager {
 		}
 
 		// Bootstrap modal instances on replaced markup (share/version/download shells)
-		if (typeof window.ModalManager?.prepareBootstrapModalInstances === "function") {
-			window.ModalManager.prepareBootstrapModalInstances(document);
-		}
+		window.ModalManager?.initializeModal?.({ bootstrap: true, root: document });
 
 		// Re-initialize tooltips if Bootstrap tooltips are available
 		if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {

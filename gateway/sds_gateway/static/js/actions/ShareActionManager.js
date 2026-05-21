@@ -4,7 +4,7 @@
  * Share Action Manager
  * Handles all sharing-related actions and user management
  */
-class ShareActionManager extends BaseManager {
+class ShareActionManager extends ModalManager {
 	/**
 	 * Initialize share action manager
 	 * @param {Object} config - Configuration object
@@ -196,7 +196,7 @@ class ShareActionManager extends BaseManager {
 				);
 
 				// Close modal
-				this.closeModal();
+				this.closeModal(`shareModal-${this.itemUuid}`);
 
 				// Refresh dataset list (await so modal/list re-init completes before user continues)
 				if (
@@ -865,28 +865,6 @@ class ShareActionManager extends BaseManager {
 	 */
 	hideDropdown(dropdown) {
 		window.UserSearchDropdown.hideDropdown(dropdown);
-	}
-
-	/**
-	 * Close modal
-	 */
-	closeModal() {
-		const modal = document.getElementById(`shareModal-${this.itemUuid}`);
-		const bootstrapModal = bootstrap.Modal.getInstance(modal);
-		if (bootstrapModal) {
-			bootstrapModal.hide();
-		}
-
-		// Manually remove backdrop if it remains
-		const backdrop = document.querySelector(".modal-backdrop");
-		if (backdrop) {
-			backdrop.remove();
-		}
-
-		// Remove modal-open class from body
-		document.body.classList.remove("modal-open");
-		document.body.style.overflow = "";
-		document.body.style.paddingRight = "";
 	}
 
 	/**

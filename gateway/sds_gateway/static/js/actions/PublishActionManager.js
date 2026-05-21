@@ -2,7 +2,7 @@
  * Publish Action Manager
  * Handles all publish-related actions
  */
-class PublishActionManager extends BaseManager {
+class PublishActionManager extends ModalManager {
 	/**
 	 * Initialize publish action manager
 	 * @param {Object} config - Configuration object
@@ -57,14 +57,6 @@ class PublishActionManager extends BaseManager {
 		for (const modal of publishModals) {
 			const datasetUuid = modal.getAttribute("data-dataset-uuid");
 			if (!datasetUuid) continue;
-
-			if (window.bootstrap && !bootstrap.Modal.getInstance(modal)) {
-				new bootstrap.Modal(modal, {
-					backdrop: true,
-					keyboard: true,
-					focus: true,
-				});
-			}
 
 			const {
 				publishToggle,
@@ -159,21 +151,7 @@ class PublishActionManager extends BaseManager {
 			return;
 		}
 
-		if (!window.bootstrap) {
-			console.error("Bootstrap is not available");
-			return;
-		}
-
-		let bootstrapModal = bootstrap.Modal.getInstance(modal);
-		if (!bootstrapModal) {
-			bootstrapModal = new bootstrap.Modal(modal, {
-				backdrop: true,
-				keyboard: true,
-				focus: true,
-			});
-		}
-
-		bootstrapModal.show();
+		this.openModal(modalId);
 	}
 
 	handlePublishToggleChange(publishToggle, visibilitySection, statusBadge) {
@@ -239,15 +217,8 @@ class PublishActionManager extends BaseManager {
 					"success",
 				);
 
-				const modal = document.getElementById(
-					`publish-dataset-modal-${datasetUuid}`,
-				);
-				if (modal) {
-					const bsModal = bootstrap.Modal.getInstance(modal);
-					if (bsModal) {
-						bsModal.hide();
-					}
-				}
+				const modalId = `publish-dataset-modal-${datasetUuid}`;
+				this.closeModal(modalId);
 
 				setTimeout(() => {
 					window.location.reload();
