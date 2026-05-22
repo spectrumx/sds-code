@@ -437,5 +437,7 @@ if (typeof module !== "undefined" && module.exports) {
 		APIClient,
 		APIError,
 		LoadingStateManager,
+		ListRefreshManager,
+		LIST_REFRESH_SEP,
 	};
 }

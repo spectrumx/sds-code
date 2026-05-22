@@ -181,6 +181,33 @@ function createVersionCreationClickEvent() {
 	};
 }
 
+const LIST_REFRESH_SEP = "<!-- LIST_REFRESH_SEP -->";
+
+/**
+ * @param {{ tableHtml?: string, modalsHtml?: string }} parts
+ */
+function createListRefreshResponseHtml(parts = {}) {
+	const tableHtml = parts.tableHtml ?? "<table><tbody></tbody></table>";
+	const modalsHtml = parts.modalsHtml ?? "";
+	if (!modalsHtml) return tableHtml;
+	return `${tableHtml}${LIST_REFRESH_SEP}${modalsHtml}`;
+}
+
+/**
+ * @param {{ tableId?: string, modalsId?: string }} ids
+ */
+function installListRefreshDomContainers(ids = {}) {
+	const tableId = ids.tableId ?? "dataset-list-ajax-wrapper";
+	const modalsId = ids.modalsId ?? "dataset-modals-container";
+	document.body.innerHTML = "";
+	const table = document.createElement("div");
+	table.id = tableId.replace(/^#/, "");
+	const modals = document.createElement("div");
+	modals.id = modalsId.replace(/^#/, "");
+	document.body.append(table, modals);
+	return { table, modals, tableSelector: `#${table.id}`, modalsSelector: `#${modals.id}` };
+}
+
 module.exports = {
 	installBootstrapModalMocks,
 	createMockDownloadPermissions,
@@ -192,4 +219,7 @@ module.exports = {
 	createVersioningActionConfig,
 	setupVersioningActionTestEnvironment,
 	createVersionCreationClickEvent,
+	LIST_REFRESH_SEP,
+	createListRefreshResponseHtml,
+	installListRefreshDomContainers,
 };

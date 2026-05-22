@@ -25,9 +25,11 @@ from rest_framework import status
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
+from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.users.forms import UserAdminChangeForm
 from sds_gateway.users.models import User
 from sds_gateway.users.tests.factories import UserFactory
@@ -1057,3 +1059,101 @@ class TestDetailsModalFragmentView:
         response = client.get(url)
         assert response.status_code == HTTPStatus.OK
         assert "dataset-details-name" in response.json()["html"]
+
+    def test_shared_capture_modal_ok(self, client: Client, user: User) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        cap = CaptureFactory(owner=owner, name="shared-cap")
+        UserSharePermissionFactory(
+            owner=owner,
+            shared_with=user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=cap.uuid,
+            permission_level=PermissionLevel.VIEWER,
+        )
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert response.json()["meta"]["uuid"] == str(cap.uuid)
+
+    def test_deleted_capture_not_found(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user, is_deleted=True)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_capture_meta_visualize_enabled_for_drf(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user, capture_type="drf")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["meta"]["visualize_enabled"] is True
+        assert payload["meta"]["capture_type"] == "drf"
+
+    def test_capture_meta_visualize_disabled_for_non_drf(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user, capture_type="rh", index_name="captures-rh")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["meta"]["visualize_enabled"] is False
+
+    def test_dataset_modal_title_includes_version(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(owner=user, name="My DS", version=7, keywords=None)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["title"] == "My DS (v7)"
+
+    def test_shared_private_dataset_modal_ok(
+        self, client: Client, user: User
+    ) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        ds = DatasetFactory(owner=owner, is_public=False, keywords=None)
+        UserSharePermissionFactory(
+            owner=owner,
+            shared_with=user,
+            item_type=ItemType.DATASET,
+            item_uuid=ds.uuid,
+            permission_level=PermissionLevel.VIEWER,
+        )
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+
+    def test_anonymous_dataset_still_ok_capture_requires_login(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user)
+        response = client.get(
+            reverse(
+                "users:details_modal_fragment",
+                kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+            ),
+        )
+        assert response.status_code == HTTPStatus.FOUND

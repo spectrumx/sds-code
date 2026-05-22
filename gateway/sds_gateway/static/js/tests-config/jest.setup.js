@@ -104,6 +104,9 @@ require("../upload/captureUploadXhr.js");
 // Classes referenced by `extends` / static calls in browser bundles
 const { BaseManager } = require("../core/BaseManager.js");
 global.BaseManager = BaseManager;
+const { ModalManager } = require("../core/ModalManager.js");
+global.ModalManager = ModalManager;
+global.window.ModalManager = ModalManager;
 const { UserInputController } = require("../core/UserInputController.js");
 global.UserInputController = UserInputController;
 

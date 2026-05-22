@@ -6,7 +6,7 @@ Context: page_obj (paginated dataset list)
 {% for dataset in page_obj %}
     {% include "users/partials/web_download_modal.html" with item=dataset item_type="dataset" %}
     {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
-    {% if dataset.is_owner or dataset.permission_level in ['co-owner', 'contributor'] %}
+    {% if dataset.is_owner or dataset.permission_level == 'co-owner' or dataset.permission_level == 'contributor' %}
         {% include "users/partials/share_modal.html" with item=dataset item_type="dataset" %}
     {% endif %}
     {% if dataset.is_owner or dataset.permission_level == 'co-owner' %}

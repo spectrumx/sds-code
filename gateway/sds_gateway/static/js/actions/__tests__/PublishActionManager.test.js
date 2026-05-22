@@ -143,4 +143,36 @@ describe("PublishActionManager", () => {
 		expect(publishBtn.disabled).toBe(false);
 		expect(publishBtn.innerHTML).toBe("Publish");
 	});
+
+	test("should reload page after successful publish", async () => {
+		jest.useFakeTimers();
+		const reloadMock = jest.fn();
+		Object.defineProperty(window, "location", {
+			value: { reload: reloadMock },
+			writable: true,
+			configurable: true,
+		});
+		mockAPIClient.post.mockResolvedValue({
+			success: true,
+			message: "Published",
+		});
+		publishManager.closeModal = jest.fn();
+
+		await publishManager.handlePublish(
+			"test-uuid",
+			mockStatusBadge,
+			mockPublishToggle,
+			mockPrivateOption,
+			mockPublicOption,
+		);
+
+		expect(publishManager.closeModal).toHaveBeenCalledWith(
+			"publish-dataset-modal-test-uuid",
+		);
+		expect(reloadMock).not.toHaveBeenCalled();
+
+		jest.advanceTimersByTime(1000);
+		expect(reloadMock).toHaveBeenCalledTimes(1);
+		jest.useRealTimers();
+	});
 });

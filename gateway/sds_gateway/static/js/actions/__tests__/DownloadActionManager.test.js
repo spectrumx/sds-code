@@ -461,16 +461,23 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should have initializeWebDownloadModal method", () => {
-			expect(downloadManager.initializeWebDownloadModal).toBeDefined();
-			expect(typeof downloadManager.initializeWebDownloadModal).toBe(
-				"function",
-			);
-		});
+		test("openSDKDownloadModal calls openModal when modal element exists", () => {
+			const modalId = "sdkDownloadModal-ds-1";
+			const modal = { id: modalId, addEventListener: jest.fn() };
+			document.getElementById = jest.fn((id) => (id === modalId ? modal : null));
+			const openSpy = jest
+				.spyOn(ModalManager.prototype, "openModal")
+				.mockImplementation(() => {});
 
-		test("should have openSDKDownloadModal method", () => {
-			expect(downloadManager.openSDKDownloadModal).toBeDefined();
-			expect(typeof downloadManager.openSDKDownloadModal).toBe("function");
+			downloadManager.openSDKDownloadModal("ds-1");
+
+			expect(openSpy).toHaveBeenCalledWith(modalId);
+			expect(modal.addEventListener).toHaveBeenCalledWith(
+				"shown.bs.modal",
+				expect.any(Function),
+				{ once: true },
+			);
+			openSpy.mockRestore();
 		});
 
 		test("should use ModalManager.openModal for opening modals", async () => {
@@ -527,21 +534,6 @@ describe("DownloadActionManager", () => {
 		});
 	});
 
-	describe("Download Request Processing", () => {
-		beforeEach(() => {
-			downloadManager = new DownloadActionManager({
-				permissions: mockPermissions,
-			});
-		});
-
-		test("should have initializeWebDownloadModal method", () => {
-			expect(downloadManager.initializeWebDownloadModal).toBeDefined();
-			expect(typeof downloadManager.initializeWebDownloadModal).toBe(
-				"function",
-			);
-		});
-	});
-
 	describe("Permission Handling", () => {
 		test("should check dataset download permissions", () => {
 			downloadManager = new DownloadActionManager({
@@ -593,19 +585,6 @@ describe("DownloadActionManager", () => {
 		});
 	});
 
-	describe("Event Handling", () => {
-		beforeEach(() => {
-			downloadManager = new DownloadActionManager({
-				permissions: mockPermissions,
-			});
-		});
-
-		test("should have initializeEventListeners method", () => {
-			expect(downloadManager.initializeEventListeners).toBeDefined();
-			expect(typeof downloadManager.initializeEventListeners).toBe("function");
-		});
-	});
-
 	describe("Cleanup", () => {
 		beforeEach(() => {
 			downloadManager = new DownloadActionManager({
@@ -613,17 +592,18 @@ describe("DownloadActionManager", () => {
 			});
 		});
 
-		test("should cleanup event listeners", () => {
-			// Test that the cleanup method exists and can be called
-			expect(() => {
-				downloadManager.cleanup();
-			}).not.toThrow();
-		});
+		test("cleanup removes click listeners from web download buttons", () => {
+			const button = {
+				removeEventListener: jest.fn(),
+			};
+			document.querySelectorAll = jest.fn(() => [button]);
 
-		test("should handle cleanup gracefully when no listeners", () => {
-			expect(() => {
-				downloadManager.cleanup();
-			}).not.toThrow();
+			downloadManager.cleanup();
+
+			expect(button.removeEventListener).toHaveBeenCalledWith(
+				"click",
+				downloadManager.initializeWebDownloadButtons,
+			);
 		});
 	});
 });
