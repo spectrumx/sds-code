@@ -54,6 +54,10 @@ jobs:
                   key: prek-${{ hashFiles('.pre-commit-config.yaml') }}
                   path: ~/.cache/prek/
 
+            - name: Install gateway frontend dependencies
+              working-directory: ./gateway
+              run: npm ci
+
             - name: Install hooks
               working-directory: ./sdk
               run: uv run --dev prek install --install-hooks
