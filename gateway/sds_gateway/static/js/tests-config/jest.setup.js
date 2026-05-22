@@ -99,14 +99,18 @@ require("../search/ConfiguredSearchElements.js");
 require("../actions/quickAdd/quickAddApi.js");
 require("../actions/download/captureDownloadSlider.js");
 require("../dataset/datasetFormSnapshot.js");
-require("../upload/captureUploadXhr.js");
-
 // Classes referenced by `extends` / static calls in browser bundles
 const { BaseManager } = require("../core/BaseManager.js");
 global.BaseManager = BaseManager;
 const { ModalManager } = require("../core/ModalManager.js");
 global.ModalManager = ModalManager;
 global.window.ModalManager = ModalManager;
+
+require("../upload/UploadUtils.js");
+require("../upload/CaptureTypeSelector.js");
+require("../upload/CaptureUploadController.js");
+require("../upload/FileUploadHandler.js");
+require("../upload/FilesBrowserManager.js");
 const { UserInputController } = require("../core/UserInputController.js");
 global.UserInputController = UserInputController;
 

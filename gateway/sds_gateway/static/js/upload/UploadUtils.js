@@ -1,20 +1,7 @@
 /**
  * Stateless helpers for capture / file uploads (hash, chunks, DataTransfer walk, FormData).
- * Paired with upload/UploadManager.js — keep this file free of UI orchestration.
  */
 const UploadUtils = {
-	getCsrfToken() {
-		if (window.APIClient) {
-			try {
-				return new window.APIClient().getCSRFToken();
-			} catch (_) {}
-		}
-		const meta = document.querySelector('meta[name="csrf-token"]');
-		if (meta?.content) return meta.content;
-		const input = document.querySelector("[name=csrfmiddlewaretoken]");
-		return input ? input.value : "";
-	},
-
 	getCheckFileExistsUrl() {
 		return (
 			window.checkFileExistsUrl ||
@@ -58,7 +45,8 @@ const UploadUtils = {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
-				"X-CSRFToken": csrfToken || UploadUtils.getCsrfToken(),
+				"X-CSRFToken":
+					csrfToken || window.APIClient?.getCSRFToken?.() || "",
 			},
 			body: JSON.stringify({
 				directory,
