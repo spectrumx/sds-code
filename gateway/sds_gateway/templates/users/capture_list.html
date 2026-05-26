@@ -170,6 +170,7 @@
                                                     <input type="search"
                                                            class="form-control pe-5"
                                                            id="search-input"
+                                                           name="search"
                                                            placeholder="Search captures..."
                                                            value="{{ search }}"
                                                            aria-describedby="searchHelp" />
@@ -243,10 +244,10 @@
     <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/quickAdd/quickAddApi.js' %}"></script>
     <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
-    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
-    <script src="{% static 'js/search/DebouncedSearchManager.js' %}"></script>
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
+    <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
     <script src="{% static 'js/core/PageController.js' %}"></script>
     {# djlint:off #}
     <script>
@@ -279,6 +280,19 @@
                     },
                     captureList: true
                 });
+
+                if (window.ListPageSearchController && window.FileListConfig?.CAPTURE_LIST_PARAM_SPECS) {
+                    new window.ListPageSearchController({
+                        searchFormId: 'search-form',
+                        searchButtonId: 'search-btn',
+                        clearButtonId: 'clear-search-btn',
+                        paramSpecs: window.FileListConfig.CAPTURE_LIST_PARAM_SPECS,
+                        basePath: '{% url "users:capture_list" %}',
+                        preserveUrlParams: ['sort_by', 'sort_order', 'items_per_page'],
+                        applyFiltersButtonId: 'apply-filters-btn',
+                        clearFiltersButtonId: 'clear-filters-btn',
+                    });
+                }
             }
             if (document.readyState === 'loading') {
                 document.addEventListener('DOMContentLoaded', run);

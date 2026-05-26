@@ -39,10 +39,7 @@
 {% block javascript %}
     {# djlint:off #}
     {{ block.super }}
-    <!-- Search components -->
-    <script src="{% static 'js/search/ConfiguredSearchElements.js' %}"></script>
     <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
-    <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>
     <!-- Dataset components -->
     <script src="{% static 'js/dataset/AuthorsManager.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetAuthorsUI.js' %}"></script>
@@ -60,7 +57,7 @@
     <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
-    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {

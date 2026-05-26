@@ -1,15 +1,262 @@
 /**
  * Asset Search Handler
- * Handles search functionality for captures and files in dataset creation/editing
- * Refactored from SearchHandler to use core components and centralized management
+ * Handles search functionality for captures and files in dataset creation/editing,
+ * plus shared list-page search (full navigation via query params).
  */
+
+/**
+ * @param {Object} config
+ * @returns {{ searchForm: HTMLElement|null, searchButton: HTMLElement|null, clearButton: HTMLElement|null }}
+ */
+function getConfiguredSearchElements(config) {
+	return {
+		searchForm: document.getElementById(config.searchFormId),
+		searchButton: document.getElementById(config.searchButtonId),
+		clearButton: document.getElementById(config.clearButtonId),
+	};
+}
+
 class AssetSearchHandler {
+	/**
+	 * @param {object} target
+	 * @param {object} config
+	 */
+	static applySearchCoreElements(target, config) {
+		const searchEls = getConfiguredSearchElements(config);
+		target.searchForm = searchEls.searchForm;
+		target.searchButton = searchEls.searchButton;
+		target.clearButton = searchEls.clearButton;
+	}
+
+	/**
+	 * Build URLSearchParams from config specs ({ param, elementId } or { param, el, get }).
+	 * @param {Array<{ param: string, elementId?: string, el?: () => HTMLElement|null, get?: () => string }>} paramSpecs
+	 * @returns {URLSearchParams}
+	 */
+	static buildParamsFromConfig(paramSpecs) {
+		const params = new URLSearchParams();
+		if (!paramSpecs?.length) return params;
+
+		for (const spec of paramSpecs) {
+			const node = spec.elementId
+				? document.getElementById(spec.elementId)
+				: spec.el?.();
+			let value = spec.get?.();
+			if (value === undefined || value === null) {
+				value = node?.value ?? "";
+			}
+			const trimmed = String(value).trim();
+			if (trimmed) {
+				params.set(spec.param, trimmed);
+			}
+		}
+		return params;
+	}
+
+	/**
+	 * @param {HTMLFormElement} form
+	 * @returns {URLSearchParams}
+	 */
+	static buildParamsFromForm(form) {
+		const params = new URLSearchParams();
+		const formData = new FormData(form);
+		for (const [key, value] of formData.entries()) {
+			const trimmed = String(value).trim();
+			if (trimmed) {
+				params.append(key, trimmed);
+			}
+		}
+		return params;
+	}
+
+	/**
+	 * Full-page list search (datasets publish search, capture list, etc.).
+	 */
+	static ListPageSearchController = class {
+		/**
+		 * @param {Object} config
+		 * @param {string} config.searchFormId
+		 * @param {string} [config.searchButtonId]
+		 * @param {string} [config.clearButtonId]
+		 * @param {Array} [config.paramSpecs] - named query params; if omitted, uses FormData from searchForm
+		 * @param {string} [config.basePath]
+		 * @param {string[]} [config.preserveUrlParams] - keys to keep from current URL (e.g. sort_by)
+		 * @param {string} [config.resetPageParam]
+		 * @param {string} [config.resetPageTo]
+		 * @param {string} [config.applyFiltersButtonId]
+		 * @param {string} [config.clearFiltersButtonId]
+		 */
+		constructor(config) {
+			AssetSearchHandler.applySearchCoreElements(this, config);
+			this.config = config;
+			this.paramSpecs = config.paramSpecs || null;
+			this.basePath = config.basePath || window.location.pathname;
+			this.preserveUrlParams = config.preserveUrlParams || [];
+			this.resetPageParam = config.resetPageParam || "page";
+			this.resetPageTo = config.resetPageTo || "1";
+			this.applyFiltersButton = config.applyFiltersButtonId
+				? document.getElementById(config.applyFiltersButtonId)
+				: null;
+			this.clearFiltersButton = config.clearFiltersButtonId
+				? document.getElementById(config.clearFiltersButtonId)
+				: null;
+
+			this.initializeEventListeners();
+			this.updateClearButtonVisibility();
+		}
+
+		initializeEventListeners() {
+			if (this.searchForm) {
+				this.searchForm.addEventListener("submit", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.searchButton) {
+				this.searchButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.clearButton) {
+				this.clearButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleClear();
+				});
+			}
+			if (this.applyFiltersButton) {
+				this.applyFiltersButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.clearFiltersButton) {
+				this.clearFiltersButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleClearFilters();
+				});
+			}
+			this.initializeEnterKeyListener();
+			const searchInput = document.getElementById("search-input");
+			if (searchInput) {
+				searchInput.addEventListener("input", () =>
+					this.updateClearButtonVisibility(),
+				);
+			}
+		}
+
+		initializeEnterKeyListener() {
+			if (!this.searchForm) return;
+
+			const searchInputs = this.searchForm.querySelectorAll(
+				"input[type='text'], input[type='search'], input[type='number']",
+			);
+			for (const input of searchInputs) {
+				input.addEventListener("keypress", (e) => {
+					if (e.key === "Enter") {
+						e.preventDefault();
+						this.handleSearch();
+					}
+				});
+			}
+		}
+
+		updateClearButtonVisibility() {
+			if (!this.clearButton?.classList?.toggle) return;
+			const searchInput = document.getElementById("search-input");
+			const hasValue = Boolean(searchInput?.value?.trim());
+			this.clearButton.classList.toggle("clear-search-hidden", !hasValue);
+		}
+
+		buildSearchParams() {
+			let params;
+			if (this.paramSpecs?.length) {
+				params = AssetSearchHandler.buildParamsFromConfig(this.paramSpecs);
+			} else if (this.searchForm) {
+				params = AssetSearchHandler.buildParamsFromForm(this.searchForm);
+			} else {
+				params = new URLSearchParams();
+			}
+
+			const current = new URLSearchParams(window.location.search);
+			for (const key of this.preserveUrlParams) {
+				const value = current.get(key);
+				if (value !== null && value !== "") {
+					params.set(key, value);
+				}
+			}
+
+			params.set(this.resetPageParam, this.resetPageTo);
+			return params;
+		}
+
+		handleSearch() {
+			const params = this.buildSearchParams();
+			this.config.onBeforeNavigate?.(params);
+			window.location.href = `${this.basePath}?${params.toString()}`;
+		}
+
+		handleClear() {
+			if (this.searchForm) {
+				const inputs = this.searchForm.querySelectorAll(
+					"input, select, textarea",
+				);
+				for (const input of inputs) {
+					if (input.type === "checkbox" || input.type === "radio") {
+						input.checked = false;
+					} else {
+						input.value = "";
+					}
+				}
+			}
+			this.updateClearButtonVisibility();
+			if (this.preserveUrlParams?.length || this.paramSpecs?.length) {
+				window.location.href = this.buildUrlWithoutSearchTerm();
+			} else {
+				window.location.href = this.basePath;
+			}
+		}
+
+		/** Navigate keeping sort/pagination keys but dropping filter paramSpecs. */
+		buildUrlWithoutSearchTerm() {
+			const params = new URLSearchParams();
+			const current = new URLSearchParams(window.location.search);
+			for (const key of this.preserveUrlParams) {
+				const value = current.get(key);
+				if (value !== null && value !== "") {
+					params.set(key, value);
+				}
+			}
+			params.set(this.resetPageParam, this.resetPageTo);
+			const qs = params.toString();
+			return qs ? `${this.basePath}?${qs}` : this.basePath;
+		}
+
+		handleClearFilters() {
+			if (this.paramSpecs?.length) {
+				for (const spec of this.paramSpecs) {
+					if (spec.param === "search") continue;
+					const node = spec.elementId
+						? document.getElementById(spec.elementId)
+						: spec.el?.();
+					if (!node) continue;
+					if (node.type === "checkbox" || node.type === "radio") {
+						node.checked = false;
+					} else {
+						node.value = "";
+					}
+				}
+			}
+			this.handleSearch();
+		}
+	};
+
 	/**
 	 * Initialize asset search handler
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
-		window.applySearchCoreElements(this, config);
+		AssetSearchHandler.applySearchCoreElements(this, config);
 		this.tableBody = document.getElementById(config.tableBodyId);
 		this.paginationContainer = document.getElementById(
 			config.paginationContainerId,
@@ -1269,8 +1516,15 @@ class AssetSearchHandler {
 
 // Make class available globally
 window.AssetSearchHandler = AssetSearchHandler;
+window.applySearchCoreElements = AssetSearchHandler.applySearchCoreElements;
+window.getConfiguredSearchElements = getConfiguredSearchElements;
+window.ListPageSearchController = AssetSearchHandler.ListPageSearchController;
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
-	module.exports = { AssetSearchHandler };
+	module.exports = {
+		AssetSearchHandler,
+		ListPageSearchController: AssetSearchHandler.ListPageSearchController,
+		getConfiguredSearchElements,
+	};
 }

@@ -95,7 +95,7 @@ Object.defineProperty(mockWindow.location, "href", {
 global.document = mockDOM;
 global.window = mockWindow;
 
-require("../search/ConfiguredSearchElements.js");
+require("../search/AssetSearchHandler.js");
 require("../actions/quickAdd/quickAddApi.js");
 require("../actions/download/captureDownloadSlider.js");
 require("../dataset/datasetFormSnapshot.js");
