@@ -19,11 +19,11 @@ Context:
                class="dataset-name-link"
                data-dataset-uuid="{{ dataset.uuid }}"
                data-item-uuid="{{ dataset.uuid }}"
-               aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
+               aria-label="View details for {{ dataset.name }}">{{ dataset.name }} (v{{ dataset.version }})</a>
         {% else %}
             <span class="text-muted dataset-name-link"
                   data-dataset-uuid="{{ dataset.uuid }}"
-                  data-item-uuid="{{ dataset.uuid }}">{{ dataset.name }}</span>
+                  data-item-uuid="{{ dataset.uuid }}">{{ dataset.name }} (v{{ dataset.version }})</span>
         {% endif %}
         {% if dataset.status == 'draft' %}
             <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>

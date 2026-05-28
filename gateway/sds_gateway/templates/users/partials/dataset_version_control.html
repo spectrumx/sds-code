@@ -16,7 +16,7 @@
                         data-bs-dismiss="modal"
                         aria-label="Close"></button>
             </div>
-            {% if dataset.next_version %}
+            {% if dataset.next_version and dataset.next_version.owner == request.user %}
                 <div class="modal-body">
                     <div class="mb-4">
                         <p class="mb-3">
@@ -97,7 +97,7 @@
                 </button>
                 <button type="button"
                         class="btn btn-primary"
-                        {% if dataset.next_version %}disabled{% endif %}
+                        {% if dataset.next_version and dataset.next_version.owner == request.user %}disabled{% endif %}
                         id="createVersionBtn-{{ dataset.uuid }}">
                     <i class="bi bi-folder-symlink me-1"></i> Create Version
                 </button>
