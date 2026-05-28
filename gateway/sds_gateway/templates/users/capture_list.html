@@ -212,6 +212,19 @@
                             </div>
                             <p class="mt-2 text-muted">Searching captures...</p>
                         </div>
+                        <!-- Bulk add to dataset (owned captures only) -->
+                        <div id="capture-list-bulk-actions"
+                             class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <span id="capture-list-selected-count"
+                                  class="text-muted small"
+                                  aria-live="polite">0 captures selected</span>
+                            <button type="button"
+                                    class="btn btn-sm btn-primary"
+                                    id="capture-list-add-to-dataset-btn"
+                                    disabled>
+                                <i class="bi bi-folder-plus me-1"></i>Add to dataset
+                            </button>
+                        </div>
                         <!-- Captures Table -->
                         <div id="capture-list-ajax-wrapper">
                             {% include "users/components/asset_list_table.html" with page_obj=page_obj asset_type=asset_type table_headers=table_headers no_assets_message=no_assets_message asset_row_template=asset_row_template ajax_fragment=ajax_fragment %}
@@ -244,6 +257,7 @@
     <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/quickAdd/quickAddApi.js' %}"></script>
     <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
+    <script src="{% static 'js/actions/CaptureListSelectionManager.js' %}"></script>
     <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
     <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
@@ -392,12 +406,17 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            if (window.VisualizationModal) {
-                new window.VisualizationModal();
+            if (window.VisualizationModal && !window.visualizationModalInstance) {
+                window.visualizationModalInstance = new window.VisualizationModal();
             }
 
             if (window.QuickAddToDatasetManager && document.getElementById("quickAddToDatasetModal")) {
-                new window.QuickAddToDatasetManager();
+                window.quickAddToDatasetManager = new window.QuickAddToDatasetManager();
+                if (window.CaptureListSelectionManager) {
+                    window.captureListSelectionManager = new window.CaptureListSelectionManager(
+                        window.quickAddToDatasetManager,
+                    );
+                }
             }
 
             const downloadAlert = sessionStorage.getItem('captureDownloadAlert');

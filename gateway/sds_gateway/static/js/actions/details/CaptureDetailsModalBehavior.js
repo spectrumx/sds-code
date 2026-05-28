@@ -25,7 +25,14 @@ class CaptureDetailsModalBehavior {
 			visualizeBtn.classList.remove("d-none");
 			visualizeBtn.dataset.captureUuid = meta.uuid || "";
 			visualizeBtn.dataset.captureType = meta.capture_type || "";
-			visualizeBtn.onclick = () => {
+			visualizeBtn.onclick = (e) => {
+				e?.preventDefault?.();
+				if (
+					!window.visualizationModalInstance &&
+					window.VisualizationModal
+				) {
+					window.visualizationModalInstance = new window.VisualizationModal();
+				}
 				if (window.visualizationModalInstance) {
 					window.visualizationModalInstance.openWithCaptureData(
 						meta.uuid,

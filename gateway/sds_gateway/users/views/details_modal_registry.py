@@ -9,7 +9,6 @@ from typing import Any
 from uuid import UUID
 
 from django.http import HttpRequest
-from django.template.defaultfilters import filesizeformat
 from django.template.loader import render_to_string
 from django.utils import timezone
 
@@ -161,6 +160,19 @@ def _accordion_channels(capture_dict: dict[str, Any]) -> list[dict[str, Any]]:
     return out
 
 
+def _capture_file_summary_from_dict(capture_dict: dict[str, Any]) -> tuple[int, int]:
+    """Read file count and total size from serialized capture (no file list)."""
+    files_count = capture_dict.get("total_file_count")
+    if files_count is None:
+        info = capture_dict.get("data_files_info") or {}
+        files_count = info.get("total_count", info.get("count", 0))
+    total_size = capture_dict.get("total_file_size")
+    if total_size is None:
+        info = capture_dict.get("data_files_info") or {}
+        total_size = info.get("total_size", 0)
+    return int(files_count or 0), int(total_size or 0)
+
+
 def build_capture_details_modal_context(
     request: HttpRequest, capture_uuid: UUID
 ) -> dict[str, Any] | None:
@@ -181,15 +193,12 @@ def build_capture_details_modal_context(
         return None
 
     capture_dict = serialize_capture_or_composite(
-        capture, context={"request": request}
+        capture,
+        context={"request": request, "exclude_files": True},
     )
     uuid_str = str(capture_dict.get("uuid", capture_uuid))
 
-    files = capture_dict.get("files") or []
-    files_count = len(files) if isinstance(files, list) else 0
-    total_size = capture_dict.get("total_file_size")
-    if total_size is None:
-        total_size = 0
+    files_count, total_size = _capture_file_summary_from_dict(capture_dict)
 
     return {
         "capture": capture_dict,
@@ -202,7 +211,7 @@ def build_capture_details_modal_context(
         "is_public_yesno": "Yes" if capture_dict.get("is_public") else "No",
         "dataset_display": _dataset_display(capture_dict),
         "files_count": files_count,
-        "total_size": int(total_size) if total_size is not None else 0,
+        "total_size": total_size,
     }
 
 
@@ -237,92 +246,6 @@ def finalize_capture_modal_json(ctx: dict[str, Any], html: str) -> dict[str, Any
     }
 
 
-def _format_tree_size_for_modal(n: Any) -> str:
-    try:
-        b = int(n)
-    except (TypeError, ValueError):
-        b = 0
-    return str(filesizeformat(b))
-
-
-def _format_tree_timestamp_for_modal(value: Any) -> str:
-    if value is None:
-        return "Unknown"
-    if hasattr(value, "strftime"):
-        dt = value
-        if timezone.is_naive(dt):
-            dt = timezone.make_aware(dt, timezone.get_current_timezone())
-        dt = timezone.localtime(dt)
-        return dt.strftime("%b %d, %Y, %I:%M %p").replace(" 0", " ")
-    if isinstance(value, str):
-        try:
-            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return _format_tree_timestamp_for_modal(parsed)
-        except ValueError:
-            return value
-    return str(value)
-
-
-def flatten_dataset_tree_to_modal_rows(
-    node: dict[str, Any] | None,
-    depth: int = 0,
-) -> list[dict[str, Any]]:
-    """Flatten FileTreeMixin tree to rows for users/components/modal_file_tree.html."""
-    if node is None:
-        return []
-    rows: list[dict[str, Any]] = []
-
-    files = node.get("files") or []
-    if isinstance(files, list):
-        for file in files:
-            if not isinstance(file, dict):
-                continue
-            rows.append(
-                {
-                    "indent_level": depth,
-                    "indent_range": list(range(depth)),
-                    "icon": "bi-file-earmark",
-                    "icon_color": "text-primary",
-                    "name": str(file.get("name") or ""),
-                    "type": str(file.get("media_type") or file.get("type") or "File"),
-                    "size": _format_tree_size_for_modal(file.get("size")),
-                    "created_at": _format_tree_timestamp_for_modal(file.get("created_at")),
-                    "has_chevron": False,
-                }
-            )
-
-    children = node.get("children") or {}
-    if not isinstance(children, dict):
-        return rows
-
-    for child_node in children.values():
-        if not isinstance(child_node, dict):
-            continue
-        if child_node.get("type") != "directory":
-            continue
-        name = str(child_node.get("name") or "")
-        rows.append(
-            {
-                "indent_level": depth,
-                "indent_range": list(range(depth)),
-                "icon": "bi-folder",
-                "icon_color": "text-warning",
-                "name": f"{name}/" if name else "/",
-                "type": "Directory",
-                "size": _format_tree_size_for_modal(child_node.get("size")),
-                "created_at": _format_tree_timestamp_for_modal(
-                    child_node.get("created_at")
-                ),
-                "has_chevron": True,
-            }
-        )
-        rows.extend(
-            flatten_dataset_tree_to_modal_rows(child_node, depth + 1),
-        )
-
-    return rows
-
-
 def build_dataset_details_modal_context(
     request: HttpRequest, dataset_uuid: UUID
 ) -> dict[str, Any] | None:
@@ -331,14 +254,12 @@ def build_dataset_details_modal_context(
         return None
 
     dataset_orm = bundle["dataset_orm"]
-    tree_rows = flatten_dataset_tree_to_modal_rows(bundle.get("tree"))
     ds = bundle["dataset"]
     uuid_str = str(ds.get("uuid", dataset_uuid))
 
     return {
         "dataset": ds,
         "statistics": bundle["statistics"],
-        "tree_rows": tree_rows,
         "dataset_updated_at": dataset_orm.updated_at,
         "dataset_uuid": uuid_str,
     }

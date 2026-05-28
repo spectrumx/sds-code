@@ -657,12 +657,21 @@ class AssetSearchHandler {
 
 		// Transform captures data for table_rows.html template
 		const rows = data.results.map((capture) => {
-			const isSelected = this.formHandler?.selectedCaptures.has(
-				capture.id.toString(),
-			);
+			const captureIdStr = capture.id.toString();
+			const inExistingDataset =
+				this.isEditMode &&
+				this.formHandler?.currentCaptures &&
+				(this.formHandler.currentCaptures.has(capture.id) ||
+					this.formHandler.currentCaptures.has(captureIdStr));
+			const isSelected =
+				inExistingDataset ||
+				this.formHandler?.selectedCaptures?.has(captureIdStr);
 			const isOwnedByCurrentUser =
 				capture.owner_id === this.formHandler?.currentUserId;
 			const canSelect = isOwnedByCurrentUser;
+			// Edit only: captures already in the dataset stay checked and locked
+			const checkboxDisabled =
+				!canSelect || (this.isEditMode && inExistingDataset);
 			const ownerName = capture.owner
 				? capture.owner.name || capture.owner.email || "-"
 				: "-";
@@ -677,7 +686,7 @@ class AssetSearchHandler {
 
 			return {
 				id: capture.id,
-				css_class: `capture-row${isSelected ? " table-warning" : ""}${!canSelect ? " readonly-row" : ""}`,
+				css_class: `capture-row${isSelected ? " table-warning" : ""}${checkboxDisabled ? " readonly-row" : ""}${inExistingDataset ? " capture-in-dataset" : ""}`,
 				data_attrs: {
 					"capture-id": capture.id,
 				},
@@ -690,7 +699,7 @@ class AssetSearchHandler {
 						tag_attrs: {
 							type: "checkbox",
 							checked: isSelected,
-							disabled: !canSelect,
+							disabled: checkboxDisabled,
 							value: capture.id,
 						},
 						data_attrs: {
@@ -762,6 +771,12 @@ class AssetSearchHandler {
 			};
 
 			const handleSelection = (e) => {
+				if (checkbox.disabled) {
+					e.preventDefault();
+					e.stopPropagation();
+					return;
+				}
+
 				if (e.target.type !== "checkbox") {
 					checkbox.checked = !checkbox.checked;
 				}

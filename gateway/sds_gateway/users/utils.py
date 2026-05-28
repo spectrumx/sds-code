@@ -51,18 +51,23 @@ def deduplicate_composite_captures(captures: list[Capture]) -> list[Capture]:
     return unique_captures
 
 
-def serialize_composite_capture_for_display(capture: Capture) -> dict[str, Any]:
+def serialize_composite_capture_for_display(
+    capture: Capture,
+    *,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """
     Serialize a capture (single or composite) for display in templates and JavaScript.
 
     Args:
         capture: Capture object to serialize
+        context: Optional serializer context (e.g. ``request``, ``exclude_files``)
 
     Returns:
         Dictionary with serialized capture data for display
     """
     # Use composite capture serialization to get proper details
-    serialized_data = serialize_capture_or_composite(capture)
+    serialized_data = serialize_capture_or_composite(capture, context=context)
 
     # Extract owner information
     owner_data = serialized_data.get("owner", {})

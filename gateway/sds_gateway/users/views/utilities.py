@@ -40,7 +40,7 @@ class RenderHTMLFragmentView(View):
 
     This endpoint allows rendering of component templates with client-provided context.
     It's designed to support both authenticated and unauthenticated users for rendering
-    public UI components (e.g., file trees for public datasets).
+    public UI components (e.g., table rows, messages).
 
     Security:
     - Restricted to users/components/ templates only

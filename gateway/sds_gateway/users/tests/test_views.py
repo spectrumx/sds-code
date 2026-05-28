@@ -734,8 +734,8 @@ class TestRenderHTMLFragmentView:
         """Unauthenticated users can render HTML fragments."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
-            "context": {"rows": []},
+            "template": "users/components/empty_table_row.html",
+            "context": {"colspan": 3, "message": "No items"},
         }
 
         response = client.post(
@@ -755,8 +755,8 @@ class TestRenderHTMLFragmentView:
         client.force_login(user)
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
-            "context": {"rows": []},
+            "template": "users/components/empty_table_row.html",
+            "context": {"colspan": 3, "message": "No items"},
         }
 
         response = client.post(
@@ -858,7 +858,7 @@ class TestRenderHTMLFragmentView:
         """Templates can be rendered with empty context."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/empty_table_row.html",
             "context": {},
         }
 
@@ -879,21 +879,10 @@ class TestRenderHTMLFragmentView:
         # Attempt XSS through context data
         malicious_data = "<script>alert('XSS')</script>"
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/empty_table_row.html",
             "context": {
-                "rows": [
-                    {
-                        "name": malicious_data,
-                        "type": "File",
-                        "size": "1 MB",
-                        "created_at": "2024-01-01",
-                        "icon": "bi-file",
-                        "icon_color": "text-primary",
-                        "indent_level": 0,
-                        "indent_range": [],
-                        "has_chevron": False,
-                    }
-                ]
+                "colspan": 2,
+                "message": malicious_data,
             },
         }
 
@@ -912,36 +901,27 @@ class TestRenderHTMLFragmentView:
         # Make sure raw script tag is NOT present
         assert "<script>alert" not in html
 
-    def test_multiple_rows_in_file_tree(self, client: Client) -> None:
-        """Can render multiple file tree rows."""
+    def test_renders_table_rows_component(self, client: Client) -> None:
+        """Can render generic table_rows with multiple text cells."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/table_rows.html",
             "context": {
                 "rows": [
                     {
-                        "name": "file1.txt",
-                        "type": "File",
-                        "size": "1 MB",
-                        "created_at": "2024-01-01",
-                        "icon": "bi-file",
-                        "icon_color": "text-primary",
-                        "indent_level": 0,
-                        "indent_range": [],
-                        "has_chevron": False,
+                        "cells": [
+                            {"kind": "text", "value": "file1.txt"},
+                            {"kind": "text", "value": "1 MB"},
+                        ],
                     },
                     {
-                        "name": "file2.txt",
-                        "type": "File",
-                        "size": "2 MB",
-                        "created_at": "2024-01-02",
-                        "icon": "bi-file",
-                        "icon_color": "text-success",
-                        "indent_level": 1,
-                        "indent_range": [0],
-                        "has_chevron": False,
+                        "cells": [
+                            {"kind": "text", "value": "file2.txt"},
+                            {"kind": "text", "value": "2 MB"},
+                        ],
                     },
-                ]
+                ],
+                "empty_colspan": 2,
             },
         }
 
@@ -955,7 +935,6 @@ class TestRenderHTMLFragmentView:
         payload = response.json()
         html = payload["html"]
 
-        # Both files should appear in rendered HTML
         assert "file1.txt" in html
         assert "file2.txt" in html
 

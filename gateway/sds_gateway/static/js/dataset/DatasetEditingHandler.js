@@ -429,6 +429,37 @@ class DatasetEditingHandler extends BaseManager {
 	}
 
 	/**
+	 * Sync strikethrough / checkbox on the capture search results row (step 2).
+	 * @param {string} captureId
+	 * @param {boolean} markedForRemoval
+	 */
+	syncCaptureSearchRowRemovalStyle(captureId, markedForRemoval) {
+		const searchRow = document.querySelector(
+			`#captures-table-body tr[data-capture-id="${captureId}"]`,
+		);
+		if (!searchRow) return;
+
+		if (markedForRemoval) {
+			searchRow.classList.add("marked-for-removal");
+			const checkbox = searchRow.querySelector('input[type="checkbox"]');
+			if (checkbox) {
+				checkbox.checked = true;
+			}
+			return;
+		}
+
+		searchRow.classList.remove("marked-for-removal");
+		const checkbox = searchRow.querySelector('input[type="checkbox"]');
+		if (checkbox) {
+			const idStr = captureId.toString();
+			checkbox.checked =
+				this.currentCaptures.has(captureId) ||
+				this.currentCaptures.has(idStr) ||
+				this.selectedCaptures.has(idStr);
+		}
+	}
+
+	/**
 	 * Mark capture for removal
 	 * @param {string} captureId - Capture ID to mark for removal
 	 */
@@ -460,17 +491,7 @@ class DatasetEditingHandler extends BaseManager {
 		// Update visual state of current captures list
 		this.updateCurrentCapturesList();
 
-		// Also mark in the search results table if visible
-		const searchRow = document.querySelector(
-			`#captures-table-body tr[data-capture-id="${captureId}"]`,
-		);
-		if (searchRow) {
-			searchRow.classList.add("marked-for-removal");
-			const checkbox = searchRow.querySelector('input[type="checkbox"]');
-			if (checkbox) {
-				checkbox.checked = true;
-			}
-		}
+		this.syncCaptureSearchRowRemovalStyle(captureId, true);
 
 		this.updatePendingCapturesList();
 
@@ -669,11 +690,11 @@ class DatasetEditingHandler extends BaseManager {
 		this.pendingCaptures.delete(captureId);
 
 		if (change.action === "remove") {
-			// Update visual state of current captures list
 			this.updateCurrentCapturesList();
+			this.syncCaptureSearchRowRemovalStyle(captureId, false);
 		} else if (change.action === "add") {
-			// Remove from selectedCaptures set so it shows as unchecked in search results
 			this.selectedCaptures.delete(captureId.toString());
+			this.syncCaptureSearchRowRemovalStyle(captureId, false);
 		}
 
 		this.updatePendingCapturesList();

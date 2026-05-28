@@ -28,10 +28,12 @@ class QuickAddToDatasetManager extends ModalManager {
 			if (!btn) return;
 			e.preventDefault();
 			e.stopPropagation();
-			this.currentCaptureUuid = btn.getAttribute("data-capture-uuid");
-			this.currentCaptureName =
-				btn.getAttribute("data-capture-name") || "This capture";
-			this.openModal(this.modalId);
+			const uuid = btn.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			this.openForSingleCapture(
+				uuid,
+				btn.getAttribute("data-capture-name") || "This capture",
+			);
 		});
 
 		if (!this.modalEl) return;
@@ -77,6 +79,26 @@ class QuickAddToDatasetManager extends ModalManager {
 		if (this.confirmBtn) {
 			this.confirmBtn.addEventListener("click", () => this.handleAdd());
 		}
+	}
+
+	/** Open modal for one capture (row actions menu). */
+	openForSingleCapture(captureUuid, captureName) {
+		if (!this.modalEl) return;
+		delete this.modalEl.dataset.captureUuids;
+		this.currentCaptureUuids = null;
+		this.currentCaptureUuid = captureUuid;
+		this.currentCaptureName = captureName || "This capture";
+		this.openModal(this.modalId);
+	}
+
+	/** Open modal for multiple selected captures (list bulk action). */
+	openForCaptureUuids(captureUuids) {
+		if (!this.modalEl || !captureUuids?.length) return;
+		this.currentCaptureUuid = null;
+		this.currentCaptureName = null;
+		this.currentCaptureUuids = captureUuids;
+		this.modalEl.dataset.captureUuids = JSON.stringify(captureUuids);
+		this.openModal(this.modalId);
 	}
 
 	resetMessage() {
@@ -191,14 +213,14 @@ class QuickAddToDatasetManager extends ModalManager {
 	_closeWithToast(msg, alertType) {
 		const afterClose = () => {
 			this.modalEl.removeEventListener("hidden.bs.modal", afterClose);
-			window.fileListController?.exitSelectionMode?.();
+			window.captureListSelectionManager?.clearSelection?.();
 			this._notifyGlobalToast(msg, alertType);
 		};
 		if (this.modalEl) {
 			this.modalEl.addEventListener("hidden.bs.modal", afterClose);
 			this.closeModal(this.modalEl);
 		} else {
-			window.fileListController?.exitSelectionMode?.();
+			window.captureListSelectionManager?.clearSelection?.();
 			this._notifyGlobalToast(msg, alertType);
 		}
 	}

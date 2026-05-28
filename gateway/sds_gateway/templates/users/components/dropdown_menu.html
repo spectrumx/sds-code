@@ -46,7 +46,7 @@ Context:
                     </a>
                 {% else %}
                     <button type="button"
-                            class="dropdown-item"
+                            class="dropdown-item{% if item.extra_class %} {{ item.extra_class }}{% endif %}"
                             {% if item.modal_toggle %}data-bs-toggle="modal"{% endif %}
                             {% if item.modal_target %}data-bs-target="{{ item.modal_target }}"{% endif %}
                             {% for key, value in item.data_attrs.items %}data-{{ key }}="{{ value }}"{% endfor %}

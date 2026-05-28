@@ -9,6 +9,7 @@ class DatasetCreationHandler extends BaseManager {
 	 */
 	constructor(config) {
 		super();
+		this.currentUserId = config.currentUserId;
 		this.form = document.getElementById(config.formId);
 		this.steps = config.steps || [];
 		this.currentStep = 0;
@@ -651,7 +652,6 @@ class DatasetCreationHandler extends BaseManager {
 	validateDatasetInfo() {
 		const nameValue = this.nameField?.value.trim() || "";
 		const authorsValue = this.authorsField?.value.trim() || "";
-		const statusValue = this.statusField?.value || "";
 
 		// Validate authors JSON and first author name
 		if (authorsValue) {
@@ -677,7 +677,7 @@ class DatasetCreationHandler extends BaseManager {
 			return false; // Authors field is required
 		}
 
-		return nameValue !== "" && statusValue !== "";
+		return nameValue !== "";
 	}
 
 	/**

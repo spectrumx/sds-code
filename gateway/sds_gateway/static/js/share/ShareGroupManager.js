@@ -427,10 +427,11 @@ class ShareGroupManager extends ModalManager {
 					cells: [
 						{
 							kind: "html",
+							tag: "div",
 							class: "text-center text-muted",
 							nested: [
 								{
-									tag: "icon",
+									tag: "i",
 									class: "bi bi-people",
 								},
 								{
@@ -467,38 +468,28 @@ class ShareGroupManager extends ModalManager {
 						cells: [
 							{
 								kind: "html",
-								class: "row",
+								tag: "div",
 								nested: [
 									{
-										tag: "div",
-										class: "col-md-10",
+										tag: "h5",
+										class: "mb-1",
+										text: member.name || "No name",
+									},
+									{
+										tag: "p",
+										class: "mb-0",
 										nested: [
 											{
-												tag: "div",
-												nested: [
-													{
-														tag: "h5",
-														class: "mb-1",
-														text: member.name || "No name",
-													},
-													{
-														tag: "p",
-														class: "mb-0",
-														nested: [
-															{
-																tag: "small",
-																class: "text-muted",
-																text: member.email,
-															},
-														],
-													},
-												],
+												tag: "small",
+												class: "text-muted",
+												text: member.email,
 											},
 										],
 									},
 								],
 							},
 						],
+						actions_td_class: "text-end",
 						actions: [
 							{
 								label: "Remove",

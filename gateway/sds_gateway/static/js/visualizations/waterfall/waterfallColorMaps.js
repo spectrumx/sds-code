@@ -91,6 +91,5 @@ export function colorForNormalizedPower(colorMap, normalizedPower) {
 				const t = (normalizedPower - 0.75) * 4;
 				return `rgb(255, ${Math.floor(255 * (1 - t))}, 0)`;
 			}
-		}
 	}
 }

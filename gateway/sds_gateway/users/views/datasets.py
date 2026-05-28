@@ -14,7 +14,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
 from django.db import transaction
 from django.db.models import Q
-from django.db.models import Sum
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.http import Http404
@@ -46,9 +45,6 @@ from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import (
     get_dataset_serializer,
-)
-from sds_gateway.api_methods.utils.relationship_utils import (
-    get_dataset_files_including_captures,
 )
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
@@ -1049,7 +1045,7 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     permission_level = row.get("permission_level")
     is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
     is_co_owner = permission_level == PermissionLevel.CO_OWNER
-    dataset_published = row.get("status") == DatasetStatus.FINAL or row.get("is_public")
+    dataset_published = row.get("status") == DatasetStatus.FINAL and row.get("is_public")
 
     items: list[dict[str, Any]] = []
     if is_owner or is_contributor or is_co_owner:
@@ -1067,16 +1063,17 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
             )
         )
 
-        # Edit button
-        items.append(
-            {
-                "label": "Edit",
-                "icon": "pencil",
-                "type": "link",
-                "href": f"{reverse('users:group_captures')}?dataset_uuid={uuid}",
-                "data_attrs": {},
-            }
-        )
+        if not dataset_published:
+            # Edit button
+            items.append(
+                {
+                    "label": "Edit",
+                    "icon": "pencil",
+                    "type": "link",
+                    "href": f"{reverse('users:group_captures')}?dataset_uuid={uuid}",
+                    "data_attrs": {},
+                }
+            )
 
     if is_owner or is_co_owner:
         # Create new version button
@@ -1098,8 +1095,9 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                     "icon": "globe",
                     "type": "button",
                     "modal_toggle": True,
-                    "modal_target": f"#publishModal-{uuid}",
-                    "data_attrs": {},
+                    "modal_target": f"#publish-dataset-modal-{uuid}",
+                    "data_attrs": {"dataset-uuid": uuid},
+                    "extra_class": "publish-dataset-btn",
                 }
             )
 
@@ -1107,7 +1105,7 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     # Web download button
     items.append(
         {
-            "label": "Download",
+            "label": "Web Download",
             "icon": "download",
             "type": "button",
             "modal_toggle": True,
@@ -1119,7 +1117,7 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     # SDK download instructions button
     items.append(
         {
-            "label": "SDK",
+            "label": "SDK Instructions",
             "icon": "code-slash",
             "type": "button",
             "modal_toggle": True,
@@ -1325,7 +1323,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "sort_order": sort_order,
                 "ajax_fragment": False,
                 "asset_type": "dataset",
-                "asset_row_template": "users/components/asset_list_table_row.html",
+                "asset_row_template": "users/components/dataset_list_table_row.html",
                 "table_headers": DATASET_LIST_TABLE_HEADERS,
                 "table_class": DATASET_LIST_TABLE_CLASS,
                 "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
@@ -1386,10 +1384,11 @@ user_dataset_list_view = ListDatasetsView.as_view()
 
 
 def load_dataset_details_bundle(
-    request: HttpRequest, dataset_uuid: UUID
+    request: HttpRequest,
+    dataset_uuid: UUID,
 ) -> dict[str, Any] | None:
     """
-    Build dataset details payload (dataset dict, tree, statistics).
+    Build dataset details payload (dataset dict and file statistics).
 
     Returns None if the dataset does not exist or is not visible to the request user.
     On success, includes ``dataset_orm`` for server-rendered templates (omit from JSON).
@@ -1409,70 +1408,33 @@ def load_dataset_details_bundle(
     if not (has_public_access or has_user_access):
         return None
 
-    dataset_data = get_dataset_serializer(dataset, has_user_access=has_user_access)
-    detail_helper = DatasetDetailsView()
-    files_queryset = detail_helper._get_dataset_files(dataset)
+    serializer_context: dict[str, Any] = {"exclude_files": True}
+    if request.user.is_authenticated:
+        serializer_context["request"] = request
 
-    total_files = files_queryset.count()
-    captures_count = (
-        files_queryset.filter(Q(capture__isnull=False) | Q(captures__isnull=False))
-        .distinct()
-        .count()
+    dataset_data = get_dataset_serializer(
+        dataset,
+        has_user_access=has_user_access,
+        context=serializer_context,
     )
-    artifacts_count = files_queryset.filter(
-        capture__isnull=True,
-        captures__isnull=True,
-    ).count()
-    total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
-
-    base_dir = sanitize_path_rel_to_user(
-        unsafe_path="/",
-        user=dataset.owner,
-    )
-    tree_data = detail_helper._get_directory_tree(files_queryset, str(base_dir))
+    statistics = dataset.get_dataset_file_statistics()
 
     return {
         "dataset": dataset_data,
-        "tree": tree_data,
-        "statistics": {
-            "total_files": total_files,
-            "captures": captures_count,
-            "artifacts": artifacts_count,
-            "total_size": total_size,
-        },
+        "statistics": statistics,
         "dataset_orm": dataset,
     }
 
 
-class DatasetDetailsView(FileTreeMixin, View):
-    """View to handle dataset details modal requests."""
-
-    def _get_dataset_files(self, dataset: Dataset) -> QuerySet[File]:
-        """
-        Get all files associated with a dataset,
-        including files from linked captures.
-
-        Supports both FK and M2M relationships (expand-contract pattern).
-
-        Args:
-            dataset: The dataset to get files for
-
-        Returns:
-            A QuerySet of files associated with the dataset
-        """
-        return get_dataset_files_including_captures(dataset, include_deleted=False)
+class DatasetDetailsView(View):
+    """View to handle dataset details JSON (metadata + file statistics)."""
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """
-        Get dataset details and files for the modal.
-
-        Args:
-            request: The HTTP request object
-            *args: Variable length argument list
-            **kwargs: Arbitrary keyword arguments
+        Get dataset details for editing modals and similar clients.
 
         Returns:
-            A JSON response containing the dataset details and files
+            JSON with ``dataset`` (serialized) and ``statistics`` (file counts/sizes).
         """
         dataset_uuid_str = request.GET.get("dataset_uuid")
 

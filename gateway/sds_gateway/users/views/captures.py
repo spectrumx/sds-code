@@ -81,6 +81,25 @@ def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     is_co_owner = permission_level == PermissionLevel.CO_OWNER
     
     items: list[dict[str, Any]] = []
+    if is_owner:
+        display_name = (
+            str(row.get("name") or "").strip()
+            or str(row.get("top_level_dir") or "").strip()
+            or "Capture"
+        )
+        items.append(
+            {
+                "label": "Add to dataset",
+                "icon": "folder-plus",
+                "type": "button",
+                "extra_class": "add-to-dataset-btn",
+                "data_attrs": {
+                    "capture-uuid": uuid,
+                    "capture-name": display_name[:200],
+                },
+            }
+        )
+
     if is_owner or is_contributor or is_co_owner:
         items.extend(
             (

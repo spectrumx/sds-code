@@ -1,5 +1,7 @@
 """Dataset serializers for the API methods."""
 
+from typing import Any
+
 from rest_framework import serializers
 
 from sds_gateway.api_methods.models import Dataset
@@ -37,6 +39,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     share_permissions = serializers.SerializerMethodField()
     captures = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
+    data_files_info = serializers.SerializerMethodField()
     owner_name = serializers.SerializerMethodField()
     owner_email = serializers.SerializerMethodField()
     permission_level = serializers.SerializerMethodField()
@@ -62,7 +65,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
                 item_uuid=obj.uuid,
                 is_enabled=True,
                 is_deleted=False,
-            ).exists()
+            ).exclude(owner=request.user).exists()
         return False
 
     def get_is_owner(self, obj):
@@ -148,6 +151,10 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         Returns:
             A list of serialized file objects
         """
+        exclude_files = (self.context or {}).get("exclude_files", False)
+        if exclude_files:
+            return []
+
         non_deleted_files = get_dataset_artifact_files(
             obj,
             include_deleted=False,
@@ -155,9 +162,13 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         serializer = FileSummarySerializer(
             non_deleted_files,
             many=True,
-            context=self.context,
+            context=self.context or {},
         )
         return serializer.data
+
+    def get_data_files_info(self, obj: Dataset) -> dict[str, Any]:
+        """File summary for the dataset (counts and sizes, no file listing)."""
+        return obj.get_files_summary()
 
     def get_captures(self, obj: Dataset) -> list[dict]:
         """Captures for the dataset (one summary row per logical capture).
@@ -165,7 +176,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         Multi-channel uploads share ``top_level_dir`` and are merged into one summary
         row (see :func:`summary_serializers.composite_capture_summary`).
         """
-        return serialize_captures_for_detail(obj, context=self.context)
+        return serialize_captures_for_detail(obj, context=self.context or {})
 
     def get_is_shared(self, obj):
         """Check if the dataset is shared."""
@@ -319,7 +330,12 @@ class DatasetPublicSerializer(serializers.ModelSerializer[Dataset]):
         ]
 
 
-def get_dataset_serializer(dataset: Dataset, *, has_user_access: bool) -> dict:  # pyright: ignore[reportMissingTypeArgument]
+def get_dataset_serializer(
+    dataset: Dataset,
+    *,
+    has_user_access: bool,
+    context: dict[str, Any] | None = None,
+) -> dict:  # pyright: ignore[reportMissingTypeArgument]
     """
     Get serialized dataset data using the appropriate serializer.
 
@@ -337,5 +353,5 @@ def get_dataset_serializer(dataset: Dataset, *, has_user_access: bool) -> dict: 
           (excludes sensitive fields like shared_with user IDs)
     """
     if has_user_access:
-        return DatasetGetSerializer(dataset).data
+        return DatasetGetSerializer(dataset, context=context or {}).data
     return DatasetPublicSerializer(dataset).data

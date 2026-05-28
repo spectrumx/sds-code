@@ -115,39 +115,20 @@ class TestCaptureDetailsHelpers:
         assert acc[0]["metadata_rows"]
 
 
-class TestFlattenDatasetTreeToModalRows:
-    def test_flattens_files_and_directories(self) -> None:
-        tree = {
-            "files": [
-                {
-                    "name": "a.txt",
-                    "size": 1024,
-                    "created_at": None,
-                    "media_type": "text/plain",
-                },
-            ],
-            "children": {
-                "sub": {
-                    "type": "directory",
-                    "name": "sub",
-                    "size": 0,
-                    "created_at": None,
-                    "files": [],
-                    "children": {},
-                },
-            },
-        }
-        rows = reg.flatten_dataset_tree_to_modal_rows(tree)
-        assert len(rows) == 2
-        assert rows[0]["name"] == "a.txt"
-        assert rows[0]["indent_level"] == 0
-        assert rows[0]["has_chevron"] is False
-        assert rows[1]["name"] == "sub/"
-        assert rows[1]["has_chevron"] is True
-        assert rows[1]["icon"] == "bi-folder"
+class TestCaptureFileSummaryFromDict:
+    def test_uses_total_file_fields(self) -> None:
+        count, size = reg._capture_file_summary_from_dict(
+            {"total_file_count": 5, "total_file_size": 1000},
+        )
+        assert count == 5
+        assert size == 1000
 
-    def test_none_node(self) -> None:
-        assert reg.flatten_dataset_tree_to_modal_rows(None) == []
+    def test_falls_back_to_data_files_info(self) -> None:
+        count, size = reg._capture_file_summary_from_dict(
+            {"data_files_info": {"total_count": 3, "total_size": 500}},
+        )
+        assert count == 3
+        assert size == 500
 
 
 class TestFinalizeModalJson:

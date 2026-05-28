@@ -27,10 +27,11 @@ function readDatasetStatusField(isEditMode, config) {
 	if (!isEditMode) {
 		return "Draft";
 	}
-	const readonlyStatusField = document.querySelector("input[readonly]");
-	return (
-		readonlyStatusField?.value || config.existingDatasetStatus || "Unknown"
-	);
+	const statusBadge = document.getElementById("current-status-badge");
+	if (statusBadge?.textContent) {
+		return statusBadge.textContent.trim();
+	}
+	return config.existingDatasetStatus || "Unknown";
 }
 
 function readDatasetDescriptionField(isEditMode, config) {
