@@ -471,7 +471,7 @@ class ShareActionManager extends ModalManager {
 		try {
 			// Filter permission levels based on item type
 			// For captures, only allow viewer permission
-			let allowedPermissionLevels = window.PERMISSION_OPTIONS;
+			let allowedPermissionLevels = window.SHARE_PERMISSION_OPTIONS;
 			if (this.itemType === "capture") {
 				allowedPermissionLevels = [window.PermissionLevels.VIEWER];
 			}

@@ -19,6 +19,11 @@ window.PERMISSION_OPTIONS = [
 	window.PermissionLevels.VIEWER,
 ];
 
+/** Levels that can be assigned when sharing with new users (owner is implicit). */
+window.SHARE_PERMISSION_OPTIONS = window.PERMISSION_OPTIONS.filter(
+	(level) => level !== window.PermissionLevels.OWNER,
+);
+
 /**
  * Check if a permission level is valid
  * @param {string} level - The permission level to validate
