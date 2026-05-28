@@ -45,22 +45,22 @@ migrations, or before upgrading Postgres versions.
 Up to one snapshot per day of:
 
 + [x] **PostgreSQL database** - Complete database dump via `pg_dumpall` (all schemas,
-    tables, and data)
+  tables, and data)
 + [x] **OpenSearch indices** - Snapshots of all indices and their data
 + [x] **Gateway secrets** - Environment files (`.envs/`, `.env.sh`, etc.) and
-    configuration files
+  configuration files
 + [x] **Git repository state** - Branch info, commit SHA, uncommitted changes, staged
-    changes, and commit archive.
+  changes, and commit archive.
 
 ### What is NOT backed up
 
 + ❌ **MinIO objects** - S3-compatible storage data is not included in snapshots (see
-    warning below). When configuring MinIO, you can configure erasure coding for data
-    redundancy across multiple drives or nodes. Consider using MinIO's own backup and
-    replication features for protecting this data instead of this snapshot procedure.
+  warning below). When configuring MinIO, you can configure erasure coding for data
+  redundancy across multiple drives or nodes. Consider using MinIO's own backup and
+  replication features for protecting this data instead of this snapshot procedure.
 + ❌ **Docker volumes** - Any data stored in Docker volumes outside of the database
-    container is not included, such as temporary zip files, `uv` cache, virtual
-    environments, generated static files.
+  container is not included, such as temporary zip files, `uv` cache, virtual
+  environments, generated static files.
 
 ### Creating Backups
 
@@ -69,17 +69,17 @@ Up to one snapshot per day of:
 3. Run `just snapshot` to create a _daily_ backup snapshot of Postgres database.
     + See `scripts/create-snapshot.sh` for details of what is executed.
     + Database credentials are automatically loaded from the postgres container, so the
-        user running the snapshot must have privileges to manage the database container,
-        and the container must be running with those env variables set.
+      user running the snapshot must have privileges to manage the database container,
+      and the container must be running with those env variables set.
     + The Postgres snapshot is created with `pg_dumpall`. See the docs for details:
-        [Postgres docs](https://postgresql.org/docs/current/app-pg-dumpall.html).
+      [Postgres docs](https://postgresql.org/docs/current/app-pg-dumpall.html).
     + The snapshot creation is non-interactive, so it can be run from automated scripts;
       but interaction might be required for backup exfiltration.
     + **Note:** MinIO objects are not included in this snapshot. See [What is NOT backed
       up](#what-is-not-backed-up) above.
 4. Access the created files in `./data/backups/`.
     + Note you can set up a remote server in `.env.sh` to automatically copy the backups
-    there after creation using `rsync` over `ssh`.
+   there after creation using `rsync` over `ssh`.
 
 ### Backups Restoration
 
@@ -95,7 +95,7 @@ READ THIS ENTIRE SECTION BEFORE RESTORING A BACKUP.
 What can be automatically restored:
 
 + [x] **PostgreSQL database** - Full restoration of the database from the latest
-    snapshot. See [Backups Restoration](#backups-restoration) below.
+  snapshot. See [Backups Restoration](#backups-restoration) below.
 
 Everything else (OpenSearch indices, secrets, git state) can be manually restored from
 the snapshot files, but there is no automated restoration procedure for them yet.
@@ -104,11 +104,11 @@ Note that, while the database can be restored, it will contain references to oth
 sources that might exist or not. Most notably:
 
 + OpenSearch indices - The restored database might contain references to documents in
-    OpenSearch that do not exist if those indices were not manually restored.
+  OpenSearch that do not exist if those indices were not manually restored.
 + MinIO objects - The restored database might contain references to objects in MinIO
-    that do not exist if those objects were not manually restored. This is the main
-    challenge when restoring a production backup to a staging/QA machine, as most
-    objects will not exist there due to the commonly large size of object data.
+  that do not exist if those objects were not manually restored. This is the main
+  challenge when restoring a production backup to a staging/QA machine, as most
+  objects will not exist there due to the commonly large size of object data.
 
 Run `scripts/restore-snapshot.sh` when you are ready to restore the most recent snapshot.
 
@@ -123,9 +123,9 @@ production environment.
 ## MinIO Configuration
 
 + MinIO config for SDS: [see the production deploy
-    instructions](./detailed-deploy.md#production-deploy).
+  instructions](./detailed-deploy.md#production-deploy).
 + [MinIO reference
-    document](https://github.com/minio/minio/blob/master/docs/config/README.md).
+  document](https://github.com/minio/minio/blob/master/docs/config/README.md).
 
 ## OpenSearch Cluster Maintenance
 

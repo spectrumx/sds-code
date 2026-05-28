@@ -23,15 +23,19 @@ from spectrumx.models.datasets import Dataset
 from spectrumx.ops.pagination import Paginator
 
 from . import __version__
+from . import utils
 from .config import SDSConfig
 from .gateway import GatewayClient
 from .models.files import File
 from .ops import files
+from .utils import LogCategory
 from .utils import clean_local_path
+from .utils import enable_structured_logging
 from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error
 from .utils import log_user_warning
+from .utils import set_persistent_log_context
 
 
 def _normalize_top_level_dir_prefix(
@@ -96,6 +100,7 @@ class Client:
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
         verbose: bool = False,
+        log_file: Path | None = None,
     ) -> None:
         # avoids circular imports
         from spectrumx.api import sds_files as _sds_files_api  # noqa: PLC0415
@@ -112,6 +117,22 @@ class Client:
             env_config=env_config,
             sds_host=host,
             verbose=self.verbose,
+            log_file=log_file,
+        )
+
+        # Enable structured logging
+        _log_path = self._config.log_file
+        enable_structured_logging(log_path=_log_path)
+        log_user(f"Structured log: {utils._current_log_path}")  # noqa: SLF001
+
+        # Bind persistent context
+        api_key_prefix = ""
+        if self._config.api_key:
+            api_key_prefix = self._config.api_key.split(".")[0]
+
+        set_persistent_log_context(
+            api_key_prefix=api_key_prefix,
+            timeout=self._config.timeout,
         )
 
         # initialize the gateway
@@ -203,9 +224,11 @@ class Client:
             log_user("Dry run is enabled: assuming successful authentication")
             log_user("To authenticate against SDS, set Client.dry_run to False")
         else:
-            log.warning(f"Dry run DISABLED: authenticating against '{self.host}'")
+            log.bind(cat=LogCategory.AUTH).warning(
+                f"Dry run DISABLED: authenticating against '{self.host}'"
+            )
             self._gateway.authenticate()
-        log.info("Authenticated successfully")
+        log.bind(cat=LogCategory.AUTH).info("Authenticated successfully")
         self.is_authenticated = True
 
     # ======= FILE METHODS
@@ -428,7 +451,7 @@ class Client:
 
         # download the file
         try:
-            log.debug(f"Dw: {local_file_path}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(f"Dw: {local_file_path}")
             downloaded_file = self.download_file(
                 file_uuid=file_info.uuid,
                 to_local_path=local_file_path,
@@ -454,8 +477,8 @@ class Client:
         """Check if the local file path is relative to the target directory."""
         local_file_path = local_file_path.resolve()
         to_local_path = to_local_path.resolve()
-        log.debug(f"Resolved path: {local_file_path}")
-        log.debug(f"Target path: {to_local_path}")
+        log.bind(cat=LogCategory.FILESYSTEM).debug(f"Resolved path: {local_file_path}")
+        log.bind(cat=LogCategory.FILESYSTEM).debug(f"Target path: {to_local_path}")
         return local_file_path.is_relative_to(to_local_path)
 
     def list_files(

@@ -19,6 +19,7 @@ from spectrumx.models.captures import Capture
 from spectrumx.models.captures import CaptureOrigin
 from spectrumx.models.captures import CaptureType
 from spectrumx.models.user import User
+from spectrumx.utils import LogCategory
 from spectrumx.utils import log_user_warning
 
 if TYPE_CHECKING:
@@ -89,13 +90,15 @@ class CaptureAPI:
                 or the user doesn't have permission to create it.
         """
         if index_name:
-            log.warning(
+            log.bind(cat=LogCategory.LOG).warning(
                 "The 'index_name' parameter is deprecated and "
                 "will be removed in future versions."
             )
         index_name = index_mapping.get(capture_type, index_name)
         if not index_name:
-            log.warning(f"Could not find an index for {capture_type=}")
+            log.bind(cat=LogCategory.LOG).warning(
+                f"Could not find an index for {capture_type=}"
+            )
 
         top_level_dir = PurePosixPath(top_level_dir)
         if self.verbose:

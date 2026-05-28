@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import importlib.metadata
+import json
 import logging
 import os
+import platform
 import random
 import re
 import string
+import tempfile
+from datetime import UTC
+from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import NoReturn
 from typing import TypeVar
 from typing import cast
@@ -17,6 +27,8 @@ from blake3 import blake3 as Blake3  # noqa: N812
 from loguru import logger as log
 from tqdm import auto as auto_tqdm
 from tqdm import tqdm
+
+from spectrumx.vendor.xdg_base_dirs import xdg_state_home
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -168,3 +180,165 @@ def get_prog_bar(
         "tqdm[T]",  # pyrefly: ignore[bad-specialization]
         auto_tqdm.tqdm(iterable, *args, **kwargs),
     )
+
+
+# --- Structured Logging ---
+
+
+class LogCategory(StrEnum):
+    """Categories for structured log messages."""
+
+    LOG = "log"
+    CONFIG = "config"
+    AUTH = "auth"
+    NETWORK = "network"
+    FILESYSTEM = "filesystem"
+    UPLOAD = "upload"
+
+
+LOG_CATEGORY_LOG = LogCategory.LOG
+
+
+_log_context: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "_log_context", default=None
+)
+
+_persistent_context: dict[str, Any] = {}
+_structured_sink_id: int | None = None
+_current_log_path: Path | None = None
+
+
+class LogContext:
+    """Context manager for scoped structured logging context binding."""
+
+    def __init__(self, **kwargs: Any) -> None:
+        self._kwargs = kwargs
+        self._token: contextvars.Token[dict[str, Any]] | None = None
+
+    def __enter__(self) -> None:
+        current = (_log_context.get() or {}).copy()
+        current.update(self._kwargs)
+        self._token = _log_context.set(current)
+
+    def __exit__(self, *args: object) -> None:
+        if self._token is not None:
+            _log_context.reset(self._token)
+
+
+# Alias for LogContext - used by uploads.py
+log_context = LogContext
+
+
+def set_persistent_log_context(**kwargs: Any) -> None:
+    """Set persistent context fields that appear on all log lines."""
+    _persistent_context.update(kwargs)
+
+
+def _get_default_log_path() -> Path:
+    """Resolve default structured log path: XDG state home > temp dir."""
+    try:
+        base = xdg_state_home() / "spectrumx" / "logs"
+        base.mkdir(parents=True, exist_ok=True)
+        return base / f"{datetime.now(UTC).strftime('%Y-%m-%d')}.jsonl"
+    except (ImportError, OSError):
+        return Path(tempfile.gettempdir()) / "spectrumx_sdk.jsonl"
+
+
+def _emit_boot_message(log_path: Path) -> None:
+    """Write system info boot message to the log file."""
+    try:
+        sdk_version = importlib.metadata.version("spectrumx")
+    except importlib.metadata.PackageNotFoundError:
+        sdk_version = "unknown"
+
+    boot_entry = {
+        "ts": datetime.now(UTC).isoformat(),
+        "pid": os.getpid(),
+        "lvl": "INFO",
+        "cat": LogCategory.LOG,
+        "msg": "system info",
+        "sdk_version": sdk_version,
+        "os": platform.platform(),
+        "python": platform.python_version(),
+        "log_file": str(log_path),
+    }
+    try:
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(boot_entry, default=str) + "\n")
+    except OSError:
+        pass
+
+
+def _structured_log_sink(message: Any) -> None:
+    """Loguru function sink: reads ContextVar, writes JSON line to file."""
+    if _current_log_path is None:
+        return
+
+    rec = message.record
+    msg_str = rec["message"].rstrip()
+
+    entry: dict[str, Any] = {
+        "ts": rec["time"].isoformat(),
+        "pid": rec["process"].id,
+        "lvl": rec["level"].name,
+        "cat": rec.get("extra", {}).get("cat", LogCategory.LOG),
+        "msg": msg_str,
+    }
+
+    # Merge persistent context
+    entry.update({k: v for k, v in _persistent_context.items() if v is not None})
+
+    # Merge scoped context
+    ctx = _log_context.get() or {}
+    entry.update({k: v for k, v in ctx.items() if v is not None})
+
+    # Extract exc_info from loguru record (for error log lines)
+    exc_info = rec.get("exception")
+    if exc_info is not None and exc_info.type is not None:
+        entry["exc_info"] = f"{exc_info.type.__name__}: {exc_info.value}"
+
+    try:
+        with _current_log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except OSError:
+        pass
+
+
+def enable_structured_logging(log_path: Path | str | None = None) -> None:
+    """Enable or reconfigure the structured JSONL logging sink."""
+    global _structured_sink_id, _current_log_path  # noqa: PLW0603
+
+    if _structured_sink_id is not None:
+        with contextlib.suppress(Exception):
+            log.remove(_structured_sink_id)
+
+    # Resolve path
+    resolved = Path(log_path) if log_path is not None else _get_default_log_path()
+
+    _current_log_path = resolved
+    parent = resolved.parent
+    parent.mkdir(parents=True, exist_ok=True)
+
+    # Emit system info boot message every time the logger is initialized
+    _emit_boot_message(resolved)
+
+    try:
+        _structured_sink_id = log.add(
+            _structured_log_sink,
+            format="{message}",
+            filter=lambda record: True,
+        )
+    except Exception:  # noqa: BLE001
+        _structured_sink_id = None
+
+
+def reset_structured_logging() -> None:
+    """Reset structured logging state. Useful for tests."""
+    global _structured_sink_id, _current_log_path  # noqa: PLW0603
+    if _structured_sink_id is not None:
+        with contextlib.suppress(Exception):
+            log.remove(_structured_sink_id)
+    _structured_sink_id = None
+    _current_log_path = None
+    _persistent_context.clear()
+    _log_context.set(None)

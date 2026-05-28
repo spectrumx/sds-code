@@ -27,6 +27,8 @@ from .models.files import File
 from .models.files import FileUpload
 from .models.files import PermissionRepresentation
 from .ops import network
+from .utils import LogCategory
+from .utils import LogContext
 from .utils import is_test_env
 from .utils import log_user_warning
 
@@ -177,15 +179,25 @@ class GatewayClient:
                 debug_str += f"\nparams={kwargs['params']}"
             if "asset_id" in kwargs:
                 debug_str += f"\nasset_id={kwargs['asset_id']}"
-            log.opt(depth=1).debug(debug_str)
+            log.bind(cat=LogCategory.NETWORK).opt(depth=1).debug(debug_str)
 
-        return requests.request(
-            timeout=self.timeout if timeout is None else timeout,
-            method=method,
-            stream=stream,
-            **payload,
-            **kwargs,
-        )
+        url = payload["url"]
+        with LogContext(url=url):
+            try:
+                response = requests.request(
+                    timeout=self.timeout if timeout is None else timeout,
+                    method=method,
+                    stream=stream,
+                    **payload,
+                    **kwargs,
+                )
+                with LogContext(http_status=response.status_code):
+                    return response
+            except requests.exceptions.RequestException as err:
+                log.bind(cat=LogCategory.NETWORK).opt(depth=1).error(
+                    f"Network error: {method} {url}: {err}"
+                )
+                raise
 
     @property
     def base_url(self) -> str:
@@ -208,7 +220,7 @@ class GatewayClient:
             msg = "No response code received from authentication request."
             raise AuthError(msg)
         status = HTTPStatus(code)
-        log.debug(f"Authentication response: {status}")
+        log.bind(cat=LogCategory.NETWORK).debug(f"Authentication response: {status}")
         if status.is_success:
             return
         msg = f"Authentication failed: {response.text}"
@@ -643,7 +655,9 @@ class GatewayClient:
         """
         endpoint = f"{Endpoints.CAPTURES}/{capture_uuid.hex}"
         if self.verbose:
-            log.debug(f"Sending DELETE request to {endpoint}")
+            log.bind(cat=LogCategory.NETWORK).debug(
+                f"Sending DELETE request to {endpoint}"
+            )
 
         response = self._request(
             method=HTTPMethods.DELETE,
@@ -652,7 +666,9 @@ class GatewayClient:
         )
         network.success_or_raise(response, ContextException=CaptureError)
         if self.verbose:
-            log.debug(f"Capture with UUID {capture_uuid} deleted successfully")
+            log.bind(cat=LogCategory.NETWORK).debug(
+                f"Capture with UUID {capture_uuid} deleted successfully"
+            )
 
     def revoke_capture_share_permissions(
         self,

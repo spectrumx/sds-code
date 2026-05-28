@@ -116,6 +116,7 @@ pyrefly *args:
 test python=python_version *pytest_args:
     #!/usr/bin/env bash
     set -euo pipefail
+    export COLUMNS=88
     echo -e "\n\t\033[34mRunning tests against Python {{ python }}\033[0m\n"
 
     # no coverage if -k is used (likely a focused test run)
@@ -145,6 +146,7 @@ test python=python_version *pytest_args:
 test-all *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    COLUMNS=80
     echo -e "\n\t\033[34mRunning all local (non-integration) tests\033[0m\n"
 
     # run higher bound tests against default python version
@@ -169,7 +171,7 @@ test-integration python=python_version workers="auto" *pytest_args:
     @echo -e "\n\t\033[33mRunning integration tests in parallel\033[0m"
     @echo -e "\t\033[33m  Workers: {{ workers }}\033[0m"
     @echo -e "\t\033[33m  Pass -n 1 or use 'just test-integration-sequential' for sequential execution\033[0m\n"
-    uv run --resolution highest -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution highest -p '{{ python }}' pytest \
         -m '{{ test_marker_integration }}' \
         -n {{ workers }} \
         --dist loadgroup \
@@ -181,7 +183,7 @@ test-integration python=python_version workers="auto" *pytest_args:
 test-integration-sequential python=python_version *pytest_args:
     @echo -e "\n\t\033[33mRunning integration tests sequentially\033[0m"
     @echo -e "\t\033[33m  Use 'just test-integration' for parallel execution\033[0m\n"
-    uv run --resolution highest -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution highest -p '{{ python }}' pytest \
         -m '{{ test_marker_integration }}' \
         {{ pytest_args }} \
         tests
@@ -190,7 +192,7 @@ test-integration-sequential python=python_version *pytest_args:
 [group('qa')]
 test-lowest python=python_version *pytest_args:
     @echo "Running lowest dep resolution tests for Python '{{ python }}'"
-    uv run --resolution lowest-direct -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution lowest-direct -p '{{ python }}' pytest \
         -m '{{ test_marker_default }}' \
         {{ pytest_args }} \
         tests
@@ -198,7 +200,7 @@ test-lowest python=python_version *pytest_args:
 # runs local tests in verbose mode with stdout capture; useful for debugging test failures
 [group('qa')]
 test-verbose python=python_version *pytest_args:
-    uv run --resolution highest -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution highest -p '{{ python }}' pytest \
         -vvv \
         -m '{{ test_marker_default }}' \
         --show-capture=stdout \
@@ -213,7 +215,7 @@ test-verbose python=python_version *pytest_args:
 test-integration-verbose python=python_version *pytest_args:
     @echo -e "\n\t\033[33mRunning integration tests: make sure you set up the web application\033[0m"
     @echo -e "\t\033[33mand configure 'tests/integration/integration.env'\033[0m\n"
-    uv run --resolution highest -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution highest -p '{{ python }}' pytest \
         -m '{{ test_marker_integration }}' \
         -vvv \
         --capture=no \
@@ -226,7 +228,7 @@ test-integration-quick python=python_version workers="auto" *pytest_args:
     @echo -e "\n\t\033[33mRunning quick integration tests in parallel (skipping heavy tests)\033[0m"
     @echo -e "\t\033[33m  Workers: {{ workers }}\033[0m"
     @echo -e "\t\033[33m  Marker: {{ test_marker_integration }} and not heavy\033[0m\n"
-    uv run --resolution highest -p '{{ python }}' pytest \
+    COLUMNS=88 uv run --resolution highest -p '{{ python }}' pytest \
         -m '{{ test_marker_integration }} and not heavy' \
         -n {{ workers }} \
         --dist loadgroup \

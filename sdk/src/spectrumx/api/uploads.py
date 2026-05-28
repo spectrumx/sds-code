@@ -32,6 +32,7 @@ from spectrumx.models.files.file import (
 from spectrumx.ops import files as file_ops
 from spectrumx.utils import get_prog_bar
 from spectrumx.utils import is_test_env
+from spectrumx.utils import log_context
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 from spectrumx.vendor.xdg_base_dirs import xdg_state_home
@@ -649,23 +650,27 @@ class UploadWorkload(BaseModel):
             List of results for each uploaded file.
         """
         self.client = client
-        await self._discover_files()
-        await self._execute_uploads()
+        with log_context(
+            upload_id=self._workload_id,
+            upload_dir=str(self.local_root),
+        ):
+            await self._discover_files()
+            await self._execute_uploads()
 
-        results = [Result(value=file_obj) for file_obj in self.fq_completed]
-        results.extend(
-            Result(
-                exception=error,
-                error_info={
-                    "sds_file": error.sds_file,
-                    "reason": error.reason,
-                    "error": str(error),
-                },
+            results = [Result(value=file_obj) for file_obj in self.fq_completed]
+            results.extend(
+                Result(
+                    exception=error,
+                    error_info={
+                        "sds_file": error.sds_file,
+                        "reason": error.reason,
+                        "error": str(error),
+                    },
+                )
+                for error in self.fq_failed
             )
-            for error in self.fq_failed
-        )
 
-        return results
+            return results
 
     @staticmethod
     def _remove_from_buffer(sds_file: File, buffer: list[File]) -> None:

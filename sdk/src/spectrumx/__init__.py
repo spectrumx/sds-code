@@ -70,7 +70,9 @@ def enable_logging() -> None:
             ]
         )
         log.enable(LIB_NAME)  # pyright: ignore[reportPossiblyUnboundVariable]
-        log.info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
+        from spectrumx.utils import LogCategory  # noqa: PLC0415
+
+        log.bind(cat=LogCategory.CONFIG).info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
     except NameError:
         import logging  # noqa: PLC0415
 
@@ -80,12 +82,18 @@ def enable_logging() -> None:
 
 
 # -------------------
+# structured logging
+
+from spectrumx.utils import enable_structured_logging
+
+# -------------------
 # package exports
 
 __all__ = [
     "Client",
     "__version__",
     "enable_logging",
+    "enable_structured_logging",
     "experiments",
     "models",
 ]

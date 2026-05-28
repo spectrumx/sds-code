@@ -14,6 +14,7 @@ from loguru import logger as log
 from spectrumx.errors import Unset
 
 from .models import SDSModel
+from .utils import LogCategory
 from .utils import into_human_bool
 from .utils import log_user
 from .utils import log_user_warning
@@ -40,6 +41,7 @@ class Attr:
 CFG_NAME_LOOKUP: dict[str, Attr] = {
     "dry_run": Attr(attr_name="dry_run", cast_fn=into_human_bool),
     "http_timeout": Attr(attr_name="timeout", cast_fn=int),
+    "log_file": Attr(attr_name="log_file"),
     "sds_host": Attr(attr_name="sds_host"),
     "sds_secret_token": Attr(attr_name="api_key"),
 }
@@ -74,6 +76,7 @@ class SDSConfig:
     api_key: str = ""
     dry_run: bool = True  # safer default
     timeout: int = DEFAULT_HTTP_TIMEOUT
+    log_file: Path | None = None
 
     _active_config: list[Attr]
     _env_file: Path | None = None
@@ -85,6 +88,7 @@ class SDSConfig:
         env_config: Mapping[str, Any] | None = None,
         sds_host: None | str = None,
         verbose: bool = False,
+        log_file: Path | None = None,
     ) -> None:
         """Initialize the configuration.
         Args:
@@ -92,8 +96,10 @@ class SDSConfig:
             env_config: Overrides for the environment file.
             sds_host:   The host to connect to (the config file has priority over this).
             verbose:    Show which config files are loaded and which attributes are set.
+            log_file:   Path for the structured JSONL log file.
         """
         self.sds_host = sds_host
+        self.log_file = log_file
         self.init_config(env_file=env_file, env_config=env_config, verbose=verbose)
 
     def init_config(
@@ -126,7 +132,7 @@ class SDSConfig:
     def show_config(self, log_fn: Callable[[str], None] = print) -> None:
         """Show the active configuration."""
         header = "SDS_Config: active configuration:"
-        log.debug(header)  # for sdk developers
+        log.bind(cat=LogCategory.CONFIG).debug(header)  # for sdk developers
         log_fn(header)  # for users
         for attr in self._active_config:
             _log_redacted(
@@ -138,16 +144,15 @@ class SDSConfig:
     def _set_config(self, clean_config: list[Attr]) -> None:
         """Sets the instance attributes."""
         for attr in clean_config:
-            setattr(
-                self,
-                attr.attr_name,
-                attr.attr_value,
-            )
-            _log_redacted(key=attr.attr_name, value=attr.attr_value)
+            value = attr.attr_value
+            if attr.attr_name == "log_file" and isinstance(value, str):
+                value = Path(value)
+            setattr(self, attr.attr_name, value)
+            _log_redacted(key=attr.attr_name, value=value)
 
         # validate attributes / show user warnings
         if not self.api_key:
-            log.error(
+            log.bind(cat=LogCategory.CONFIG).error(
                 "SDS_Config: API key not set. Check your environment"
                 " file has an SDS_SECRET_TOKEN set."
             )
@@ -177,7 +182,9 @@ class SDSConfig:
         if secret := os.environ.get("SDS_SECRET_TOKEN"):
             env_vars["SDS_SECRET_TOKEN"] = secret
         env_vars = {k: v for k, v in env_vars.items() if v is not None}
-        log.debug(f"SDS_Config: from local env: {list(env_vars.keys())}")
+        log.bind(cat=LogCategory.CONFIG).debug(
+            f"SDS_Config: from local env: {list(env_vars.keys())}"
+        )
 
         # merge file, cli, and env vars configs
         if (
@@ -225,14 +232,14 @@ def _clean_config(
 
         # skip if no value
         if sensitive_value is None:
-            log.warning(f"SDS_Config: {key} has no value")
+            log.bind(cat=LogCategory.CONFIG).warning(f"SDS_Config: {key} has no value")
             continue
         attr: Attr | None = name_lookup.get(normalized_key)
 
         # warn of invalid config
         if attr is None:
             msg = f"SDS_Config: {key} not recognized"
-            log.warning(msg)
+            log.bind(cat=LogCategory.CONFIG).warning(msg)
             logger.warning(msg)
             continue
 
@@ -250,7 +257,7 @@ def _clean_config(
 def _log_redacted(
     *,
     key: str,
-    value: str | float | bool | None,
+    value: Any,
     log_fn: Callable[[str], None] = logger.info,
     depth: int = 1,
 ) -> None:
@@ -269,7 +276,7 @@ def _log_redacted(
     )
     del value
     msg = f"\tSDS_Config: set {key}={safe_value}"
-    log.opt(depth=depth).debug(msg)  # for sdk developers
+    log.bind(cat=LogCategory.CONFIG).opt(depth=depth).debug(msg)  # for sdk developers
     log_fn(msg)
 
 
