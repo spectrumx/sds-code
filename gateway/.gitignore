@@ -278,6 +278,8 @@ tags
 dump.rdb
 
 ### Project template
+.fallow/
+
 sds_gateway/media/
 
 .pytest_cache/

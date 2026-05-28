@@ -18,25 +18,23 @@ class APIError extends Error {
 
 global.APIError = APIError;
 
+const {
+	installMockWindowOrigin,
+	mockFetchResolved,
+	installMinimalDocumentForApiClient,
+	installCsrfMetaToken,
+	createMockFetchResponse,
+} = require("../../tests-config/testHelpers.js");
+
 describe("APIClient", () => {
 	let apiClient;
 	let mockFetch;
 
 	beforeEach(() => {
-		// Reset mocks
 		jest.clearAllMocks();
-
-		// Mock fetch
 		mockFetch = jest.fn();
 		global.fetch = mockFetch;
-
-		// Minimal document mock
-		global.document = {
-			querySelector: jest.fn(() => null),
-			cookie: "",
-		};
-
-		// Create APIClient instance
+		installMinimalDocumentForApiClient();
 		apiClient = new APIClient();
 	});
 
@@ -132,15 +130,7 @@ describe("APIClient", () => {
 
 	describe("API Requests", () => {
 		test("should make successful GET request", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			const result = await apiClient.request("/api/test");
 
@@ -152,24 +142,8 @@ describe("APIClient", () => {
 		});
 
 		test("should make POST request with CSRF token", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
-
-			// Mock CSRF token
-			const mockMetaToken = {
-				getAttribute: jest.fn(() => "test-csrf-token"),
-			};
-			global.document.querySelector = jest.fn((selector) => {
-				if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
-				return null;
-			});
+			mockFetchResolved(mockFetch);
+			installCsrfMetaToken();
 
 			await apiClient.request("/api/test", {
 				method: "POST",
@@ -187,15 +161,7 @@ describe("APIClient", () => {
 		});
 
 		test("should handle loading state", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			// Create a loading state manager to track loading
 			const mockLoadingState = {
@@ -210,32 +176,25 @@ describe("APIClient", () => {
 		});
 
 		test("should handle non-JSON response", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "text/plain"),
-				},
-				text: jest.fn().mockResolvedValue("plain text response"),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetch.mockResolvedValue(
+				createMockFetchResponse({
+					contentType: "text/plain",
+				}),
+			);
 
 			const result = await apiClient.request("/api/test");
 
-			expect(result).toBe("plain text response");
+			expect(result).toBe("plain text");
 		});
 
 		test("should handle HTTP error responses", async () => {
-			const mockResponse = {
-				ok: false,
-				status: 404,
-				statusText: "Not Found",
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ error: "Resource not found" }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetch.mockResolvedValue(
+				createMockFetchResponse({
+					ok: false,
+					status: 404,
+					jsonData: { error: "Resource not found" },
+				}),
+			);
 
 			await expect(apiClient.request("/api/test")).rejects.toThrow();
 		});
@@ -249,15 +208,11 @@ describe("APIClient", () => {
 		});
 
 		test("should handle JSON parse errors", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockRejectedValue(new Error("Invalid JSON")),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetch.mockResolvedValue(
+				createMockFetchResponse({
+					jsonReject: new Error("Invalid JSON"),
+				}),
+			);
 
 			await expect(apiClient.request("/api/test")).rejects.toThrow(
 				"Invalid JSON",
@@ -267,41 +222,11 @@ describe("APIClient", () => {
 
 	describe("Convenience Methods", () => {
 		beforeEach(() => {
-			// Mock window.location.origin for URL construction
-			// jsdom's location.origin is read-only, so we replace the entire location object
-			if (!global.window) {
-				global.window = {};
-			}
-			// Replace location with a simple object that has origin
-			Object.defineProperty(global.window, "location", {
-				value: {
-					origin: "http://localhost:8000",
-				},
-				writable: true,
-				configurable: true,
-			});
-			// Ensure window is also accessible as window (not just global.window)
-			if (typeof window !== "undefined") {
-				Object.defineProperty(window, "location", {
-					value: {
-						origin: "http://localhost:8000",
-					},
-					writable: true,
-					configurable: true,
-				});
-			}
+			installMockWindowOrigin();
 		});
 
 		test("should make GET request", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test");
 
@@ -318,15 +243,7 @@ describe("APIClient", () => {
 		});
 
 		test("should make GET request with query parameters", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test", { param1: "value1", param2: "value2" });
 
@@ -345,24 +262,8 @@ describe("APIClient", () => {
 		])(
 			"should make %s request with FormData and CSRF token",
 			async (method, methodName) => {
-				const mockResponse = {
-					ok: true,
-					status: 200,
-					headers: {
-						get: jest.fn(() => "application/json"),
-					},
-					json: jest.fn().mockResolvedValue({ success: true }),
-				};
-				mockFetch.mockResolvedValue(mockResponse);
-
-				// Mock CSRF token
-				const mockMetaToken = {
-					getAttribute: jest.fn(() => "test-csrf-token"),
-				};
-				global.document.querySelector = jest.fn((selector) => {
-					if (selector === 'meta[name="csrf-token"]') return mockMetaToken;
-					return null;
-				});
+				mockFetchResolved(mockFetch);
+				installCsrfMetaToken();
 
 				await apiClient[methodName]("/api/test", { data: "test" });
 
@@ -379,16 +280,13 @@ describe("APIClient", () => {
 
 	describe("Error Handling", () => {
 		test("should create APIError with correct properties", async () => {
-			const mockResponse = {
-				ok: false,
-				status: 404,
-				statusText: "Not Found",
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ error: "Resource not found" }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetch.mockResolvedValue(
+				createMockFetchResponse({
+					ok: false,
+					status: 404,
+					jsonData: { error: "Resource not found" },
+				}),
+			);
 
 			try {
 				await apiClient.request("/api/test");
@@ -422,31 +320,11 @@ describe("APIClient", () => {
 
 	describe("URL Parameter Handling", () => {
 		beforeEach(() => {
-			// Mock window.location.origin for URL construction
-			// jsdom's location.origin is read-only, so we replace the entire location object
-			if (!global.window) {
-				global.window = {};
-			}
-			// Replace location with a simple object that has origin
-			Object.defineProperty(global.window, "location", {
-				value: {
-					origin: "http://localhost:8000",
-				},
-				writable: true,
-				configurable: true,
-			});
+			installMockWindowOrigin();
 		});
 
 		test("should handle empty parameters", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test", {});
 
@@ -457,15 +335,7 @@ describe("APIClient", () => {
 		});
 
 		test("should handle multiple parameters", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test", {
 				param1: "value1",
@@ -480,15 +350,7 @@ describe("APIClient", () => {
 		});
 
 		test("should encode special characters in parameters", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test", { query: "test value & special=chars" });
 
@@ -499,15 +361,7 @@ describe("APIClient", () => {
 		});
 
 		test("should filter out null and undefined parameters", async () => {
-			const mockResponse = {
-				ok: true,
-				status: 200,
-				headers: {
-					get: jest.fn(() => "application/json"),
-				},
-				json: jest.fn().mockResolvedValue({ success: true }),
-			};
-			mockFetch.mockResolvedValue(mockResponse);
+			mockFetchResolved(mockFetch);
 
 			await apiClient.get("/api/test", {
 				valid: "value",
@@ -531,16 +385,9 @@ describe("APIClient", () => {
 		])(
 			"should handle content-type '%s' correctly",
 			async (contentType, expectedResult) => {
-				const mockResponse = {
-					ok: true,
-					status: 200,
-					headers: {
-						get: jest.fn(() => contentType),
-					},
-					json: jest.fn().mockResolvedValue({ success: true }),
-					text: jest.fn().mockResolvedValue("plain text"),
-				};
-				mockFetch.mockResolvedValue(mockResponse);
+				mockFetch.mockResolvedValue(
+					createMockFetchResponse({ contentType }),
+				);
 
 				const result = await apiClient.request("/api/test");
 

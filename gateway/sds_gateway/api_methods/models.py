@@ -15,6 +15,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Count
 from django.db.models import ProtectedError
+from django.db.models import Q
 from django.db.models import QuerySet
 from django.db.models import Sum
 from django.db.models.signals import post_save
@@ -498,6 +499,66 @@ class Capture(BaseModel):
         }
         return self._drf_data_files_stats_cache
 
+    def get_capture_files_stats(self) -> dict[str, int]:
+        """
+        Count + total size for all files linked to this capture (any type).
+
+        Cached per instance.
+        """
+        if hasattr(self, "_capture_files_stats_cache"):
+            return self._capture_files_stats_cache
+
+        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
+            get_capture_files,
+        )
+
+        qs = get_capture_files(self, include_deleted=False)
+        agg = qs.aggregate(total_count=Count("pk"), total_size=Sum("size"))
+        self._capture_files_stats_cache = {
+            "total_count": agg["total_count"] or 0,
+            "total_size": int(agg["total_size"] or 0),
+        }
+        return self._capture_files_stats_cache
+
+    def get_files_summary(self) -> dict[str, Any]:
+        """
+        Unified file summary for API/UI (all capture types).
+
+        Cached per instance. DRF captures include a ``data_files`` subset.
+        """
+        if hasattr(self, "_files_summary_cache"):
+            return self._files_summary_cache
+
+        all_stats = self.get_capture_files_stats()
+        summary: dict[str, Any] = {
+            "total_count": all_stats["total_count"],
+            "total_size": all_stats["total_size"],
+        }
+
+        if self.capture_type == CaptureType.DigitalRF:
+            drf = self.get_drf_data_files_stats()
+            count = drf["total_count"]
+            size = drf["total_size"]
+            summary["data_files"] = {
+                "count": count,
+                "total_size": size,
+                "per_data_file_size": (float(size) / count) if count else None,
+            }
+            if summary["total_size"] < size:
+                log.warning(
+                    (
+                        "Capture %s: total_size (%s) < data_files total_size (%s); "
+                        "using data total."
+                    ),
+                    str(self.uuid),
+                    summary["total_size"],
+                    size,
+                )
+                summary["total_size"] = size
+
+        self._files_summary_cache = summary
+        return self._files_summary_cache
+
     def get_opensearch_metadata(self) -> dict[str, Any]:
         """
         Query OpenSearch for frequency metadata for this specific capture.
@@ -911,6 +972,53 @@ class Dataset(BaseModel):
             if getattr(instance, field):
                 setattr(instance, field, json.loads(getattr(instance, field)))
         return instance
+
+    def get_dataset_file_statistics(self) -> dict[str, int]:
+        """
+        Aggregate file counts/sizes for this dataset (artifacts + capture files).
+
+        Cached per instance. One queryset pass for totals; separate filters for
+        capture-linked vs artifact-only files.
+        """
+        if hasattr(self, "_dataset_file_statistics_cache"):
+            return self._dataset_file_statistics_cache
+
+        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
+            get_dataset_files_including_captures,
+        )
+
+        files_qs = get_dataset_files_including_captures(self, include_deleted=False)
+        total_files = files_qs.count()
+        total_size = int(
+            files_qs.aggregate(total=Sum("size"))["total"] or 0,
+        )
+        captures_count = (
+            files_qs.filter(Q(capture__isnull=False) | Q(captures__isnull=False))
+            .distinct()
+            .count()
+        )
+        artifacts_count = files_qs.filter(
+            capture__isnull=True,
+            captures__isnull=True,
+        ).count()
+
+        self._dataset_file_statistics_cache = {
+            "total_files": total_files,
+            "captures": captures_count,
+            "artifacts": artifacts_count,
+            "total_size": total_size,
+        }
+        return self._dataset_file_statistics_cache
+
+    def get_files_summary(self) -> dict[str, Any]:
+        """Alias for dataset file statistics in API serializers."""
+        stats = self.get_dataset_file_statistics()
+        return {
+            "total_count": stats["total_files"],
+            "total_size": stats["total_size"],
+            "capture_linked_files": stats["captures"],
+            "artifact_files": stats["artifacts"],
+        }
 
     def get_authors_display(self):
         """Get the authors as a list for display purposes."""

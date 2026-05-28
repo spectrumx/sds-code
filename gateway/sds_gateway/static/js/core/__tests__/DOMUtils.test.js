@@ -29,6 +29,7 @@ describe("DOMUtils", () => {
 		mockContainer = {
 			id: "test-container",
 			innerHTML: "",
+			appendChild: jest.fn(),
 			classList: {
 				add: jest.fn(),
 				remove: jest.fn(),
@@ -68,7 +69,12 @@ describe("DOMUtils", () => {
 		});
 		global.document.createElement = jest.fn((tag) => {
 			if (tag === "div") {
-				return {
+				const child = {
+					id: "",
+					remove: jest.fn(),
+					addEventListener: jest.fn(),
+				};
+				const el = {
 					tagName: "div",
 					id: "",
 					className: "",
@@ -82,7 +88,12 @@ describe("DOMUtils", () => {
 					getAttribute: jest.fn(),
 					appendChild: jest.fn(),
 					addEventListener: jest.fn(),
+					get firstElementChild() {
+						const html = String(this.innerHTML || "").trim();
+						return html ? child : null;
+					},
 				};
+				return el;
 			}
 			if (tag === "button") {
 				return {
@@ -198,24 +209,21 @@ describe("DOMUtils", () => {
 		});
 	});
 
-	describe("showAlert()", () => {
+	describe("showMessage() toasts", () => {
 		let mockToastDiv;
 		let mockTempDiv;
 
 		beforeEach(() => {
-			// Create mock toast element that will be appended
 			mockToastDiv = {
 				id: "",
 				addEventListener: jest.fn(),
 			};
 
-			// Create mock temp div for parsing HTML
 			mockTempDiv = {
 				innerHTML: "",
 				firstElementChild: mockToastDiv,
 			};
 
-			// Update createElement mock to return temp div for toast parsing
 			global.document.createElement = jest.fn((tag) => {
 				if (tag === "div") {
 					return mockTempDiv;
@@ -237,22 +245,26 @@ describe("DOMUtils", () => {
 				};
 			});
 
-			// Mock API response with toast HTML
 			mockAPIClient.post.mockResolvedValue({
 				html: '<div class="toast">Toast content</div>',
 			});
 		});
 
-		test("should show toast notification with default success type", async () => {
-			await domUtils.showAlert("Test message");
+		test("showMessage posts message.html and shows toast", async () => {
+			await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
 			expect(mockAPIClient.post).toHaveBeenCalledWith(
 				"/users/render-html/",
 				{
-					template: "users/components/toast.html",
+					template: "users/components/message.html",
 					context: {
 						message: "Test message",
 						type: "success",
+						presentation: "toast",
 					},
 				},
 				null,
@@ -262,48 +274,71 @@ describe("DOMUtils", () => {
 			expect(global.bootstrap.Toast).toHaveBeenCalledWith(mockToastDiv);
 		});
 
-		test("should show toast notification with different types", async () => {
-			const types = ["success", "error", "warning", "info"];
+		test("showMessage maps variants to template type", async () => {
+			const cases = [
+				["success", "success"],
+				["danger", "error"],
+				["warning", "warning"],
+				["info", "info"],
+			];
 
-			for (const type of types) {
+			for (const [variant, expectedType] of cases) {
 				jest.clearAllMocks();
-				await domUtils.showAlert("Test message", type);
+				await domUtils.showMessage("Hello", {
+					variant,
+					placement: "toast",
+					presentation: "toast",
+				});
 
 				expect(mockAPIClient.post).toHaveBeenCalledWith(
 					"/users/render-html/",
 					{
-						template: "users/components/toast.html",
+						template: "users/components/message.html",
 						context: {
-							message: "Test message",
-							type: type,
+							message: "Hello",
+							type: expectedType,
+							presentation: "toast",
 						},
 					},
 					null,
 					true,
 				);
-				expect(mockToastContainer.appendChild).toHaveBeenCalled();
-				expect(global.bootstrap.Toast).toHaveBeenCalled();
 			}
 		});
 
-		test("should handle missing toast container gracefully", async () => {
-			document.getElementById = jest.fn(() => null);
-			console.warn = jest.fn();
+		test("should handle missing toast container after render", async () => {
+			document.getElementById = jest.fn((id) => {
+				if (id === "toast-container") return null;
+				if (id === "test-container") return mockContainer;
+				return null;
+			});
+			console.error = jest.fn();
 
-			await domUtils.showAlert("Test message");
+			const ok = await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
-			expect(console.warn).toHaveBeenCalledWith("Toast container not found");
-			expect(mockAPIClient.post).not.toHaveBeenCalled();
+			expect(ok).toBe(false);
+			expect(mockAPIClient.post).toHaveBeenCalled();
+			expect(console.error).toHaveBeenCalled();
+			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
 		});
 
 		test("should handle missing HTML in API response", async () => {
 			mockAPIClient.post.mockResolvedValue({});
 			console.error = jest.fn();
 
-			await domUtils.showAlert("Test message");
+			const ok = await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
+			expect(ok).toBe(false);
 			expect(console.error).toHaveBeenCalledWith(
-				"No HTML returned from toast template",
+				"showMessage: no HTML from render-html",
 			);
 			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
 		});
@@ -312,31 +347,48 @@ describe("DOMUtils", () => {
 			mockTempDiv.firstElementChild = null;
 			console.error = jest.fn();
 
-			await domUtils.showAlert("Test message");
+			const ok = await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
-			expect(console.error).toHaveBeenCalledWith("Failed to parse toast HTML");
+			expect(ok).toBe(false);
+			expect(console.error).toHaveBeenCalledWith(
+				"showMessage: failed to parse message HTML",
+			);
 			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
 		});
 
-		test("should handle missing Bootstrap gracefully", async () => {
+		test("should handle missing Bootstrap Toast", async () => {
 			global.bootstrap = null;
 			window.bootstrap = null;
 			console.error = jest.fn();
 
-			await domUtils.showAlert("Test message");
+			const ok = await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
-			expect(console.error).toHaveBeenCalledWith("Bootstrap not available");
-			expect(mockToastContainer.appendChild).toHaveBeenCalled();
+			expect(ok).toBe(false);
+			expect(console.error).toHaveBeenCalled();
+			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
 		});
 
 		test("should handle API errors gracefully", async () => {
 			mockAPIClient.post.mockRejectedValue(new Error("API error"));
 			console.error = jest.fn();
 
-			await domUtils.showAlert("Test message");
+			const ok = await domUtils.showMessage("Test message", {
+				variant: "success",
+				placement: "toast",
+				presentation: "toast",
+			});
 
+			expect(ok).toBe(false);
 			expect(console.error).toHaveBeenCalledWith(
-				"Error rendering toast template:",
+				"showMessage failed:",
 				expect.any(Error),
 			);
 			expect(mockToastContainer.appendChild).not.toHaveBeenCalled();
@@ -344,59 +396,97 @@ describe("DOMUtils", () => {
 	});
 
 	describe("API-Based Rendering Methods", () => {
-		describe("renderError()", () => {
-			test("should render error using Django template", async () => {
+		describe("showMessage() replace placement", () => {
+			let mockResultNode;
+			let mockWrapDiv;
+
+			beforeEach(() => {
+				mockResultNode = {
+					id: "",
+					remove: jest.fn(),
+					addEventListener: jest.fn(),
+				};
+				mockWrapDiv = {
+					innerHTML: "",
+					get firstElementChild() {
+						return mockResultNode;
+					},
+				};
+				global.document.createElement = jest.fn((tag) => {
+					if (tag === "div") return mockWrapDiv;
+					return null;
+				});
+			});
+
+			test("posts message.html and replaces target content", async () => {
 				mockAPIClient.post.mockResolvedValue({
 					html: '<span class="text-danger">Error message</span>',
 				});
 
-				const result = await domUtils.renderError(
-					mockContainer,
-					"Error message",
-				);
+				const result = await domUtils.showMessage("Error message", {
+					variant: "danger",
+					placement: "replace",
+					target: mockContainer,
+					presentation: "inline",
+				});
 
 				expect(mockAPIClient.post).toHaveBeenCalledWith(
 					"/users/render-html/",
 					{
-						template: "users/components/error.html",
+						template: "users/components/message.html",
 						context: {
 							message: "Error message",
-							format: "inline",
+							type: "error",
+							presentation: "inline",
 						},
 					},
 					null,
 					true,
 				);
-				expect(mockContainer.innerHTML).toBe(
-					'<span class="text-danger">Error message</span>',
-				);
+				expect(mockContainer.appendChild).toHaveBeenCalledWith(mockResultNode);
 				expect(result).toBe(true);
 			});
 
 			test.each([
 				[
 					"table",
-					{ format: "table", colspan: 5 },
-					'<tr><td colspan="5" class="text-danger">Error</td></tr>',
-					{ message: "Error message", format: "table", colspan: 5 },
+					"table",
+					'<tr><td colspan="5" class="text-center text-danger">Error</td></tr>',
+					{
+						message: "Error message",
+						type: "error",
+						presentation: "table",
+						colspan: 5,
+					},
 				],
 				[
 					"alert",
-					{ format: "alert" },
+					"alert",
 					'<div class="alert alert-danger">Error message</div>',
-					{ message: "Error message", format: "alert" },
+					{
+						message: "Error message",
+						type: "error",
+						presentation: "alert",
+					},
 				],
 			])(
-				"should render error with %s format",
-				async (formatName, options, html, expectedContext) => {
+				"posts message.html with presentation %s",
+				async (_label, presentation, html, expectedContext) => {
 					mockAPIClient.post.mockResolvedValue({ html });
 
-					await domUtils.renderError(mockContainer, "Error message", options);
+					await domUtils.showMessage("Error message", {
+						variant: "danger",
+						placement: "replace",
+						target: mockContainer,
+						presentation,
+						templateContext:
+							presentation === "table" ? { colspan: 5 } : {},
+					});
 
 					expect(mockAPIClient.post).toHaveBeenCalledWith(
 						"/users/render-html/",
 						{
-							template: "users/components/error.html",
+							template: "users/components/message.html",
 							context: expectedContext,
 						},
 						null,
@@ -405,32 +495,34 @@ describe("DOMUtils", () => {
 				},
 			);
 
-			test.each([
-				["inline", {}, '<span class="text-danger">Error message</span>'],
-				[
-					"table",
-					{ format: "table", colspan: 5 },
-					'<tr><td colspan="5" class="text-center text-danger">Error message</td></tr>',
-				],
-			])(
-				"should fallback to %s HTML on API error",
-				async (formatName, options, expectedHtml) => {
-					mockAPIClient.post.mockRejectedValue(new Error("API error"));
-					console.error = jest.fn();
+			test("returns false on API error without mutating container", async () => {
+				mockContainer.innerHTML = "<p>prior</p>";
+				mockAPIClient.post.mockRejectedValue(new Error("API error"));
+				console.error = jest.fn();
 
-					const result = await domUtils.renderError(
-						mockContainer,
-						"Error message",
-						options,
-					);
+				const result = await domUtils.showMessage("Error message", {
+					variant: "danger",
+					placement: "replace",
+					target: mockContainer,
+					presentation: "table",
+					templateContext: { colspan: 5 },
+				});
 
-					expect(mockContainer.innerHTML).toBe(expectedHtml);
-					expect(result).toBe(false);
-				},
-			);
+				expect(mockContainer.innerHTML).toBe("<p>prior</p>");
+				expect(result).toBe(false);
+			});
 
-			test("should work with selector string", async () => {
-				await domUtils.renderError("#test-container", "Error message");
+			test("resolves target via selector string", async () => {
+				mockAPIClient.post.mockResolvedValue({
+					html: '<span class="text-danger">x</span>',
+				});
+
+				await domUtils.showMessage("Error message", {
+					variant: "danger",
+					placement: "replace",
+					target: "#test-container",
+					presentation: "inline",
+				});
 
 				expect(document.querySelector).toHaveBeenCalledWith("#test-container");
 				expect(mockAPIClient.post).toHaveBeenCalled();
@@ -710,9 +802,23 @@ describe("DOMUtils", () => {
 							rows: [],
 							empty_message: "No data",
 							empty_colspan: 3,
-							colspan: 3,
 						},
 					},
+					null,
+					true,
+				);
+			});
+
+			test("should honor options.template", async () => {
+				mockAPIClient.post.mockResolvedValue({ html: "<tr></tr>" });
+				await domUtils.renderTable(mockContainer, [], {
+					template: "users/components/other_rows.html",
+				});
+				expect(mockAPIClient.post).toHaveBeenCalledWith(
+					"/users/render-html/",
+					expect.objectContaining({
+						template: "users/components/other_rows.html",
+					}),
 					null,
 					true,
 				);
@@ -903,10 +1009,15 @@ describe("DOMUtils", () => {
 		describe("Common Error Handling", () => {
 			test.each([
 				[
-					"renderError",
+					"showMessage (replace)",
 					async (container) =>
-						await domUtils.renderError(container, "Error message"),
-					"Container not found for renderError:",
+						await domUtils.showMessage("Error message", {
+							variant: "danger",
+							placement: "replace",
+							target: container,
+							presentation: "inline",
+						}),
+					"showMessage: target not found:",
 				],
 				[
 					"renderLoading",
@@ -959,17 +1070,18 @@ describe("DOMUtils", () => {
 
 			test.each([
 				[
-					"renderError",
+					"showMessage",
 					async (container) =>
-						await domUtils.renderError(container, "Error message"),
-					'<span class="text-danger">Error message</span>',
-					true, // use toBe
+						await domUtils.showMessage("Error message", {
+							variant: "danger",
+							placement: "replace",
+							target: container,
+							presentation: "inline",
+						}),
 				],
 				[
 					"renderLoading",
 					async (container) => await domUtils.renderLoading(container),
-					"spinner-border",
-					false, // use toContain
 				],
 				[
 					"renderContent",
@@ -978,14 +1090,10 @@ describe("DOMUtils", () => {
 							icon: "check",
 							text: "Success",
 						}),
-					"bi-check",
-					false, // use toContain
 				],
 				[
 					"renderTable",
 					async (container) => await domUtils.renderTable(container, []),
-					"No items found",
-					false, // use toContain
 				],
 				[
 					"renderSelectOptions",
@@ -993,8 +1101,6 @@ describe("DOMUtils", () => {
 						await domUtils.renderSelectOptions(container, [
 							["value1", "Label 1"],
 						]),
-					"value1",
-					false, // use toContain
 				],
 				[
 					"renderPagination",
@@ -1005,409 +1111,145 @@ describe("DOMUtils", () => {
 							has_previous: false,
 							has_next: true,
 						}),
-					"",
-					true, // use toBe
 				],
 			])(
-				"should fallback on API error for %s",
-				async (methodName, renderFn, expectedContent, useExactMatch) => {
+				"returns false on API error for %s without mutating container",
+				async (methodName, renderFn) => {
+					mockContainer.innerHTML = "<p>prior</p>";
 					mockAPIClient.post.mockRejectedValue(new Error("API error"));
 					console.error = jest.fn();
 
 					const result = await renderFn(mockContainer);
 
-					if (useExactMatch) {
-						expect(mockContainer.innerHTML).toBe(expectedContent);
-					} else {
-						expect(mockContainer.innerHTML).toContain(expectedContent);
-					}
+					expect(mockContainer.innerHTML).toBe("<p>prior</p>");
 					expect(result).toBe(false);
 				},
 			);
 		});
 	});
 
-	describe("Modal Management Methods", () => {
-		let mockModal;
-		let mockModalBody;
-		let mockBootstrapModal;
+	describe("initIconDropdowns()", () => {
+		let mockToggle;
+		let mockDropdownMenu;
 
 		beforeEach(() => {
-			// Create mock modal body
-			mockModalBody = {
-				innerHTML: "<div>Original content</div>",
+			mockDropdownMenu = {
+				classList: { contains: jest.fn((cls) => cls === "dropdown-menu") },
+			};
+
+			mockToggle = {
+				nextElementSibling: mockDropdownMenu,
 				dataset: {},
-				querySelector: jest.fn(),
+				closest: jest.fn((sel) =>
+					sel === ".btn-icon-dropdown" ? mockToggle : null,
+				),
 			};
 
-			// Create mock modal
-			mockModal = {
-				id: "test-modal",
-				querySelector: jest.fn((selector) => {
-					if (selector === ".modal-body") return mockModalBody;
-					return null;
-				}),
-			};
+			global.document.querySelectorAll = jest.fn((selector) => {
+				if (selector === ".btn-icon-dropdown") return [mockToggle];
+				return [];
+			});
 
-			// Create mock Bootstrap Modal instance
-			mockBootstrapModal = {
-				show: jest.fn(),
-				hide: jest.fn(),
-				dispose: jest.fn(),
-				_config: {
-					backdrop: true,
-					keyboard: true,
-					focus: true,
-				},
-			};
+			global.document.bodyAppendChildSpy = jest
+				.spyOn(global.document.body, "appendChild")
+				.mockImplementation(() => {});
 
-			// Mock Bootstrap Modal
 			global.bootstrap = {
-				Modal: jest.fn().mockImplementation(() => mockBootstrapModal),
+				...global.bootstrap,
+				Toast: global.bootstrap?.Toast,
+				Modal: global.bootstrap?.Modal,
+				Dropdown: jest.fn().mockImplementation(() => ({
+					dispose: jest.fn(),
+				})),
 			};
-			global.bootstrap.Modal.getInstance = jest.fn(() => null);
+			global.bootstrap.Dropdown.getInstance = jest.fn(() => null);
 			window.bootstrap = global.bootstrap;
-
-			// Mock document.getElementById for modal
-			global.document.getElementById = jest.fn((id) => {
-				if (id === "test-modal") return mockModal;
-				if (id === "toast-container") return mockToastContainer;
-				if (id === "test-container") return mockContainer;
-				return null;
-			});
+			global.document.addEventListener = jest.fn();
 		});
 
-		describe("showModalLoading()", () => {
-			test("should store original content and render loading", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<div class="spinner">Loading...</div>',
-				});
-
-				await domUtils.showModalLoading("test-modal");
-
-				expect(mockModalBody.dataset.originalContent).toBe(
-					"<div>Original content</div>",
-				);
-				expect(mockAPIClient.post).toHaveBeenCalledWith(
-					"/users/render-html/",
-					{
-						template: "users/components/loading.html",
-						context: expect.objectContaining({
-							text: "Loading modal...",
-							format: "modal",
-						}),
-					},
-					null,
-					true,
-				);
-			});
-
-			test("should not overwrite existing original content", async () => {
-				mockModalBody.dataset.originalContent = "<div>Existing content</div>";
-				mockAPIClient.post.mockResolvedValue({
-					html: '<div class="spinner">Loading...</div>',
-				});
-
-				await domUtils.showModalLoading("test-modal");
-
-				expect(mockModalBody.dataset.originalContent).toBe(
-					"<div>Existing content</div>",
-				);
-			});
-
-			test("should handle missing modal gracefully", async () => {
-				document.getElementById = jest.fn(() => null);
-
-				await domUtils.showModalLoading("nonexistent-modal");
-
-				expect(mockAPIClient.post).not.toHaveBeenCalled();
-			});
-
-			test("should handle missing modal body gracefully", async () => {
-				mockModal.querySelector = jest.fn(() => null);
-
-				await domUtils.showModalLoading("test-modal");
-
-				expect(mockAPIClient.post).not.toHaveBeenCalled();
-			});
+		afterEach(() => {
+			if (global.document.bodyAppendChildSpy?.mockRestore) {
+				global.document.bodyAppendChildSpy.mockRestore();
+			}
 		});
 
-		describe("clearModalLoading()", () => {
-			test("should restore original content", () => {
-				mockModalBody.dataset.originalContent = "<div>Original content</div>";
+		test("should initialize dropdowns for all toggle buttons", () => {
+			domUtils.initIconDropdowns();
 
-				domUtils.clearModalLoading("test-modal");
-
-				expect(mockModalBody.innerHTML).toBe("<div>Original content</div>");
-				expect(mockModalBody.dataset.originalContent).toBeUndefined();
-			});
-
-			test("should handle missing original content gracefully", () => {
-				delete mockModalBody.dataset.originalContent;
-
-				domUtils.clearModalLoading("test-modal");
-
-				expect(mockModalBody.innerHTML).toBe("<div>Original content</div>");
-			});
-
-			test("should handle missing modal gracefully", () => {
-				document.getElementById = jest.fn(() => null);
-
-				expect(() => {
-					domUtils.clearModalLoading("nonexistent-modal");
-				}).not.toThrow();
-			});
-		});
-
-		describe("showModalError()", () => {
-			test("should render error and open modal", async () => {
-				mockAPIClient.post.mockResolvedValue({
-					html: '<div class="alert alert-danger">Error message</div>',
-				});
-				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
-
-				await domUtils.showModalError("test-modal", "Test error");
-
-				expect(mockAPIClient.post).toHaveBeenCalledWith(
-					"/users/render-html/",
-					{
-						template: "users/components/error.html",
-						context: expect.objectContaining({
-							message: "Test error",
-							format: "alert",
-							alert_type: "danger",
-							icon: "exclamation-triangle",
-						}),
-					},
-					null,
-					true,
-				);
-				expect(mockBootstrapModal.show).toHaveBeenCalled();
-			});
-
-			test("should handle missing modal gracefully", async () => {
-				document.getElementById = jest.fn(() => null);
-
-				await domUtils.showModalError("nonexistent-modal", "Test error");
-
-				expect(mockAPIClient.post).not.toHaveBeenCalled();
-			});
-		});
-
-		describe("openModal()", () => {
-			test("should create new modal instance when none exists", () => {
-				global.bootstrap.Modal.getInstance = jest.fn(() => null);
-
-				domUtils.openModal("test-modal");
-
-				expect(global.bootstrap.Modal).toHaveBeenCalledWith(mockModal, {
-					backdrop: true,
-					keyboard: true,
-					focus: true,
-				});
-				expect(mockBootstrapModal.show).toHaveBeenCalled();
-			});
-
-			test("should reuse existing valid modal instance", () => {
-				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
-
-				domUtils.openModal("test-modal");
-
-				expect(global.bootstrap.Modal).not.toHaveBeenCalled();
-				expect(mockBootstrapModal.show).toHaveBeenCalled();
-			});
-
-			test("should dispose and recreate modal instance in bad state", () => {
-				const badInstance = {
-					show: jest.fn(),
-					dispose: jest.fn(),
-					// Missing _config or _config.backdrop
-				};
-				global.bootstrap.Modal.getInstance = jest.fn(() => badInstance);
-
-				domUtils.openModal("test-modal");
-
-				expect(badInstance.dispose).toHaveBeenCalled();
-				expect(global.bootstrap.Modal).toHaveBeenCalledWith(mockModal, {
-					backdrop: true,
-					keyboard: true,
-					focus: true,
-				});
-				expect(mockBootstrapModal.show).toHaveBeenCalled();
-			});
-
-			test("should handle disposal failure gracefully", () => {
-				const badInstance = {
-					show: jest.fn(),
-					dispose: jest.fn(() => {
-						throw new Error("Disposal failed");
-					}),
-				};
-				global.bootstrap.Modal.getInstance = jest.fn(() => badInstance);
-				console.warn = jest.fn();
-
-				domUtils.openModal("test-modal");
-
-				expect(global.bootstrap.Modal).toHaveBeenCalled();
-				expect(mockBootstrapModal.show).toHaveBeenCalled();
-			});
-
-			test("should handle missing modal gracefully", () => {
-				document.getElementById = jest.fn(() => null);
-
-				expect(() => {
-					domUtils.openModal("nonexistent-modal");
-				}).not.toThrow();
-			});
-		});
-
-		describe("closeModal()", () => {
-			test("should get instance and call hide", () => {
-				global.bootstrap.Modal.getInstance = jest.fn(() => mockBootstrapModal);
-
-				domUtils.closeModal("test-modal");
-
-				expect(global.bootstrap.Modal.getInstance).toHaveBeenCalledWith(
-					mockModal,
-				);
-				expect(mockBootstrapModal.hide).toHaveBeenCalled();
-			});
-
-			test("should handle missing instance gracefully", () => {
-				global.bootstrap.Modal.getInstance = jest.fn(() => null);
-
-				expect(() => {
-					domUtils.closeModal("test-modal");
-				}).not.toThrow();
-			});
-
-			test("should handle missing modal gracefully", () => {
-				document.getElementById = jest.fn(() => null);
-
-				expect(() => {
-					domUtils.closeModal("nonexistent-modal");
-				}).not.toThrow();
-			});
-		});
-
-		describe("initializeListDropdowns()", () => {
-			let mockToggle;
-			let mockDropdownMenu;
-
-			beforeEach(() => {
-				mockDropdownMenu = {
-					classList: { contains: jest.fn((cls) => cls === "dropdown-menu") },
-				};
-
-				mockToggle = {
-					nextElementSibling: mockDropdownMenu,
-					dataset: {},
-					addEventListener: jest.fn(),
-				};
-
-				global.document.querySelectorAll = jest.fn((selector) => {
-					if (selector === ".btn-icon-dropdown") return [mockToggle];
-					return [];
-				});
-
-				// Mock appendChild so DOMUtils can call it with mock dropdown (not a real Node)
-				global.document.bodyAppendChildSpy = jest
-					.spyOn(global.document.body, "appendChild")
-					.mockImplementation(() => {});
-
-				global.bootstrap.Dropdown = jest.fn().mockImplementation(() => ({
-					dispose: jest.fn(),
-				}));
-				global.bootstrap.Dropdown.getInstance = jest.fn(() => null);
-				global.document.addEventListener = jest.fn();
-			});
-
-			afterEach(() => {
-				if (global.document.bodyAppendChildSpy?.mockRestore) {
-					global.document.bodyAppendChildSpy.mockRestore();
-				}
-			});
-
-			test("should initialize dropdowns for all toggle buttons", () => {
-				domUtils.initializeListDropdowns();
-
-				expect(document.querySelectorAll).toHaveBeenCalledWith(
-					".btn-icon-dropdown",
-				);
-				expect(global.bootstrap.Dropdown).toHaveBeenCalledWith(mockToggle, {
-					container: "body",
-					boundary: "viewport",
-					popperConfig: {
-						modifiers: [
-							{
-								name: "preventOverflow",
-								options: {
-									boundary: "viewport",
-								},
+			expect(document.querySelectorAll).toHaveBeenCalledWith(
+				".btn-icon-dropdown",
+			);
+			expect(global.bootstrap.Dropdown).toHaveBeenCalledWith(mockToggle, {
+				container: "body",
+				boundary: "viewport",
+				popperConfig: {
+					modifiers: [
+						{
+							name: "preventOverflow",
+							options: {
+								boundary: "viewport",
 							},
-						],
-					},
-				});
+						},
+					],
+				},
 			});
+		});
 
-			test("should dispose existing dropdown instances", () => {
-				const existingInstance = {
-					dispose: jest.fn(),
-				};
-				global.bootstrap.Dropdown.getInstance = jest.fn(() => existingInstance);
+		test("should dispose existing dropdown instances", () => {
+			const existingInstance = {
+				dispose: jest.fn(),
+			};
+			global.bootstrap.Dropdown.getInstance = jest.fn(() => existingInstance);
 
-				domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
-				expect(existingInstance.dispose).toHaveBeenCalled();
-			});
+			expect(existingInstance.dispose).toHaveBeenCalled();
+		});
 
-			test("should move dropdown menu to body on show", () => {
-				domUtils.initializeListDropdowns();
+		test("should move dropdown menu to body on show", () => {
+			domUtils.initIconDropdowns();
 
-				// Simulate show.bs.dropdown event
-				const showHandler = mockToggle.addEventListener.mock.calls.find(
-					(call) => call[0] === "show.bs.dropdown",
-				)?.[1];
+			const showHandler = global.document.addEventListener.mock.calls.find(
+				(call) => call[0] === "show.bs.dropdown",
+			)?.[1];
 
-				if (showHandler) {
-					showHandler();
-					expect(global.document.bodyAppendChildSpy).toHaveBeenCalledWith(
-						mockDropdownMenu,
-					);
-				}
-			});
+			if (showHandler) {
+				showHandler({ target: mockToggle });
+				expect(global.document.bodyAppendChildSpy).toHaveBeenCalledWith(
+					mockDropdownMenu,
+				);
+			}
+		});
 
-			test("should prevent row click when clicking dropdown elements", () => {
-				const mockEvent = {
-					target: {
-						closest: jest.fn((selector) => {
-							if (selector === ".dropdown") return { classList: {} };
-							return null;
-						}),
-					},
-					stopPropagation: jest.fn(),
-				};
+		test("should prevent row click when clicking dropdown elements", () => {
+			const mockEvent = {
+				target: {
+					closest: jest.fn((selector) => {
+						if (selector === ".dropdown") return { classList: {} };
+						return null;
+					}),
+				},
+				stopPropagation: jest.fn(),
+			};
 
-				domUtils.initializeListDropdowns();
+			domUtils.initIconDropdowns();
 
-				// Simulate click event (use global.document.addEventListener set in beforeEach)
-				const clickHandler = global.document.addEventListener.mock.calls.find(
-					(call) => call[0] === "click",
-				)?.[1];
+			const clickHandler = global.document.addEventListener.mock.calls.find(
+				(call) => call[0] === "click",
+			)?.[1];
 
-				if (clickHandler) {
-					clickHandler(mockEvent);
-					expect(mockEvent.stopPropagation).toHaveBeenCalled();
-				}
-			});
+			if (clickHandler) {
+				clickHandler(mockEvent);
+				expect(mockEvent.stopPropagation).toHaveBeenCalled();
+			}
+		});
 
-			test("should handle missing dropdown menu gracefully", () => {
-				mockToggle.nextElementSibling = null;
+		test("should handle missing dropdown menu gracefully", () => {
+			mockToggle.nextElementSibling = null;
 
-				expect(() => {
-					domUtils.initializeListDropdowns();
-				}).not.toThrow();
-			});
+			expect(() => {
+				domUtils.initIconDropdowns();
+			}).not.toThrow();
 		});
 	});
 });

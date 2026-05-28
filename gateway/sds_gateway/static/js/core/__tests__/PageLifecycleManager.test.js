@@ -5,6 +5,7 @@
 
 // Import the PageLifecycleManager class
 import { PageLifecycleManager } from "../PageLifecycleManager.js";
+import { ModalManager } from "../ModalManager.js";
 
 describe("PageLifecycleManager", () => {
 	let lifecycleManager;
@@ -239,6 +240,8 @@ describe("PageLifecycleManager", () => {
 		let mockBootstrapModal;
 
 		beforeEach(() => {
+			global.window.ModalManager = ModalManager;
+
 			// Mock Bootstrap
 			mockBootstrapModal = {
 				dispose: jest.fn(),
@@ -289,9 +292,7 @@ describe("PageLifecycleManager", () => {
 			global.window.DownloadActionManager = jest
 				.fn()
 				.mockImplementation(() => ({}));
-			global.window.DetailsActionManager = jest
-				.fn()
-				.mockImplementation(() => ({}));
+			jest.spyOn(ModalManager, "initializeModal");
 		});
 
 		test("should pre-initialize all modals with proper Bootstrap config", () => {
@@ -409,7 +410,7 @@ describe("PageLifecycleManager", () => {
 			});
 		});
 
-		test("should initialize DetailsActionManager for dataset modals", () => {
+		test("should register details modal click delegation", () => {
 			lifecycleManager = new PageLifecycleManager({
 				...mockConfig,
 				pageType: "dataset-list",
@@ -417,11 +418,12 @@ describe("PageLifecycleManager", () => {
 
 			lifecycleManager.initializeDatasetModals();
 
-			expect(global.window.DetailsActionManager).toHaveBeenCalledWith({
-				permissions: lifecycleManager.permissions,
-				itemUuid: "test-dataset-uuid",
-				itemType: "dataset",
-			});
+			expect(ModalManager.initializeModal).toHaveBeenCalledWith(
+				expect.objectContaining({
+					detailsClickDelegation: true,
+					wireListModals: "dataset",
+				}),
+			);
 		});
 
 		test("should initialize capture modals", () => {

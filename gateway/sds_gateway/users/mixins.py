@@ -240,8 +240,11 @@ class FormSearchMixin:
         relative_path: str | None = None,
     ) -> dict[str, Any]:
         if isinstance(item, Capture):
-            # Use utility function for consistent composite capture serialization
-            return serialize_composite_capture_for_display(item)
+            ctx: dict[str, Any] | None = None
+            request = getattr(self, "request", None)
+            if request is not None:
+                ctx = {"request": request, "exclude_files": True}
+            return serialize_composite_capture_for_display(item, context=ctx)
         if isinstance(item, File):
             return {
                 "id": item.uuid,

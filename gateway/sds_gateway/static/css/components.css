@@ -1345,6 +1345,11 @@ body {
 	color: var(--red-text);
 }
 
+/* Share groups list: action dropdowns are not clipped by table scroll */
+.share-groups-table-responsive.table-responsive {
+	overflow: visible;
+}
+
 /* Remove member button sizing for share groups */
 .remove-member-btn.btn-danger,
 .remove-member-btn.btn-outline-danger {

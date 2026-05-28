@@ -6,75 +6,33 @@
 // Import the DatasetEditingHandler class
 import { DatasetEditingHandler } from "../DatasetEditingHandler.js";
 
+const {
+	setupStandardUnitTest,
+	mockDatasetEditingHandlerConfig,
+	createMockPermissionsManager,
+	mergeWindowMocks,
+} = require("../../tests-config/testHelpers.js");
+
 describe("DatasetEditingHandler", () => {
 	let editingHandler;
 	let mockConfig;
 	let mockPermissions;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
+		mockPermissions = createMockPermissionsManager();
+		mockConfig = mockDatasetEditingHandlerConfig({ permissions: mockPermissions });
 
-		// Create simple mock permissions
-		mockPermissions = {
-			userPermissionLevel: "owner",
-			isOwner: true,
-			currentUserId: 1,
-			datasetPermissions: { canEditMetadata: true },
-			canEditMetadata: jest.fn(() => true),
-			canAddAssets: jest.fn(() => true),
-			canRemoveOwnAssets: jest.fn(() => true),
-			canRemoveAnyAssets: jest.fn(() => true),
-			canShare: jest.fn(() => true),
-			canDownload: jest.fn(() => true),
-			canView: jest.fn(() => true),
-			canAddAsset: jest.fn(() => true),
-			canRemoveAsset: jest.fn(() => true),
-		};
-
-		// Mock config
-		mockConfig = {
-			datasetUuid: "test-dataset-uuid",
-			permissions: mockPermissions,
-			currentUserId: 1,
-			initialCaptures: [
-				{ id: 1, name: "Capture 1", type: "drf", owner_id: 1 },
-				{ id: 2, name: "Capture 2", type: "drf", owner_id: 2 },
-			],
-			initialFiles: [
-				{ id: 1, name: "file1.h5", size: "1.2 MB", owner_id: 1 },
-				{ id: 2, name: "file2.h5", size: "2.5 MB", owner_id: 2 },
-			],
-		};
-
-		// Minimal DOM mocks
-		document.getElementById = jest.fn(() => null);
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Minimal window mocks
-		global.window = {
+		setupStandardUnitTest();
+		mergeWindowMocks({
 			AssetSearchHandler: jest.fn().mockImplementation(() => ({
 				selectedCaptures: new Set(),
-				selectedFiles: new Set(),
+				selectedFiles: new Map(),
 				selectedCaptureDetails: new Map(),
+				initializeCapturesSearch: jest.fn(),
+				initializeEventListeners: jest.fn(),
+				updateSelectedFilesList: jest.fn(),
 			})),
-			DOMUtils: {
-				show: jest.fn(),
-				hide: jest.fn(),
-				showAlert: jest.fn(),
-				renderError: jest.fn().mockResolvedValue(true),
-				renderLoading: jest.fn().mockResolvedValue(true),
-				renderContent: jest.fn().mockResolvedValue(true),
-				renderTable: jest.fn().mockResolvedValue(true),
-			},
-		};
-
-		// Minimal API mocks
-		global.APIClient = {
-			get: jest.fn().mockResolvedValue({ success: true, data: {} }),
-			post: jest.fn().mockResolvedValue({ success: true }),
-		};
+		});
 	});
 
 	describe("Initialization", () => {
@@ -165,21 +123,14 @@ describe("DatasetEditingHandler", () => {
 		});
 
 		test("should handle contributor permissions correctly", () => {
-			const contributorPermissions = {
+			const contributorPermissions = createMockPermissionsManager({
 				userPermissionLevel: "contributor",
 				isOwner: false,
-				currentUserId: 1,
-				datasetPermissions: { canEditMetadata: true },
-				canEditMetadata: jest.fn(() => true),
-				canAddAssets: jest.fn(() => true),
-				canRemoveOwnAssets: jest.fn(() => true),
 				canRemoveAnyAssets: jest.fn(() => false),
 				canShare: jest.fn(() => false),
-				canDownload: jest.fn(() => true),
-				canView: jest.fn(() => true),
 				canAddAsset: jest.fn((asset) => asset.owner_id === 1),
 				canRemoveAsset: jest.fn((asset) => asset.owner_id === 1),
-			};
+			});
 
 			const contributorHandler = new DatasetEditingHandler({
 				...mockConfig,

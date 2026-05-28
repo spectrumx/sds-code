@@ -22,6 +22,9 @@ class VisualizationModal {
 		this.currentCaptureUuid = captureUuid;
 		this.currentCaptureType = captureType;
 
+		this.modal.dataset.captureUuid = captureUuid;
+		this.modal.dataset.captureType = captureType;
+
 		// Set the capture type on the modal for CSS-based filtering
 		this.modal.setAttribute("data-current-capture-type", captureType);
 
@@ -46,6 +49,11 @@ class VisualizationModal {
 	}
 
 	setupEventListeners() {
+		if (this.modal.dataset.visualizationModalWired === "1") {
+			return;
+		}
+		this.modal.dataset.visualizationModalWired = "1";
+
 		// Handle visualization selection buttons
 		this.modal.addEventListener("click", (e) => {
 			const button = e.target.closest(".visualization-select-btn");
@@ -60,6 +68,8 @@ class VisualizationModal {
 			// Clear the stored capture data
 			this.currentCaptureUuid = null;
 			this.currentCaptureType = null;
+			delete this.modal.dataset.captureUuid;
+			delete this.modal.dataset.captureType;
 
 			// Remove any lingering modal backdrops
 			const backdrops = Array.from(
@@ -161,15 +171,19 @@ class VisualizationModal {
 	 * Open the selected visualization
 	 */
 	openVisualization(visualizationType) {
-		if (!this.currentCaptureUuid || !this.visualizationCompatibility) {
+		const captureUuid =
+			this.currentCaptureUuid || this.modal.dataset.captureUuid || null;
+		if (!captureUuid) {
 			console.error("Missing required data:", {
 				currentCaptureUuid: this.currentCaptureUuid,
+				captureUuidFromModal: this.modal.dataset.captureUuid,
 				visualizationCompatibility: this.visualizationCompatibility,
 			});
 			return;
 		}
 
-		const config = this.visualizationCompatibility[visualizationType];
+		const compatibility = this.visualizationCompatibility || {};
+		const config = compatibility[visualizationType];
 		if (!config) {
 			console.error(
 				"No config found for visualization type:",
@@ -179,10 +193,7 @@ class VisualizationModal {
 		}
 
 		// Build URL from the pattern
-		const url = config.url_pattern.replace(
-			"{capture_uuid}",
-			this.currentCaptureUuid,
-		);
+		const url = config.url_pattern.replace("{capture_uuid}", captureUuid);
 		window.location.href = url;
 
 		// Close the modal

@@ -1,0 +1,43 @@
+{# Shared shell for capture/dataset details (body from /users/details-modal/<type>/<uuid>/). #}
+<div class="modal fade"
+     id="asset-details-modal"
+     tabindex="-1"
+     role="dialog"
+     aria-labelledby="asset-details-modal-label">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="asset-details-modal-label">Details</h5>
+                <div class="d-flex align-items-center">
+                    {% if VISUALIZATIONS_ENABLED %}
+                        <button type="button"
+                                class="btn btn-primary me-2 d-none"
+                                id="visualize-btn"
+                                title="Select visualization for this capture"
+                                data-capture-uuid=""
+                                data-capture-type="">
+                            <i class="bi bi-graph-up me-1"></i>Visualize
+                        </button>
+                    {% endif %}
+                    <button type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body" id="asset-details-modal-body">
+                <div class="d-flex justify-content-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading details...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% if VISUALIZATIONS_ENABLED and visualization_compatibility %}
+    {% include "visualizations/partials/visualization_modal.html" with visualization_compatibility=visualization_compatibility %}
+{% endif %}

@@ -107,6 +107,12 @@ repos:
             language: system
             pass_filenames: false # run once per commit, not per file
             types: [ python ]
+          - id: fallow-cross-file-dupes
+            name: fallow cross-file dupes (gateway static js)
+            entry: bash gateway/scripts/fallow-cross-file-dupes.sh
+            language: system
+            pass_filenames: false
+            files: ^gateway/sds_gateway/static/js/.*\.js$
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:

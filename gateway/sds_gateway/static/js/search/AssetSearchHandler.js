@@ -1,17 +1,262 @@
 /**
  * Asset Search Handler
- * Handles search functionality for captures and files in dataset creation/editing
- * Refactored from SearchHandler to use core components and centralized management
+ * Handles search functionality for captures and files in dataset creation/editing,
+ * plus shared list-page search (full navigation via query params).
  */
+
+/**
+ * @param {Object} config
+ * @returns {{ searchForm: HTMLElement|null, searchButton: HTMLElement|null, clearButton: HTMLElement|null }}
+ */
+function getConfiguredSearchElements(config) {
+	return {
+		searchForm: document.getElementById(config.searchFormId),
+		searchButton: document.getElementById(config.searchButtonId),
+		clearButton: document.getElementById(config.clearButtonId),
+	};
+}
+
 class AssetSearchHandler {
+	/**
+	 * @param {object} target
+	 * @param {object} config
+	 */
+	static applySearchCoreElements(target, config) {
+		const searchEls = getConfiguredSearchElements(config);
+		target.searchForm = searchEls.searchForm;
+		target.searchButton = searchEls.searchButton;
+		target.clearButton = searchEls.clearButton;
+	}
+
+	/**
+	 * Build URLSearchParams from config specs ({ param, elementId } or { param, el, get }).
+	 * @param {Array<{ param: string, elementId?: string, el?: () => HTMLElement|null, get?: () => string }>} paramSpecs
+	 * @returns {URLSearchParams}
+	 */
+	static buildParamsFromConfig(paramSpecs) {
+		const params = new URLSearchParams();
+		if (!paramSpecs?.length) return params;
+
+		for (const spec of paramSpecs) {
+			const node = spec.elementId
+				? document.getElementById(spec.elementId)
+				: spec.el?.();
+			let value = spec.get?.();
+			if (value === undefined || value === null) {
+				value = node?.value ?? "";
+			}
+			const trimmed = String(value).trim();
+			if (trimmed) {
+				params.set(spec.param, trimmed);
+			}
+		}
+		return params;
+	}
+
+	/**
+	 * @param {HTMLFormElement} form
+	 * @returns {URLSearchParams}
+	 */
+	static buildParamsFromForm(form) {
+		const params = new URLSearchParams();
+		const formData = new FormData(form);
+		for (const [key, value] of formData.entries()) {
+			const trimmed = String(value).trim();
+			if (trimmed) {
+				params.append(key, trimmed);
+			}
+		}
+		return params;
+	}
+
+	/**
+	 * Full-page list search (datasets publish search, capture list, etc.).
+	 */
+	static ListPageSearchController = class {
+		/**
+		 * @param {Object} config
+		 * @param {string} config.searchFormId
+		 * @param {string} [config.searchButtonId]
+		 * @param {string} [config.clearButtonId]
+		 * @param {Array} [config.paramSpecs] - named query params; if omitted, uses FormData from searchForm
+		 * @param {string} [config.basePath]
+		 * @param {string[]} [config.preserveUrlParams] - keys to keep from current URL (e.g. sort_by)
+		 * @param {string} [config.resetPageParam]
+		 * @param {string} [config.resetPageTo]
+		 * @param {string} [config.applyFiltersButtonId]
+		 * @param {string} [config.clearFiltersButtonId]
+		 */
+		constructor(config) {
+			AssetSearchHandler.applySearchCoreElements(this, config);
+			this.config = config;
+			this.paramSpecs = config.paramSpecs || null;
+			this.basePath = config.basePath || window.location.pathname;
+			this.preserveUrlParams = config.preserveUrlParams || [];
+			this.resetPageParam = config.resetPageParam || "page";
+			this.resetPageTo = config.resetPageTo || "1";
+			this.applyFiltersButton = config.applyFiltersButtonId
+				? document.getElementById(config.applyFiltersButtonId)
+				: null;
+			this.clearFiltersButton = config.clearFiltersButtonId
+				? document.getElementById(config.clearFiltersButtonId)
+				: null;
+
+			this.initializeEventListeners();
+			this.updateClearButtonVisibility();
+		}
+
+		initializeEventListeners() {
+			if (this.searchForm) {
+				this.searchForm.addEventListener("submit", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.searchButton) {
+				this.searchButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.clearButton) {
+				this.clearButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleClear();
+				});
+			}
+			if (this.applyFiltersButton) {
+				this.applyFiltersButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleSearch();
+				});
+			}
+			if (this.clearFiltersButton) {
+				this.clearFiltersButton.addEventListener("click", (e) => {
+					e.preventDefault();
+					this.handleClearFilters();
+				});
+			}
+			this.initializeEnterKeyListener();
+			const searchInput = document.getElementById("search-input");
+			if (searchInput) {
+				searchInput.addEventListener("input", () =>
+					this.updateClearButtonVisibility(),
+				);
+			}
+		}
+
+		initializeEnterKeyListener() {
+			if (!this.searchForm) return;
+
+			const searchInputs = this.searchForm.querySelectorAll(
+				"input[type='text'], input[type='search'], input[type='number']",
+			);
+			for (const input of searchInputs) {
+				input.addEventListener("keypress", (e) => {
+					if (e.key === "Enter") {
+						e.preventDefault();
+						this.handleSearch();
+					}
+				});
+			}
+		}
+
+		updateClearButtonVisibility() {
+			if (!this.clearButton?.classList?.toggle) return;
+			const searchInput = document.getElementById("search-input");
+			const hasValue = Boolean(searchInput?.value?.trim());
+			this.clearButton.classList.toggle("clear-search-hidden", !hasValue);
+		}
+
+		buildSearchParams() {
+			let params;
+			if (this.paramSpecs?.length) {
+				params = AssetSearchHandler.buildParamsFromConfig(this.paramSpecs);
+			} else if (this.searchForm) {
+				params = AssetSearchHandler.buildParamsFromForm(this.searchForm);
+			} else {
+				params = new URLSearchParams();
+			}
+
+			const current = new URLSearchParams(window.location.search);
+			for (const key of this.preserveUrlParams) {
+				const value = current.get(key);
+				if (value !== null && value !== "") {
+					params.set(key, value);
+				}
+			}
+
+			params.set(this.resetPageParam, this.resetPageTo);
+			return params;
+		}
+
+		handleSearch() {
+			const params = this.buildSearchParams();
+			this.config.onBeforeNavigate?.(params);
+			window.location.href = `${this.basePath}?${params.toString()}`;
+		}
+
+		handleClear() {
+			if (this.searchForm) {
+				const inputs = this.searchForm.querySelectorAll(
+					"input, select, textarea",
+				);
+				for (const input of inputs) {
+					if (input.type === "checkbox" || input.type === "radio") {
+						input.checked = false;
+					} else {
+						input.value = "";
+					}
+				}
+			}
+			this.updateClearButtonVisibility();
+			if (this.preserveUrlParams?.length || this.paramSpecs?.length) {
+				window.location.href = this.buildUrlWithoutSearchTerm();
+			} else {
+				window.location.href = this.basePath;
+			}
+		}
+
+		/** Navigate keeping sort/pagination keys but dropping filter paramSpecs. */
+		buildUrlWithoutSearchTerm() {
+			const params = new URLSearchParams();
+			const current = new URLSearchParams(window.location.search);
+			for (const key of this.preserveUrlParams) {
+				const value = current.get(key);
+				if (value !== null && value !== "") {
+					params.set(key, value);
+				}
+			}
+			params.set(this.resetPageParam, this.resetPageTo);
+			const qs = params.toString();
+			return qs ? `${this.basePath}?${qs}` : this.basePath;
+		}
+
+		handleClearFilters() {
+			if (this.paramSpecs?.length) {
+				for (const spec of this.paramSpecs) {
+					if (spec.param === "search") continue;
+					const node = spec.elementId
+						? document.getElementById(spec.elementId)
+						: spec.el?.();
+					if (!node) continue;
+					if (node.type === "checkbox" || node.type === "radio") {
+						node.checked = false;
+					} else {
+						node.value = "";
+					}
+				}
+			}
+			this.handleSearch();
+		}
+	};
+
 	/**
 	 * Initialize asset search handler
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
-		this.searchForm = document.getElementById(config.searchFormId);
-		this.searchButton = document.getElementById(config.searchButtonId);
-		this.clearButton = document.getElementById(config.clearButtonId);
+		AssetSearchHandler.applySearchCoreElements(this, config);
 		this.tableBody = document.getElementById(config.tableBodyId);
 		this.paginationContainer = document.getElementById(
 			config.paginationContainerId,
@@ -43,6 +288,21 @@ class AssetSearchHandler {
 		}
 
 		this.initializeEventListeners();
+	}
+
+	/**
+	 * @param {{ page?: string }} [extra]
+	 */
+	getFileSearchParams(extra = {}) {
+		const fileNameInput = document.getElementById("file-name");
+		const directoryInput = document.getElementById("file-directory");
+		const extensionSelect = document.getElementById("file-extension");
+		return {
+			file_name: fileNameInput?.value || "",
+			directory: directoryInput?.value || "",
+			file_extension: extensionSelect?.value || "",
+			...extra,
+		};
 	}
 
 	/**
@@ -397,12 +657,21 @@ class AssetSearchHandler {
 
 		// Transform captures data for table_rows.html template
 		const rows = data.results.map((capture) => {
-			const isSelected = this.formHandler?.selectedCaptures.has(
-				capture.id.toString(),
-			);
+			const captureIdStr = capture.id.toString();
+			const inExistingDataset =
+				this.isEditMode &&
+				this.formHandler?.currentCaptures &&
+				(this.formHandler.currentCaptures.has(capture.id) ||
+					this.formHandler.currentCaptures.has(captureIdStr));
+			const isSelected =
+				inExistingDataset ||
+				this.formHandler?.selectedCaptures?.has(captureIdStr);
 			const isOwnedByCurrentUser =
 				capture.owner_id === this.formHandler?.currentUserId;
 			const canSelect = isOwnedByCurrentUser;
+			// Edit only: captures already in the dataset stay checked and locked
+			const checkboxDisabled =
+				!canSelect || (this.isEditMode && inExistingDataset);
 			const ownerName = capture.owner
 				? capture.owner.name || capture.owner.email || "-"
 				: "-";
@@ -417,7 +686,7 @@ class AssetSearchHandler {
 
 			return {
 				id: capture.id,
-				css_class: `capture-row${isSelected ? " table-warning" : ""}${!canSelect ? " readonly-row" : ""}`,
+				css_class: `capture-row${isSelected ? " table-warning" : ""}${checkboxDisabled ? " readonly-row" : ""}${inExistingDataset ? " capture-in-dataset" : ""}`,
 				data_attrs: {
 					"capture-id": capture.id,
 				},
@@ -430,7 +699,7 @@ class AssetSearchHandler {
 						tag_attrs: {
 							type: "checkbox",
 							checked: isSelected,
-							disabled: !canSelect,
+							disabled: checkboxDisabled,
 							value: capture.id,
 						},
 						data_attrs: {
@@ -463,9 +732,12 @@ class AssetSearchHandler {
 			// Attach event handlers to rendered rows
 			this.attachCaptureRowHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading captures", {
-				format: "table",
-				colspan: 7,
+			await window.DOMUtils.showMessage("Error loading captures", {
+				variant: "danger",
+				placement: "replace",
+				target: tbody,
+				presentation: "table",
+				templateContext: { colspan: 7 },
 			});
 		}
 
@@ -499,6 +771,12 @@ class AssetSearchHandler {
 			};
 
 			const handleSelection = (e) => {
+				if (checkbox.disabled) {
+					e.preventDefault();
+					e.stopPropagation();
+					return;
+				}
+
 				if (e.target.type !== "checkbox") {
 					checkbox.checked = !checkbox.checked;
 				}
@@ -588,19 +866,9 @@ class AssetSearchHandler {
 					const data = await this.fetchCaptures(params);
 					this.updateCapturesTable(data);
 				} else {
-					// Get current search values for files
-					const fileNameInput = document.getElementById("file-name");
-					const directoryInput = document.getElementById("file-directory");
-					const extensionSelect = document.getElementById("file-extension");
-
-					const params = {
-						file_name: fileNameInput?.value || "",
-						directory: directoryInput?.value || "",
-						file_extension: extensionSelect?.value || "",
-						page: page,
-					};
-
-					const data = await this.fetchFiles(params);
+					const data = await this.fetchFiles(
+						this.getFileSearchParams({ page }),
+					);
 					this.updateFilesTable(data);
 				}
 			});
@@ -781,17 +1049,8 @@ class AssetSearchHandler {
 	 */
 	async loadFileTree() {
 		try {
-			// Get current values from form fields
-			const fileNameInput = document.getElementById("file-name");
-			const directoryInput = document.getElementById("file-directory");
+			const params = this.getFileSearchParams();
 			const extensionSelect = document.getElementById("file-extension");
-
-			const params = {
-				file_name: fileNameInput?.value || "",
-				directory: directoryInput?.value || "",
-				file_extension: extensionSelect?.value || "",
-			};
-
 			const data = await this.fetchFiles(params);
 			if (!data.tree) {
 				console.error("No tree data received:", data);
@@ -1125,8 +1384,11 @@ class AssetSearchHandler {
 		const errorContainer = document.getElementById("formErrors");
 		const errorContent = errorContainer?.querySelector(".error-content");
 		if (errorContainer && errorContent) {
-			await window.DOMUtils.renderError(errorContent, message, {
-				format: "list",
+			await window.DOMUtils.showMessage(message, {
+				variant: "danger",
+				placement: "replace",
+				target: errorContent,
+				presentation: "list",
 			});
 			window.DOMUtils.show(errorContainer);
 			errorContainer.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1184,9 +1446,12 @@ class AssetSearchHandler {
 			// Attach event handlers to remove buttons
 			this.attachFileRemovalHandlers(tbody);
 		} else {
-			await window.DOMUtils.renderError(tbody, "Error loading files", {
-				format: "table",
-				colspan: 6,
+			await window.DOMUtils.showMessage("Error loading files", {
+				variant: "danger",
+				placement: "replace",
+				target: tbody,
+				presentation: "table",
+				templateContext: { colspan: 6 },
 			});
 		}
 	}
@@ -1266,8 +1531,15 @@ class AssetSearchHandler {
 
 // Make class available globally
 window.AssetSearchHandler = AssetSearchHandler;
+window.applySearchCoreElements = AssetSearchHandler.applySearchCoreElements;
+window.getConfiguredSearchElements = getConfiguredSearchElements;
+window.ListPageSearchController = AssetSearchHandler.ListPageSearchController;
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
-	module.exports = { AssetSearchHandler };
+	module.exports = {
+		AssetSearchHandler,
+		ListPageSearchController: AssetSearchHandler.ListPageSearchController,
+		getConfiguredSearchElements,
+	};
 }

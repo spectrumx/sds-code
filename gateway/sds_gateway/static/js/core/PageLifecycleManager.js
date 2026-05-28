@@ -12,6 +12,7 @@ class PageLifecycleManager {
 		this.managers = [];
 		this.initialized = false;
 		this.config = config;
+		this._captureDetailsModalCleanup = null;
 
 		// Core managers
 		this.permissions = null;
@@ -93,8 +94,7 @@ class PageLifecycleManager {
 	/**
 	 * Initialize dataset create page
 	 */
-	initializeDatasetCreatePage() {
-		// Initialize dataset mode manager for creation
+	_initDatasetModeAndSearch(afterInit) {
 		if (window.DatasetModeManager) {
 			this.datasetModeManager = new window.DatasetModeManager({
 				...this.config.dataset,
@@ -105,39 +105,28 @@ class PageLifecycleManager {
 			});
 		}
 		this.managers.push(this.datasetModeManager);
-
-		// Initialize search handlers
 		this.initializeSearchHandlers();
+		afterInit?.();
+	}
+
+	initializeDatasetCreatePage() {
+		this._initDatasetModeAndSearch();
 	}
 
 	/**
 	 * Initialize dataset edit page
 	 */
 	initializeDatasetEditPage() {
-		// Initialize dataset mode manager for editing
-		if (window.DatasetModeManager) {
-			this.datasetModeManager = new window.DatasetModeManager({
-				...this.config.dataset,
-				userPermissionLevel: this.config.permissions?.userPermissionLevel,
-				currentUserId: this.config.permissions?.currentUserId,
-				isOwner: this.config.permissions?.isOwner,
-				datasetPermissions: this.config.permissions?.datasetPermissions,
-			});
-		}
-		this.managers.push(this.datasetModeManager);
-
-		// Initialize search handlers
-		this.initializeSearchHandlers();
-
-		// Initialize share action manager for the dataset
-		if (this.config.dataset?.datasetUuid && window.ShareActionManager) {
-			this.shareActionManager = new window.ShareActionManager({
-				itemUuid: this.config.dataset.datasetUuid,
-				itemType: "dataset",
-				permissions: this.permissions,
-			});
-			this.managers.push(this.shareActionManager);
-		}
+		this._initDatasetModeAndSearch(() => {
+			if (this.config.dataset?.datasetUuid && window.ShareActionManager) {
+				this.shareActionManager = new window.ShareActionManager({
+					itemUuid: this.config.dataset.datasetUuid,
+					itemType: "dataset",
+					permissions: this.permissions,
+				});
+				this.managers.push(this.shareActionManager);
+			}
+		});
 	}
 
 	/**
@@ -166,6 +155,32 @@ class PageLifecycleManager {
 
 		// Initialize modals for each capture
 		this.initializeCaptureModals();
+
+		this.ensureCaptureDetailsModal();
+	}
+
+	/**
+	 * Global asset details modal (#asset-details-modal) + delegated clicks.
+	 */
+	ensureCaptureDetailsModal() {
+		if (this._captureDetailsModalCleanup || !window.ModalManager?.initializeModal) {
+			return;
+		}
+		if (!this.config.permissions) {
+			return;
+		}
+		this._captureDetailsModalCleanup = window.ModalManager.initializeModal({
+			registerFilesCaptureCoordinator: true,
+			detailsClickDelegation: true,
+			wireAllDataItemModalsShare: true,
+			permissions: this.config.permissions,
+		});
+		this.managers.push({
+			cleanup: () => {
+				this._captureDetailsModalCleanup?.();
+				this._captureDetailsModalCleanup = null;
+			},
+		});
 	}
 
 	/**
@@ -270,26 +285,22 @@ class PageLifecycleManager {
 	 * Initialize pagination
 	 */
 	initializePagination() {
-		const paginationLinks = document.querySelectorAll(
-			".pagination a.page-link",
-		);
+		const containerIds = [
+			"captures-pagination",
+			"datasets-pagination",
+			"files-pagination",
+		];
+		const onPageChange = (page) => {
+			const urlParams = new URLSearchParams(window.location.search);
+			urlParams.set("page", String(page));
+			window.location.search = urlParams.toString();
+		};
 
-		for (const link of paginationLinks) {
-			// Prevent duplicate event listener attachment
-			if (link.dataset.paginationSetup === "true") {
-				continue;
-			}
-			link.dataset.paginationSetup = "true";
-
-			link.addEventListener("click", (e) => {
-				e.preventDefault();
-				const page = link.getAttribute("data-page");
-				if (page) {
-					const urlParams = new URLSearchParams(window.location.search);
-					urlParams.set("page", page);
-					window.location.search = urlParams.toString();
-				}
-			});
+		for (const containerId of containerIds) {
+			PageLifecycleManager.wireServerRenderedPagination(
+				containerId,
+				onPageChange,
+			);
 		}
 	}
 
@@ -297,123 +308,32 @@ class PageLifecycleManager {
 	 * Initialize dataset modals
 	 */
 	initializeDatasetModals() {
-		// TODO: Refactor this to align all modal initialization
-		// with a single manager instance per modal type.
-		// Plan to do this on a future PR.
-
-		// Pre-initialize all modals on the page with proper config to prevent Bootstrap auto-initialization errors
-		const allModals = document.querySelectorAll(".modal");
-		for (const modal of allModals) {
-			if (window.bootstrap) {
-				// Dispose any existing instance that might be in a bad state
-				const existingInstance = bootstrap.Modal.getInstance(modal);
-				if (existingInstance) {
-					try {
-						existingInstance.dispose();
-					} catch (e) {
-						// If disposal fails, the instance is already broken - continue
-						console.warn("Failed to dispose modal instance:", e);
-					}
-				}
-
-				// Create a new instance with proper config
-				new bootstrap.Modal(modal, {
-					backdrop: true,
-					keyboard: true,
-					focus: true,
-				});
-			}
-		}
-
-		const datasetModals = document.querySelectorAll(
-			".modal[data-item-type='dataset']",
-		);
-
-		for (const modal of datasetModals) {
-			const itemUuid = modal.getAttribute("data-item-uuid");
-			const itemType = modal.getAttribute("data-item-type");
-
-			if (!itemUuid || !this.permissions) {
-				console.warn(
-					`No item UUID or permissions found for dataset modal: ${modal}`,
-				);
-				continue;
-			}
-
-			if (window.ShareActionManager) {
-				const shareManager = new window.ShareActionManager({
-					permissions: this.permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				this.managers.push(shareManager);
-
-				// Store reference on modal
-				modal.shareActionManager = shareManager;
-			}
-
-			if (window.VersioningActionManager && !modal.versioningActionManager) {
-				const versioningManager = new window.VersioningActionManager({
-					permissions: this.permissions,
-					datasetUuid: itemUuid,
-				});
-				this.managers.push(versioningManager);
-				modal.versioningActionManager = versioningManager;
-			}
-
-			if (window.DetailsActionManager) {
-				const detailsManager = new window.DetailsActionManager({
-					permissions: this.permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				this.managers.push(detailsManager);
-
-				// Store reference on modal
-				modal.detailsActionManager = detailsManager;
-			}
-		}
-
 		this.ensureDownloadActionManager();
+		const detach = window.ModalManager?.initializeModal?.({
+			bootstrap: true,
+			wireListModals: "dataset",
+			permissions: this.permissions ?? this.config?.permissions,
+			managersOut: this.managers,
+			detailsClickDelegation: true,
+			downloadActionManager: this.downloadActionManager,
+		});
+		if (detach) {
+			this.managers.push({ cleanup: detach });
+		}
 	}
 
 	/**
 	 * Initialize capture modals
 	 */
 	initializeCaptureModals() {
-		// TODO: Refactor this to align all modal initialization
-		// with a single manager instance per modal type.
-		// Plan to do this on a future PR.
-
-		const captureModals = document.querySelectorAll(
-			".modal[data-item-type='capture']",
-		);
-
-		for (const modal of captureModals) {
-			const itemUuid = modal.getAttribute("data-item-uuid");
-			const itemType = modal.getAttribute("data-item-type");
-
-			if (!itemUuid || !this.permissions) {
-				console.warn(
-					`No item UUID or permissions found for capture modal: ${modal}`,
-				);
-				continue;
-			}
-
-			if (window.ShareActionManager) {
-				const shareManager = new window.ShareActionManager({
-					permissions: this.permissions,
-					itemUuid: itemUuid,
-					itemType: itemType,
-				});
-				this.managers.push(shareManager);
-
-				// Store reference on modal
-				modal.shareActionManager = shareManager;
-			}
-		}
-
 		this.ensureDownloadActionManager();
+		window.ModalManager?.initializeModal?.({
+			bootstrap: true,
+			wireListModals: "capture",
+			permissions: this.permissions ?? this.config?.permissions,
+			managersOut: this.managers,
+			downloadActionManager: this.downloadActionManager,
+		});
 	}
 
 	/**
@@ -616,6 +536,27 @@ class PageLifecycleManager {
 
 			checkManager();
 		});
+	}
+
+	/**
+	 * Wire server-rendered Bootstrap pagination links (data-page + .page-link).
+	 * @param {string} containerId
+	 * @param {(page: number) => void} onPageChange
+	 */
+	static wireServerRenderedPagination(containerId, onPageChange) {
+		const el = document.getElementById(containerId);
+		if (!el || typeof onPageChange !== "function") return;
+
+		const links = el.querySelectorAll(".pagination a.page-link");
+		for (const link of links) {
+			if (link.dataset.paginationSetup === "true") continue;
+			link.dataset.paginationSetup = "true";
+			link.addEventListener("click", (e) => {
+				e.preventDefault();
+				const p = Number.parseInt(link.getAttribute("data-page") || "", 10);
+				if (p) onPageChange(p);
+			});
+		}
 	}
 }
 

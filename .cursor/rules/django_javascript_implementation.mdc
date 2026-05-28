@@ -13,6 +13,10 @@ alwaysApply: true
 - Classes should follow DRY principles and avoid duplicating the functionality of existing classes.
 - Javascript added to existing templates should ONLY call existing classes to initialize them so their functions are available to run in the template.
 - Ignore and NEVER update files in the `deprecated/` folder.
+- Differentiation of code use by asset type should be configuration-driven, NOT by the method logic-driven.
+- Prefer more generic method implementations over specific, per-case basis implementations which lead to bloat.
+- If you notice multiple uses of the same block of code, consider adding a utils or manager method/class to handle that instead of repeating the same code everywhere.
+- When creating/naming a method, check if a method by the same name/function/use already exists. If so, point it out and suggest refactoring original method to be more generic.
 
 ## Django Template Structure
 

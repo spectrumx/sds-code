@@ -14,6 +14,16 @@ jest.mock("../constants.js", () => ({
 	WATERFALL_WINDOW_SIZE: 100,
 }));
 
+jest.mock("../waterfallColorMaps.js", () => ({
+	colorForNormalizedPower: (colorMap, normalizedPower) => {
+		const intensity = Math.floor(normalizedPower * 255);
+		if (colorMap === "gray") {
+			return `rgb(${intensity}, ${intensity}, ${intensity})`;
+		}
+		return `rgb(0, ${intensity}, ${255 - intensity})`;
+	},
+}));
+
 import "../WaterfallRenderer.js";
 
 const WaterfallRenderer = window.WaterfallRenderer;

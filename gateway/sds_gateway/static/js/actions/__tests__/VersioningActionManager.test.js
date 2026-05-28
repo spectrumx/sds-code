@@ -4,7 +4,13 @@
  */
 
 // Import the VersioningActionManager class
+import { ModalManager } from "../../core/ModalManager.js";
 import { VersioningActionManager } from "../VersioningActionManager.js";
+import { flushMicrotasks } from "../../tests-config/testHelpers.js";
+const {
+	setupVersioningActionTestEnvironment,
+	createVersionCreationClickEvent,
+} = require("../../__tests__/helpers/actionTestMocks.js");
 
 describe("VersioningActionManager", () => {
 	let versioningManager;
@@ -13,61 +19,8 @@ describe("VersioningActionManager", () => {
 	let mockPermissions;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Create mock permissions
-		mockPermissions = {
-			canEditMetadata: jest.fn(() => true),
-			canShare: jest.fn(() => true),
-		};
-
-		// Mock config
-		mockConfig = {
-			datasetUuid: "test-dataset-uuid",
-			permissions: mockPermissions,
-		};
-
-		// Mock button element
-		mockButton = {
-			id: "createVersionBtn-test-dataset-uuid",
-			dataset: { versionSetup: "false", processing: "false" },
-			addEventListener: jest.fn(),
-			disabled: false,
-			click: jest.fn(),
-		};
-
-		// Mock document methods
-		document.getElementById = jest.fn((id) => {
-			if (id === `createVersionBtn-${mockConfig.datasetUuid}`)
-				return mockButton;
-			return null;
-		});
-
-		// Mock DOMUtils
-		global.window.DOMUtils = {
-			showModalLoading: jest.fn().mockResolvedValue(true),
-			closeModal: jest.fn(),
-			showAlert: jest.fn(),
-		};
-
-		// Mock APIClient
-		global.window.APIClient = {
-			post: jest.fn().mockResolvedValue({
-				success: true,
-				version: 2,
-			}),
-		};
-
-		// Mock listRefreshManager
-		global.window.listRefreshManager = {
-			loadTable: jest.fn().mockResolvedValue(true),
-		};
-
-		// Mock window.location
-		global.window.location = {
-			reload: jest.fn(),
-		};
+		({ mockConfig, mockPermissions, mockButton } =
+			setupVersioningActionTestEnvironment());
 	});
 
 	describe("Initialization", () => {
@@ -111,13 +64,12 @@ describe("VersioningActionManager", () => {
 	describe("Version Creation", () => {
 		beforeEach(() => {
 			versioningManager = new VersioningActionManager(mockConfig);
+			jest.spyOn(ModalManager, "showModalLoading").mockResolvedValue(undefined);
+			jest.spyOn(versioningManager, "closeModal").mockImplementation(() => {});
 		});
 
 		test("should handle version creation click", () => {
-			const event = {
-				preventDefault: jest.fn(),
-				stopPropagation: jest.fn(),
-			};
+			const event = createVersionCreationClickEvent();
 
 			// Get the click handler from addEventListener
 			const clickHandler = mockButton.addEventListener.mock.calls.find(
@@ -136,7 +88,7 @@ describe("VersioningActionManager", () => {
 			mockButton.dataset.processing = "true";
 
 			versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -145,18 +97,18 @@ describe("VersioningActionManager", () => {
 
 		test("should show modal loading state", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
-			expect(global.window.DOMUtils.showModalLoading).toHaveBeenCalledWith(
+			expect(ModalManager.showModalLoading).toHaveBeenCalledWith(
 				"versioningModal-test-dataset-uuid",
 			);
 		});
 
 		test("should disable button during processing", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -166,7 +118,7 @@ describe("VersioningActionManager", () => {
 
 		test("should make API call to dataset-versioning endpoint", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
@@ -186,19 +138,23 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.closeModal).toHaveBeenCalledWith(
+			expect(versioningManager.closeModal).toHaveBeenCalledWith(
 				"versioningModal-test-dataset-uuid",
 			);
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Dataset version updated to v3 successfully",
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -209,12 +165,12 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(global.window.listRefreshManager.loadTable).toHaveBeenCalled();
 		});
@@ -234,12 +190,12 @@ describe("VersioningActionManager", () => {
 			console.warn = jest.fn();
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(console.warn).toHaveBeenCalledWith(
 				"listRefreshManager not available, reloading page",
@@ -254,18 +210,22 @@ describe("VersioningActionManager", () => {
 			});
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Version creation failed",
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
-			expect(global.window.DOMUtils.closeModal).not.toHaveBeenCalled();
+			expect(versioningManager.closeModal).not.toHaveBeenCalled();
 		});
 
 		test("should handle API exception", async () => {
@@ -274,27 +234,31 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Network error",
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
 		test("should re-enable button after processing", async () => {
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(mockButton.disabled).toBe(false);
 			expect(mockButton.dataset.processing).toBe("false");
@@ -306,12 +270,12 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
 			expect(mockButton.disabled).toBe(false);
 			expect(mockButton.dataset.processing).toBe("false");
@@ -337,16 +301,20 @@ describe("VersioningActionManager", () => {
 			);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				expect.stringMatching(/Failed to create dataset version|Network error/),
-				"error",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -358,16 +326,20 @@ describe("VersioningActionManager", () => {
 			document.getElementById = jest.fn(() => null);
 
 			await versioningManager.handleVersionCreation(
-				{ preventDefault: jest.fn(), stopPropagation: jest.fn() },
+				createVersionCreationClickEvent(),
 				mockButton,
 			);
 
 			// Wait for promises to resolve
-			await new Promise((resolve) => setTimeout(resolve, 0));
+			await flushMicrotasks();
 
-			expect(global.window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				expect.stringContaining("successfully"),
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 	});

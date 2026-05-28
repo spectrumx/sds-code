@@ -344,11 +344,40 @@ body {
 	transform: scale(1.15);
 }
 
+/* Capture list table column widths (matches capture_list_table_row.html) */
+.capture-list-table {
+	table-layout: fixed;
+	width: 100%;
+}
+
+.capture-list-table .capture-col-select {
+	width: 3rem;
+}
+
+.capture-list-table .capture-col-name {
+	width: 34%;
+}
+
+.capture-list-table .capture-col-directory {
+	width: 22%;
+}
+
+.capture-list-table .capture-col-type {
+	width: 14%;
+}
+
+.capture-list-table .capture-col-created {
+	width: 20%;
+}
+
+.capture-list-table .capture-col-actions {
+	width: 7rem;
+}
+
 /* ================================
    Modal Styling
    ================================ */
 .modal-dialog {
-	max-width: 600px;
 	margin: 1.75rem auto;
 }
 

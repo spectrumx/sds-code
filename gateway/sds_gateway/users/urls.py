@@ -17,6 +17,7 @@ from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
 from .views import user_captures_api_view
+from .views import details_modal_fragment_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
 from .views import user_dataset_versioning_view
@@ -85,6 +86,11 @@ urlpatterns = [
     ),
     path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
+    path(
+        "details-modal/<str:asset_type>/<uuid:uuid>/",
+        details_modal_fragment_view,
+        name="details_modal_fragment",
+    ),
     path("render-html/", render_html_fragment_view, name="render_html"),
     path("group-captures/", user_group_captures_view, name="group_captures"),
     path(

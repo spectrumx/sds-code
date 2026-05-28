@@ -49,12 +49,11 @@ window.PeriodogramChart = class MockPeriodogramChart {
 	}
 };
 
-jest.mock("../../errorHandler.js", () => ({
+jest.mock("../../processingErrorMessages.js", () => ({
 	generateErrorMessage: jest.fn(() => ({
 		message: "Error",
 		errorDetail: null,
 	})),
-	setupErrorDisplay: jest.fn(),
 }));
 
 const mockCacheInstance = {

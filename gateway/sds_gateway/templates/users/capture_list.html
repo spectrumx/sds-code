@@ -1,0 +1,442 @@
+{# Captures list page (shell + filters + table + modals). Legacy URL/template name was file_list.html. #}
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block css %}
+    {{ block.super }}
+    <link rel="stylesheet"
+          href="{% static 'css/visualizations/visualization_modal.css' %}" />
+    <link rel="stylesheet" href="{% static 'css/permission-levels.css' %}" />
+{% endblock css %}
+{% block body %}
+    <!-- Add Font Awesome for sort arrows -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+    <!-- Add noUiSlider CSS first -->
+    <link rel="stylesheet"
+          href="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.css" />
+    <!-- Add file-list.css for upload modal styling -->
+    <link rel="stylesheet" href="{% static 'css/file-list.css' %}" />
+    <!-- Add noUiSlider JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/noUiSlider/15.7.1/nouislider.min.js"></script>
+    <style>
+        .clear-search-hidden {
+            display: none;
+        }
+    </style>
+    <!-- CSRF Token for JavaScript -->
+    {% csrf_token %}
+    <!-- System-wide notifications -->
+    {% if system_notifications %}
+        <div class="container">
+            {% for notification in system_notifications %}
+                <div class="alert alert-dismissible alert-{{ notification.level }}">{{ notification.user_message }}</div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    {% if messages %}
+        <div class="container">
+            {% for message in messages %}
+                {% include "users/components/message.html" with message=message type=message.level_tag|default:"info" presentation="toast" %}
+            {% endfor %}
+        </div>
+    {% endif %}
+    <div id="upload-alert-container" class="container mt-3"></div>
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container-fluid px-5 pt-4">
+                <!-- Headers Row -->
+                <div class="row mb-1">
+                    <div class="col-12">
+                        <h1 class="mb-0 text-start">Captures</h1>
+                    </div>
+                </div>
+                <!-- Content Row -->
+                <div class="row">
+                    <!-- Sidebar Filters -->
+                    <aside class="col-md-3 mb-4">
+                        <div class="sidebar-filters">
+                            <div class="accordion" id="filtersAccordion">
+                                <!-- Frequency -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingFrequency">
+                                        <button class="accordion-button collapsed"
+                                                type="button"
+                                                data-bs-target="#collapseFrequency"
+                                                aria-expanded="false"
+                                                aria-controls="collapseFrequency">
+                                            <i class="fas fa-signal me-2"></i>
+                                            Center Frequency
+                                        </button>
+                                    </h2>
+                                    <div id="collapseFrequency" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <label for="frequency-range" class="form-label">Center Frequency Range</label>
+                                            <div id="frequency-range-slider"
+                                                 class="mt-3 mb-3"
+                                                 role="slider"
+                                                 aria-valuemin="0"
+                                                 aria-valuemax="10"
+                                                 aria-valuenow="0,10"
+                                                 aria-valuetext="Frequency range from 0.0 GHz to 10.0 GHz"></div>
+                                            <div class="d-flex justify-content-between mb-3">
+                                                <span id="frequency-range-lower" aria-live="polite">0 GHz</span>
+                                                <span id="frequency-range-upper" aria-live="polite">10 GHz</span>
+                                            </div>
+                                            <div class="row mt-3">
+                                                <div class="col-6">
+                                                    <label for="centerFreqMinInput" class="form-label small">Min (GHz)</label>
+                                                    <input type="number"
+                                                           id="centerFreqMinInput"
+                                                           class="form-control form-control-sm"
+                                                           min="0"
+                                                           max="10"
+                                                           step="0.1"
+                                                           value="0"
+                                                           placeholder="0" />
+                                                </div>
+                                                <div class="col-6">
+                                                    <label for="centerFreqMaxInput" class="form-label small">Max (GHz)</label>
+                                                    <input type="number"
+                                                           id="centerFreqMaxInput"
+                                                           class="form-control form-control-sm"
+                                                           min="0"
+                                                           max="10"
+                                                           step="0.1"
+                                                           value="10"
+                                                           placeholder="10" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Date -->
+                                <div class="accordion-item">
+                                    <h2 class="accordion-header" id="headingDate">
+                                        <button class="accordion-button collapsed"
+                                                type="button"
+                                                data-bs-target="#collapseDate"
+                                                aria-expanded="false"
+                                                aria-controls="collapseDate">
+                                            <i class="fas fa-calendar me-2"></i>
+                                            Date Range
+                                        </button>
+                                    </h2>
+                                    <div id="collapseDate" class="accordion-collapse collapse">
+                                        <div class="accordion-body">
+                                            <div class="row">
+                                                <div class="col mb-3">
+                                                    <label class="form-label" for="start_date">Start Date</label>
+                                                    <input type="date" class="form-control" id="start_date" name="date_start" />
+                                                </div>
+                                                <div class="col">
+                                                    <label class="form-label" for="end_date">End Date</label>
+                                                    <input type="date" class="form-control" id="end_date" name="date_end" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-3 mt-4">
+                                <button class="btn btn-primary flex-fill"
+                                        type="button"
+                                        id="apply-filters-btn">Apply Filters</button>
+                                <button class="btn btn-secondary flex-fill"
+                                        type="button"
+                                        id="clear-filters-btn">Clear Filters</button>
+                            </div>
+                        </div>
+                    </aside>
+                    <!-- Main Content -->
+                    <main class="col-md-9 pt-0">
+                        <!-- Search Form -->
+                        <form id="search-form"
+                              role="search"
+                              aria-label="Search captures"
+                              class="text-start mt-0">
+                            <div class="row g-3 mb-3">
+                                <div class="col-12">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <!-- Search Input Group -->
+                                        <div class="flex-grow-1 me-3">
+                                            <label for="search-input" class="visually-hidden">Search captures</label>
+                                            <div class="input-group">
+                                                <div class="position-relative flex-grow-1">
+                                                    <input type="search"
+                                                           class="form-control pe-5"
+                                                           id="search-input"
+                                                           name="search"
+                                                           placeholder="Search captures..."
+                                                           value="{{ search }}"
+                                                           aria-describedby="searchHelp" />
+                                                    <button type="button"
+                                                            class="btn btn-link position-absolute end-0 top-50 translate-middle-y text-secondary px-3 clear-search-hidden"
+                                                            id="clear-search-btn"
+                                                            aria-label="Clear search">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                </div>
+                                                <button class="btn btn-primary"
+                                                        type="submit"
+                                                        id="search-btn"
+                                                        aria-label="Search captures">
+                                                    <i class="fas fa-search" aria-hidden="true"></i>
+                                                    <span class="d-none d-sm-inline ms-1">Search</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <!-- Upload Button Group -->
+                                        <div class="flex-shrink-0">
+                                            <div class="input-group">
+                                                <button type="button"
+                                                        class="btn btn-success"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#uploadCaptureModal">
+                                                    <i class="fas fa-upload"></i> Upload Capture
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                        <!-- Loading indicator -->
+                        <div id="loading-indicator" class="text-center py-3 d-none">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Searching captures...</p>
+                        </div>
+                        <!-- Bulk add to dataset (owned captures only) -->
+                        <div id="capture-list-bulk-actions"
+                             class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+                            <span id="capture-list-selected-count"
+                                  class="text-muted small"
+                                  aria-live="polite">0 captures selected</span>
+                            <button type="button"
+                                    class="btn btn-sm btn-primary"
+                                    id="capture-list-add-to-dataset-btn"
+                                    disabled>
+                                <i class="bi bi-folder-plus me-1"></i>Add to dataset
+                            </button>
+                        </div>
+                        <!-- Captures Table -->
+                        <div id="capture-list-ajax-wrapper">
+                            {% include "users/components/asset_list_table.html" with page_obj=page_obj asset_type=asset_type table_headers=table_headers no_assets_message=no_assets_message asset_row_template=asset_row_template ajax_fragment=ajax_fragment %}
+                        </div>
+                    </main>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Quick Add to Dataset Modal (single or multiple captures) -->
+    {% include "users/partials/quick_add_to_dataset_modal.html" %}
+    {% include "users/partials/asset_details_modal.html" %}
+    <!-- Upload Capture Modal -->
+    {% include "users/partials/upload_capture_modal.html" %}
+    <!-- Upload Result Modal -->
+    {% include "users/partials/upload_result_modal.html" %}
+    <div id="capture-list-modals-container">
+        <!-- Per-capture Share and Download modals (replaced on AJAX list refresh) -->
+        {% include "users/components/capture_list_modals.html" with captures=page_obj.object_list %}
+    </div>
+{% endblock body %}
+{% block javascript %}
+    {{ block.super }}
+    <!-- Action components -->
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
+    <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/download/captureDownloadSlider.js' %}"></script>
+    <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/details/CaptureDetailsModalBehavior.js' %}"></script>
+    <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
+    <script src="{% static 'js/actions/quickAdd/quickAddApi.js' %}"></script>
+    <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
+    <script src="{% static 'js/actions/CaptureListSelectionManager.js' %}"></script>
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
+    <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
+    <script src="{% static 'js/constants/FileListConfig.js' %}"></script>
+    <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
+    <script src="{% static 'js/core/PageController.js' %}"></script>
+    {# djlint:off #}
+    <script>
+        (function bootCaptureListPage() {
+            function run() {
+                if (!window.PageController || !window.PageController.initListPage) return;
+                window.PageController.initListPage({
+                    pageLifecycleConfig: {
+                        pageType: 'capture-list',
+                        permissions: {
+                            userPermissionLevel: 'owner',
+                            currentUserId: {{ request.user.id }},
+                            isOwner: true,
+                            capturePermissions: {
+                                canEditMetadata: false,
+                                canAddAssets: false,
+                                canRemoveAnyAssets: false,
+                                canRemoveOwnAssets: false,
+                                canShare: true,
+                                canDownload: true,
+                                canDelete: false
+                            }
+                        }
+                    },
+                    listRefreshConfig: {
+                        containerSelector: '#capture-list-ajax-wrapper',
+                        modalsContainerSelector: '#capture-list-modals-container',
+                        url: '{% url "users:capture_list" %}',
+                        itemType: 'capture'
+                    },
+                    captureList: true
+                });
+
+                if (window.ListPageSearchController && window.FileListConfig?.CAPTURE_LIST_PARAM_SPECS) {
+                    new window.ListPageSearchController({
+                        searchFormId: 'search-form',
+                        searchButtonId: 'search-btn',
+                        clearButtonId: 'clear-search-btn',
+                        paramSpecs: window.FileListConfig.CAPTURE_LIST_PARAM_SPECS,
+                        basePath: '{% url "users:capture_list" %}',
+                        preserveUrlParams: ['sort_by', 'sort_order', 'items_per_page'],
+                        applyFiltersButtonId: 'apply-filters-btn',
+                        clearFiltersButtonId: 'clear-filters-btn',
+                    });
+                }
+            }
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', run);
+            } else {
+                run();
+            }
+        })();
+</script>
+    {# djlint:on #}
+    <!-- Upload Capture Modal JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/hash-wasm@4.12.0/dist/blake3.umd.min.js"></script>
+    <script src="{% static 'js/upload/UploadUtils.js' %}"></script>
+    <script src="{% static 'js/upload/CaptureTypeSelector.js' %}"></script>
+    <script src="{% static 'js/upload/CaptureUploadController.js' %}"></script>
+    <script src="{% static 'js/upload/uploadBootstrap.js' %}"></script>
+    <!-- Pass Django context data to JavaScript -->
+    {# djlint:off #}
+    <script>
+        // Make visualization compatibility data available to JavaScript
+        window.visualizationCompatibility = {{ visualization_compatibility | safe }};
+</script>
+    <script>
+        // Initialize noUiSlider for frequency range
+        document.addEventListener('DOMContentLoaded', function() {
+            const frequencyRangeSlider = document.getElementById('frequency-range-slider');
+            if (frequencyRangeSlider) {
+                noUiSlider.create(frequencyRangeSlider, {
+                    start: [0, 10],
+                    connect: true,
+                    range: {
+                        'min': 0,
+                        'max': 10
+                    },
+                    step: 0.1,
+                    format: {
+                        to: function(value) {
+                            return parseFloat(value).toFixed(1);
+                        },
+                        from: function(value) {
+                            return parseFloat(value);
+                        }
+                    }
+                });
+
+                const lowerValue = document.getElementById('frequency-range-lower');
+                const upperValue = document.getElementById('frequency-range-upper');
+                const minInput = document.getElementById('centerFreqMinInput');
+                const maxInput = document.getElementById('centerFreqMaxInput');
+
+                // Track user interaction with slider
+                let userInteractedWithSlider = false;
+
+                frequencyRangeSlider.noUiSlider.on('update', function(values, handle) {
+                    const value = parseFloat(values[handle]);
+                    if (handle === 0) {
+                        lowerValue.textContent = value + ' GHz';
+                        minInput.value = value;
+                        frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${value} GHz to ${parseFloat(values[1])} GHz`);
+                    } else {
+                        upperValue.textContent = value + ' GHz';
+                        maxInput.value = value;
+                        frequencyRangeSlider.setAttribute('aria-valuetext', `Frequency range from ${parseFloat(values[0])} GHz to ${value} GHz`);
+                    }
+                });
+
+                // Mark as interacted when user changes slider
+                frequencyRangeSlider.noUiSlider.on('change', function() {
+                    userInteractedWithSlider = true;
+                    // Trigger the global tracking
+                    if (window.initializeFrequencySlider) {
+                        // Update the global interaction tracking
+                        const event = new Event('change');
+                        minInput.dispatchEvent(event);
+                    }
+                });
+
+                // Update slider when input values change
+                minInput.addEventListener('change', function() {
+                    const value = parseFloat(this.value);
+                    if (!isNaN(value) && value >= 0 && value <= 10) {
+                        frequencyRangeSlider.noUiSlider.set([value, null]);
+                    }
+                });
+
+                maxInput.addEventListener('change', function() {
+                    const value = parseFloat(this.value);
+                    if (!isNaN(value) && value >= 0 && value <= 10) {
+                        frequencyRangeSlider.noUiSlider.set([null, value]);
+                    }
+                });
+
+                // Initialize from URL parameters after slider is created
+                if (window.initializeFrequencySlider) {
+                    window.initializeFrequencySlider();
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.VisualizationModal && !window.visualizationModalInstance) {
+                window.visualizationModalInstance = new window.VisualizationModal();
+            }
+
+            if (window.QuickAddToDatasetManager && document.getElementById("quickAddToDatasetModal")) {
+                window.quickAddToDatasetManager = new window.QuickAddToDatasetManager();
+                if (window.CaptureListSelectionManager) {
+                    window.captureListSelectionManager = new window.CaptureListSelectionManager(
+                        window.quickAddToDatasetManager,
+                    );
+                }
+            }
+
+            const downloadAlert = sessionStorage.getItem('captureDownloadAlert');
+            if (downloadAlert) {
+                const alertData = JSON.parse(downloadAlert);
+                const raw = alertData.type || "info";
+                const variant =
+                    raw === "error" || raw === "danger"
+                        ? "danger"
+                        : ["success", "warning", "info"].includes(raw)
+                          ? raw
+                          : "info";
+                void window.DOMUtils?.showMessage?.(alertData.message, {
+                    variant: variant,
+                    placement: "toast",
+                    presentation: "toast",
+                });
+                sessionStorage.removeItem('captureDownloadAlert');
+            }
+        });
+</script>
+    {# djlint:on #}
+{% endblock javascript %}

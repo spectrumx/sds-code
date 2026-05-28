@@ -26,56 +26,43 @@
                     </a>
                 </div>
                 <hr />
-                {% include "users/components/dataset_list_table.html" %}
+                {% include "users/components/asset_list_table.html" with page_obj=page_obj asset_type=asset_type table_headers=table_headers no_assets_message=no_assets_message asset_row_template=asset_row_template ajax_fragment=ajax_fragment %}
             </div>
         </div>
     </div>
-    <!-- Modals to reveal on click; container is replaced on AJAX list refresh -->
-    {% include "users/components/dataset_list_modals.html" with page_obj=page_obj %}
+    <!-- Shared details shell (not replaced on list AJAX); per-dataset modals below -->
+    {% include "users/partials/asset_details_modal.html" %}
+    <div id="dataset-modals-container">
+        {% include "users/components/dataset_list_modals.html" with page_obj=page_obj %}
+    </div>
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
     {{ block.super }}
-    <!-- Search components -->
     <script src="{% static 'js/search/AssetSearchHandler.js' %}"></script>
-    <script src="{% static 'js/search/DatasetSearchHandler.js' %}"></script>
     <!-- Dataset components -->
+    <script src="{% static 'js/dataset/AuthorsManager.js' %}"></script>
+    <script src="{% static 'js/dataset/DatasetAuthorsUI.js' %}"></script>
+    <script src="{% static 'js/dataset/DatasetPendingChanges.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetCreationHandler.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetEditingHandler.js' %}"></script>
     <script src="{% static 'js/dataset/DatasetModeManager.js' %}"></script>
     <!-- Action components -->
+    <script src="{% static 'js/share/UserSearchDropdown.js' %}"></script>
     <script src="{% static 'js/actions/ShareActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/download/captureDownloadSlider.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/DownloadInstructionsManager.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
+    <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
+    <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            document.querySelectorAll('.btn-icon-dropdown').forEach(function(toggle) {
-                const dropdown = new bootstrap.Dropdown(toggle, {
-                    container: 'body',
-                    boundary: 'viewport',
-                    popperConfig: {
-                        modifiers: [{
-                            name: 'preventOverflow',
-                            options: {
-                                boundary: 'viewport'
-                            }
-                        }]
-                    }
-                });
-
-                // Manually move dropdown to body when shown
-                toggle.addEventListener('show.bs.dropdown', function() {
-                    const dropdownMenu = toggle.nextElementSibling;
-                    if (dropdownMenu && dropdownMenu.classList.contains('dropdown-menu')) {
-                        document.body.appendChild(dropdownMenu);
-                    }
-                });
-            });
-
-            // Initialize PageLifecycleManager for dataset list page
-            const pageConfig = {
+            window.PageController.initListPage({
+                pageLifecycleConfig: {
                 pageType: 'dataset-list',
                 permissions: {
                     userPermissionLevel: 'owner', // User is always owner of their own datasets
@@ -91,20 +78,13 @@
                         canDelete: true
                     }
                 }
-            };
-
-            // Initialize the page lifecycle manager
-            // This will automatically handle all modal initialization including share modals
-            window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
-
-
-            // Initialize ListRefreshManager for dataset list
-            // The change in case differentiates the instance from the class.
-            window.listRefreshManager = new ListRefreshManager({
+                },
+                listRefreshConfig: {
                 containerSelector: '#dataset-list-ajax-wrapper',
                 modalsContainerSelector: '#dataset-modals-container',
                 url: '/users/dataset-list/',
                 itemType: 'dataset'
+                }
             });
 
             // Initialize PublishActionManager for publish modals
@@ -116,19 +96,20 @@
             const downloadAlert = sessionStorage.getItem('datasetDownloadAlert');
             if (downloadAlert) {
                 const alertData = JSON.parse(downloadAlert);
-                showAlert(alertData.message, alertData.type);
+                const raw = alertData.type || "info";
+                const variant =
+                    raw === "error" || raw === "danger"
+                        ? "danger"
+                        : ["success", "warning", "info"].includes(raw)
+                          ? raw
+                          : "info";
+                void window.DOMUtils?.showMessage?.(alertData.message, {
+                    variant: variant,
+                    placement: "toast",
+                    presentation: "toast",
+                });
                 sessionStorage.removeItem('datasetDownloadAlert');
             }
-
-            // Prevent row click when clicking on dropdown elements
-            document.addEventListener('click', function(event) {
-                if (event.target.closest('.dropdown') ||
-                    event.target.closest('.btn-icon-dropdown') ||
-                    event.target.closest('.dropdown-toggle') ||
-                    event.target.closest('.dropdown-menu')) {
-                    event.stopPropagation();
-                }
-            });
 
         });
 </script>

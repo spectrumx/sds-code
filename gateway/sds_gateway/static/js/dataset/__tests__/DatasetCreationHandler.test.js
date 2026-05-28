@@ -7,6 +7,8 @@ import { APIError } from "../../core/APIClient.js";
 // Import the DatasetCreationHandler class
 import { DatasetCreationHandler } from "../DatasetCreationHandler.js";
 
+const { createMockDOMUtils } = require("../../tests-config/testHelpers.js");
+
 describe("DatasetCreationHandler", () => {
 	let creationHandler;
 	let mockForm;
@@ -182,16 +184,7 @@ describe("DatasetCreationHandler", () => {
 		// Make classes available globally (as the actual code expects them)
 		global.APIError = APIError;
 
-		// Mock DOMUtils (replaces HTMLInjectionManager)
-		global.window.DOMUtils = {
-			show: jest.fn(),
-			hide: jest.fn(),
-			showAlert: jest.fn(),
-			renderError: jest.fn().mockResolvedValue(true),
-			renderLoading: jest.fn().mockResolvedValue(true),
-			renderContent: jest.fn().mockResolvedValue(true),
-			renderTable: jest.fn().mockResolvedValue(true),
-		};
+		global.window.DOMUtils = createMockDOMUtils();
 
 		// Mock window.APIClient (what the actual code uses)
 		global.window.APIClient = {

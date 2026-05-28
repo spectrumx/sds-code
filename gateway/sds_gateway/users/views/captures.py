@@ -15,6 +15,7 @@ from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import render
+from django.template.loader import render_to_string
 from django.views import View
 from loguru import logger as log
 from rest_framework import status
@@ -68,6 +69,64 @@ def _parse_items_per_page(
     return min(n, max_items)
 
 
+def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build dropdown_menu.html items for a serialized capture list row."""
+    uuid = str(row.get("uuid") or "")
+    if not uuid:
+        return []
+    
+    is_owner = row.get("is_owner")
+    permission_level = row.get("permission_level")
+    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
+    is_co_owner = permission_level == PermissionLevel.CO_OWNER
+    
+    items: list[dict[str, Any]] = []
+    if is_owner:
+        display_name = (
+            str(row.get("name") or "").strip()
+            or str(row.get("top_level_dir") or "").strip()
+            or "Capture"
+        )
+        items.append(
+            {
+                "label": "Add to dataset",
+                "icon": "folder-plus",
+                "type": "button",
+                "extra_class": "add-to-dataset-btn",
+                "data_attrs": {
+                    "capture-uuid": uuid,
+                    "capture-name": display_name[:200],
+                },
+            }
+        )
+
+    if is_owner or is_contributor or is_co_owner:
+        items.extend(
+            (
+                {
+                    "label": "Share",
+                    "icon": "person-plus",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#shareModal-{uuid}",
+                    "data_attrs": {},
+                },
+            )
+        )
+
+    items.append(
+        {
+            "label": "Download",
+            "icon": "download",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#webDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    return items
+
+
 def _get_captures_for_template(
     captures: QuerySet[Capture] | list[Capture] | Page[Capture],
     request: HttpRequest,
@@ -83,11 +142,16 @@ def _get_captures_for_template(
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
         capture_data["is_shared_with_me"] = capture.owner != request.user
+        if capture_data["is_owner"] and not capture_data.get("permission_level"):
+            capture_data["permission_level"] = PermissionLevel.OWNER
         capture_data["owner_name"] = capture.owner.name or "Owner"
         capture_data["owner_email"] = capture.owner.email or ""
 
         # Add the original model instance for template use
         capture_data["capture"] = capture
+        capture_data["dropdown_menu_items"] = _capture_list_dropdown_menu_items(
+            capture_data,
+        )
 
         # Add shared users data for share modal
         if user_has_access_to_item(request.user, capture.uuid, ItemType.CAPTURE):
@@ -436,10 +500,22 @@ def _get_filtered_and_sorted_captures(
     return unique_captures
 
 
+CAPTURES_LIST_TABLE_HEADERS = [
+    {"label": "", "col_class": "capture-col-select", "aria_label": "Select"},
+    {"label": "Name", "col_class": "capture-col-name"},
+    {"label": "Directory", "col_class": "capture-col-directory"},
+    {"label": "Type", "col_class": "capture-col-type"},
+    {"label": "Created", "col_class": "capture-col-created"},
+    {"label": "Actions", "col_class": "capture-col-actions", "text_align": "center"},
+]
+CAPTURES_LIST_TABLE_CLASS = "capture-list-table"
+CAPTURES_LIST_NO_ASSETS_MESSAGE = "No captures yet. Create one with Upload Capture."
+
+
 class ListCapturesView(Auth0LoginRequiredMixin, View):
     """Handle HTML requests for the captures list page."""
 
-    template_name = "users/file_list.html"
+    template_name = "users/capture_list.html"
     default_items_per_page = 25
     max_items_per_page = 100
 
@@ -479,11 +555,48 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Get visualization compatibility data
         visualization_compatibility = get_visualization_compatibility()
 
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            table_ctx = {
+                "page_obj": page_obj,
+                "asset_type": "capture",
+                "asset_row_template": "users/components/capture_list_table_row.html",
+                "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "table_class": CAPTURES_LIST_TABLE_CLASS,
+                "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
+                "sort_by": params["sort_by"],
+                "sort_order": params["sort_order"],
+                "search": params["search"],
+                "date_start": params["date_start"],
+                "date_end": params["date_end"],
+                "capture_type": params["cap_type"],
+                "min_freq": params["min_freq"],
+                "max_freq": params["max_freq"],
+                "items_per_page": params["items_per_page"],
+                "request": request,
+            }
+            table_html = render_to_string(
+                "users/components/asset_list_table.html",
+                table_ctx,
+                request=request,
+            )
+            modals_html = render_to_string(
+                "users/components/capture_list_modals.html",
+                {"captures": page_obj.object_list, "request": request},
+                request=request,
+            )
+            list_refresh_sep = "<!-- LIST_REFRESH_SEP -->"
+            return HttpResponse(table_html + list_refresh_sep + modals_html)
+
         return render(
             request,
             self.template_name,
             {
-                "captures": page_obj,
+                "page_obj": page_obj,
+                "asset_type": "capture",
+                "asset_row_template": "users/components/capture_list_table_row.html",
+                "table_headers": CAPTURES_LIST_TABLE_HEADERS,
+                "table_class": CAPTURES_LIST_TABLE_CLASS,
+                "no_assets_message": CAPTURES_LIST_NO_ASSETS_MESSAGE,
                 "sort_by": params["sort_by"],
                 "sort_order": params["sort_order"],
                 "search": params["search"],

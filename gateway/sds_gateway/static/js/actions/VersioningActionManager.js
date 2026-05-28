@@ -2,12 +2,13 @@
  * Versioning Action Manager
  * Handles version creation and managing dataset versions
  */
-class VersioningActionManager {
+class VersioningActionManager extends ModalManager {
 	/**
 	 * Initialize versioning action manager
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
 		this.permissions = config.permissions;
 		this.datasetUuid = config.datasetUuid;
 		this.initializeEventListeners();
@@ -60,7 +61,7 @@ class VersioningActionManager {
 		versionCreationButton.dataset.processing = "true";
 
 		// show loading state
-		window.DOMUtils.showModalLoading(this.modalId);
+		void ModalManager.showModalLoading(this.modalId);
 
 		// disable button
 		versionCreationButton.disabled = true;
@@ -73,19 +74,30 @@ class VersioningActionManager {
 			.then((response) => {
 				if (response.success) {
 					const modalEl = document.getElementById(this.modalId);
-					const onHidden = () => {
+					const onHidden = async () => {
 						if (modalEl) {
 							modalEl.removeEventListener("hidden.bs.modal", onHidden);
 						}
-						window.DOMUtils.showAlert(
+						void window.DOMUtils?.showMessage?.(
 							`Dataset version updated to v${response.version} successfully`,
-							"success",
+							{
+								variant: "success",
+								placement: "toast",
+								presentation: "toast",
+							},
 						);
 						if (
 							window.listRefreshManager &&
 							typeof window.listRefreshManager.loadTable === "function"
 						) {
-							window.listRefreshManager.loadTable();
+							try {
+								await window.listRefreshManager.loadTable();
+							} catch (refreshErr) {
+								console.error(
+									"VersioningActionManager: list refresh failed after version create",
+									refreshErr,
+								);
+							}
 						} else {
 							console.warn("listRefreshManager not available, reloading page");
 							window.location.reload();
@@ -94,23 +106,31 @@ class VersioningActionManager {
 					if (modalEl) {
 						modalEl.addEventListener("hidden.bs.modal", onHidden);
 					}
-					window.DOMUtils.closeModal(this.modalId);
+					this.closeModal(this.modalId);
 					if (!modalEl) {
 						onHidden();
 					}
 				} else {
 					// show error message and error message from response
-					window.DOMUtils.showAlert(
+					void window.DOMUtils?.showMessage?.(
 						response.error || "Failed to create dataset version",
-						"error",
+						{
+							variant: "danger",
+							placement: "toast",
+							presentation: "toast",
+						},
 					);
 				}
 			})
 			.catch((error) => {
 				// show error message and error message from error
-				window.DOMUtils.showAlert(
+				void window.DOMUtils?.showMessage?.(
 					error.message || "Failed to create dataset version",
-					"error",
+					{
+						variant: "danger",
+						placement: "toast",
+						presentation: "toast",
+					},
 				);
 			})
 			.finally(() => {

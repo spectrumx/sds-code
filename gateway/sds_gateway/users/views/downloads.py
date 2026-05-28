@@ -7,6 +7,7 @@ from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.utils import timezone
@@ -21,6 +22,16 @@ from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import send_item_files_email
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
+
+
+def _post_download_redirect_for_temp_zip(filename: str) -> tuple[str, str]:
+    """Return (redirect URL, sessionStorage alert key) after a temp zip download."""
+    name = filename or ""
+    if name.startswith("capture_") or "_capture_" in name:
+        return reverse("users:capture_list"), "captureDownloadAlert"
+    if name.startswith("dataset_") or "_dataset_" in name:
+        return reverse("users:dataset_list"), "datasetDownloadAlert"
+    return reverse("users:dataset_list"), "datasetDownloadAlert"
 
 
 class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
@@ -72,12 +83,18 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
                 timezone.localtime(temp_zip.expires_at) if temp_zip.expires_at else None
             )
 
+            redirect_url, alert_key = _post_download_redirect_for_temp_zip(
+                temp_zip.filename
+            )
+
             context = {
                 "temp_zip": temp_zip,
                 "status": status,
                 "message": message,
                 "file_exists": file_exists,
                 "expires_at_local": expires_at_local,
+                "post_download_redirect_url": redirect_url,
+                "post_download_alert_key": alert_key,
             }
 
             return render(request, template_name=self.template_name, context=context)

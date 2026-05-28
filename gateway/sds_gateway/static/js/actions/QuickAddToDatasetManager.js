@@ -2,9 +2,11 @@
  * Quick Add to Dataset Manager
  * Handles opening the quick-add modal, loading datasets, and adding a capture to a dataset.
  */
-class QuickAddToDatasetManager {
+class QuickAddToDatasetManager extends ModalManager {
 	constructor() {
-		this.modalEl = document.getElementById("quickAddToDatasetModal");
+		super();
+		this.modalId = "quickAddToDatasetModal";
+		this.modalEl = document.getElementById(this.modalId);
 		this.currentCaptureUuid = null;
 		this.currentCaptureName = null;
 		/** @type {string[]|null} When set, call quick-add API once per UUID (e.g. from file list "Add" button) */
@@ -26,10 +28,12 @@ class QuickAddToDatasetManager {
 			if (!btn) return;
 			e.preventDefault();
 			e.stopPropagation();
-			this.currentCaptureUuid = btn.getAttribute("data-capture-uuid");
-			this.currentCaptureName =
-				btn.getAttribute("data-capture-name") || "This capture";
-			this.openModal();
+			const uuid = btn.getAttribute("data-capture-uuid");
+			if (!uuid) return;
+			this.openForSingleCapture(
+				uuid,
+				btn.getAttribute("data-capture-name") || "This capture",
+			);
 		});
 
 		if (!this.modalEl) return;
@@ -77,24 +81,35 @@ class QuickAddToDatasetManager {
 		}
 	}
 
-	openModal() {
+	/** Open modal for one capture (row actions menu). */
+	openForSingleCapture(captureUuid, captureName) {
 		if (!this.modalEl) return;
-		const Modal = window.bootstrap?.Modal;
-		if (Modal) {
-			const modal = Modal.getOrCreateInstance(this.modalEl);
-			modal.show();
-		}
+		delete this.modalEl.dataset.captureUuids;
+		this.currentCaptureUuids = null;
+		this.currentCaptureUuid = captureUuid;
+		this.currentCaptureName = captureName || "This capture";
+		this.openModal(this.modalId);
+	}
+
+	/** Open modal for multiple selected captures (list bulk action). */
+	openForCaptureUuids(captureUuids) {
+		if (!this.modalEl || !captureUuids?.length) return;
+		this.currentCaptureUuid = null;
+		this.currentCaptureName = null;
+		this.currentCaptureUuids = captureUuids;
+		this.modalEl.dataset.captureUuids = JSON.stringify(captureUuids);
+		this.openModal(this.modalId);
 	}
 
 	resetMessage() {
 		if (this.messageEl) {
+			this.messageEl.innerHTML = "";
 			this.messageEl.classList.add("d-none");
 			this.messageEl.classList.remove(
 				"alert-success",
 				"alert-danger",
 				"alert-warning",
 			);
-			this.messageEl.textContent = "";
 		}
 		if (this.confirmBtn) {
 			this.confirmBtn.disabled = true;
@@ -104,16 +119,25 @@ class QuickAddToDatasetManager {
 		}
 	}
 
-	showMessage(text, type) {
+	/** Inline alert in the quick-add modal via {@link DOMUtils.showMessage}. */
+	showInlineMessage(text, type) {
 		if (!this.messageEl) return;
-		this.messageEl.textContent = text;
-		this.messageEl.classList.remove(
-			"d-none",
-			"alert-success",
-			"alert-danger",
-			"alert-warning",
-		);
-		this.messageEl.classList.add(`alert-${type}`);
+		this.messageEl.classList.remove("d-none");
+		window.DOMUtils?.show?.(this.messageEl);
+		const variant =
+			type === "danger" || type === "error"
+				? "danger"
+				: type === "success" || type === "warning" || type === "info"
+					? type
+					: "danger";
+		void this.showMessageInTarget(text, this.messageEl, {
+			variant,
+			presentation: "alert",
+			templateContext: {
+				icon:
+					variant === "warning" ? "exclamation-triangle" : "exclamation-circle",
+			},
+		});
 	}
 
 	async loadDatasets() {
@@ -131,7 +155,7 @@ class QuickAddToDatasetManager {
 				this.selectEl.appendChild(opt);
 			}
 			if (datasets.length === 0) {
-				this.showMessage(
+				this.showInlineMessage(
 					"You have no datasets you can add captures to.",
 					"warning",
 				);
@@ -139,7 +163,7 @@ class QuickAddToDatasetManager {
 		} catch (err) {
 			this.selectEl.innerHTML = '<option value="">Failed to load</option>';
 			const reason = err?.data?.error || err?.message || "Try again.";
-			this.showMessage(`Failed to load datasets. ${reason}`, "danger");
+			this.showInlineMessage(`Failed to load datasets. ${reason}`, "danger");
 		}
 	}
 
@@ -151,7 +175,7 @@ class QuickAddToDatasetManager {
 			this.currentCaptureUuids.length > 0;
 		const isSingle = this.currentCaptureUuid && this.quickAddUrl;
 		if (!isMulti && !isSingle) {
-			this.showMessage(
+			this.showInlineMessage(
 				"Select at least one capture, or use “Add to dataset” from a row’s actions menu.",
 				"warning",
 			);
@@ -166,84 +190,57 @@ class QuickAddToDatasetManager {
 		}
 	}
 
-	/**
-	 * Build a concise summary from quick-add counts (added, skipped, failed count).
-	 * API returns detailed JSON; we show one short line.
-	 * Failed = request threw (non-2xx HTTP or network) or response.success false or per-capture errors in 200 body.
-	 */
 	formatQuickAddSummary(added, skipped, failedCount, firstErrorMessage) {
-		const parts = [];
-		if (added > 0) parts.push(`${added} added`);
-		if (skipped > 0) parts.push(`${skipped} already in dataset`);
-		if (failedCount > 0) {
-			parts.push(`${failedCount} failed`);
-			if (firstErrorMessage != null) {
-				const text = String(firstErrorMessage);
-				if (text) parts.push(`: ${text}`);
-			}
-		}
-		return parts.length ? `${parts.join(", ")}.` : "Done.";
+		return (
+			window.QuickAddApi?.formatQuickAddSummary?.(
+				added,
+				skipped,
+				failedCount,
+				firstErrorMessage,
+			) ?? "Done."
+		);
 	}
 
-	/**
-	 * Call quick-add API once per selected capture UUID (loop). Backend handles
-	 * multi-channel grouping per UUID. We aggregate counts and show one concise message.
-	 */
+	_notifyGlobalToast(msg, alertType) {
+		this.showToast(msg, alertType);
+	}
+
 	/**
 	 * Close the modal and fire a toast notification after it finishes hiding.
 	 * This avoids showing the same message twice (once inside the closing modal
 	 * and once as a toast outside it).
 	 */
 	_closeWithToast(msg, alertType) {
-		const modal = window.bootstrap?.Modal?.getInstance(this.modalEl);
-		if (modal) {
-			const onHidden = () => {
-				this.modalEl.removeEventListener("hidden.bs.modal", onHidden);
-				window.fileListController?.exitSelectionMode?.();
-				if (window.showAlert) window.showAlert(msg, alertType);
-			};
-			this.modalEl.addEventListener("hidden.bs.modal", onHidden);
-			modal.hide();
+		const afterClose = () => {
+			this.modalEl.removeEventListener("hidden.bs.modal", afterClose);
+			window.captureListSelectionManager?.clearSelection?.();
+			this._notifyGlobalToast(msg, alertType);
+		};
+		if (this.modalEl) {
+			this.modalEl.addEventListener("hidden.bs.modal", afterClose);
+			this.closeModal(this.modalEl);
 		} else {
-			window.fileListController?.exitSelectionMode?.();
-			if (window.showAlert) window.showAlert(msg, alertType);
+			window.captureListSelectionManager?.clearSelection?.();
+			this._notifyGlobalToast(msg, alertType);
 		}
 	}
 
+	/**
+	 * Call quick-add API once per selected capture UUID. Backend handles
+	 * multi-channel grouping per UUID; we aggregate counts and show one message.
+	 */
 	async handleMultiAdd(datasetUuid) {
 		if (!this.quickAddUrl) {
-			this.showMessage("Quick-add URL not configured.", "danger");
+			this.showInlineMessage("Quick-add URL not configured.", "danger");
 			if (this.confirmBtn) this.confirmBtn.disabled = false;
 			return;
 		}
-		let totalAdded = 0;
-		let totalSkipped = 0;
-		const errorMessages = [];
-		for (const captureUuid of this.currentCaptureUuids) {
-			try {
-				const response = await window.APIClient.post(
-					this.quickAddUrl,
-					{
-						dataset_uuid: datasetUuid,
-						capture_uuid: captureUuid,
-					},
-					null,
-					true,
-				);
-				if (response.success) {
-					totalAdded += response.added?.length ?? 0;
-					totalSkipped += response.skipped?.length ?? 0;
-					if (response.errors?.length) {
-						errorMessages.push(...(response.errors || []));
-					}
-				} else {
-					errorMessages.push(response.error || "Request failed");
-				}
-			} catch (err) {
-				// APIClient throws on non-2xx (and on network errors), so failed = exception or 4xx/5xx
-				errorMessages.push(err?.data?.error || err?.message || String(err));
-			}
-		}
+		const { totalAdded, totalSkipped, errorMessages } =
+			await window.QuickAddApi.postQuickAddCaptures(
+				this.quickAddUrl,
+				datasetUuid,
+				this.currentCaptureUuids,
+			);
 		const errorCount = errorMessages.length;
 		const hasErrors = errorCount > 0;
 		const hasSuccess = totalAdded > 0 || totalSkipped > 0;
@@ -257,45 +254,47 @@ class QuickAddToDatasetManager {
 			this._closeWithToast(msg, hasErrors ? "warning" : "success");
 		} else {
 			// All requests failed — keep modal open so the user can try again
-			this.showMessage(msg, "warning");
+			this.showInlineMessage(msg, "warning");
 			if (this.confirmBtn) this.confirmBtn.disabled = false;
 		}
 	}
 
 	async handleSingleAdd(datasetUuid) {
 		try {
-			const response = await window.APIClient.post(
+			const result = await window.QuickAddApi.postQuickAddCapture(
 				this.quickAddUrl,
-				{
-					dataset_uuid: datasetUuid,
-					capture_uuid: this.currentCaptureUuid,
-				},
-				null,
-				true,
+				datasetUuid,
+				this.currentCaptureUuid,
 			);
-			if (response.success) {
-				const added = response.added?.length ?? 0;
-				const skipped = response.skipped?.length ?? 0;
-				const errorCount = response.errors?.length ?? 0;
-				const firstError = response.errors?.[0];
+			if (result.success) {
 				const msg = this.formatQuickAddSummary(
-					added,
-					skipped,
-					errorCount,
-					firstError,
+					result.added,
+					result.skipped,
+					result.errors.length,
+					result.errors[0],
 				);
-				this._closeWithToast(msg, errorCount > 0 ? "warning" : "success");
+				this._closeWithToast(
+					msg,
+					result.errors.length > 0 ? "warning" : "success",
+				);
 			} else {
-				this.showMessage(response.error || "Request failed.", "danger");
+				this.showInlineMessage(
+					result.errors[0] || "Request failed.",
+					"danger",
+				);
 				if (this.confirmBtn) this.confirmBtn.disabled = false;
 			}
 		} catch (err) {
 			const msg =
 				err?.data?.error || err?.message || "Failed to add capture to dataset.";
-			this.showMessage(msg, "danger");
+			this.showInlineMessage(msg, "danger");
 			if (this.confirmBtn) this.confirmBtn.disabled = false;
 		}
 	}
 }
 
 window.QuickAddToDatasetManager = QuickAddToDatasetManager;
+
+if (typeof module !== "undefined" && module.exports) {
+	module.exports = { QuickAddToDatasetManager };
+}

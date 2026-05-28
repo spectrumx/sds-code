@@ -1,0 +1,9 @@
+{% comment %}
+Per-capture modals: share + web download (full page + AJAX list refresh).
+{% endcomment %}
+{% for cap in captures %}
+    {% if cap.capture %}
+        {% include "users/partials/share_modal.html" with item=cap item_type="capture" %}
+        {% include "users/partials/web_download_modal.html" with item=cap item_type="capture" %}
+    {% endif %}
+{% endfor %}

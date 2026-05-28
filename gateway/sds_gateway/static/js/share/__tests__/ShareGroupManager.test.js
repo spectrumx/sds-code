@@ -6,44 +6,26 @@
 // Import the ShareGroupManager class
 import { ShareGroupManager } from "../ShareGroupManager.js";
 
+const { setupStandardUnitTest } = require("../../tests-config/testHelpers.js");
+
 describe("ShareGroupManager", () => {
 	let shareGroupManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Mock configuration
 		mockConfig = {
 			apiEndpoint: "/users/share-groups/",
 		};
 
-		// Minimal DOM mocks
-		document.getElementById = jest.fn(() => null);
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Minimal API mocks
-		global.window = {
-			APIClient: {
+		setupStandardUnitTest({
+			useModalDomUtils: true,
+			apiClientOverrides: {
 				request: jest.fn().mockResolvedValue({ success: true }),
 				get: jest.fn().mockResolvedValue({ success: true }),
 				post: jest.fn().mockResolvedValue({ html: "<div>Test HTML</div>" }),
 			},
-			DOMUtils: {
-				show: jest.fn(),
-				hide: jest.fn(),
-				showAlert: jest.fn(),
-				renderError: jest.fn().mockResolvedValue(true),
-				renderLoading: jest.fn().mockResolvedValue(true),
-				renderContent: jest.fn().mockResolvedValue(true),
-				renderTable: jest.fn().mockResolvedValue(true),
-			},
-			showAlert: jest.fn(),
-		};
+		});
 
-		// Minimal Bootstrap mock
 		global.bootstrap = {
 			Modal: jest.fn().mockImplementation(() => ({
 				show: jest.fn(),
@@ -75,98 +57,34 @@ describe("ShareGroupManager", () => {
 			expect(manager.config.customProperty).toBe("value");
 		});
 
-		test("should initialize event listeners", () => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-
-			expect(typeof shareGroupManager.initializeEventListeners).toBe(
-				"function",
-			);
-		});
-	});
-
-	describe("Group Creation", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should handle create group form submission successfully", async () => {
-			const mockForm = {
-				addEventListener: jest.fn(),
-				querySelector: jest.fn(() => ({ value: "Test Group" })),
-			};
-
-			const mockSearchInput = {
-				dataset: {},
-				addEventListener: jest.fn(),
-			};
-
-			document.getElementById = jest.fn((id) => {
-				if (id === "share-group-create-form") return mockForm;
-				if (id === "share-group-user-search-input") return mockSearchInput;
-				return null;
-			});
-
-			document.querySelector = jest.fn((selector) => {
-				if (selector === "#share-group-user-search-input")
-					return mockSearchInput;
-				return null;
-			});
-
-			expect(() => {
-				shareGroupManager.initializeEventListeners();
-			}).not.toThrow();
-		});
-	});
-
-	describe("Member Management", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should handle add members successfully", async () => {
-			const mockForm = {
-				addEventListener: jest.fn(),
-				querySelector: jest.fn(() => null),
-			};
-			document.getElementById = jest.fn(() => mockForm);
-
-			expect(() => {
-				shareGroupManager.initializeEventListeners();
-			}).not.toThrow();
-		});
 	});
 
 	describe("Member Removal", () => {
 		beforeEach(() => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
+			document.getElementById = jest.fn((id) => {
+				if (id === "save-sharegroup-btn") {
+					return { disabled: true };
+				}
+				if (id === "add-members-btn") {
+					return { disabled: true };
+				}
+				return null;
+			});
 		});
 
-		test.each([
-			[true, "when there are pending removals"],
-			[false, "when no pending removals"],
-		])("should handle save button %s", (hasRemovals, description) => {
-			if (hasRemovals) {
-				shareGroupManager.pendingRemovals.add("test@example.com");
-			}
+		test("updateSaveButtonState enables save only when removals are pending", () => {
+			const saveBtn = { disabled: true };
+			document.getElementById = jest.fn((id) =>
+				id === "save-sharegroup-btn" ? saveBtn : null,
+			);
 
-			expect(() => {
-				shareGroupManager.updateSaveButtonState();
-			}).not.toThrow();
-		});
-	});
+			shareGroupManager.updateSaveButtonState();
+			expect(saveBtn.disabled).toBe(true);
 
-	describe("Group Deletion", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test("should show delete confirmation modal", () => {
-			const mockModal = { show: jest.fn() };
-			global.bootstrap.Modal.mockImplementation(() => mockModal);
-
-			expect(() => {
-				new ShareGroupManager(mockConfig);
-			}).not.toThrow();
+			shareGroupManager.pendingRemovals.add("member@example.com");
+			shareGroupManager.updateSaveButtonState();
+			expect(saveBtn.disabled).toBe(false);
 		});
 	});
 
@@ -175,28 +93,36 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test("should update table member info", () => {
-			const mockTableBody = {
-				querySelector: jest.fn(() => ({
-					style: { display: "block" },
-					innerHTML: "",
-				})),
-			};
-			document.querySelector = jest.fn(() => mockTableBody);
-
-			// Mock DOMUtils methods
+		test("updateTableMemberInfo sets count and first three emails", () => {
+			const memberCountElement = { textContent: "" };
+			const memberEmailsElement = { innerHTML: "" };
+			document.querySelector = jest.fn((selector) => {
+				if (selector.includes("member-count")) {
+					return memberCountElement;
+				}
+				if (selector.includes("member-emails")) {
+					return memberEmailsElement;
+				}
+				return null;
+			});
 			global.window.DOMUtils.show = jest.fn();
 			global.window.DOMUtils.hide = jest.fn();
 
-			// updateTableMemberInfo expects (groupUuid, members array)
 			const members = [
-				{ email: "test@example.com", name: "Test User" },
-				{ email: "test2@example.com", name: "Test User 2" },
+				{ email: "a@example.com" },
+				{ email: "b@example.com" },
+				{ email: "c@example.com" },
+				{ email: "d@example.com" },
 			];
 
-			expect(() => {
-				shareGroupManager.updateTableMemberInfo("test-uuid", members);
-			}).not.toThrow();
+			shareGroupManager.updateTableMemberInfo("group-1", members);
+
+			expect(memberCountElement.textContent).toBe("4 members");
+			expect(memberEmailsElement.innerHTML).toContain("a@example.com");
+			expect(memberEmailsElement.innerHTML).toContain("and 1 more");
+			expect(global.window.DOMUtils.show).toHaveBeenCalledWith(
+				memberEmailsElement,
+			);
 		});
 	});
 
@@ -205,17 +131,23 @@ describe("ShareGroupManager", () => {
 			shareGroupManager = new ShareGroupManager(mockConfig);
 		});
 
-		test.each([
-			["with global showAlert available", true],
-			["with missing global showAlert", false],
-		])("should show alert %s", (description, hasShowAlert) => {
-			if (!hasShowAlert) {
-				global.window.showAlert = undefined;
-			}
+		test("domToast path uses showMessage when group name missing", async () => {
+			document.getElementById = jest.fn((id) => {
+				if (id === "groupName") return { value: "" };
+				return null;
+			});
+			global.window.DOMUtils.showMessage = jest.fn();
+			const mgr = new ShareGroupManager(mockConfig);
+			await mgr.handleCreateGroup({});
 
-			expect(() => {
-				shareGroupManager.showAlert("Test message", "success");
-			}).not.toThrow();
+			expect(global.window.DOMUtils.showMessage).toHaveBeenCalledWith(
+				"Group name is required",
+				expect.objectContaining({
+					variant: "danger",
+					placement: "toast",
+					presentation: "toast",
+				}),
+			);
 		});
 	});
 
@@ -313,18 +245,4 @@ describe("ShareGroupManager", () => {
 		});
 	});
 
-	describe("Error Handling", () => {
-		beforeEach(() => {
-			shareGroupManager = new ShareGroupManager(mockConfig);
-		});
-
-		test.each([["API errors"], ["network errors"]])(
-			"should handle %s gracefully",
-			(errorType) => {
-				expect(() => {
-					new ShareGroupManager(mockConfig);
-				}).not.toThrow();
-			},
-		);
-	});
 });

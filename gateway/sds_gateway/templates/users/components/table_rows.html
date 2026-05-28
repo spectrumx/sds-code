@@ -10,6 +10,7 @@ Context structure:
             "cells": [{"value": "cell1"}, {"value": "cell2"}],
             "css_class": "optional-row-class",
             "data_attrs": {"key": "value"},  // Optional data-* attributes
+            "actions_td_class": "text-end",  // Optional class on actions <td>
             "actions": [  // Optional action buttons
                 {
                     "label": "Remove",
@@ -41,7 +42,7 @@ Context structure:
                 </td>
             {% endfor %}
             {% if row.actions %}
-                <td>
+                <td {% if row.actions_td_class %}class="{{ row.actions_td_class }}"{% endif %}>
                     {% for action in row.actions %}
                         <button type="button"
                                 class="btn btn-sm {{ action.css_class|default:'btn-outline-secondary' }} {{ action.extra_class|default:'' }}"

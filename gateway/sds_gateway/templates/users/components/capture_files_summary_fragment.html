@@ -1,0 +1,20 @@
+{% load humanize %}
+<div class="row">
+    <div class="col-12">
+        <h6 class="mb-3">
+            <i class="bi bi-files me-2"></i>Files Summary
+        </h6>
+    </div>
+    <div class="col-md-6">
+        <p class="mb-2">
+            <span class="fw-medium text-muted">Number of Files:</span>
+            <span class="ms-2">{{ files_count }}</span>
+        </p>
+    </div>
+    <div class="col-md-6">
+        <p class="mb-2">
+            <span class="fw-medium text-muted">Total Size:</span>
+            <span class="ms-2">{{ total_size|filesizeformat }}</span>
+        </p>
+    </div>
+</div>

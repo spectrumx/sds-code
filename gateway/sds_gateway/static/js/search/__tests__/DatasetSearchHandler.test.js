@@ -1,12 +1,19 @@
 /**
- * Jest tests for DatasetSearchHandler
- * Tests search functionality for published datasets
+ * Jest tests for ListPageSearchController (list-page GET search)
  */
 
-// Import the DatasetSearchHandler class
-import { DatasetSearchHandler } from "../DatasetSearchHandler.js";
+import { ListPageSearchController } from "../AssetSearchHandler.js";
 
-describe("DatasetSearchHandler", () => {
+const {
+	setupStandardUnitTest,
+	createMockFormElement,
+	createMockButtonElement,
+	createDefaultDatasetSearchConfig,
+	createDatasetSearchGetElementByIdMap,
+	installMockDatasetListLocation,
+} = require("../../tests-config/testHelpers.js");
+
+describe("ListPageSearchController", () => {
 	let searchHandler;
 	let mockConfig;
 	let mockForm;
@@ -17,86 +24,40 @@ describe("DatasetSearchHandler", () => {
 	let mockResultsCount;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
+		mockForm = createMockFormElement();
+		mockSearchButton = createMockButtonElement();
+		mockClearButton = createMockButtonElement();
+		mockResultsContainer = { innerHTML: "" };
+		mockResultsTbody = { innerHTML: "" };
+		mockResultsCount = { textContent: "" };
 
-		// Mock DOM elements
-		mockForm = {
-			addEventListener: jest.fn(),
-			querySelectorAll: jest.fn(() => []),
-		};
-
-		mockSearchButton = {
-			addEventListener: jest.fn(),
-		};
-
-		mockClearButton = {
-			addEventListener: jest.fn(),
-		};
-
-		mockResultsContainer = {
-			innerHTML: "",
-		};
-
-		mockResultsTbody = {
-			innerHTML: "",
-		};
-
-		mockResultsCount = {
-			textContent: "",
-		};
-
-		// Mock document methods
-		document.getElementById = jest.fn((id) => {
-			const elements = {
-				"search-form": mockForm,
-				"search-button": mockSearchButton,
-				"clear-button": mockClearButton,
-				"results-container": mockResultsContainer,
-				"results-tbody": mockResultsTbody,
-				"results-count": mockResultsCount,
-			};
-			return elements[id] || null;
+		setupStandardUnitTest({
+			getElementByIdMap: createDatasetSearchGetElementByIdMap({
+				mockForm,
+				mockSearchButton,
+				mockClearButton,
+				mockResultsContainer,
+				mockResultsTbody,
+				mockResultsCount,
+			}),
+			apiClient: false,
 		});
 
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Mock config
-		mockConfig = {
-			searchFormId: "search-form",
-			searchButtonId: "search-button",
-			clearButtonId: "clear-button",
-			resultsContainerId: "results-container",
-			resultsTbodyId: "results-tbody",
-			resultsCountId: "results-count",
-		};
-
-		// Mock window.location
-		Object.defineProperty(window, "location", {
-			value: {
-				href: "http://localhost:8000/datasets/",
-				pathname: "/datasets/",
-				search: "",
-			},
-			writable: true,
-		});
+		mockConfig = createDefaultDatasetSearchConfig();
+		installMockDatasetListLocation();
 	});
 
 	describe("Initialization", () => {
 		test("should initialize with correct configuration", () => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 
 			expect(searchHandler.searchForm).toBe(mockForm);
 			expect(searchHandler.searchButton).toBe(mockSearchButton);
 			expect(searchHandler.clearButton).toBe(mockClearButton);
-			expect(searchHandler.resultsContainer).toBe(mockResultsContainer);
-			expect(searchHandler.resultsTbody).toBe(mockResultsTbody);
-			expect(searchHandler.resultsCount).toBe(mockResultsCount);
 		});
 
 		test("should initialize event listeners on construction", () => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 
 			// Form should have submit listener
 			expect(mockForm.addEventListener).toHaveBeenCalledWith(
@@ -124,7 +85,7 @@ describe("DatasetSearchHandler", () => {
 			});
 
 			expect(() => {
-				searchHandler = new DatasetSearchHandler(mockConfig);
+				searchHandler = new ListPageSearchController(mockConfig);
 			}).not.toThrow();
 
 			expect(searchHandler.searchForm).toBeNull();
@@ -133,7 +94,7 @@ describe("DatasetSearchHandler", () => {
 
 	describe("Event Listeners", () => {
 		beforeEach(() => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 		});
 
 		test("should setup form submit event listener", () => {
@@ -160,7 +121,7 @@ describe("DatasetSearchHandler", () => {
 			searchHandler.initializeEnterKeyListener();
 
 			expect(mockForm.querySelectorAll).toHaveBeenCalledWith(
-				"input[type='text'], input[type='number']",
+				"input[type='text'], input[type='search'], input[type='number']",
 			);
 			expect(mockInput.addEventListener).toHaveBeenCalledWith(
 				"keypress",
@@ -193,7 +154,7 @@ describe("DatasetSearchHandler", () => {
 				};
 				return elements[id] || null;
 			});
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 			const mockInputListener = { addEventListener: jest.fn(), type: "text" };
 			realForm.querySelectorAll = jest.fn(() => [mockInputListener]);
 			searchHandler.initializeEnterKeyListener();
@@ -247,7 +208,7 @@ describe("DatasetSearchHandler", () => {
 
 	describe("Search Functionality", () => {
 		beforeEach(() => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 		});
 
 		test("should handle search form submission", () => {
@@ -263,7 +224,8 @@ describe("DatasetSearchHandler", () => {
 			// Mock URLSearchParams
 			global.URLSearchParams = jest.fn(() => ({
 				append: jest.fn(),
-				toString: () => "query=test+query&type=spectrum",
+				set: jest.fn(),
+				toString: () => "query=test+query&type=spectrum&page=1",
 			}));
 
 			// Mock window.location.href setter
@@ -300,6 +262,7 @@ describe("DatasetSearchHandler", () => {
 			const toStringSpy = jest.fn(() => "query=test&type=spectrum");
 			global.URLSearchParams = jest.fn(() => ({
 				append: appendSpy,
+				set: jest.fn(),
 				toString: toStringSpy,
 			}));
 
@@ -309,6 +272,7 @@ describe("DatasetSearchHandler", () => {
 				get: () => ({
 					href: locationHref,
 					pathname: "/datasets/",
+					search: "",
 				}),
 				set: (value) => {
 					locationHref = value;
@@ -338,7 +302,8 @@ describe("DatasetSearchHandler", () => {
 			const appendSpy = jest.fn();
 			global.URLSearchParams = jest.fn(() => ({
 				append: appendSpy,
-				toString: () => "query=test",
+				set: jest.fn(),
+				toString: () => "query=test&page=1",
 			}));
 
 			searchHandler.handleSearch();
@@ -360,7 +325,8 @@ describe("DatasetSearchHandler", () => {
 			const appendSpy = jest.fn();
 			global.URLSearchParams = jest.fn(() => ({
 				append: appendSpy,
-				toString: () => "query=test+query",
+				set: jest.fn(),
+				toString: () => "query=test+query&page=1",
 			}));
 
 			searchHandler.handleSearch();
@@ -394,7 +360,7 @@ describe("DatasetSearchHandler", () => {
 
 	describe("Clear Functionality", () => {
 		beforeEach(() => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 		});
 
 		test("should clear all form inputs", () => {
@@ -492,7 +458,7 @@ describe("DatasetSearchHandler", () => {
 			document.getElementById.mockReturnValue(null);
 
 			expect(() => {
-				searchHandler = new DatasetSearchHandler(mockConfig);
+				searchHandler = new ListPageSearchController(mockConfig);
 			}).not.toThrow();
 
 			expect(searchHandler.searchForm).toBeNull();
@@ -500,7 +466,7 @@ describe("DatasetSearchHandler", () => {
 		});
 
 		test("should handle form with no inputs", () => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 			mockForm.querySelectorAll.mockReturnValue([]);
 
 			expect(() => {
@@ -509,7 +475,7 @@ describe("DatasetSearchHandler", () => {
 		});
 
 		test("should handle search with no form values", () => {
-			searchHandler = new DatasetSearchHandler(mockConfig);
+			searchHandler = new ListPageSearchController(mockConfig);
 
 			// Mock FormData with no entries
 			global.FormData = jest.fn(() => ({
@@ -519,7 +485,8 @@ describe("DatasetSearchHandler", () => {
 			// Mock URLSearchParams
 			global.URLSearchParams = jest.fn(() => ({
 				append: jest.fn(),
-				toString: () => "",
+				set: jest.fn(),
+				toString: () => "page=1",
 			}));
 
 			// Track location changes

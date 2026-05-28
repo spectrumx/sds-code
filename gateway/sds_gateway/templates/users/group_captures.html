@@ -114,7 +114,11 @@
     </body>
     {% block extra_js %}
         <!-- Dataset components -->
+        <script src="{% static 'js/dataset/datasetFormSnapshot.js' %}"></script>
         <script src="{% static 'js/dataset/DatasetModeManager.js' %}"></script>
+        <script src="{% static 'js/dataset/AuthorsManager.js' %}"></script>
+        <script src="{% static 'js/dataset/DatasetAuthorsUI.js' %}"></script>
+        <script src="{% static 'js/dataset/DatasetPendingChanges.js' %}"></script>
         <script src="{% static 'js/dataset/DatasetCreationHandler.js' %}"></script>
         <script src="{% static 'js/dataset/DatasetEditingHandler.js' %}"></script>
         <!-- Search components -->

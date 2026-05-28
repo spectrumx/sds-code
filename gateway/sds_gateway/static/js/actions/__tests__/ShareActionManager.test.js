@@ -6,53 +6,19 @@
 // Import the ShareActionManager class
 import { ShareActionManager } from "../ShareActionManager.js";
 
+const {
+	createDefaultShareActionConfig,
+	setupShareActionStandardTest,
+	createShareSearchTestContext,
+} = require("../../__tests__/helpers/actionTestMocks.js");
+
 describe("ShareActionManager", () => {
 	let shareManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Mock config
-		mockConfig = {
-			itemUuid: "test-uuid",
-			itemType: "dataset",
-			permissions: {
-				canShare: true,
-			},
-		};
-
-		// Minimal DOM mocks
-		document.getElementById = jest.fn(() => null);
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Minimal API mocks
-		global.APIClient = {
-			post: jest.fn().mockResolvedValue({ success: true }),
-			get: jest.fn().mockResolvedValue([]),
-		};
-
-		// Mock DOMUtils (replaces HTMLInjectionManager)
-		global.window.DOMUtils = {
-			show: jest.fn(),
-			hide: jest.fn(),
-			showAlert: jest.fn(),
-			renderError: jest.fn().mockResolvedValue(true),
-			renderLoading: jest.fn().mockResolvedValue(true),
-			renderContent: jest.fn().mockResolvedValue(true),
-			renderTable: jest.fn().mockResolvedValue(true),
-			showModalLoading: jest.fn().mockResolvedValue(true),
-			clearModalLoading: jest.fn(),
-			showModalError: jest.fn().mockResolvedValue(true),
-			openModal: jest.fn(),
-			closeModal: jest.fn(),
-		};
-
-		// Mock window.showAlert
-		global.window.showAlert = jest.fn();
-		global.window.APIClient = global.APIClient;
+		mockConfig = createDefaultShareActionConfig();
+		setupShareActionStandardTest();
 	});
 
 	describe("Initialization", () => {
@@ -74,31 +40,12 @@ describe("ShareActionManager", () => {
 	});
 
 	describe("Searching Users", () => {
-		let shareManager;
 		let mockAPIClient;
 		let mockDropdown;
 
 		beforeEach(() => {
-			mockAPIClient = {
-				get: jest.fn(),
-				post: jest.fn(),
-			};
-			window.APIClient = mockAPIClient;
-
-			mockDropdown = {
-				querySelector: jest.fn(() => ({
-					innerHTML: "",
-				})),
-			};
-
-			shareManager = new ShareActionManager({
-				itemUuid: "test-uuid",
-				itemType: "dataset",
-				permissions: {},
-			});
-			shareManager.displayResults = jest.fn();
-			shareManager.displayError = jest.fn();
-			shareManager.showDropdown = jest.fn();
+			({ mockAPIClient, mockDropdown, shareManager } =
+				createShareSearchTestContext(ShareActionManager));
 		});
 
 		test("should cancel previous request when new search starts", async () => {
@@ -301,8 +248,7 @@ describe("ShareActionManager", () => {
 			});
 
 			window.DOMUtils = {
-				showToast: jest.fn(),
-				showAlert: jest.fn(),
+				showMessage: jest.fn(),
 			};
 
 			window.location = { reload: jest.fn() };
@@ -344,9 +290,13 @@ describe("ShareActionManager", () => {
 					]),
 				}),
 			);
-			expect(window.DOMUtils.showAlert).toHaveBeenCalledWith(
+			expect(window.DOMUtils.showMessage).toHaveBeenCalledWith(
 				"Dataset shared successfully",
-				"success",
+				expect.objectContaining({
+					variant: "success",
+					placement: "toast",
+					presentation: "toast",
+				}),
 			);
 		});
 
@@ -369,32 +319,106 @@ describe("ShareActionManager", () => {
 		});
 	});
 
+	describe("List refresh after share", () => {
+		let shareManager;
+		let mockAPIClient;
+		let reloadMock;
+
+		beforeEach(() => {
+			mockAPIClient = { post: jest.fn() };
+			window.APIClient = mockAPIClient;
+			window.PermissionLevels = { VIEWER: "viewer" };
+			document.getElementById = jest.fn((id) => {
+				if (id === "notify-users-checkbox-test-uuid") {
+					return { checked: false, value: "" };
+				}
+				return null;
+			});
+			window.DOMUtils = { showMessage: jest.fn() };
+			reloadMock = jest.fn();
+			Object.defineProperty(window, "location", {
+				value: { reload: reloadMock },
+				writable: true,
+				configurable: true,
+			});
+			window.listRefreshManager = {
+				loadTable: jest.fn().mockResolvedValue("<table></table>"),
+			};
+
+			shareManager = new ShareActionManager({
+				itemUuid: "test-uuid",
+				itemType: "dataset",
+				permissions: {},
+			});
+			shareManager.selectedUsersMap = {
+				"user-search-test-uuid": [
+					{ email: "user1@example.com", permission_level: "viewer" },
+				],
+			};
+			shareManager.pendingRemovals = new Set();
+			shareManager.pendingPermissionChanges = new Map();
+			shareManager.closeModal = jest.fn();
+			shareManager.showToast = jest.fn();
+		});
+
+		test("should await listRefreshManager.loadTable after successful share", async () => {
+			mockAPIClient.post.mockResolvedValue({ success: true });
+
+			await shareManager.handleShareItem();
+
+			expect(shareManager.closeModal).toHaveBeenCalledWith(
+				"shareModal-test-uuid",
+			);
+			expect(window.listRefreshManager.loadTable).toHaveBeenCalled();
+			expect(reloadMock).not.toHaveBeenCalled();
+		});
+
+		test("should reload page when listRefreshManager is unavailable", async () => {
+			window.listRefreshManager = undefined;
+			console.warn = jest.fn();
+			mockAPIClient.post.mockResolvedValue({ success: true });
+
+			await shareManager.handleShareItem();
+
+			expect(console.warn).toHaveBeenCalledWith(
+				"listRefreshManager not available, reloading page",
+			);
+			expect(reloadMock).toHaveBeenCalled();
+		});
+	});
+
 	describe("Utility methods", () => {
 		beforeEach(() => {
+			window.DOMUtils.showMessage = jest.fn();
 			shareManager = new ShareActionManager(mockConfig);
 		});
 
-		test("should highlight search matches", () => {
-			// The highlightMatch method doesn't exist in current implementation
-			// Text highlighting is now handled by Django templates or not used
-			expect(true).toBe(true);
-		});
-
-		test("should get permission button text", () => {
-			// Mock permissions with getPermissionIcon method
+		test("getPermissionButtonText includes icon class and capitalized label", () => {
 			shareManager.permissions = {
 				getPermissionIcon: jest.fn(() => "bi-eye"),
 			};
 
-			const text = shareManager.getPermissionButtonText("read");
+			const text = shareManager.getPermissionButtonText("viewer");
 
-			expect(typeof text).toBe("string");
+			expect(text).toContain('class="bi bi-eye me-1"');
+			expect(text).toContain("Viewer");
+			expect(shareManager.permissions.getPermissionIcon).toHaveBeenCalledWith(
+				"viewer",
+			);
 		});
 
-		test("should show toast messages", () => {
-			expect(() => {
-				shareManager.showToast("Test message", "success");
-			}).not.toThrow();
+		test("showToast routes success and danger through showMessage", () => {
+			shareManager.showToast("Saved", "success");
+			shareManager.showToast("Failed", "danger");
+
+			expect(shareManager.showMessage).toHaveBeenCalledWith(
+				"Saved",
+				expect.objectContaining({ variant: "success", presentation: "toast" }),
+			);
+			expect(shareManager.showMessage).toHaveBeenCalledWith(
+				"Failed",
+				expect.objectContaining({ variant: "danger", presentation: "toast" }),
+			);
 		});
 	});
 
@@ -416,13 +440,15 @@ describe("ShareActionManager", () => {
 			}).not.toThrow();
 		});
 
-		test("should handle API failures gracefully", async () => {
-			global.APIClient.post.mockRejectedValue(new Error("API Error"));
+		test("searchUsers surfaces non-abort errors via displayError", async () => {
+			const mockDropdown = { innerHTML: "" };
+			shareManager.displayError = jest.fn();
 			global.APIClient.get.mockRejectedValue(new Error("API Error"));
 
-			// Test that methods exist and can be called
-			expect(typeof shareManager.setupSearchInput).toBe("function");
-			expect(typeof shareManager.setupShareItem).toBe("function");
+			await shareManager.searchUsers("x", mockDropdown);
+
+			expect(shareManager.displayError).toHaveBeenCalledWith(mockDropdown);
+			expect(shareManager.currentRequest).toBeNull();
 		});
 
 		test("should handle invalid data gracefully", () => {
@@ -437,26 +463,49 @@ describe("ShareActionManager", () => {
 	});
 
 	describe("State management", () => {
+		const itemUuid = "test-uuid";
+
 		beforeEach(() => {
 			shareManager = new ShareActionManager(mockConfig);
 		});
 
-		test("should clear selections", () => {
-			expect(() => {
-				shareManager.clearSelections();
-			}).not.toThrow();
+		test("clearSelections resets maps and pending change sets", () => {
+			shareManager.selectedUsersMap = {
+				[`user-search-${itemUuid}`]: [{ email: "a@b.com" }],
+			};
+			shareManager.pendingRemovals.add("a@b.com");
+			shareManager.pendingPermissionChanges.set("a@b.com", "viewer");
+
+			shareManager.clearSelections();
+
+			expect(shareManager.selectedUsersMap).toEqual({});
+			expect(shareManager.pendingRemovals.size).toBe(0);
+			expect(shareManager.pendingPermissionChanges.size).toBe(0);
 		});
 
-		test("should toggle modal sections", () => {
-			expect(() => {
-				shareManager.toggleModalSections("test-input");
-			}).not.toThrow();
+		test("updateSaveButtonState disables save when no pending work", () => {
+			const saveBtn = { disabled: false };
+			document.getElementById = jest.fn((id) =>
+				id === `share-item-btn-${itemUuid}` ? saveBtn : null,
+			);
+
+			shareManager.updateSaveButtonState(itemUuid);
+
+			expect(saveBtn.disabled).toBe(true);
 		});
 
-		test("should update save button state", () => {
-			expect(() => {
-				shareManager.updateSaveButtonState("test-uuid");
-			}).not.toThrow();
+		test("updateSaveButtonState enables save when users are selected", () => {
+			const saveBtn = { disabled: true };
+			document.getElementById = jest.fn((id) =>
+				id === `share-item-btn-${itemUuid}` ? saveBtn : null,
+			);
+			shareManager.selectedUsersMap[`user-search-${itemUuid}`] = [
+				{ email: "user@example.com" },
+			];
+
+			shareManager.updateSaveButtonState(itemUuid);
+
+			expect(saveBtn.disabled).toBe(false);
 		});
 	});
 });

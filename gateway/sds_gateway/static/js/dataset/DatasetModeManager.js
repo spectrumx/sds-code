@@ -81,89 +81,16 @@ class DatasetModeManager {
 	 * Capture original dataset data for change tracking
 	 */
 	captureOriginalDatasetData() {
-		const nameField = document.getElementById("id_name");
-		const statusField = document.getElementById("id_status");
-		const descriptionField = document.getElementById("id_description");
-		const authorsField = document.getElementById("id_authors");
-
-		const originalData = {};
-
-		// In edit mode, try to get data from form fields first, then fall back to config
-		if (this.isEditMode) {
-			// Try to get from form fields (when user can edit metadata)
-			if (nameField) {
-				originalData.name = nameField.value || "Untitled Dataset";
-			} else {
-				// Fall back to readonly field or config data
-				const readonlyNameField = document.querySelector(
-					"input[readonly][value]",
-				);
-				originalData.name =
-					readonlyNameField?.value ||
-					this.config.existingDatasetName ||
-					"Untitled Dataset";
-			}
-
-			if (statusField) {
-				// Status field is a hidden input, use the value directly
-				const statusValue = statusField.value || "draft";
-				// Convert value to display text
-				originalData.status = statusValue === "final" ? "Final" : "Draft";
-			} else {
-				// Fall back to readonly field or config data
-				const readonlyStatusField = document.querySelector("input[readonly]");
-				originalData.status =
-					readonlyStatusField?.value ||
-					this.config.existingDatasetStatus ||
-					"Unknown";
-			}
-
-			if (descriptionField) {
-				originalData.description =
-					descriptionField.value || "No description provided.";
-			} else {
-				// Fall back to readonly field or config data
-				const readonlyDescField = document.querySelector("textarea[readonly]");
-				originalData.description =
-					readonlyDescField?.value ||
-					this.config.existingDatasetDescription ||
-					"No description provided.";
-			}
-
-			if (authorsField) {
-				try {
-					const authors = JSON.parse(authorsField.value || "[]");
-					originalData.authors = authors;
-				} catch (e) {
-					originalData.authors = [];
-				}
-			} else {
-				// Fall back to config data for authors
-				originalData.authors = this.config.initialAuthors || [];
-			}
-		} else {
-			// Creation mode - get from form fields
-			originalData.name = nameField?.value || "Untitled Dataset";
-			if (statusField) {
-				// Status field is a hidden input, use the value directly
-				const statusValue = statusField.value || "draft";
-				// Convert value to display text
-				originalData.status = statusValue === "final" ? "Final" : "Draft";
-			}
-			originalData.description =
-				descriptionField?.value || "No description provided.";
-
-			if (authorsField) {
-				try {
-					const authors = JSON.parse(authorsField.value || "[]");
-					originalData.authors = authors;
-				} catch (e) {
-					originalData.authors = [];
-				}
-			}
+		const capture = window.captureDatasetFormSnapshot;
+		if (typeof capture === "function") {
+			return capture(this.isEditMode, this.config);
 		}
-
-		return originalData;
+		return {
+			name: "Untitled Dataset",
+			status: "Draft",
+			description: "No description provided.",
+			authors: [],
+		};
 	}
 
 	/**
@@ -811,9 +738,12 @@ class DatasetModeManager {
 		});
 
 		if (!success) {
-			await window.DOMUtils.renderError(pendingTable, "Error loading changes", {
-				format: "table",
-				colspan: 5,
+			await window.DOMUtils.showMessage("Error loading changes", {
+				variant: "danger",
+				placement: "replace",
+				target: pendingTable,
+				presentation: "table",
+				templateContext: { colspan: 5 },
 			});
 		}
 

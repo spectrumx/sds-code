@@ -1,0 +1,82 @@
+{% comment %}
+  Context:
+  - message, type (success|error|warning|info)
+  - presentation: toast | inline | alert | list | table | visualization_panel
+  - optional: detail_line (visualization_panel second line)
+  - optional: error_list, colspan, icon, alert_type, dismissible, show_field_names
+{% endcomment %}
+{% if presentation == "toast" %}
+    {% with toast_type=type|default:""|lower %}
+        <div class="toast align-items-center {% if 'success' in toast_type %}bg-success text-white {% elif 'error' in toast_type or 'danger' in toast_type %}bg-danger text-white {% elif 'warning' in toast_type %}bg-warning text-dark {% else %}bg-info text-white{% endif %}"
+             role="alert"
+             aria-live="assertive"
+             aria-atomic="true"
+             data-bs-delay="10000">
+            <div class="d-flex">
+                <div class="toast-body">{{ message }}</div>
+                <button type="button"
+                        class="btn-close {% if 'warning' not in toast_type %}btn-close-white{% endif %} me-2 m-auto"
+                        data-bs-dismiss="toast"
+                        aria-label="Close"></button>
+            </div>
+        </div>
+    {% endwith %}
+{% elif presentation == "table" %}
+    <tr>
+        <td colspan="{{ colspan|default:5 }}" class="text-center text-danger">
+            {% if message %}
+                {{ message }}
+            {% else %}
+                Error loading data
+            {% endif %}
+        </td>
+    </tr>
+{% elif presentation == "alert" %}
+    <div class="alert alert-{{ alert_type|default:'danger' }}{% if dismissible|default:True %} alert-dismissible fade show{% endif %} js-ephemeral-message"
+         role="alert">
+        <i class="bi bi-{{ icon|default:'exclamation-triangle' }} me-2"></i>
+        {% if message %}
+            {{ message }}
+        {% elif error_list %}
+            <strong>Please correct the following errors:</strong>
+            <ul class="mb-0 mt-2">
+                {% for field, msg in error_list %}
+                    <li>
+                        {% if show_field_names and field and field != "non_field_errors" %}<strong>{{ field }}:</strong>{% endif %}
+                        {{ msg }}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% if dismissible|default:True %}
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"
+                    aria-label="Close"></button>
+        {% endif %}
+    </div>
+{% elif presentation == "visualization_panel" %}
+    <div class="visualization-panel-message">
+        <p class="error-message-text">{{ message }}</p>
+        {% if detail_line %}
+            <p class="error-detail-line text-muted small mt-2">{{ detail_line }}</p>
+        {% else %}
+            <p class="error-detail-line text-muted small mt-2 d-none"></p>
+        {% endif %}
+    </div>
+{% elif presentation == "list" %}
+    <ul class="mb-0 list-unstyled">
+        {% if error_list %}
+            {% for field, msg in error_list %}
+                <li class="text-danger">
+                    {% if show_field_names and field and field != "non_field_errors" %}<strong>{{ field }}:</strong>{% endif %}
+                    {{ msg }}
+                </li>
+            {% endfor %}
+        {% elif message %}
+            <li class="text-danger">{{ message }}</li>
+        {% endif %}
+    </ul>
+{% else %}
+    <span class="text-danger">{{ message|default:"Error loading data" }}</span>
+{% endif %}

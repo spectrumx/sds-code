@@ -15,6 +15,7 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
@@ -115,8 +116,10 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     share_permissions = serializers.SerializerMethodField()
     is_shared = serializers.SerializerMethodField()
     is_shared_with_me = serializers.SerializerMethodField()
+    permission_level = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
+    total_file_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     data_files_info = serializers.SerializerMethodField()
     datasets = serializers.SerializerMethodField()
@@ -136,7 +139,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
     def get_datasets(self, capture: Capture) -> list[dict[str, Any]]:
         """Datasets linked to this capture (summary rows only; avoids nested graphs)."""
         qs = get_capture_datasets(capture, include_deleted=False)
-        return DatasetSummarySerializer(qs, many=True, context=self.context).data
+        return DatasetSummarySerializer(qs, many=True, context=self.context or {}).data
 
     def get_share_permissions(self, capture: Capture) -> list[UserSharePermission]:
         """Get the share permissions for the capture."""
@@ -158,7 +161,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
                 item_uuid=capture.uuid,
                 is_enabled=True,
                 is_deleted=False,
-            ).exists()
+            ).exclude(owner=request.user).exists()
         return False
 
     def get_is_shared(self, capture: Capture) -> bool:
@@ -169,56 +172,68 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """
         return check_if_shared(capture.uuid, ItemType.CAPTURE)
 
+    def get_permission_level(self, capture: Capture) -> PermissionLevel | None:
+        """Get the current user's permission level for this capture."""
+        request = (self.context or {}).get("request")
+        if not request or not hasattr(request, "user"):
+            return None
+
+        # Check if user is the owner
+        if capture.owner == request.user:
+            return PermissionLevel.OWNER
+
+        # Check for shared permissions
+        permission = UserSharePermission.objects.filter(
+            shared_with=request.user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=capture.uuid,
+            is_enabled=True,
+            is_deleted=False,
+        ).first()
+
+        return permission.permission_level if permission else None
+
     def get_files(self, capture: Capture) -> ReturnList[File]:
         """Get the files for the capture.
 
         Returns:
             A list of serialized file objects with uuid, name, and directory fields.
         """
+        exclude_files = (self.context or {}).get("exclude_files", False)
+        if exclude_files:
+            return []
+
         non_deleted_files = get_capture_files(capture, include_deleted=False)
         return FileSummarySerializer(
-            non_deleted_files, many=True, context=self.context
+            non_deleted_files, many=True, context=self.context or {}
         ).data
 
     @extend_schema_field(serializers.IntegerField(allow_null=True))
-    def get_total_file_size(self, capture: Capture) -> int | None:
+    def get_total_file_count(self, capture: Capture) -> int:
+        """Get the total file count for the capture."""
+        return capture.get_files_summary()["total_count"]
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True))
+    def get_total_file_size(self, capture: Capture) -> int:
         """Get the total file size of all files associated with this capture."""
-
-        if capture.capture_type != CaptureType.DigitalRF:
-            return None
-
-        all_files = get_capture_files(capture, include_deleted=False)
-        result = all_files.aggregate(total_size=Sum("size"))
-        total = result["total_size"] or 0
-        data_total = self.get_data_files_info(capture).get("total_size", 0)
-        if total < data_total:
-            logging.getLogger(__name__).warning(
-                (
-                    "Capture %s: total_file_size (%s) < data_files_total_size (%s); "
-                    "using data total."
-                ),
-                str(capture.uuid),
-                total,
-                data_total,
-            )
-            total = data_total
-
-        return total
+        return capture.get_files_summary()["total_size"]
 
     @extend_schema_field(serializers.DictField(allow_null=True))
     def get_data_files_info(self, capture: Capture) -> dict[str, Any]:
-        """Get the data files info for the capture."""
-        if capture.capture_type != CaptureType.DigitalRF:
-            return {}
-
-        stats = capture.get_drf_data_files_stats()
-        total_size = stats["total_size"]
-        count = stats["total_count"]
-        return {
-            "count": count,
-            "total_size": total_size,
-            "per_data_file_size": (float(total_size) / count) if count else None,
+        """Get the file summary for the capture (all types; DRF includes data_files)."""
+        summary = capture.get_files_summary()
+        data_files = summary.get("data_files")
+        result: dict[str, Any] = {
+            "total_count": summary["total_count"],
+            "total_size": summary["total_size"],
         }
+        if data_files:
+            result["count"] = data_files["count"]
+            result["data_files_total_size"] = data_files["total_size"]
+            result["per_data_file_size"] = data_files.get("per_data_file_size")
+        else:
+            result["count"] = summary["total_count"]
+        return result
 
     @extend_schema_field(serializers.FloatField)
     def get_center_frequency_ghz(self, capture: Capture) -> float | None:
@@ -487,6 +502,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     # Computed fields
     share_permissions = serializers.SerializerMethodField()
     files = serializers.SerializerMethodField()
+    total_file_count = serializers.SerializerMethodField()
     total_file_size = serializers.SerializerMethodField()
     data_files_info = serializers.SerializerMethodField()
     formatted_created_at = serializers.SerializerMethodField()
@@ -619,7 +635,12 @@ class CompositeCaptureSerializer(serializers.Serializer):
 
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
-        all_files = []
+        all_files: list[File] = []
+        
+        exclude_files = (self.context or {}).get("exclude_files", False)
+        if exclude_files:
+            return all_files
+
         for channel_data in obj.get("channels") or []:
             capture = self._capture_for_channel(obj, channel_data)
             if capture is None:
@@ -628,61 +649,61 @@ class CompositeCaptureSerializer(serializers.Serializer):
             serializer = FileSummarySerializer(
                 non_deleted_files,
                 many=True,
-                context=self.context,
+                context=self.context or {},
             )
             all_files.extend(serializer.data)
         return cast("ReturnList[File]", all_files)
 
-    def get_total_file_size(self, obj: dict[str, Any]) -> int | None:
-        """Get the total file size across all channels."""
-        if obj["capture_type"] != CaptureType.DigitalRF:
-            return None
+    @extend_schema_field(serializers.IntegerField())
+    def get_total_file_count(self, obj: dict[str, Any]) -> int:
+        """Total file count across all channels."""
+        total = 0
+        for channel_data in obj.get("channels") or []:
+            capture = self._capture_for_channel(obj, channel_data)
+            if capture is None:
+                continue
+            total += capture.get_files_summary()["total_count"]
+        return total
 
+    @extend_schema_field(serializers.IntegerField())
+    def get_total_file_size(self, obj: dict[str, Any]) -> int:
+        """Total file size across all channels."""
         total_size = 0
         for channel_data in obj.get("channels") or []:
             capture = self._capture_for_channel(obj, channel_data)
             if capture is None:
                 continue
-            all_files = get_capture_files(capture, include_deleted=False)
-            result = all_files.aggregate(total_size=Sum("size"))
-            total_size += result["total_size"] or 0
-
-        data_total = self.get_data_files_info(obj).get("total_size", 0)
-
-        if total_size < data_total:
-            logging.getLogger(__name__).warning(
-                (
-                    "Composite capture: total_file_size (%s) < "
-                    "data_files_total_size (%s); using data total."
-                ),
-                total_size,
-                data_total,
-            )
-            total_size = data_total
+            total_size += capture.get_files_summary()["total_size"]
         return total_size
 
     def get_data_files_info(self, obj: dict[str, Any]) -> dict[str, Any]:
-        """Get the data files info for the composite capture."""
-        if obj["capture_type"] != CaptureType.DigitalRF:
-            return {}
-
+        """File summary aggregated across composite channels."""
         total_count = 0
         total_size = 0
+        drf_count = 0
+        drf_size = 0
         for channel_data in obj.get("channels") or []:
             capture = self._capture_for_channel(obj, channel_data)
             if capture is None:
                 continue
-            stats = capture.get_drf_data_files_stats()
-            total_count += stats["total_count"]
-            total_size += stats["total_size"]
+            summary = capture.get_files_summary()
+            total_count += summary["total_count"]
+            total_size += summary["total_size"]
+            data_files = summary.get("data_files")
+            if data_files:
+                drf_count += data_files["count"]
+                drf_size += data_files["total_size"]
 
-        return {
-            "count": total_count,
+        result: dict[str, Any] = {
+            "count": drf_count if drf_count else total_count,
             "total_size": total_size,
-            "per_data_file_size": (float(total_size) / total_count)
-            if total_count
-            else None,
+            "total_count": total_count,
         }
+        if drf_count:
+            result["per_data_file_size"] = (
+                float(drf_size) / drf_count if drf_count else None
+            )
+        return result
 
     @extend_schema_field(serializers.CharField)
     def get_formatted_created_at(self, obj: dict[str, Any]) -> str:

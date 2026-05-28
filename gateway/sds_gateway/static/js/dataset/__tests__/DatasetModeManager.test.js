@@ -16,62 +16,27 @@ import { DatasetEditingHandler } from "../DatasetEditingHandler.js";
 // Import the DatasetModeManager class
 import { DatasetModeManager } from "../DatasetModeManager.js";
 
+const {
+	createPermissionsManagerMockInstance,
+	installDatasetModeHandlerMocks,
+	createPublishingSubmitDomFixture,
+	createDatasetModeManagerMockConfig,
+} = require("../../tests-config/testHelpers.js");
+
 describe("DatasetModeManager", () => {
 	let modeManager;
 	let mockConfig;
 
 	beforeEach(() => {
-		// Reset mocks
 		jest.clearAllMocks();
-
-		// Mock config for edit mode
-		mockConfig = {
-			datasetUuid: "test-dataset-uuid",
-			userPermissionLevel: "owner",
-			currentUserId: 1,
-			isOwner: true,
-			datasetPermissions: {
-				canEditMetadata: true,
-				canAddAssets: true,
-			},
-		};
-
-		// Mock PermissionsManager instance
-		const mockPermissions = {
-			canEditMetadata: jest.fn(() => true),
-			canAddAssets: jest.fn(() => true),
-			canRemoveAnyAssets: jest.fn(() => true),
-			canRemoveOwnAssets: jest.fn(() => true),
-			canShare: jest.fn(() => true),
-			canDownload: jest.fn(() => true),
-			canView: jest.fn(() => true),
-		};
-
-		// Mock the constructor
-		PermissionsManager.mockImplementation(() => mockPermissions);
-
-		// Mock handler instances
-		const mockEditingHandler = {
-			initialize: jest.fn(),
-			setupEventListeners: jest.fn(),
-			loadDatasetData: jest.fn(),
-			filesSearchHandler: {
-				initialize: jest.fn(),
-				search: jest.fn(),
-			},
-		};
-
-		const mockCreationHandler = {
-			initialize: jest.fn(),
-			setupEventListeners: jest.fn(),
-			filesSearchHandler: {
-				initialize: jest.fn(),
-				search: jest.fn(),
-			},
-		};
-
-		DatasetEditingHandler.mockImplementation(() => mockEditingHandler);
-		DatasetCreationHandler.mockImplementation(() => mockCreationHandler);
+		mockConfig = createDatasetModeManagerMockConfig();
+		PermissionsManager.mockImplementation(() =>
+			createPermissionsManagerMockInstance(),
+		);
+		installDatasetModeHandlerMocks(
+			DatasetEditingHandler,
+			DatasetCreationHandler,
+		);
 	});
 
 	describe("Edit Mode Initialization", () => {
@@ -362,120 +327,36 @@ describe("DatasetModeManager", () => {
 		});
 
 		test("should update submit button for publishing public dataset", () => {
-			const submitBtn = document.createElement("button");
-			submitBtn.id = "submitForm";
-			submitBtn.classList = {
-				contains: jest.fn(() => false),
-			};
-			// Mock offsetParent as read-only property
-			Object.defineProperty(submitBtn, "offsetParent", {
-				get: () => submitBtn,
-				configurable: true,
+			const { submitBtn, install } = createPublishingSubmitDomFixture({
+				publicChecked: true,
+				statusValue: "final",
+				publishToggleChecked: true,
 			});
-
-			const publishToggle = document.createElement("input");
-			publishToggle.id = "publish-dataset-toggle";
-			publishToggle.checked = true;
-
-			const statusField = document.createElement("input");
-			statusField.id = "id_status";
-			statusField.value = "final";
-
-			const publicOption = document.createElement("input");
-			publicOption.id = "public-option";
-			publicOption.checked = true;
-
-			document.getElementById = jest.fn((id) => {
-				const elements = {
-					submitForm: submitBtn,
-					"publish-dataset-toggle": publishToggle,
-					id_status: statusField,
-					"public-option": publicOption,
-				};
-				return elements[id] || null;
-			});
-
-			// Mock getComputedStyle
-			window.getComputedStyle = jest.fn(() => ({
-				display: "block",
-			}));
-
+			install();
 			modeManager.updateSubmitButton();
 			expect(submitBtn.className).toBe("btn btn-danger");
 			expect(submitBtn.textContent).toBe("Publish Dataset");
 		});
 
 		test("should update submit button for publishing private dataset", () => {
-			const submitBtn = document.createElement("button");
-			submitBtn.id = "submitForm";
-			submitBtn.classList = {
-				contains: jest.fn(() => false),
-			};
-			// Mock offsetParent as read-only property
-			Object.defineProperty(submitBtn, "offsetParent", {
-				get: () => submitBtn,
-				configurable: true,
+			const { submitBtn, install } = createPublishingSubmitDomFixture({
+				publicChecked: false,
+				statusValue: "final",
+				publishToggleChecked: true,
 			});
-
-			const publishToggle = document.createElement("input");
-			publishToggle.id = "publish-dataset-toggle";
-			publishToggle.checked = true;
-
-			const statusField = document.createElement("input");
-			statusField.id = "id_status";
-			statusField.value = "final";
-
-			const publicOption = document.createElement("input");
-			publicOption.id = "public-option";
-			publicOption.checked = false;
-
-			document.getElementById = jest.fn((id) => {
-				const elements = {
-					submitForm: submitBtn,
-					"publish-dataset-toggle": publishToggle,
-					id_status: statusField,
-					"public-option": publicOption,
-				};
-				return elements[id] || null;
-			});
-
-			window.getComputedStyle = jest.fn(() => ({
-				display: "block",
-			}));
-
+			install();
 			modeManager.updateSubmitButton();
 			expect(submitBtn.className).toBe("btn btn-warning");
 			expect(submitBtn.textContent).toBe("Publish Dataset");
 		});
 
 		test("should update submit button for draft dataset", () => {
-			const submitBtn = document.createElement("button");
-			submitBtn.id = "submitForm";
-			submitBtn.classList = {
-				contains: jest.fn(() => false),
-			};
-			// Mock offsetParent as read-only property
-			Object.defineProperty(submitBtn, "offsetParent", {
-				get: () => submitBtn,
-				configurable: true,
+			const { submitBtn, install } = createPublishingSubmitDomFixture({
+				publishToggleChecked: false,
+				includeStatus: false,
+				includePublicOption: false,
 			});
-
-			const publishToggle = document.createElement("input");
-			publishToggle.id = "publish-dataset-toggle";
-			publishToggle.checked = false;
-
-			document.getElementById = jest.fn((id) => {
-				const elements = {
-					submitForm: submitBtn,
-					"publish-dataset-toggle": publishToggle,
-				};
-				return elements[id] || null;
-			});
-
-			window.getComputedStyle = jest.fn(() => ({
-				display: "block",
-			}));
-
+			install();
 			modeManager.updateSubmitButton();
 			expect(submitBtn.className).toBe("btn btn-success");
 			expect(submitBtn.textContent).toBe("Update Dataset");

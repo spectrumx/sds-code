@@ -131,6 +131,20 @@ class APIClient {
 	}
 
 	/**
+	 * @param {Record<string, unknown>} data
+	 * @returns {FormData}
+	 */
+	_formDataFromObject(data) {
+		const formData = new FormData();
+		for (const [key, value] of Object.entries(data)) {
+			if (value !== null && value !== undefined) {
+				formData.append(key, value);
+			}
+		}
+		return formData;
+	}
+
+	/**
 	 * Make POST request
 	 * @param {string} url - Request URL
 	 * @param {Object} data - Request data
@@ -153,12 +167,7 @@ class APIClient {
 			);
 		}
 
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -178,12 +187,7 @@ class APIClient {
 	 * @returns {Promise<Object>} Response data
 	 */
 	async patch(url, data = {}, loadingState = null) {
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -203,12 +207,7 @@ class APIClient {
 	 * @returns {Promise<Object>} Response data
 	 */
 	async put(url, data = {}, loadingState = null) {
-		const formData = new FormData();
-		for (const [key, value] of Object.entries(data)) {
-			if (value !== null && value !== undefined) {
-				formData.append(key, value);
-			}
-		}
+		const formData = this._formDataFromObject(data);
 
 		return this.request(
 			url,
@@ -299,9 +298,19 @@ class ListRefreshManager {
 	 * @returns {Promise<string>} HTML content of the table
 	 */
 	async loadTable(params = {}, options = {}) {
-		const { page = 1, sort_by = "created_at", sort_order = "desc" } = params;
+		const {
+			showLoading = true,
+			onSuccess = null,
+			onError = null,
+			loadingMessage = null,
+		} = options;
 
-		const { showLoading = true, onSuccess = null, onError = null } = options;
+		const queryParams = {
+			page: 1,
+			sort_by: "created_at",
+			sort_order: "desc",
+			...params,
+		};
 
 		// Validate container exists
 		if (!this.container) {
@@ -315,24 +324,18 @@ class ListRefreshManager {
 
 		// Show loading state if requested
 		if (showLoading) {
-			await window.DOMUtils?.renderLoading(
-				this.container,
-				"Loading datasets...",
-				{ format: "spinner", size: "sm" },
-			).catch(() => {
-				// Fallback if DOMUtils is not available
-				this.container.innerHTML =
-					'<div class="text-center py-3"><span class="spinner-border spinner-border-sm me-2"></span>Loading...</div>';
+			const msg =
+				loadingMessage ||
+				`Loading ${this.itemType ? `${this.itemType} ` : ""}list...`;
+			await window.DOMUtils.renderLoading(this.container, msg, {
+				format: "spinner",
+				size: "sm",
 			});
 		}
 
 		try {
 			// Make GET request with query parameters
-			const html = await window.APIClient.get(this.url, {
-				page: page,
-				sort_by: sort_by,
-				sort_order: sort_order,
-			});
+			const html = await window.APIClient.get(this.url, queryParams);
 
 			// Update container(s) with HTML response
 			if (typeof html === "string") {
@@ -348,8 +351,7 @@ class ListRefreshManager {
 
 				this.container.innerHTML = tableHtml;
 
-				// Re-initialize any necessary event listeners after update
-				this._reinitializeEventListeners();
+				await this._reinitializeEventListeners();
 
 				// Call success callback if provided
 				if (onSuccess) {
@@ -363,14 +365,15 @@ class ListRefreshManager {
 			console.error(`Error loading ${this.itemType} list table:`, error);
 
 			// Show error state
-			await window.DOMUtils?.renderError(
-				this.container,
+			await window.DOMUtils.showMessage(
 				`Failed to load ${this.itemType} list. Please try again.`,
-				{ format: "alert" },
-			).catch(() => {
-				// Fallback if DOMUtils is not available
-				this.container.innerHTML = `<div class="alert alert-danger">Failed to load ${this.itemType} list. Please refresh the page.</div>`;
-			});
+				{
+					variant: "danger",
+					placement: "replace",
+					target: this.container,
+					presentation: "alert",
+				},
+			);
 
 			// Call error callback if provided
 			if (onError) {
@@ -385,11 +388,14 @@ class ListRefreshManager {
 	 * Re-initialize event listeners after table update
 	 * This ensures modals, dropdowns, and other interactive elements work after AJAX updates
 	 */
-	_reinitializeEventListeners() {
+	async _reinitializeEventListeners() {
 		// Re-initialize Bootstrap dropdowns
 		if (typeof bootstrap !== "undefined" && bootstrap.Dropdown) {
-			window.DOMUtils.initializeListDropdowns();
+			window.DOMUtils.initIconDropdowns(this.container ?? document);
 		}
+
+		// Bootstrap modal instances on replaced markup (share/version/download shells)
+		window.ModalManager?.initializeModal?.({ bootstrap: true, root: document });
 
 		// Re-initialize tooltips if Bootstrap tooltips are available
 		if (typeof bootstrap !== "undefined" && bootstrap.Tooltip) {
@@ -407,12 +413,12 @@ class ListRefreshManager {
 			}
 		}
 
-		// Trigger page lifecycle manager re-initialization if available
-		if (window.pageLifecycleManager) {
-			// The PageLifecycleManager should handle modal re-initialization
-			// You may need to call a refresh method if it exists
-			if (typeof window.pageLifecycleManager.refresh === "function") {
-				window.pageLifecycleManager.refresh();
+		// Page lifecycle: full re-init so ShareActionManager / VersioningActionManager re-bind
+		if (window.pageLifecycleManager?.refresh) {
+			try {
+				await window.pageLifecycleManager.refresh();
+			} catch (error) {
+				console.error("PageLifecycleManager.refresh failed after list update:", error);
 			}
 		}
 	}
@@ -431,5 +437,7 @@ if (typeof module !== "undefined" && module.exports) {
 		APIClient,
 		APIError,
 		LoadingStateManager,
+		ListRefreshManager,
+		LIST_REFRESH_SEP,
 	};
 }

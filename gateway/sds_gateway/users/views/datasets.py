@@ -14,7 +14,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import DatabaseError
 from django.db import transaction
 from django.db.models import Q
-from django.db.models import Sum
 from django.db.models.query import QuerySet
 from django.db.utils import IntegrityError
 from django.http import Http404
@@ -46,9 +45,6 @@ from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import (
     get_dataset_serializer,
-)
-from sds_gateway.api_methods.utils.relationship_utils import (
-    get_dataset_files_including_captures,
 )
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
@@ -1039,6 +1035,99 @@ def filter_by_frequency_range(
     return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
+def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    """Build dropdown_menu.html items for a serialized dataset list row."""
+    uuid = str(row.get("uuid") or "")
+    if not uuid:
+        return []
+
+    is_owner = row.get("is_owner")
+    permission_level = row.get("permission_level")
+    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
+    is_co_owner = permission_level == PermissionLevel.CO_OWNER
+    dataset_published = row.get("status") == DatasetStatus.FINAL and row.get("is_public")
+
+    items: list[dict[str, Any]] = []
+    if is_owner or is_contributor or is_co_owner:
+        # Share button
+        items.extend(
+            (
+                {
+                    "label": "Share",
+                    "icon": "person-plus",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#shareModal-{uuid}",
+                    "data_attrs": {},
+                },
+            )
+        )
+
+        if not dataset_published:
+            # Edit button
+            items.append(
+                {
+                    "label": "Edit",
+                    "icon": "pencil",
+                    "type": "link",
+                    "href": f"{reverse('users:group_captures')}?dataset_uuid={uuid}",
+                    "data_attrs": {},
+                }
+            )
+
+    if is_owner or is_co_owner:
+        # Create new version button
+        items.append(
+            {
+                "label": "Create New Version",
+                "icon": "folder-symlink",
+                "type": "button",
+                "modal_toggle": True,
+                "modal_target": f"#versioningModal-{uuid}",
+                "data_attrs": {},
+            }
+        )
+        # Publish button
+        if not dataset_published:
+            items.append(
+                {
+                    "label": "Publish",
+                    "icon": "globe",
+                    "type": "button",
+                    "modal_toggle": True,
+                    "modal_target": f"#publish-dataset-modal-{uuid}",
+                    "data_attrs": {"dataset-uuid": uuid},
+                    "extra_class": "publish-dataset-btn",
+                }
+            )
+
+
+    # Web download button
+    items.append(
+        {
+            "label": "Web Download",
+            "icon": "download",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#webDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+
+    # SDK download instructions button
+    items.append(
+        {
+            "label": "SDK Instructions",
+            "icon": "code-slash",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#sdkDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    return items
+
+
 def serialize_datasets_for_user(
     datasets: QuerySet[Dataset], user: User | None
 ) -> list[dict[str, Any]]:
@@ -1065,6 +1154,9 @@ def serialize_datasets_for_user(
             "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
         )
         dataset_data["dataset"] = dataset
+        dataset_data["dropdown_menu_items"] = _dataset_list_dropdown_menu_items(
+            dataset_data
+        )
         serialized_datasets.append(dataset_data)
     return serialized_datasets
 
@@ -1164,6 +1256,16 @@ class SearchPublishedDatasetsView(View):
 user_search_datasets_view = SearchPublishedDatasetsView.as_view()
 
 
+DATASET_LIST_TABLE_HEADERS = [
+    {"label": "Name", "col_class": "w-35"},
+    {"label": "Authors", "col_class": "w-25"},
+    {"label": "Created", "col_class": "w-25"},
+    {"label": "Actions", "col_class": "w-10", "text_align": "center"},
+]
+DATASET_LIST_TABLE_CLASS = ""
+DATASET_LIST_NO_ASSETS_MESSAGE = "No datasets yet. Create one with Add Dataset."
+
+
 class ListDatasetsView(Auth0LoginRequiredMixin, View):
     template_name = "users/dataset_list.html"
 
@@ -1189,18 +1291,23 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             # Return table and modals so the client can update both after list refresh
             table_html = render_to_string(
-                "users/components/dataset_list_table.html",
+                "users/components/asset_list_table.html",
                 {
                     "page_obj": page_obj,
                     "sort_by": sort_by,
                     "sort_order": sort_order,
                     "ajax_fragment": True,
+                    "asset_type": "dataset",
+                    "asset_row_template": "users/components/dataset_list_table_row.html",
+                    "table_headers": DATASET_LIST_TABLE_HEADERS,
+                    "table_class": DATASET_LIST_TABLE_CLASS,
+                    "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
                 },
                 request=request,
             )
             modals_html = render_to_string(
                 "users/components/dataset_list_modals.html",
-                {"page_obj": page_obj},
+                {"page_obj": page_obj, "page_type": "dataset-list"},
                 request=request,
             )
             # Separator used by ListRefreshManager to split table vs modals
@@ -1214,6 +1321,12 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                 "page_obj": page_obj,
                 "sort_by": sort_by,
                 "sort_order": sort_order,
+                "ajax_fragment": False,
+                "asset_type": "dataset",
+                "asset_row_template": "users/components/dataset_list_table_row.html",
+                "table_headers": DATASET_LIST_TABLE_HEADERS,
+                "table_class": DATASET_LIST_TABLE_CLASS,
+                "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
             },
         )
 
@@ -1270,35 +1383,58 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 user_dataset_list_view = ListDatasetsView.as_view()
 
 
-class DatasetDetailsView(FileTreeMixin, View):
-    """View to handle dataset details modal requests."""
+def load_dataset_details_bundle(
+    request: HttpRequest,
+    dataset_uuid: UUID,
+) -> dict[str, Any] | None:
+    """
+    Build dataset details payload (dataset dict and file statistics).
 
-    def _get_dataset_files(self, dataset: Dataset) -> QuerySet[File]:
-        """
-        Get all files associated with a dataset,
-        including files from linked captures.
+    Returns None if the dataset does not exist or is not visible to the request user.
+    On success, includes ``dataset_orm`` for server-rendered templates (omit from JSON).
+    """
+    try:
+        dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
+    except Dataset.DoesNotExist:
+        return None
 
-        Supports both FK and M2M relationships (expand-contract pattern).
+    has_public_access = (
+        dataset.is_public and dataset.status == DatasetStatus.FINAL
+    )
+    has_user_access = request.user.is_authenticated and user_has_access_to_item(
+        request.user, dataset_uuid, ItemType.DATASET
+    )
 
-        Args:
-            dataset: The dataset to get files for
+    if not (has_public_access or has_user_access):
+        return None
 
-        Returns:
-            A QuerySet of files associated with the dataset
-        """
-        return get_dataset_files_including_captures(dataset, include_deleted=False)
+    serializer_context: dict[str, Any] = {"exclude_files": True}
+    if request.user.is_authenticated:
+        serializer_context["request"] = request
+
+    dataset_data = get_dataset_serializer(
+        dataset,
+        has_user_access=has_user_access,
+        context=serializer_context,
+    )
+    statistics = dataset.get_dataset_file_statistics()
+
+    return {
+        "dataset": dataset_data,
+        "statistics": statistics,
+        "dataset_orm": dataset,
+    }
+
+
+class DatasetDetailsView(View):
+    """View to handle dataset details JSON (metadata + file statistics)."""
 
     def get(self, request, *args, **kwargs) -> JsonResponse:
         """
-        Get dataset details and files for the modal.
-
-        Args:
-            request: The HTTP request object
-            *args: Variable length argument list
-            **kwargs: Arbitrary keyword arguments
+        Get dataset details for editing modals and similar clients.
 
         Returns:
-            A JSON response containing the dataset details and files
+            JSON with ``dataset`` (serialized) and ``statistics`` (file counts/sizes).
         """
         dataset_uuid_str = request.GET.get("dataset_uuid")
 
@@ -1311,65 +1447,13 @@ class DatasetDetailsView(FileTreeMixin, View):
             return JsonResponse({"error": "Invalid dataset UUID"}, status=400)
 
         try:
-            dataset = get_object_or_404(Dataset, uuid=dataset_uuid, is_deleted=False)
-
-            has_public_access = (
-                dataset.is_public and dataset.status == DatasetStatus.FINAL
-            )
-            has_user_access = request.user.is_authenticated and user_has_access_to_item(
-                request.user, dataset_uuid, ItemType.DATASET
-            )
-
-            if not (has_public_access or has_user_access):
+            bundle = load_dataset_details_bundle(request, dataset_uuid)
+            if bundle is None:
                 return JsonResponse(
                     {"error": "Dataset not found or access denied"}, status=404
                 )
-
-            # Get dataset information
-            dataset_data = get_dataset_serializer(
-                dataset, has_user_access=has_user_access
-            )
-
-            # Get all files associated with the dataset
-            files_queryset = self._get_dataset_files(dataset)
-
-            # Calculate statistics (check both deprecated FK and M2M for capture links)
-            total_files = files_queryset.count()
-            captures_count = (
-                files_queryset.filter(
-                    Q(capture__isnull=False) | Q(captures__isnull=False)
-                )
-                .distinct()
-                .count()
-            )
-            artifacts_count = files_queryset.filter(
-                capture__isnull=True,
-                captures__isnull=True,
-            ).count()
-            total_size = files_queryset.aggregate(total=Sum("size"))["total"] or 0
-
-            base_dir = sanitize_path_rel_to_user(
-                unsafe_path="/",
-                user=dataset.owner,
-            )
-
-            tree_data = self._get_directory_tree(files_queryset, str(base_dir))
-
-            response_data = {
-                "dataset": dataset_data,
-                "tree": tree_data,
-                "statistics": {
-                    "total_files": total_files,
-                    "captures": captures_count,
-                    "artifacts": artifacts_count,
-                    "total_size": total_size,
-                },
-            }
-
-            return JsonResponse(response_data)
-
-        except Dataset.DoesNotExist:
-            return JsonResponse({"error": "Dataset not found"}, status=404)
+            safe = {k: v for k, v in bundle.items() if k != "dataset_orm"}
+            return JsonResponse(safe)
         except Exception:  # noqa: BLE001
             log.exception("Error retrieving dataset details")
             return JsonResponse({"error": "Internal server error"}, status=500)

@@ -25,11 +25,11 @@
             </div>
         </div>
     </div>
+    {% include "users/partials/asset_details_modal.html" %}
     <!-- Modals to reveal on click -->
     {% if page_obj %}
         {% for dataset in page_obj %}
             {% include "users/partials/web_download_modal.html" with item=dataset item_type="dataset" %}
-            {% include "users/partials/dataset_details_modal.html" with dataset=dataset %}
             {% include "users/partials/sdk_download_modal.html" with dataset=dataset %}
         {% endfor %}
     {% endif %}
@@ -38,7 +38,9 @@
     {# djlint:off #}
     {{ block.super }}
     <!-- Action components -->
+    <script src="{% static 'js/actions/download/captureDownloadSlider.js' %}"></script>
     <script src="{% static 'js/actions/DownloadActionManager.js' %}"></script>
+    <script src="{% static 'js/constants/DetailsModalConfig.js' %}"></script>
     <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
     <!-- Keyword chip input component -->
     <script src="{% static 'js/search/KeywordChipInput.js' %}"></script>
@@ -65,6 +67,8 @@
 
             // Initialize the page lifecycle manager
             window.pageLifecycleManager = new PageLifecycleManager(pageConfig);
+
+            window.ModalManager?.initializeModal?.({ detailsClickDelegation: true });
 
             // Initialize keyword chip input
             if (typeof KeywordChipInputInitializer !== 'undefined') {

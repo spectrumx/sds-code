@@ -2,12 +2,14 @@
  * Dataset Creation Handler
  * Handles dataset creation workflow and form management
  */
-class DatasetCreationHandler {
+class DatasetCreationHandler extends BaseManager {
 	/**
 	 * Initialize dataset creation handler
 	 * @param {Object} config - Configuration object
 	 */
 	constructor(config) {
+		super();
+		this.currentUserId = config.currentUserId;
 		this.form = document.getElementById(config.formId);
 		this.steps = config.steps || [];
 		this.currentStep = 0;
@@ -238,17 +240,7 @@ class DatasetCreationHandler {
 			});
 		}
 
-		// Modal show/hide handlers
-		const modal = document.getElementById("fileTreeModal");
-		if (modal) {
-			modal.addEventListener("show.bs.modal", () => {
-				this.onFileModalShow();
-			});
-
-			modal.addEventListener("hidden.bs.modal", () => {
-				this.onFileModalHide();
-			});
-		}
+		window.AuthorsManager?.bindFileTreeModalHandlers(this);
 
 		// Remove all files button
 		const removeAllButton = document.getElementById(
@@ -660,7 +652,6 @@ class DatasetCreationHandler {
 	validateDatasetInfo() {
 		const nameValue = this.nameField?.value.trim() || "";
 		const authorsValue = this.authorsField?.value.trim() || "";
-		const statusValue = this.statusField?.value || "";
 
 		// Validate authors JSON and first author name
 		if (authorsValue) {
@@ -686,7 +677,7 @@ class DatasetCreationHandler {
 			return false; // Authors field is required
 		}
 
-		return nameValue !== "" && statusValue !== "";
+		return nameValue !== "";
 	}
 
 	/**
@@ -772,22 +763,29 @@ class DatasetCreationHandler {
 				context.message = "An unexpected error occurred. Please try again.";
 			}
 
-			context.format = "alert";
-			context.alert_type = "danger";
-			context.icon = "exclamation-triangle-fill";
+			const messageText = context.message ?? "";
+			const templateContext = {
+				alert_type: "danger",
+				icon: "exclamation-triangle-fill",
+			};
+			if (context.error_list) {
+				templateContext.error_list = context.error_list;
+				templateContext.show_field_names = context.show_field_names;
+			}
 
-			// Use DOMUtils to render error
-			const success = await window.DOMUtils.renderError(
-				errorContainer,
-				context.message,
-				context,
-			);
+			const success = await window.DOMUtils.showMessage(messageText, {
+				variant: "danger",
+				placement: "replace",
+				target: errorContainer,
+				presentation: "alert",
+				templateContext,
+			});
 			if (success) {
 				window.DOMUtils.show(errorContainer);
 				errorContainer.scrollIntoView({ behavior: "smooth", block: "nearest" });
 			}
-		} catch (renderError) {
-			console.error("Error rendering error message:", renderError);
+		} catch (err) {
+			console.error("Error rendering error message:", err);
 			// Fallback to simple text
 			errorContainer.textContent = "An error occurred. Please try again.";
 			window.DOMUtils.show(errorContainer);
@@ -896,11 +894,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures table:", error);
-				await window.DOMUtils.renderError(
-					capturesTableBody,
-					"Error loading captures",
-					{ format: "table", colspan: 6 },
-				);
+				await window.DOMUtils.showMessage("Error loading captures", {
+					variant: "danger",
+					placement: "replace",
+					target: capturesTableBody,
+					presentation: "table",
+					templateContext: { colspan: 6 },
+				});
 			}
 		} else {
 			capturesTableBody.innerHTML =
@@ -976,11 +976,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering captures panel:", error);
-				await window.DOMUtils.renderError(
-					selectedCapturesBody,
-					"Error loading captures",
-					{ format: "table", colspan: 3 },
-				);
+				await window.DOMUtils.showMessage("Error loading captures", {
+					variant: "danger",
+					placement: "replace",
+					target: selectedCapturesBody,
+					presentation: "table",
+					templateContext: { colspan: 3 },
+				});
 			}
 		} else {
 			selectedCapturesBody.innerHTML =
@@ -1037,11 +1039,13 @@ class DatasetCreationHandler {
 				}
 			} catch (error) {
 				console.error("Error rendering files table:", error);
-				await window.DOMUtils.renderError(
-					filesTableBody,
-					"Error loading files",
-					{ format: "table", colspan: 5 },
-				);
+				await window.DOMUtils.showMessage("Error loading files", {
+					variant: "danger",
+					placement: "replace",
+					target: filesTableBody,
+					presentation: "table",
+					templateContext: { colspan: 5 },
+				});
 			}
 		} else {
 			filesTableBody.innerHTML =
@@ -1198,297 +1202,7 @@ class DatasetCreationHandler {
 	 * Initialize authors management for creation mode
 	 */
 	initializeAuthorsManagement() {
-		const authorsContainer = document.getElementById("authors-container");
-		const authorsList = authorsContainer?.querySelector(".authors-list");
-		const addAuthorBtn = document.getElementById("add-author-btn");
-		const authorsHiddenField = document.getElementById("id_authors");
-
-		if (!authorsContainer || !authorsList || !authorsHiddenField) return;
-
-		// Get initial authors from the hidden field
-		let authors = [];
-		try {
-			const initialAuthors = authorsHiddenField.value;
-			if (initialAuthors && initialAuthors.trim() !== "") {
-				authors = JSON.parse(initialAuthors);
-			}
-		} catch (e) {
-			console.error("Error parsing initial authors:", e);
-		}
-
-		// Convert legacy string authors to new format if needed
-		authors = authors.map((author) => {
-			if (typeof author === "string") {
-				return {
-					name: author,
-					orcid_id: "",
-				};
-			}
-			return author;
-		});
-
-		// If no authors, add the current user as the first author
-		if (authors.length === 0) {
-			const currentUserName =
-				document.body.dataset.currentUserName || "Current User";
-			const currentUserOrcid = document.body.dataset.currentUserOrcid || "";
-			authors = [
-				{
-					name: currentUserName,
-					orcid_id: currentUserOrcid,
-				},
-			];
-		}
-
-		/**
-		 * Update authors display
-		 */
-		const updateAuthorsDisplay = async () => {
-			try {
-				// Normalize authors for server-side rendering
-				const normalizedAuthors = authors.map((author, index) => {
-					const authorName =
-						typeof author === "string" ? author : author.name || "";
-					const authorOrcid =
-						typeof author === "string" ? "" : author.orcid_id || "";
-
-					// Generate stable ID for each author
-					const stableId = `author-${index}-${Date.now()}`;
-
-					return {
-						index: index,
-						name: authorName,
-						orcid_id: authorOrcid,
-						stable_id: stableId,
-						is_primary: index === 0,
-						is_marked_for_removal: false,
-					};
-				});
-
-				// Render using server-side template
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/author_list_items.html",
-						context: { authors: normalizedAuthors },
-					},
-					null,
-					true,
-				); // true = send as JSON
-
-				if (response.html) {
-					authorsList.innerHTML = response.html;
-				}
-			} catch (error) {
-				console.error("Error rendering authors:", error);
-				// Fallback: show error message
-				authorsList.innerHTML =
-					'<div class="alert alert-danger">Error loading authors</div>';
-			}
-
-			// Update hidden field
-			authorsHiddenField.value = JSON.stringify(authors);
-
-			// Show add button in create mode (always available)
-			if (addAuthorBtn) {
-				window.DOMUtils.show(addAuthorBtn);
-			}
-		};
-
-		/**
-		 * Add new author
-		 */
-		const addAuthor = () => {
-			authors.push({
-				name: "",
-				orcid_id: "",
-			});
-
-			updateAuthorsDisplay();
-
-			// Focus on the new name input
-			const newInput = authorsList.querySelector(
-				`input[data-index="${authors.length - 1}"][data-field="name"]`,
-			);
-			if (newInput) {
-				newInput.focus();
-			}
-
-			// Validate current step to update button states
-			this.validateCurrentStep();
-
-			// Update review display
-			if (window.updateReviewDatasetDisplay) {
-				window.updateReviewDatasetDisplay();
-			}
-		};
-
-		/**
-		 * Remove author
-		 */
-		const removeAuthor = (index) => {
-			if (index > 0) {
-				// Don't remove the primary author
-				authors.splice(index, 1);
-				updateAuthorsDisplay();
-
-				// Validate current step to update button states
-				this.validateCurrentStep();
-
-				// Update review display
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			} else {
-				// Show warning that primary author cannot be removed
-				this.showNotification(
-					"The primary author cannot be removed. This is the dataset creator.",
-					"warning",
-				);
-			}
-		};
-
-		/**
-		 * Show notification using alert system
-		 */
-		this.showNotification = async (message, type = "info") => {
-			const errorContainer = document.getElementById("formErrors");
-			if (!errorContainer) return;
-
-			try {
-				// Map type to Bootstrap alert class
-				const alertType =
-					type === "danger"
-						? "danger"
-						: type === "success"
-							? "success"
-							: type === "warning"
-								? "warning"
-								: "info";
-				const icon =
-					type === "danger"
-						? "exclamation-triangle"
-						: type === "success"
-							? "check-circle"
-							: type === "warning"
-								? "exclamation-circle"
-								: "info-circle";
-
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/notification.html",
-						context: {
-							message: message,
-							alert_type: alertType,
-							icon: icon,
-							dismissible: true,
-						},
-					},
-					null,
-					true,
-				); // true = send as JSON
-
-				if (response.html) {
-					errorContainer.innerHTML = response.html;
-					window.DOMUtils.show(errorContainer);
-					errorContainer.scrollIntoView({
-						behavior: "smooth",
-						block: "nearest",
-					});
-
-					// Auto-hide after 5 seconds
-					setTimeout(() => {
-						const alert = errorContainer.querySelector(".alert");
-						if (alert) {
-							const bsAlert = new bootstrap.Alert(alert);
-							bsAlert.close();
-						}
-					}, 5000);
-				}
-			} catch (error) {
-				console.error("Error rendering notification:", error);
-				// Fallback: show simple text
-				errorContainer.textContent = message;
-				window.DOMUtils.show(errorContainer);
-			}
-		};
-
-		// Event listeners
-		if (addAuthorBtn) {
-			addAuthorBtn.addEventListener("click", addAuthor);
-		}
-
-		// Handle input changes
-		authorsList.addEventListener("input", (e) => {
-			if (
-				e.target.classList.contains("author-name-input") ||
-				e.target.classList.contains("author-orcid-input")
-			) {
-				const index = Number.parseInt(e.target.dataset.index);
-				const field = e.target.dataset.field;
-
-				// Ensure author object exists
-				if (!authors[index] || typeof authors[index] === "string") {
-					authors[index] = {
-						name: typeof authors[index] === "string" ? authors[index] : "",
-						orcid_id: "",
-					};
-				}
-
-				authors[index][field] = e.target.value;
-
-				// Only update display if we need to remove empty authors
-				let needsUpdate = false;
-				if (
-					index > 0 &&
-					!authors[index].name.trim() &&
-					!authors[index].orcid_id.trim()
-				) {
-					authors.splice(index, 1);
-					needsUpdate = true;
-				}
-
-				authorsHiddenField.value = JSON.stringify(authors);
-
-				// Only call updateAuthorsDisplay if we actually removed an author
-				if (needsUpdate) {
-					updateAuthorsDisplay();
-				}
-
-				// Validate current step to update button states
-				this.validateCurrentStep();
-
-				// Update review display if we're on the review step
-				if (window.updateReviewDatasetDisplay) {
-					window.updateReviewDatasetDisplay();
-				}
-			}
-		});
-
-		// Handle remove buttons
-		authorsList.addEventListener("click", (e) => {
-			const removeButton = e.target.closest(".remove-author");
-
-			if (removeButton) {
-				e.preventDefault();
-				e.stopPropagation();
-				const index = Number.parseInt(removeButton.dataset.index);
-				removeAuthor(index);
-			}
-		});
-
-		// Initial display
-		updateAuthorsDisplay();
-
-		// Store authors for external access
-		this.authors = authors;
-		this.updateAuthorsDisplay = updateAuthorsDisplay;
-
-		// Make author display functions available for review (simple version for creation mode)
-		window.updateDatasetAuthors = (authorsField) =>
-			this.updateDatasetAuthors(authorsField);
-		window.formatAuthors = (authors) => this.formatAuthors(authors);
+		window.DatasetAuthorsUI?.mount(this, { mode: "create" });
 	}
 
 	/**
@@ -1513,15 +1227,7 @@ class DatasetCreationHandler {
 	 * Format authors array into display string
 	 */
 	formatAuthors(authors) {
-		if (!Array.isArray(authors) || authors.length === 0) {
-			return "No authors specified.";
-		}
-
-		return authors
-			.map((author) =>
-				typeof author === "string" ? author : author.name || "Unknown",
-			)
-			.join(", ");
+		return window.AuthorsManager.formatAuthors(authors);
 	}
 }
 

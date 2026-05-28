@@ -15,6 +15,7 @@ from django.utils.translation import gettext_lazy as _
 from loguru import logger
 
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 
 from .models import User
@@ -279,6 +280,17 @@ class DatasetInfoForm(forms.Form):
     def clean_description(self):
         """Clean and validate the description."""
         return self.cleaned_data.get("description", "").strip()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        status = cleaned_data.get("status") or DatasetStatus.DRAFT
+        is_public = cleaned_data.get("is_public", False)
+        if is_public and status != DatasetStatus.FINAL:
+            raise ValidationError(
+                "Draft datasets cannot be made public. Set status to Final on the "
+                "Publishing step before making the dataset public.",
+            )
+        return cleaned_data
 
 
 class CaptureSearchForm(forms.Form):

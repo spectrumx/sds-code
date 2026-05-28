@@ -25,8 +25,11 @@ from rest_framework import status
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
+from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.users.forms import UserAdminChangeForm
 from sds_gateway.users.models import User
 from sds_gateway.users.tests.factories import UserFactory
@@ -731,8 +734,8 @@ class TestRenderHTMLFragmentView:
         """Unauthenticated users can render HTML fragments."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
-            "context": {"rows": []},
+            "template": "users/components/empty_table_row.html",
+            "context": {"colspan": 3, "message": "No items"},
         }
 
         response = client.post(
@@ -752,8 +755,8 @@ class TestRenderHTMLFragmentView:
         client.force_login(user)
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
-            "context": {"rows": []},
+            "template": "users/components/empty_table_row.html",
+            "context": {"colspan": 3, "message": "No items"},
         }
 
         response = client.post(
@@ -855,7 +858,7 @@ class TestRenderHTMLFragmentView:
         """Templates can be rendered with empty context."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/empty_table_row.html",
             "context": {},
         }
 
@@ -876,21 +879,10 @@ class TestRenderHTMLFragmentView:
         # Attempt XSS through context data
         malicious_data = "<script>alert('XSS')</script>"
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/empty_table_row.html",
             "context": {
-                "rows": [
-                    {
-                        "name": malicious_data,
-                        "type": "File",
-                        "size": "1 MB",
-                        "created_at": "2024-01-01",
-                        "icon": "bi-file",
-                        "icon_color": "text-primary",
-                        "indent_level": 0,
-                        "indent_range": [],
-                        "has_chevron": False,
-                    }
-                ]
+                "colspan": 2,
+                "message": malicious_data,
             },
         }
 
@@ -909,36 +901,27 @@ class TestRenderHTMLFragmentView:
         # Make sure raw script tag is NOT present
         assert "<script>alert" not in html
 
-    def test_multiple_rows_in_file_tree(self, client: Client) -> None:
-        """Can render multiple file tree rows."""
+    def test_renders_table_rows_component(self, client: Client) -> None:
+        """Can render generic table_rows with multiple text cells."""
         url = reverse("users:render_html")
         data = {
-            "template": "users/components/modal_file_tree.html",
+            "template": "users/components/table_rows.html",
             "context": {
                 "rows": [
                     {
-                        "name": "file1.txt",
-                        "type": "File",
-                        "size": "1 MB",
-                        "created_at": "2024-01-01",
-                        "icon": "bi-file",
-                        "icon_color": "text-primary",
-                        "indent_level": 0,
-                        "indent_range": [],
-                        "has_chevron": False,
+                        "cells": [
+                            {"kind": "text", "value": "file1.txt"},
+                            {"kind": "text", "value": "1 MB"},
+                        ],
                     },
                     {
-                        "name": "file2.txt",
-                        "type": "File",
-                        "size": "2 MB",
-                        "created_at": "2024-01-02",
-                        "icon": "bi-file",
-                        "icon_color": "text-success",
-                        "indent_level": 1,
-                        "indent_range": [0],
-                        "has_chevron": False,
+                        "cells": [
+                            {"kind": "text", "value": "file2.txt"},
+                            {"kind": "text", "value": "2 MB"},
+                        ],
                     },
-                ]
+                ],
+                "empty_colspan": 2,
             },
         }
 
@@ -952,6 +935,204 @@ class TestRenderHTMLFragmentView:
         payload = response.json()
         html = payload["html"]
 
-        # Both files should appear in rendered HTML
         assert "file1.txt" in html
         assert "file2.txt" in html
+
+
+class TestDetailsModalFragmentView:
+    """Tests for GET /users/details-modal/<asset_type>/<uuid>/."""
+
+    @pytest.fixture
+    def client(self) -> Client:
+        return Client()
+
+    @pytest.fixture
+    def user(self) -> User:
+        return cast("User", UserFactory(is_approved=True))
+
+    def test_anonymous_redirects_to_login(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.FOUND
+
+    def test_owner_receives_modal_payload(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user, name="modal-test-cap")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+        assert "title" in payload
+        assert "meta" in payload
+        assert "capture-name-input" in payload["html"]
+        assert payload["meta"]["uuid"] == str(cap.uuid)
+
+    def test_non_owner_not_found(self, client: Client, user: User) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        cap = CaptureFactory(owner=owner)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_unknown_asset_type(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "unknown", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_anonymous_public_dataset_modal_ok(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(
+            owner=user,
+            is_public=True,
+            status=DatasetStatus.FINAL,
+            keywords=None,
+        )
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        payload = response.json()
+        assert "html" in payload
+        assert "dataset-details-name" in payload["html"]
+
+    def test_anonymous_private_dataset_modal_not_found(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(owner=user, is_public=False, keywords=None)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_owner_dataset_modal_ok(self, client: Client, user: User) -> None:
+        ds = DatasetFactory(owner=user, keywords=None)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert "dataset-details-name" in response.json()["html"]
+
+    def test_shared_capture_modal_ok(self, client: Client, user: User) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        cap = CaptureFactory(owner=owner, name="shared-cap")
+        UserSharePermissionFactory(
+            owner=owner,
+            shared_with=user,
+            item_type=ItemType.CAPTURE,
+            item_uuid=cap.uuid,
+            permission_level=PermissionLevel.VIEWER,
+        )
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+        assert response.json()["meta"]["uuid"] == str(cap.uuid)
+
+    def test_deleted_capture_not_found(self, client: Client, user: User) -> None:
+        cap = CaptureFactory(owner=user, is_deleted=True)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.NOT_FOUND
+
+    def test_capture_meta_visualize_enabled_for_drf(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user, capture_type="drf")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["meta"]["visualize_enabled"] is True
+        assert payload["meta"]["capture_type"] == "drf"
+
+    def test_capture_meta_visualize_disabled_for_non_drf(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user, capture_type="rh", index_name="captures-rh")
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["meta"]["visualize_enabled"] is False
+
+    def test_dataset_modal_title_includes_version(
+        self, client: Client, user: User
+    ) -> None:
+        ds = DatasetFactory(owner=user, name="My DS", version=7, keywords=None)
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        payload = client.get(url).json()
+        assert payload["title"] == "My DS (v7)"
+
+    def test_shared_private_dataset_modal_ok(
+        self, client: Client, user: User
+    ) -> None:
+        owner = cast("User", UserFactory(is_approved=True))
+        ds = DatasetFactory(owner=owner, is_public=False, keywords=None)
+        UserSharePermissionFactory(
+            owner=owner,
+            shared_with=user,
+            item_type=ItemType.DATASET,
+            item_uuid=ds.uuid,
+            permission_level=PermissionLevel.VIEWER,
+        )
+        client.force_login(user)
+        url = reverse(
+            "users:details_modal_fragment",
+            kwargs={"asset_type": "dataset", "uuid": str(ds.uuid)},
+        )
+        response = client.get(url)
+        assert response.status_code == HTTPStatus.OK
+
+    def test_anonymous_dataset_still_ok_capture_requires_login(
+        self, client: Client, user: User
+    ) -> None:
+        cap = CaptureFactory(owner=user)
+        response = client.get(
+            reverse(
+                "users:details_modal_fragment",
+                kwargs={"asset_type": "capture", "uuid": str(cap.uuid)},
+            ),
+        )
+        assert response.status_code == HTTPStatus.FOUND

@@ -6,21 +6,14 @@
 // Import the AssetSearchHandler class
 import { AssetSearchHandler } from "../AssetSearchHandler.js";
 
-// Mock APIClient
-global.APIClient = {
-	get: jest.fn(),
-};
-
-// Mock DOMUtils (replaces HTMLInjectionManager)
-global.window.DOMUtils = {
-	show: jest.fn(),
-	hide: jest.fn(),
-	showAlert: jest.fn(),
-	renderError: jest.fn().mockResolvedValue(true),
-	renderLoading: jest.fn().mockResolvedValue(true),
-	renderContent: jest.fn().mockResolvedValue(true),
-	renderTable: jest.fn().mockResolvedValue(true),
-};
+const {
+	setupStandardUnitTest,
+	createMockFormElement,
+	createMockButtonElement,
+	createDefaultAssetSearchConfig,
+	createAssetSearchGetElementByIdMap,
+	mergeWindowMocks,
+} = require("../../tests-config/testHelpers.js");
 
 describe("AssetSearchHandler", () => {
 	let searchHandler;
@@ -30,61 +23,14 @@ describe("AssetSearchHandler", () => {
 	let mockTableBody;
 
 	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
-
-		// Mock DOM elements
-		mockForm = {
-			addEventListener: jest.fn(),
-			querySelectorAll: jest.fn(() => []),
-		};
-
-		mockButton = {
-			addEventListener: jest.fn(),
-			disabled: false,
-		};
-
+		mockForm = createMockFormElement();
+		mockButton = createMockButtonElement();
 		mockTableBody = {
 			innerHTML: "",
 			querySelectorAll: jest.fn(() => []),
 		};
 
-		// Mock document methods
-		document.getElementById = jest.fn((id) => {
-			const elements = {
-				"search-form": mockForm,
-				"search-button": mockButton,
-				"clear-button": mockButton,
-				"table-body": mockTableBody,
-				"pagination-container": { innerHTML: "" },
-				"confirm-file-selection": mockButton,
-			};
-			return elements[id] || null;
-		});
-
-		document.querySelector = jest.fn(() => null);
-		document.querySelectorAll = jest.fn(() => []);
-
-		// Mock config
-		mockConfig = {
-			searchFormId: "search-form",
-			searchButtonId: "search-button",
-			clearButtonId: "clear-button",
-			tableBodyId: "table-body",
-			paginationContainerId: "pagination-container",
-			confirmFileSelectionId: "confirm-file-selection",
-			type: "captures",
-			apiEndpoint: "/api/search/",
-			formHandler: {
-				setSearchHandler: jest.fn(),
-			},
-			isEditMode: false,
-			initialFileDetails: {},
-			initialCaptureDetails: {},
-		};
-
-		// Mock API responses
-		global.APIClient.get.mockResolvedValue({
+		const defaultSearchResponse = {
 			success: true,
 			results: [
 				{ id: 1, name: "Test Capture 1", type: "rh" },
@@ -96,14 +42,33 @@ describe("AssetSearchHandler", () => {
 				has_next: false,
 				has_previous: false,
 			},
+		};
+
+		setupStandardUnitTest({
+			getElementByIdMap: createAssetSearchGetElementByIdMap({
+				mockForm,
+				mockButton,
+				mockTableBody,
+			}),
+			apiClientOverrides: {
+				request: jest.fn().mockResolvedValue(defaultSearchResponse),
+			},
 		});
 
-		// Mock window.datasetEditingHandler
-		global.window = {
+		mockConfig = createDefaultAssetSearchConfig();
+
+		document.querySelector = jest.fn((selector) => {
+			if (selector === "#captures-table tbody") {
+				return mockTableBody;
+			}
+			return null;
+		});
+
+		mergeWindowMocks({
 			datasetEditingHandler: {
 				addFileToPending: jest.fn(),
 			},
-		};
+		});
 	});
 
 	describe("Initialization", () => {

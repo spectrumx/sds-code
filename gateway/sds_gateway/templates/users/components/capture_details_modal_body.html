@@ -1,0 +1,164 @@
+{% comment %}
+Capture details modal body — rendered server-side for ModalManager injection.
+{% endcomment %}
+<div class="mb-4">
+    <div class="d-flex align-items-center mb-3">
+        <h6 class="mb-0 fw-bold">
+            <i class="bi bi-info-circle me-2"></i>Basic Information
+        </h6>
+    </div>
+    <div class="mb-3">
+        <label for="capture-name-input" class="form-label fw-medium">
+            <strong>Name:</strong>
+        </label>
+        <div class="input-group">
+            <input type="text"
+                   class="form-control"
+                   id="capture-name-input"
+                   value="{{ capture.name|default:'' }}"
+                   placeholder="Enter capture name"
+                   maxlength="255"
+                   data-uuid="{{ capture_uuid }}">
+            <button class="btn btn-outline-secondary edit-name-btn"
+                    type="button"
+                    id="edit-name-btn"
+                    title="Edit capture name">
+                <i class="bi bi-pencil"></i>
+            </button>
+            <button class="btn btn-outline-danger d-none"
+                    type="button"
+                    id="cancel-name-btn"
+                    title="Cancel editing">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            <button class="btn btn-outline-primary save-name-btn d-none"
+                    type="button"
+                    id="save-name-btn"
+                    title="Save changes">
+                <i class="bi bi-check-lg"></i>
+            </button>
+        </div>
+        <div class="form-text">Click the edit button to modify the capture name</div>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Capture Type:</span>
+                <span class="ms-2">{{ capture.capture_type_display|default:capture.capture_type|default:"N/A" }}</span>
+            </p>
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Origin:</span>
+                <span class="ms-2">{{ capture.origin|default:"N/A" }}</span>
+            </p>
+        </div>
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Owner:</span>
+                <span class="ms-2">{{ owner_display }}</span>
+            </p>
+        </div>
+    </div>
+    <div class="mb-2">
+        <span class="fw-medium text-muted">{{ channel_label }}:</span>
+        <span class="ms-2">{{ channel_value }}</span>
+    </div>
+</div>
+<div class="mb-4">
+    <div class="d-flex align-items-center mb-3">
+        <h6 class="mb-0 fw-bold">
+            <i class="bi bi-gear me-2"></i>Technical Details
+        </h6>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Scan Group:</span>
+                <span class="ms-2">{{ capture.scan_group|default:"N/A" }}</span>
+            </p>
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Dataset:</span>
+                <span class="ms-2">{{ dataset_display }}</span>
+            </p>
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Is Public:</span>
+                <span class="ms-2">{{ is_public_yesno }}</span>
+            </p>
+        </div>
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Top Level Directory:</span>
+                <span class="ms-2 text-break">{{ capture.top_level_dir|default:"N/A" }}</span>
+            </p>
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Center Frequency:</span>
+                <span class="ms-2">{{ center_frequency_display }}</span>
+            </p>
+        </div>
+    </div>
+</div>
+<div class="mb-4">
+    <div class="d-flex align-items-center mb-3">
+        <h6 class="mb-0 fw-bold">
+            <i class="bi bi-clock me-2"></i>Timestamps
+        </h6>
+    </div>
+    <div class="row">
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Created At:</span>
+                <br>
+                <small class="text-muted">{{ capture.formatted_created_at|default:capture.created_at }}</small>
+            </p>
+        </div>
+        <div class="col-md-6">
+            <p class="mb-2">
+                <span class="fw-medium text-muted">Updated At:</span>
+                <br>
+                <small class="text-muted">{{ capture.updated_at }}</small>
+            </p>
+        </div>
+    </div>
+</div>
+{% if accordion_channels %}
+    <div class="mt-4">
+        <h6>Channel Details</h6>
+        <div class="accordion" id="channelsAccordion">
+            {% for ch in accordion_channels %}
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="heading-channel-{{ forloop.counter0 }}">
+                        <button class="accordion-button {% if not forloop.first %}collapsed{% endif %}"
+                                type="button"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#collapse-channel-{{ forloop.counter0 }}"
+                                aria-expanded="{% if forloop.first %}true{% else %}false{% endif %}"
+                                aria-controls="collapse-channel-{{ forloop.counter0 }}">
+                            <strong>{{ ch.channel_name }}</strong>
+                            <small class="text-muted ms-2">(Click to expand metadata)</small>
+                        </button>
+                    </h2>
+                    <div id="collapse-channel-{{ forloop.counter0 }}"
+                         class="accordion-collapse collapse {% if forloop.first %}show{% endif %}"
+                         aria-labelledby="heading-channel-{{ forloop.counter0 }}"
+                         data-bs-parent="#channelsAccordion">
+                        <div class="accordion-body">
+                            <div class="text-break">
+                                {% if ch.metadata_rows %}
+                                    {% for row in ch.metadata_rows %}
+                                        <p class="mb-1">
+                                            <strong>{{ row.label }}:</strong> {{ row.value }}
+                                        </p>
+                                    {% endfor %}
+                                {% else %}
+                                    <em>No metadata available</em>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endif %}
+<div class="mt-4">
+    {% include "users/components/capture_files_summary_fragment.html" %}
+</div>
