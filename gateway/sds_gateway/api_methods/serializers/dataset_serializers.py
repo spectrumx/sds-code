@@ -54,7 +54,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
 
     def get_is_shared_with_me(self, obj):
         """Check if the dataset is shared with the current user."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if request and hasattr(request, "user"):
             return UserSharePermission.objects.filter(
                 shared_with=request.user,
@@ -67,14 +67,14 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
 
     def get_is_owner(self, obj):
         """Check if the current user is the owner of the dataset."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if request and hasattr(request, "user"):
             return obj.owner == request.user
         return False
 
     def get_shared_users(self, obj):
         """Get users and groups who have access to this dataset."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if not request or not hasattr(request, "user"):
             return []
 
@@ -181,7 +181,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
 
     def get_permission_level(self, obj):
         """Get the current user's permission level for this dataset."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if not request or not hasattr(request, "user"):
             return None
 
@@ -202,7 +202,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
 
     def get_can_edit(self, obj):
         """Check if the current user can edit this dataset."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if not request or not hasattr(request, "user"):
             return False
 
@@ -228,8 +228,8 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         return False
 
     def get_can_advance_version(self, obj):
-        """Check if the current user can advance the version of the dataset."""
-        request = self.context.get("request")
+        """Check if the current user can advance the version of this dataset."""
+        request = (self.context or {}).get("request")
         if not request or not hasattr(request, "user"):
             return False
 

@@ -150,7 +150,7 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
 
     def get_is_shared_with_me(self, capture: Capture) -> bool:
         """Get whether the capture is shared with the current user."""
-        request = self.context.get("request")
+        request = (self.context or {}).get("request")
         if request and hasattr(request, "user"):
             return UserSharePermission.objects.filter(
                 shared_with=request.user,
