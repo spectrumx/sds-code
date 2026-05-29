@@ -1,8 +1,11 @@
 """Context processors for the whole SDS Gateway project."""
 
+import json
 import logging
+import os
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from typing import Literal
 from zoneinfo import ZoneInfo
@@ -13,6 +16,27 @@ from django.db.utils import ProgrammingError
 from django.http import HttpRequest
 
 logger = logging.getLogger(__name__)
+
+
+def _load_version() -> dict[str, str]:
+    """Load version info from version.json shipped with the build.
+
+    In CI/CD this file is updated with the current git commit hash before
+    the Docker image is built.  Falls back to the environment variable
+    SDS_COMMIT_HASH or a hardcoded placeholder.
+    """
+    version_path = Path(__file__).parent.parent.parent / "version.json"
+    if version_path.is_file():
+        try:
+            data = json.loads(version_path.read_text())
+            return {
+                "commit": data.get("commit", "unknown"),
+            }
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    commit = os.environ.get("SDS_COMMIT_HASH", "unknown")
+    return {"commit": commit}
 
 
 def _latest_admin_monitoring_status() -> dict[str, Any] | None:
@@ -75,3 +99,14 @@ def branding(_request: HttpRequest) -> dict[str, str | None]:
         "SDS_SHORT_INSTITUTION_NAME": settings.SDS_SHORT_INSTITUTION_NAME,
         "SDS_SITE_FQDN": settings.SDS_SITE_FQDN,
     }
+
+
+def static_cache_busting(_request: HttpRequest) -> dict[str, Any]:
+    """Expose a version string for cache-busting static assets.
+
+    Uses a git commit hash from version.json (shipped during build) or
+    the SDS_COMMIT_HASH env var. Changes on every deploy, so appending
+    this as a query param forces browsers/CDNs to fetch fresh assets.
+    """
+    version = _load_version()
+    return {"STATIC_CACHE_BUSTING_VERSION": version["commit"]}

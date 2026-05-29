@@ -1,4 +1,4 @@
-{% load static i18n %}
+{% load static i18n cache_busting %}
 {% load socialaccount %}
 
 <!DOCTYPE html>
@@ -8,7 +8,9 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{{ SDS_BRANDED_SITE_NAME }} SDS</title>
-        <link rel="icon" href="{% static 'images/favicon.png' %}" type="image/png" />
+        <link rel="icon"
+              href="{% static_bust 'images/favicon.png' %}"
+              type="image/png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&display=swap"
@@ -26,12 +28,13 @@
         {% block css %}
             <!-- Your stuff: Third-party CSS libraries go here -->
             <!-- This file stores project-specific CSS -->
-            <link rel="stylesheet" href="{% static 'css/variables.css' %}" />
-            <link rel="stylesheet" href="{% static 'css/layout.css' %}" />
-            <link rel="stylesheet" href="{% static 'css/components.css' %}" />
-            <link rel="stylesheet" href="{% static 'css/alerts.css' %}" />
-            <link rel="stylesheet" href="{% static 'css/spectrumx_theme.css' %}" />
-            <link rel="stylesheet" href="{% static 'css/bootstrap_overrides.css' %}" />
+            <link rel="stylesheet" href="{% static_bust 'css/variables.css' %}" />
+            <link rel="stylesheet" href="{% static_bust 'css/layout.css' %}" />
+            <link rel="stylesheet" href="{% static_bust 'css/components.css' %}" />
+            <link rel="stylesheet" href="{% static_bust 'css/alerts.css' %}" />
+            <link rel="stylesheet" href="{% static_bust 'css/spectrumx_theme.css' %}" />
+            <link rel="stylesheet"
+                  href="{% static_bust 'css/bootstrap_overrides.css' %}" />
         {% endblock css %}
         {% block head %}
         {% endblock head %}
@@ -40,16 +43,16 @@
         {# Placed at the top of the document so pages load faster with defer #}
         {% block javascript %}
             <!-- Permission constants (must be loaded first) -->
-            <script src="{% static 'js/constants/PermissionLevels.js' %}"></script>
+            <script src="{% static_bust 'js/constants/PermissionLevels.js' %}"></script>
             <!-- Core JavaScript files - available globally -->
-            <script src="{% static 'js/core/BaseManager.js' %}"></script>
-            <script src="{% static 'js/core/ModalManager.js' %}"></script>
-            <script src="{% static 'js/core/APIClient.js' %}"></script>
-            <script src="{% static 'js/core/PermissionsManager.js' %}"></script>
-            <script src="{% static 'js/core/DOMUtils.js' %}"></script>
-            <script src="{% static 'js/core/UserInputController.js' %}"></script>
-            <script src="{% static 'js/core/PageGate.js' %}"></script>
-            <script src="{% static 'js/core/PageLifecycleManager.js' %}"></script>
+            <script src="{% static_bust 'js/core/BaseManager.js' %}"></script>
+            <script src="{% static_bust 'js/core/ModalManager.js' %}"></script>
+            <script src="{% static_bust 'js/core/APIClient.js' %}"></script>
+            <script src="{% static_bust 'js/core/PermissionsManager.js' %}"></script>
+            <script src="{% static_bust 'js/core/DOMUtils.js' %}"></script>
+            <script src="{% static_bust 'js/core/UserInputController.js' %}"></script>
+            <script src="{% static_bust 'js/core/PageGate.js' %}"></script>
+            <script src="{% static_bust 'js/core/PageLifecycleManager.js' %}"></script>
             <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
         {% endblock javascript %}
     </head>
@@ -75,7 +78,7 @@
                     <div class="container">
                         <a class="navbar-brand d-flex align-items-center"
                            href="{% url 'home' %}">
-                            <img src="{% static 'images/Logo.png' %}"
+                            <img src="{% static_bust 'images/Logo.png' %}"
                                  alt="NSF and SpectrumX Logo"
                                  class="logo" />
                             <span class="vr mx-3 d-none d-md-inline" aria-hidden="true"></span>
@@ -166,6 +169,12 @@
                                             </li>
                                             <li>
                                                 <hr class="dropdown-divider" />
+                                            </li>
+                                            <li>
+                                                <span class="dropdown-item-text version-label"
+                                                      title="{{ STATIC_CACHE_BUSTING_VERSION }}">
+                                                    {{ STATIC_CACHE_BUSTING_VERSION[:8]|default:"v???" }}
+                                                </span>
                                             </li>
                                             <li>
                                                 <a class="dropdown-item" href="{% url 'account_logout' %}">

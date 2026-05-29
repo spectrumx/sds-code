@@ -293,6 +293,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "sds_gateway.context_processors.app_settings",
                 "sds_gateway.context_processors.system_notifications",
                 "sds_gateway.context_processors.branding",
+                "sds_gateway.context_processors.static_cache_busting",
             ],
         },
     },

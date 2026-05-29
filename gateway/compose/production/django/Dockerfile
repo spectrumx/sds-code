@@ -77,6 +77,14 @@ RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 COPY --from=client-builder --chown=django:django ${APP_HOME} ${APP_HOME}
 RUN chown -R django:django ${APP_HOME}
 
+# Generate version.json with the git commit hash baked in
+RUN if [ -d "${APP_HOME}/.git" ]; then \
+        COMMIT=$(git --git-dir=${APP_HOME}/.git rev-parse --short HEAD); \
+        echo "{\"commit\":\"${COMMIT}\",\"version\":\"${COMMIT}\",\"build_date\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > ${APP_HOME}/version.json; \
+    else \
+        echo '{"commit":"none","version":"none","build_date":"none"}' > ${APP_HOME}/version.json; \
+    fi
+
 # create temp_zips directory and set permissions
 RUN mkdir -p ${APP_HOME}/sds_gateway/media/temp_zips && \
     chown -R django:django ${APP_HOME}/sds_gateway/media/temp_zips && \

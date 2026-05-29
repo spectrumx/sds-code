@@ -58,7 +58,7 @@ repos:
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
-      rev: v0.15.13
+      rev: v0.15.14
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
@@ -91,7 +91,7 @@ repos:
 
     # linter for markdown files - see .markdownlint.yaml to configure rules
     - repo: https://github.com/rvben/rumdl-pre-commit
-      rev: v0.1.94
+      rev: v0.2.0
       hooks:
           - id: rumdl # Lint only (fails on issues)
           - id: rumdl-fmt # Auto-format and fail if issues remain
