@@ -33,16 +33,16 @@ default:
 build *args:
     @echo "Pulling and building sds-gateway"
     ./scripts/update-version-json.sh
-    {{ docker_compose }} pull --ignore-buildable
-    {{ docker_compose }} build {{ args }}
+    GIT_COMMIT=$(git rev-parse --short HEAD) {{ docker_compose }} pull --ignore-buildable
+    GIT_COMMIT=$(git rev-parse --short HEAD) {{ docker_compose }} build {{ args }}
 
 # pulls and rebuilds from scratch without cache
 [group('setup')]
 build-full *args:
     @echo "Pulling and building sds-gateway WITHOUT CACHE"
     ./scripts/update-version-json.sh
-    {{ docker_compose }} pull --ignore-buildable
-    {{ docker_compose }} build --no-cache {{ args }}
+    GIT_COMMIT=$(git rev-parse --short HEAD) {{ docker_compose }} pull --ignore-buildable
+    GIT_COMMIT=$(git rev-parse --short HEAD) {{ docker_compose }} build --no-cache {{ args }}
 
 # removes ephemeral files, like python caches and test coverage reports
 [group('utilities')]
