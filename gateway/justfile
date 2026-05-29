@@ -32,6 +32,7 @@ default:
 [group('setup')]
 build *args:
     @echo "Pulling and building sds-gateway"
+    ./scripts/update-version-json.sh
     {{ docker_compose }} pull --ignore-buildable
     {{ docker_compose }} build {{ args }}
 
@@ -39,6 +40,7 @@ build *args:
 [group('setup')]
 build-full *args:
     @echo "Pulling and building sds-gateway WITHOUT CACHE"
+    ./scripts/update-version-json.sh
     {{ docker_compose }} pull --ignore-buildable
     {{ docker_compose }} build --no-cache {{ args }}
 
