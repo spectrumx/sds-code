@@ -35,6 +35,8 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
+            args:
+                GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
         container_name: sds-gateway-local-app
         tty: true # colored logs
@@ -233,6 +235,8 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
+            args:
+                GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-worker
         tty: true
@@ -278,6 +282,8 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
+            args:
+                GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-beat
         tty: true
@@ -323,6 +329,8 @@ services:
         build:
             context: .
             dockerfile: ./compose/local/django/Dockerfile
+            args:
+                GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
         container_name: sds-gateway-local-celery-flower
         tty: true

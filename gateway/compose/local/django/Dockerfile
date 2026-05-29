@@ -17,6 +17,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 ARG BUILD_ENVIRONMENT=local
 ARG APP_HOME=/app
+ARG GIT_COMMIT=none
 
 ENV BUILD_ENV=${BUILD_ENVIRONMENT}
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -75,5 +76,8 @@ RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
 # copy application code to WORKDIR
 COPY . ${APP_HOME}
+
+# Generate version.json with baked-in commit hash (passed as build ARG)
+RUN echo "{\"commit\":\"${GIT_COMMIT}\",\"version\":\"${GIT_COMMIT}\",\"build_date\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > ${APP_HOME}/version.json
 
 ENTRYPOINT ["/entrypoint"]
