@@ -326,15 +326,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
     <!-- Configuration for external JavaScript files -->
+    {# djlint:off #}
     <script>
         // Permissions for ShareActionManager on per-capture share modals (files browser)
         window.filesSharePagePermissions = {
             userPermissionLevel: "owner",
-            currentUserId: {
-                {
-                    request.user.id
-                }
-            },
+            currentUserId: {{ request.user.id }},
             isOwner: true,
             datasetPermissions: {
                 canEditMetadata: true,
@@ -359,7 +356,8 @@
         window.checkFileExistsUrl = window.filesConfig.urls.checkFileExists;
         window.uploadFilesUrl = window.filesConfig.urls.uploadFiles;
         window.csrfToken = window.filesConfig.csrfToken;
-    </script>
+</script>
+    {# djlint:on #}
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             const key = "filesAlert";
