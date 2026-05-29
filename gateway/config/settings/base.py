@@ -169,6 +169,7 @@ THIRD_PARTY_APPS: list[str] = [
 ]
 
 LOCAL_APPS: list[str] = [
+    "sds_gateway",  # auto-populates version.json at startup
     "sds_gateway.users",
     "sds_gateway.api_methods",
     "sds_gateway.visualizations",
