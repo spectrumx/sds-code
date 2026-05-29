@@ -267,6 +267,11 @@ textarea:focus-visible {
     max-width: 600px;
 }
 
+.file-browser-modal {
+	max-width: none;
+	width: 100%;
+}
+
 .file-browser-header {
     display: flex;
     justify-content: space-between;
