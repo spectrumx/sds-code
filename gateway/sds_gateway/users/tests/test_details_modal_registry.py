@@ -1,5 +1,7 @@
 """Unit tests for details modal registry helpers."""
 
+# ruff: noqa: SLF001
+
 from __future__ import annotations
 
 import pytest
@@ -14,8 +16,8 @@ class TestFormatChannelMetadataValue:
         assert reg.format_channel_metadata_value(None) == "N/A"
 
     def test_bool_and_string_booleans(self) -> None:
-        assert reg.format_channel_metadata_value(True) == "Yes"
-        assert reg.format_channel_metadata_value(False) == "No"
+        assert reg.format_channel_metadata_value(value=True) == "Yes"
+        assert reg.format_channel_metadata_value(value=False) == "No"
         assert reg.format_channel_metadata_value("true") == "Yes"
         assert reg.format_channel_metadata_value("FALSE") == "No"
 
@@ -23,16 +25,20 @@ class TestFormatChannelMetadataValue:
         assert reg.format_channel_metadata_value("hello") == "hello"
 
     def test_timestamp_seconds(self) -> None:
-        # 2000-01-01 00:00:00 UTC
+        # 2000-01-01 00:00:00 UTC — field_name="computer_time" → timestamp
         result = reg.format_channel_metadata_value(946684800, "computer_time")
         assert "2000" in result
         assert "UTC" in result
 
     def test_frequency_mhz(self) -> None:
-        assert "MHz" in reg.format_channel_metadata_value(2_500_000)
+        # field_name="sample_rate" → frequency formatting
+        assert "MHz" in reg.format_channel_metadata_value(2_500_000, "sample_rate")
 
     def test_frequency_ghz(self) -> None:
-        assert "GHz" in reg.format_channel_metadata_value(2_500_000_000)
+        # field_name="center_frequency" → frequency formatting
+        assert "GHz" in reg.format_channel_metadata_value(
+            2_500_000_000, "center_frequency"
+        )
 
     def test_list_joins(self) -> None:
         assert reg.format_channel_metadata_value([1, 2]) == "1, 2"
@@ -116,19 +122,32 @@ class TestCaptureDetailsHelpers:
 
 
 class TestCaptureFileSummaryFromDict:
+    EXPECTED_COUNT = 5
+    EXPECTED_SIZE = 1000
+    FALLBACK_COUNT = 3
+    FALLBACK_SIZE = 500
+
     def test_uses_total_file_fields(self) -> None:
         count, size = reg._capture_file_summary_from_dict(
-            {"total_file_count": 5, "total_file_size": 1000},
+            {
+                "total_file_count": self.EXPECTED_COUNT,
+                "total_file_size": self.EXPECTED_SIZE,
+            },
         )
-        assert count == 5
-        assert size == 1000
+        assert count == self.EXPECTED_COUNT
+        assert size == self.EXPECTED_SIZE
 
     def test_falls_back_to_data_files_info(self) -> None:
         count, size = reg._capture_file_summary_from_dict(
-            {"data_files_info": {"total_count": 3, "total_size": 500}},
+            {
+                "data_files_info": {
+                    "total_count": self.FALLBACK_COUNT,
+                    "total_size": self.FALLBACK_SIZE,
+                }
+            },
         )
-        assert count == 3
-        assert size == 500
+        assert count == self.FALLBACK_COUNT
+        assert size == self.FALLBACK_SIZE
 
 
 class TestFinalizeModalJson:

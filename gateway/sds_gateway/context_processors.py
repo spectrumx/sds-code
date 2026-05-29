@@ -25,18 +25,33 @@ def _load_version() -> dict[str, str]:
     the Docker image is built.  Falls back to the environment variable
     SDS_COMMIT_HASH or a hardcoded placeholder.
     """
-    version_path = Path(__file__).parent.parent.parent / "version.json"
+    version_path = Path(__file__).parent.parent / "version.json"
     if version_path.is_file():
         try:
             data = json.loads(version_path.read_text())
-            return {
-                "commit": data.get("commit", "unknown"),
-            }
+            commit = data.get("commit", "unknown")
+            version = data.get("version", "unknown")
+            build_date = data.get("build_date", "unknown")
+            logger.info(
+                "version info loaded: commit=%s version=%s build_date=%s",
+                commit,
+                version,
+                build_date,
+            )
         except (OSError, json.JSONDecodeError):
-            pass
+            logger.warning(
+                "failed to parse version file at %s",
+                version_path,
+                exc_info=True,
+            )
+        else:
+            return {"commit": commit, "version": version}
 
+    # File missing or unparseable — try env var fallback.
+    if not version_path.is_file():
+        logger.warning("version file not found at %s", version_path)
     commit = os.environ.get("SDS_COMMIT_HASH", "unknown")
-    return {"commit": commit}
+    return {"commit": commit, "version": commit}
 
 
 def _latest_admin_monitoring_status() -> dict[str, Any] | None:
@@ -102,11 +117,11 @@ def branding(_request: HttpRequest) -> dict[str, str | None]:
 
 
 def static_cache_busting(_request: HttpRequest) -> dict[str, Any]:
-    """Expose a version string for cache-busting static assets.
+    """Expose a version string for cache-busting static assets and navbar display.
 
-    Uses a git commit hash from version.json (shipped during build) or
-    the SDS_COMMIT_HASH env var. Changes on every deploy, so appending
-    this as a query param forces browsers/CDNs to fetch fresh assets.
+    Returns the version tag (e.g. ``v0.1.19-8-g4bf9097f``) from version.json,
+    which includes both the nearest release tag and the commit count/hash.
+    Falls back to ``SDS_COMMIT_HASH`` or ``"unknown"``.
     """
     version = _load_version()
-    return {"STATIC_CACHE_BUSTING_VERSION": version["commit"]}
+    return {"STATIC_CACHE_BUSTING_VERSION": version["version"]}

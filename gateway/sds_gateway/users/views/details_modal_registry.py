@@ -16,7 +16,9 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
-from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
 from sds_gateway.users.views.datasets import load_dataset_details_bundle
 
 TIME_METADATA_FIELDS = frozenset(
@@ -28,52 +30,100 @@ TIME_METADATA_FIELDS = frozenset(
     },
 )
 
+FREQUENCY_METADATA_FIELDS = frozenset(
+    {
+        "center_frequency",
+        "sample_rate",
+        "bandwidth",
+        "center_freq",
+        "samples_per_second",
+    },
+)
+
+# Frequency thresholds (Hz)
+_FREQUENCY_GHZ_THRESHOLD = 1_000_000_000  # 1e9
+_FREQUENCY_MHZ_THRESHOLD = 1_000_000  # 1e6
+
 
 def _format_field_label(field_name: str) -> str:
     return field_name.replace("_", " ").title()
 
 
-def format_channel_metadata_value(value: Any, field_name: str = "") -> str:
-    """Format a metadata value for display (parity with legacy ModalManager JS)."""
-    if value is None:
-        return "N/A"
+def _format_numeric_value(value: float, field_name: str = "") -> str | None:
+    """Format a numeric metadata value for display.
+
+    Formatting depends on field_name context rather than value heuristics:
+
+    * Time fields (TIME_METADATA_FIELDS) → Unix epoch → date string
+    * Frequency fields (FREQUENCY_METADATA_FIELDS) → Hz → GHz/MHz with units
+    * Unknown fields → None (caller handles plain-number fallback)
+    """
     if isinstance(value, bool):
         return "Yes" if value else "No"
-    if isinstance(value, str):
-        low = value.lower()
-        if low == "true":
-            return "Yes"
-        if low == "false":
-            return "No"
-        return value
-    if isinstance(value, int | float):
-        value_str = str(value)
-        fname = field_name.lower()
-        if fname in TIME_METADATA_FIELDS and 10 <= len(value_str) <= 13:
-            ts_ms = value * 1000 if len(value_str) == 10 else value
-            try:
-                return datetime.fromtimestamp(
-                    ts_ms / 1000.0,
-                    tz=timezone.utc,
-                ).strftime("%Y-%m-%d %H:%M:%S %Z")
-            except (OSError, OverflowError, ValueError):
-                pass
-        abs_v = abs(value)
-        if abs_v >= 1e9:
-            return f"{value / 1e9:.3f} GHz"
-        if abs_v >= 1e6:
-            return f"{value / 1e6:.1f} MHz"
-        return str(value)
-    if isinstance(value, list):
-        return ", ".join(
-            format_channel_metadata_value(item, field_name) for item in value
-        )
-    if isinstance(value, dict):
-        return json.dumps(value, default=str)
+
+    value_abs = abs(value)
+
+    if field_name in TIME_METADATA_FIELDS:
+        try:
+            return datetime.fromtimestamp(value, tz=timezone.utc).strftime(
+                "%Y-%m-%d %H:%M:%S %Z"
+            )
+        except (OSError, OverflowError, ValueError):
+            return None
+
+    if field_name in FREQUENCY_METADATA_FIELDS:
+        if value_abs >= _FREQUENCY_GHZ_THRESHOLD:
+            return f"{value / _FREQUENCY_GHZ_THRESHOLD:.3f} GHz"
+        if value_abs >= _FREQUENCY_MHZ_THRESHOLD:
+            return f"{value / _FREQUENCY_MHZ_THRESHOLD:.1f} MHz"
+
+    return None
+
+
+def _format_bool_or_str_text(value: object) -> str:
+    """Format a boolean or string value to display text."""
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if value.lower() == "true":
+        return "Yes"
+    if value.lower() == "false":
+        return "No"
     return str(value)
 
 
-def build_channel_metadata_rows(metadata: dict[str, Any] | None) -> list[dict[str, str]]:
+def _format_number_value(value: float, field_name: str) -> str:
+    """Format a numeric value with proper separators or units."""
+    numeric_result = _format_numeric_value(value, field_name)
+    if numeric_result is not None:
+        return numeric_result
+    if isinstance(value, float) and value == value // 1:
+        # Whole number → integer with thousand separators
+        return f"{int(value):,}"
+    return f"{value:,}"
+
+
+def format_channel_metadata_value(value: Any, field_name: str = "") -> str:
+    """Format a metadata value for display (parity with legacy ModalManager JS)."""
+    if value is None:
+        result = "N/A"
+    elif isinstance(value, bool | str):
+        result = _format_bool_or_str_text(value)
+    elif isinstance(value, int | float):
+        result = _format_number_value(value, field_name)
+    elif isinstance(value, list):
+        result = ", ".join(
+            format_channel_metadata_value(item, field_name) for item in value
+        )
+    elif isinstance(value, dict):
+        result = json.dumps(value, default=str)
+    else:
+        result = str(value)
+    return result
+
+
+def build_channel_metadata_rows(
+    metadata: dict[str, Any] | None,
+) -> list[dict[str, str]]:
     """Turn channel_metadata dict into rows for the template (autoescaped text)."""
     if not metadata:
         return []
@@ -100,10 +150,9 @@ def _owner_display(capture_dict: dict[str, Any]) -> str:
 def _dataset_display(capture_dict: dict[str, Any]) -> str:
     datasets = capture_dict.get("datasets")
     if isinstance(datasets, list) and datasets:
-        names: list[str] = []
-        for d in datasets:
-            if isinstance(d, dict) and d.get("name"):
-                names.append(str(d["name"]))
+        names = [
+            str(d["name"]) for d in datasets if isinstance(d, dict) and d.get("name")
+        ]
         return ", ".join(names) if names else "N/A"
     raw = capture_dict.get("dataset")
     if raw is not None and raw != "":
@@ -129,10 +178,11 @@ def _channel_summary_value(capture_dict: dict[str, Any]) -> str:
     if capture_dict.get("is_multi_channel"):
         channels = capture_dict.get("channels") or []
         if isinstance(channels, list) and channels:
-            parts = []
-            for ch in channels:
-                if isinstance(ch, dict) and ch.get("channel"):
-                    parts.append(str(ch["channel"]))
+            parts = [
+                str(ch["channel"])
+                for ch in channels
+                if isinstance(ch, dict) and ch.get("channel")
+            ]
             return ", ".join(parts) if parts else "N/A"
         return str(capture_dict.get("channel") or "N/A")
     return str(capture_dict.get("channel") or "N/A")
