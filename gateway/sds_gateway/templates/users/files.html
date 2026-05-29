@@ -131,10 +131,7 @@
                                         {% if item.shared_by %}{{ item.shared_by }}{% endif %}
                                     </div>
                                     <div class="file-actions">
-                                        {% if item.type == 'file' and item.is_h5_file %}
-                                            <!-- No actions for H5 files -->
-                                        {% else %}
-                                            <!-- Show actions for captures and individual files -->
+                                        {% if item.type == 'file' and not item.is_h5_file %}
                                             <div class="dropdown">
                                                 <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
                                                         type="button"
@@ -144,75 +141,13 @@
                                                     <i class="bi bi-three-dots-vertical"></i>
                                                 </button>
                                                 <ul class="dropdown-menu">
-                                                    {% if item.is_capture %}
-                                                        <!-- Capture actions -->
-                                                        {% if item.is_owner %}
-                                                            <li>
-                                                                <button class="dropdown-item capture-details-btn"
-                                                                        type="button"
-                                                                        data-item-type="capture"
-                                                                        data-item-uuid="{{ item.uuid }}"
-                                                                        data-uuid="{{ item.uuid }}"
-                                                                        data-name="{{ item.name|default:'' }}"
-                                                                        data-channel="{{ item.capture_uuid }}"
-                                                                        data-scan-group=""
-                                                                        data-capture-type=""
-                                                                        data-top-level-dir=""
-                                                                        data-owner="{{ request.user.email }}"
-                                                                        data-origin=""
-                                                                        data-created-at=""
-                                                                        data-updated-at=""
-                                                                        data-is-public="false"
-                                                                        data-center-frequency-ghz=""
-                                                                        data-is-multi-channel="false"
-                                                                        data-channels="">
-                                                                    <i class="bi bi-pencil me-2"></i>Edit
-                                                                </button>
-                                                            </li>
-                                                            <li>
-                                                                <button class="dropdown-item"
-                                                                        type="button"
-                                                                        data-bs-toggle="modal"
-                                                                        data-bs-target="#shareModal-{{ item.uuid }}">
-                                                                    <i class="bi bi-share me-2"></i>Share
-                                                                </button>
-                                                            </li>
-                                                        {% endif %}
-                                                        <li>
-                                                            <button class="dropdown-item web-download-btn"
-                                                                    type="button"
-                                                                    data-item-uuid="{{ item.uuid }}"
-                                                                    data-item-type="capture"
-                                                                    data-length-of-capture-ms="{{ item.length_of_capture_ms|default:0 }}"
-                                                                    data-file-cadence-ms="{{ item.file_cadence_ms|default:1000 }}"
-                                                                    data-per-data-file-size="{{ item.data_files_info.per_data_file_size|default:0 }}"
-                                                                    data-total-data-file-size="{{ item.data_files_info.total_size|default:0 }}"
-                                                                    data-total-size="{{ item.total_file_size|default:0 }}"
-                                                                    data-data-files-count="{{ item.data_files_info.count|default:0 }}"
-                                                                    data-total-files-count="{{ item.files|length|default:0 }}"
-                                                                    data-capture-start-epoch-sec="{{ item.capture_start_epoch_sec|default:0 }}">
-                                                                Download
-                                                            </button>
-                                                        </li>
-                                                    {% elif item.type == 'file' %}
-                                                        <!-- Individual file actions -->
-                                                        <li>
-                                                            <a class="dropdown-item"
-                                                               href="{% url 'users:file_download' uuid=item.uuid %}">
-                                                                <i class="bi bi-download me-2"></i>Download
-                                                            </a>
-                                                        </li>
-                                                    {% elif item.type == 'directory' and item.capture_uuid %}
-                                                        <!-- Nested directory within capture actions -->
-                                                        <li>
-                                                            <button class="dropdown-item download-capture-btn"
-                                                                    type="button"
-                                                                    data-capture-uuid="{{ item.capture_uuid }}"
-                                                                    data-capture-name="{{ item.name }}">
-                                                                <i class="bi bi-download me-2"></i>Download
-                                                            </button>
-                                                        </li>
-                                                    {% endif %}
+                                                    <!-- Individual file actions -->
+                                                    <li>
+                                                        <a class="dropdown-item"
+                                                           href="{% url 'users:file_download' uuid=item.uuid %}">
+                                                            <i class="bi bi-download me-2"></i>Download
+                                                        </a>
+                                                    </li>
                                                 </ul>
                                             </div>
                                         {% endif %}
@@ -395,7 +330,11 @@
         // Permissions for ShareActionManager on per-capture share modals (files browser)
         window.filesSharePagePermissions = {
             userPermissionLevel: "owner",
-            currentUserId: {{ request.user.id }},
+            currentUserId: {
+                {
+                    request.user.id
+                }
+            },
             isOwner: true,
             datasetPermissions: {
                 canEditMetadata: true,
