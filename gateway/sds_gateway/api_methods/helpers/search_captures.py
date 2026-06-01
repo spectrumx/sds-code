@@ -348,25 +348,37 @@ def _build_os_query_for_captures(
 # Need to paginate/limit OpenSearch results list before grouping
 # and then paginate/limit the grouped captures
 def get_composite_captures(
-    captures: QuerySet[Capture], request: Request | None = None
+    captures: QuerySet[Capture],
+    request: Request | None = None,
+    bulk_metadata: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Get captures as composite objects, grouping multi-channel captures.
 
     Args:
         captures: QuerySet of Capture objects
         request: Optional Django REST framework request for serializer context
+        bulk_metadata: Optional pre-loaded OpenSearch metadata mapping
+                       ``uuid_str → metadata_dict``. When provided, the
+                       serialization path populates related capture
+                       instances' internal cache so ``get_opensearch_metadata()``
+                       returns without additional round-trips.
     Returns:
         list: List of composite capture data
     """
     grouped_captures = group_captures_by_top_level_dir(captures)
     composite_captures = []
 
-    context = {"request": request} if request else {}
+    context: dict[str, Any] = {"request": request} if request else {}
+    if bulk_metadata is not None:
+        context["bulk_metadata"] = bulk_metadata
 
     for capture_list in grouped_captures.values():
         if len(capture_list) > 1:
             # Multiple captures with same top_level_dir - create composite
             composite_data = build_composite_capture_data(capture_list)
+            # Inject original instances so CompositeCaptureSerializer finds them
+            # with tier-1 cache already populated, avoiding extra DB query.
+            composite_data["_captures_by_uuid"] = {str(c.uuid): c for c in capture_list}
             composite_captures.append(composite_data)
         else:
             # Single capture - serialize normally

@@ -3,6 +3,7 @@
 import datetime
 import json
 import logging
+import threading
 import uuid
 from enum import StrEnum
 from pathlib import Path
@@ -12,6 +13,7 @@ from typing import cast
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
+from django.core.signals import request_started
 from django.db import models
 from django.db.models import Count
 from django.db.models import ProtectedError
@@ -29,6 +31,22 @@ if TYPE_CHECKING:
     from sds_gateway.users.models import User
 
 log = logging.getLogger(__name__)
+
+# Thread-local storage for request-scoped OpenSearch metadata cache.
+# Used as a safety net in get_opensearch_metadata() when the per-instance
+# cache (_opensearch_metadata_cache) is missing (e.g. on fresh model
+# instances created by get_capture()'s list(related_captures)).
+_request_cache = threading.local()
+
+
+def _clear_request_cache(sender, **kwargs):
+    """Clear thread-local OpenSearch metadata cache at start of each request."""
+    for attr in ("opensearch_metadata",):
+        if hasattr(_request_cache, attr):
+            delattr(_request_cache, attr)
+
+
+request_started.connect(_clear_request_cache, weak=False)
 
 DRF_RF_FILENAME_REGEX_STR = r"^rf@\d+\.\d+\.h5$"
 
@@ -455,13 +473,14 @@ class Capture(BaseModel):
             is_deleted=False,
         ).order_by("channel")
 
-        if related_captures.count() <= 1:
+        capture_list = list(related_captures)
+        if len(capture_list) <= 1:
             # Only one capture found, return as single capture
             return {"capture": self, "is_composite": False}
 
         # Multiple captures found, create composite
         return {
-            "captures": list(related_captures),
+            "captures": capture_list,
             "is_composite": True,
             "top_level_dir": self.top_level_dir,
             "capture_type": self.capture_type,
@@ -571,7 +590,22 @@ class Capture(BaseModel):
             dict: Frequency metadata (center_frequency, sample_rate, etc.)
         """
         if hasattr(self, "_opensearch_metadata_cache"):
+            log.trace("meta_cache HIT for %s", self.uuid)
             return self._opensearch_metadata_cache
+
+        # Fallback: thread-local cache (populated by set_bulk_metadata_cache).
+        # Catches fresh model instances (e.g. from get_capture() →
+        # list(related_captures)) that don't share the original queryset
+        # instance identity.
+        tl = getattr(_request_cache, "opensearch_metadata", None)
+        if tl is not None:
+            cached = tl.get(str(self.uuid))
+            if cached is not None:
+                log.trace("meta_cache thread-local HIT for %s", self.uuid)
+                self._opensearch_metadata_cache = cached
+                return cached
+
+        log.trace("meta_cache MISS for %s", self.uuid)
 
         result: dict[str, Any] = {}
         try:
@@ -591,7 +625,7 @@ class Capture(BaseModel):
                 # It's already a string value
                 index_name = f"captures-{self.capture_type}"
 
-            log.info(
+            log.debug(
                 "Querying OpenSearch index '%s' for capture %s", index_name, self.uuid
             )
 
@@ -617,7 +651,7 @@ class Capture(BaseModel):
         """Extract frequency metadata from OpenSearch source data."""
 
         search_props = source.get("search_props", {})
-        log.info("OpenSearch data for %s: search_props=%s", self.uuid, search_props)
+        log.debug("OpenSearch data for %s: search_props=%s", self.uuid, search_props)
 
         # Try search_props first (preferred)
         center_frequency = search_props.get("center_frequency")
@@ -709,6 +743,48 @@ class Capture(BaseModel):
             return {}
         else:
             return frequency_data
+
+    @classmethod
+    def set_bulk_metadata_cache(
+        cls, captures: list["Capture"], metadata: dict[str, dict[str, Any]]
+    ) -> None:
+        """Attach bulk-loaded metadata to each capture instance.
+
+        Sets ``_opensearch_metadata_cache`` on each capture so that
+        ``get_opensearch_metadata()`` returns early without an additional
+        OpenSearch round-trip.
+
+        Args:
+            captures: List of Capture instances to attach metadata to.
+            metadata: Mapping from ``uuid_str`` to metadata dict
+                      (as returned by ``bulk_load_frequency_metadata``).
+        """
+        # Clear any stale thread-local data before setting fresh data
+        if hasattr(_request_cache, "opensearch_metadata"):
+            del _request_cache.opensearch_metadata
+
+        loaded = 0
+        missing = 0
+        for capture in captures:
+            cache_key = str(capture.uuid)
+            if cache_key in metadata:
+                capture._opensearch_metadata_cache = metadata[cache_key]  # noqa: SLF001
+                loaded += 1
+            else:
+                missing += 1
+                capture._opensearch_metadata_cache = {}  # noqa: SLF001
+
+        # Also store in thread-local cache so fresh instances (e.g. from
+        # get_capture() → list(related_captures)) can still find their
+        # metadata without an individual round-trip.
+        _request_cache.opensearch_metadata = metadata
+
+        log.debug(
+            "set_bulk_metadata_cache: loaded=%d, missing=%d, total=%d",
+            loaded,
+            missing,
+            len(captures),
+        )
 
     def debug_opensearch_response(self) -> dict[str, Any] | None:
         """
@@ -1571,7 +1647,7 @@ def _extract_drf_sample_rate(capture_props: dict[str, Any]) -> float | None:
     if numerator and denominator and denominator != 0:
         # try sample_rate_numerator/denominator first
         sample_rate = numerator / denominator
-        log.info(
+        log.debug(
             "Calculated DRF sample_rate: %s/%s = %s",
             numerator,
             denominator,
@@ -1580,7 +1656,7 @@ def _extract_drf_sample_rate(capture_props: dict[str, Any]) -> float | None:
     elif capture_props.get("samples_per_second"):
         # fallback to samples_per_second if numerator/denominator missing
         sample_rate = capture_props.get("samples_per_second")
-        log.info("Using DRF samples_per_second: %s", sample_rate)
+        log.debug("Using DRF samples_per_second: %s", sample_rate)
     return sample_rate
 
 
@@ -1686,6 +1762,9 @@ def _extract_bulk_frequency_data(
         "sample_rate": sample_rate,
         "frequency_min": search_props.get("frequency_min"),
         "frequency_max": search_props.get("frequency_max"),
+        "start_time": search_props.get("start_time"),
+        "end_time": search_props.get("end_time"),
+        "file_cadence": None,  # requires per-capture file count; skip in bulk
     }
 
 

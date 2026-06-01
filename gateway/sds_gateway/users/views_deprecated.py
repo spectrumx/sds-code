@@ -1286,9 +1286,21 @@ def _get_captures_for_template(
 ) -> list[dict[str, Any]]:
     """Get enhanced captures for the template."""
     enhanced_captures = []
-    for capture in captures:
+
+    # Bulk-load OpenSearch metadata before serialization loop
+    captures_list = list(captures)
+    if captures_list:
+        temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures_list])
+        bulk_metadata = Capture.bulk_load_frequency_metadata(temp_qs)
+        Capture.set_bulk_metadata_cache(captures_list, bulk_metadata)
+    else:
+        bulk_metadata = {}
+
+    for capture in captures_list:
         # Use composite serialization to handle multi-channel captures properly
-        capture_data = serialize_capture_or_composite(capture)
+        capture_data = serialize_capture_or_composite(
+            capture, context={"bulk_metadata": bulk_metadata}
+        )
 
         # Composite serialization omits top-level name;
         # templates and API need a display name

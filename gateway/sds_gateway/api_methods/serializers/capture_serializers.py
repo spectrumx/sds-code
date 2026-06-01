@@ -7,6 +7,7 @@ from typing import cast
 
 from django.utils import timezone as django_timezone
 from drf_spectacular.utils import extend_schema_field
+from loguru import logger as log
 from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
 
@@ -862,8 +863,19 @@ def serialize_capture_or_composite(
 
     if capture_data["is_composite"]:
         # Serialize as composite
+        captures = capture_data["captures"]  # fresh DB instances (no cache yet)
+        # Populate cache from bulk-loaded metadata to avoid individual
+        # OpenSearch round-trips for each related capture.
+        bulk_meta: dict[str, Any] | None = (context or {}).get("bulk_metadata")
+        if bulk_meta is not None:
+            Capture.set_bulk_metadata_cache(captures, bulk_meta)
+            log.debug(
+                "set_bulk_metadata_cache applied to %d related captures "
+                "via serialize_capture_or_composite (multi-channel)",
+                len(captures),
+            )
         composite_data = build_composite_capture_data(
-            capture_data["captures"],
+            captures,
             include_serializer_aux=True,
         )
         serializer = CompositeCaptureSerializer(composite_data, context=context)

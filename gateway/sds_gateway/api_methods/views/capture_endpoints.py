@@ -672,8 +672,27 @@ class CaptureViewSet(viewsets.ViewSet):
     ) -> Response:
         """Paginate and serialize composite capture results."""
 
-        # Get composite captures
-        composite_captures = get_composite_captures(captures, request=request)
+        # Bulk-load OpenSearch metadata for all captures before
+        # grouping and serialization. This replaces O(n) individual
+        # round-trips (one per capture) with 2 bulk queries
+        # (DRF + RadioHound) and caches results on each instance.
+        capture_list = list(captures)
+        log.debug(
+            "Bulk-loading OpenSearch metadata for %d captures",
+            len(capture_list),
+        )
+        bulk_metadata = Capture.bulk_load_frequency_metadata(captures)
+        Capture.set_bulk_metadata_cache(capture_list, bulk_metadata)
+
+        # Get composite captures — pass the materialized list to
+        # guarantee instance identity so the per-instance cache
+        # populated by set_bulk_metadata_cache is visible in the
+        # serialization path.
+        composite_captures = get_composite_captures(
+            capture_list,
+            request=request,
+            bulk_metadata=bulk_metadata,
+        )
 
         # Manual pagination for composite captures
         paginator = CapturePagination()

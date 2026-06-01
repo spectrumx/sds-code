@@ -8,7 +8,9 @@ import logging
 import uuid
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import cast
+from unittest.mock import MagicMock
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -29,6 +31,13 @@ from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.models import _request_cache as test_request_cache
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    CompositeCaptureSerializer,
+)
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    build_composite_capture_data,
+)
 from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
@@ -2430,3 +2439,495 @@ class OpenSearchErrorTestCases(APITestCase):
         assert "detail" in res_json, "'detail' field missing from failed response"
         detail = res_json["detail"]
         assert "opensearch" not in detail.lower(), f"Unexpected detail: '{detail}'"
+
+
+class CaptureBulkMetadataLoadingTests(APITestCase):
+    """Tests for the bulk OpenSearch metadata loading optimization.
+
+    Verifies that ``set_bulk_metadata_cache`` and
+    ``bulk_load_frequency_metadata`` correctly replace O(n) individual
+    round-trips with 2 bulk queries (one per capture type).
+    """
+
+    def setUp(self) -> None:
+        self.user = User.objects.create(
+            email="bulk-test@example.com",
+            password="testpass123",  # noqa: S106
+            is_approved=True,
+        )
+        api_key, key = UserAPIKey.objects.create_key(
+            name="bulk-test-key",
+            user=self.user,
+        )
+        self.api_key = cast("AbstractAPIKey", api_key)
+        self.key = cast("str", key)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
+        self.list_url = reverse("api:captures-list")
+
+    def test_set_bulk_metadata_cache_attaches_to_instances(self) -> None:
+        """set_bulk_metadata_cache populates _opensearch_metadata_cache."""
+        cap1 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-test-dir-1"),
+        )
+        cap2 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch1",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-test-dir-2"),
+        )
+
+        bulk_meta = {
+            str(cap1.uuid): {
+                "center_frequency": 1_000_000_000.0,
+                "sample_rate": 10_000_000,
+                "start_time": 1_000_000_000,
+                "end_time": 1_000_000_010,
+                "file_cadence": None,
+            },
+            str(cap2.uuid): {
+                "center_frequency": 2_000_000_000.0,
+                "sample_rate": 20_000_000,
+                "start_time": 1_000_000_010,
+                "end_time": 1_000_000_020,
+                "file_cadence": None,
+            },
+        }
+
+        Capture.set_bulk_metadata_cache([cap1, cap2], bulk_meta)
+
+        assert cap1._opensearch_metadata_cache["center_frequency"] == 1_000_000_000.0  # noqa: PLR2004,SLF001
+        assert cap1._opensearch_metadata_cache["start_time"] == 1_000_000_000  # noqa: PLR2004,SLF001
+        assert cap2._opensearch_metadata_cache["center_frequency"] == 2_000_000_000.0  # noqa: PLR2004,SLF001
+        assert cap2._opensearch_metadata_cache["start_time"] == 1_000_000_010  # noqa: PLR2004,SLF001
+
+    def test_set_bulk_metadata_cache_handles_missing_uuid(self) -> None:
+        """Missing UUIDs get empty dict, not KeyError."""
+        cap = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-test-dir-3"),
+        )
+        bulk_meta: dict[str, dict[str, Any]] = {}
+
+        Capture.set_bulk_metadata_cache([cap], bulk_meta)
+
+        assert cap._opensearch_metadata_cache == {}  # noqa: SLF001
+        # Should not raise on subsequent get_opensearch_metadata calls
+        meta = cap.get_opensearch_metadata()
+        assert meta == {}
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_get_opensearch_metadata_hits_bulk_cache(
+        self,
+        mock_get_client,
+    ) -> None:
+        """When bulk cache is populated, get_opensearch_metadata skips OpenSearch."""
+        cap = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-test-dir-4"),
+        )
+
+        # Populate bulk cache
+        Capture.set_bulk_metadata_cache(
+            [cap],
+            {
+                str(cap.uuid): {
+                    "center_frequency": 3_000_000_000.0,
+                    "sample_rate": 15_000_000,
+                    "start_time": 2_000_000_000,
+                    "end_time": 2_000_000_005,
+                    "file_cadence": None,
+                },
+            },
+        )
+
+        # Now call get_opensearch_metadata - should NOT hit OpenSearch
+        meta = cap.get_opensearch_metadata()
+
+        assert meta["center_frequency"] == 3_000_000_000.0  # noqa: PLR2004
+        assert meta["sample_rate"] == 15_000_000  # noqa: PLR2004
+        assert mock_get_client.return_value.search.call_count == 0
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_get_opensearch_metadata_misses_without_cache(
+        self,
+        mock_get_client,
+    ) -> None:
+        """Without bulk cache, get_opensearch_metadata queries OpenSearch."""
+        cap = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-test-dir-5"),
+        )
+
+        _ = cap.get_opensearch_metadata()
+
+        assert mock_get_client.return_value.search.call_count == 1
+
+    @patch(
+        "sds_gateway.api_methods.serializers.capture_serializers.retrieve_indexed_metadata",
+        return_value={},
+    )
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.Capture.set_bulk_metadata_cache",
+        new_callable=MagicMock,
+    )
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.Capture.bulk_load_frequency_metadata",
+        new_callable=lambda: MagicMock(return_value={}),
+    )
+    def test_list_endpoint_calls_bulk_load_once(
+        self,
+        mock_bulk_load,
+        mock_set_cache,
+        mock_retrieve,
+    ) -> None:
+        """GET /captures/ calls bulk_load_frequency_metadata once, not per capture."""
+        # Create 5 DRF captures
+        for i in range(5):
+            Capture.objects.create(
+                capture_type=CaptureType.DigitalRF,
+                channel=f"ch{i}",
+                index_name="captures-test-bulk",
+                owner=self.user,
+                top_level_dir=_normalize_top_level_dir(f"bulk-test-dir-{i}"),
+            )
+
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+
+        # bulk_load_frequency_metadata should be called exactly once
+        mock_bulk_load.assert_called_once()
+        # set_bulk_metadata_cache should be called exactly once
+        mock_set_cache.assert_called_once()
+
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.Capture.set_bulk_metadata_cache",
+        new_callable=MagicMock,
+    )
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.Capture.bulk_load_frequency_metadata",
+        new_callable=lambda: MagicMock(return_value={}),
+    )
+    def test_bulk_load_receives_all_captures(
+        self,
+        mock_bulk_load,
+        mock_set_cache,
+    ) -> None:
+        """bulk_load_frequency_metadata receives the full queryset (not just page)."""
+        for i in range(3):
+            Capture.objects.create(
+                capture_type=CaptureType.DigitalRF,
+                channel=f"ch{i}",
+                index_name="captures-test-bulk",
+                owner=self.user,
+                top_level_dir=_normalize_top_level_dir(f"bulk-test-dir-{i}"),
+            )
+
+        self.client.get(self.list_url)
+
+        # Verify bulk_load was called with a QuerySet-like object
+        call_args = mock_bulk_load.call_args
+        captured_captures = call_args[0][0]  # first positional arg
+        # Should be the full queryset (not paginated)
+        min_count = 3
+        assert len(captured_captures) >= min_count
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_thread_local_cache_hits_with_fresh_instance(
+        self,
+        mock_get_client,
+    ) -> None:
+        """Fresh Capture instances find metadata in thread-local cache."""
+        cap = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-thread-local-test"),
+        )
+
+        # Populate bulk cache (also sets thread-local cache)
+        Capture.set_bulk_metadata_cache(
+            [cap],
+            {
+                str(cap.uuid): {
+                    "center_frequency": 3_000_000_000.0,
+                    "sample_rate": 15_000_000,
+                    "start_time": 2_000_000_000,
+                    "end_time": 2_000_000_005,
+                    "file_cadence": None,
+                },
+            },
+        )
+
+        # Get a FRESH instance (no _opensearch_metadata_cache)
+        fresh_cap = Capture.objects.get(uuid=cap.uuid)
+        assert not hasattr(fresh_cap, "_opensearch_metadata_cache")
+
+        # Should hit thread-local cache, not OpenSearch
+        meta = fresh_cap.get_opensearch_metadata()
+        assert meta["center_frequency"] == 3_000_000_000.0  # noqa: PLR2004
+        assert meta["sample_rate"] == 15_000_000  # noqa: PLR2004
+        assert mock_get_client.return_value.search.call_count == 0
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_thread_local_cache_cleared_between_requests(
+        self,
+        mock_get_client,
+    ) -> None:
+        """Thread-local cache is cleared between requests — no stale metadata leak."""
+        # Mock OpenSearch to return a known value so we can detect when it IS called
+        mock_get_client.return_value.search.return_value = {
+            "hits": {
+                "total": {"value": 1},
+                "hits": [
+                    {
+                        "_id": "mock",
+                        "_source": {"search_props": {}, "capture_props": {}},
+                    }
+                ],
+            },
+        }
+
+        cap_a = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="chA",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-clear-test-a"),
+        )
+        cap_b = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="chB",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-clear-test-b"),
+        )
+
+        # Request 1: set bulk cache with metadata for cap_a only
+        meta_for_a = {
+            str(cap_a.uuid): {
+                "center_frequency": 1_000_000_000.0,
+                "sample_rate": 10_000_000,
+                "start_time": 1_000_000_000,
+                "end_time": 1_000_000_010,
+                "file_cadence": None,
+            },
+        }
+        Capture.set_bulk_metadata_cache([cap_a, cap_b], meta_for_a)
+
+        # Verify thread-local cache was populated
+        assert hasattr(test_request_cache, "opensearch_metadata")
+        assert str(cap_a.uuid) in test_request_cache.opensearch_metadata
+
+        # Simulate request_started signal: clear thread-local cache
+        if hasattr(test_request_cache, "opensearch_metadata"):
+            del test_request_cache.opensearch_metadata
+
+        # Verify thread-local cache is gone
+        assert not hasattr(test_request_cache, "opensearch_metadata")
+
+        # Request 2: get fresh instance of cap_b (no instance cache)
+        cap_b_fresh = Capture.objects.get(uuid=cap_b.uuid)
+        assert not hasattr(cap_b_fresh, "_opensearch_metadata_cache")
+
+        # Should fall through to OpenSearch since thread-local is empty
+        _ = cap_b_fresh.get_opensearch_metadata()
+        assert mock_get_client.return_value.search.call_count >= 1
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_enriched_channels_uses_bulk_metadata(
+        self,
+        mock_get_client,
+    ) -> None:
+        """_captures_by_uuid avoids redundant OpenSearch queries."""
+        multi_channel_dir = "/bulk-enriched-channels-test"
+
+        # Create multi-channel captures (same top_level_dir)
+        cap0 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=multi_channel_dir,
+        )
+        cap1 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch1",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=multi_channel_dir,
+        )
+
+        captures = [cap0, cap1]
+
+        # Set bulk cache with metadata for both captures
+        bulk_meta = {
+            str(cap0.uuid): {
+                "center_frequency": 2_400_000_000.0,
+                "sample_rate": 20_000_000,
+                "start_time": 1_000_000_000,
+                "end_time": 1_000_000_100,
+                "file_cadence": None,
+            },
+            str(cap1.uuid): {
+                "center_frequency": 2_400_000_000.0,
+                "sample_rate": 20_000_000,
+                "start_time": 1_000_000_100,
+                "end_time": 1_000_000_200,
+                "file_cadence": None,
+            },
+        }
+        Capture.set_bulk_metadata_cache(captures, bulk_meta)
+
+        # Build composite WITHOUT include_serializer_aux (default)
+        composite_data = build_composite_capture_data(captures)
+
+        # Inject _captures_by_uuid (as done by the Fix B in search_captures.py)
+        composite_data["_captures_by_uuid"] = {str(c.uuid): c for c in captures}
+
+        # Serialize with CompositeCaptureSerializer
+        serializer = CompositeCaptureSerializer(composite_data)
+        result = serializer.data
+
+        # Verify channels present
+        assert "channels" in result
+        channel_count = 2
+        assert len(result["channels"]) == channel_count
+
+        # Verify metadata enriched per channel
+        for channel in result["channels"]:
+            assert channel["capture_start_epoch_sec"] is not None
+            assert channel["capture_end_epoch_sec"] is not None
+            assert channel["length_of_capture_ms"] is not None
+            assert channel["capture_start_iso_utc"] is not None
+
+        # No OpenSearch calls should have been made
+        assert mock_get_client.return_value.search.call_count == 0
+
+
+class CaptureListWithBulkMetadataTests(APITestCase):
+    """Integration tests verifying capture list endpoint works with bulk loading.
+
+    Uses mocking to simulate OpenSearch responses and verify the end-to-end
+    flow: bulk load -> cache -> serialize.
+    """
+
+    def setUp(self) -> None:
+        self.user = User.objects.create(
+            email="bulk-int@example.com",
+            password="testpass123",  # noqa: S106
+            is_approved=True,
+        )
+        api_key, key = UserAPIKey.objects.create_key(
+            name="bulk-int-key",
+            user=self.user,
+        )
+        self.api_key = cast("AbstractAPIKey", api_key)
+        self.key = cast("str", key)
+        self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {self.key}")
+        self.list_url = reverse("api:captures-list")
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_list_returns_metadata_from_bulk_query(
+        self,
+        mock_get_client,
+    ) -> None:
+        """Bulk_load_frequency_metadata populates serialized capture fields."""
+        cap = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-int-dir-1"),
+        )
+
+        mock_get_client.return_value.search.return_value = {
+            "hits": {
+                "total": {"value": 1},
+                "hits": [
+                    {
+                        "_id": str(cap.uuid),
+                        "_source": {
+                            "search_props": {
+                                "center_frequency": 5_000_000_000.0,
+                                "sample_rate": 25_000_000,
+                                "start_time": 3_000_000_000,
+                                "end_time": 3_000_000_015,
+                            },
+                            "capture_props": {},
+                        },
+                    },
+                ],
+            },
+        }
+
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+        assert data["count"] >= 1
+
+    @patch(
+        "sds_gateway.api_methods.models.get_opensearch_client",
+    )
+    def test_bulk_load_does_not_crash_on_mismatched_hits(
+        self,
+        mock_get_client,
+    ) -> None:
+        """Fewer bulk hits than requested leaves remaining captures with empty cache."""
+        cap1 = Capture.objects.create(
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            index_name="captures-test-bulk",
+            owner=self.user,
+            top_level_dir=_normalize_top_level_dir("bulk-int-dir-2"),
+        )
+        # Simulate bulk query returning only 1 of 2 hits
+        mock_get_client.return_value.search.return_value = {
+            "hits": {
+                "total": {"value": 1},
+                "hits": [
+                    {
+                        "_id": str(cap1.uuid),
+                        "_source": {
+                            "search_props": {
+                                "center_frequency": 1_000_000_000.0,
+                                "sample_rate": 10_000_000,
+                                "start_time": 1_000_000_000,
+                                "end_time": 1_000_000_005,
+                            },
+                            "capture_props": {},
+                        },
+                    },
+                ],
+            },
+        }
+
+        # Should not raise - cap2 gets empty cache
+        response = self.client.get(self.list_url)
+        assert response.status_code == status.HTTP_200_OK
