@@ -1168,6 +1168,7 @@ def test_create_capture_with_name(
         body = responses.calls[0].request.body
         if isinstance(body, bytes):
             body = body.decode("utf-8")
+        assert isinstance(body, str)
         request_data = parse_qs(body)
         assert request_data["name"][0] == capture_name
 
@@ -1306,6 +1307,7 @@ def test_upload_capture_with_name_success(
         body = capture_requests[0].request.body
         if isinstance(body, bytes):
             body = body.decode("utf-8")
+        assert isinstance(body, str)
         request_data = parse_qs(body)
         assert request_data["name"][0] == capture_name
 

@@ -4,6 +4,7 @@ Use the integration_client fixture for these tests.
 """
 
 # ruff: noqa: SLF001
+# pyright: ignore[reportPrivateUsage]
 
 import pytest
 import requests
