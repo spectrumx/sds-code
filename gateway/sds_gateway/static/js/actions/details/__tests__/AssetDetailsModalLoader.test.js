@@ -11,7 +11,7 @@ describe("AssetDetailsModalLoader", () => {
     beforeEach(() => {
         jest.clearAllMocks()
         document.body.innerHTML = ""
-        delete window.DetailsModalAssetRegistry
+        window.DetailsModalAssetRegistry = undefined
     })
 
     describe("findDelegateTarget", () => {

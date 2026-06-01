@@ -11,9 +11,9 @@ class DatasetAuthorsUI {
      */
     static mount(handler, options) {
         if (options.mode === "edit") {
-            this._mountEdit(handler, options)
+            DatasetAuthorsUI._mountEdit(handler, options)
         } else {
-            this._mountCreate(handler)
+            DatasetAuthorsUI._mountCreate(handler)
         }
     }
 
@@ -29,7 +29,7 @@ class DatasetAuthorsUI {
     }
 
     static _mountCreate(handler) {
-        const dom = this._getDom()
+        const dom = DatasetAuthorsUI._getDom()
         if (!dom) return
 
         const utils = window.AuthorsManager
@@ -66,7 +66,10 @@ class DatasetAuthorsUI {
                 handler.validateCurrentStep?.()
                 utils.notifyReviewDisplay()
             } else {
-                handler.showToast(this.PRIMARY_AUTHOR_WARNING, "warning")
+                handler.showToast(
+                    DatasetAuthorsUI.PRIMARY_AUTHOR_WARNING,
+                    "warning",
+                )
             }
         }
 
@@ -116,7 +119,7 @@ class DatasetAuthorsUI {
             handler.updateDatasetAuthors(authorsField)
         window.formatAuthors = (authors) => handler.formatAuthors(authors)
 
-        const dom = this._getDom()
+        const dom = DatasetAuthorsUI._getDom()
         if (!dom) return
 
         const utils = window.AuthorsManager
@@ -162,7 +165,10 @@ class DatasetAuthorsUI {
 
         const removeAuthor = (index) => {
             if (index <= 0) {
-                handler.showToast(this.PRIMARY_AUTHOR_WARNING, "warning")
+                handler.showToast(
+                    DatasetAuthorsUI.PRIMARY_AUTHOR_WARNING,
+                    "warning",
+                )
                 return
             }
             const isNewlyAdded = authorChanges.added.includes(index)

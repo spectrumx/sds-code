@@ -129,9 +129,12 @@ class AuthorsManager {
         },
     ) {
         try {
-            const normalizedAuthors = this.buildAuthorRenderContext(authors, {
-                removedIndices,
-            })
+            const normalizedAuthors = AuthorsManager.buildAuthorRenderContext(
+                authors,
+                {
+                    removedIndices,
+                },
+            )
             const response = await window.APIClient.post(
                 "/users/render-html/",
                 {

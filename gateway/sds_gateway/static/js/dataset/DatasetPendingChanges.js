@@ -48,7 +48,7 @@ class DatasetPendingChanges {
         }
 
         const rows = entries.map(([id, change]) =>
-            this.buildRow(id, change, valueKey, entityAttr),
+            DatasetPendingChanges.buildRow(id, change, valueKey, entityAttr),
         )
 
         const success = await window.DOMUtils.renderTable(listElement, rows, {
