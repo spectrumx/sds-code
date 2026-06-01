@@ -2,7 +2,6 @@
 
 import datetime
 import json
-import logging
 import threading
 import uuid
 from enum import StrEnum
@@ -24,13 +23,12 @@ from django.db.models.signals import post_save
 from django.db.models.signals import pre_delete
 from django.dispatch import receiver
 from django.template.defaultfilters import slugify
+from loguru import logger as log
 
 from .utils.opensearch_client import get_opensearch_client
 
 if TYPE_CHECKING:
     from sds_gateway.users.models import User
-
-log = logging.getLogger(__name__)
 
 # Thread-local storage for request-scoped OpenSearch metadata cache.
 # Used as a safety net in get_opensearch_metadata() when the per-instance
@@ -494,7 +492,7 @@ class Capture(BaseModel):
         )
 
         if self.capture_type != CaptureType.DigitalRF:
-            log.warning("Capture %s is not a DigitalRF capture", self.uuid)
+            log.warning(f"Capture {self.uuid} is not a DigitalRF capture")
             return File.objects.none()
 
         return get_capture_files(self, include_deleted=False).filter(
@@ -565,13 +563,9 @@ class Capture(BaseModel):
             }
             if summary["total_size"] < size:
                 log.warning(
-                    (
-                        "Capture %s: total_size (%s) < data_files total_size (%s); "
-                        "using data total."
-                    ),
-                    str(self.uuid),
-                    summary["total_size"],
-                    size,
+                    f"Capture {self.uuid}: total_size ({summary['total_size']}) "
+                    f"< data_files total_size ({size}); "
+                    "using data total."
                 )
                 summary["total_size"] = size
 
@@ -590,7 +584,7 @@ class Capture(BaseModel):
             dict: Frequency metadata (center_frequency, sample_rate, etc.)
         """
         if hasattr(self, "_opensearch_metadata_cache"):
-            log.trace("meta_cache HIT for %s", self.uuid)
+            log.trace(f"meta_cache HIT for {self.uuid}")
             return self._opensearch_metadata_cache
 
         # Fallback: thread-local cache (populated by set_bulk_metadata_cache).
@@ -601,11 +595,11 @@ class Capture(BaseModel):
         if tl is not None:
             cached = tl.get(str(self.uuid))
             if cached is not None:
-                log.trace("meta_cache thread-local HIT for %s", self.uuid)
+                log.trace(f"meta_cache thread-local HIT for {self.uuid}")
                 self._opensearch_metadata_cache = cached
                 return cached
 
-        log.trace("meta_cache MISS for %s", self.uuid)
+        log.trace(f"meta_cache MISS for {self.uuid}")
 
         result: dict[str, Any] = {}
         try:
@@ -626,7 +620,7 @@ class Capture(BaseModel):
                 index_name = f"captures-{self.capture_type}"
 
             log.debug(
-                "Querying OpenSearch index '%s' for capture %s", index_name, self.uuid
+                f"Querying OpenSearch index '{index_name}' for capture {self.uuid}"
             )
 
             response = client.search(
@@ -639,10 +633,10 @@ class Capture(BaseModel):
                 source = response["hits"]["hits"][0]["_source"]
                 result = self._extract_metadata_from_source(source)
             else:
-                log.warning("No OpenSearch data found for capture %s", self.uuid)
+                log.warning(f"No OpenSearch data found for capture {self.uuid}")
 
-        except Exception:
-            log.exception("Error querying OpenSearch for capture %s", self.uuid)
+        except Exception:  # noqa: BLE001
+            log.exception(f"Error querying OpenSearch for capture {self.uuid}")
 
         self._opensearch_metadata_cache = result
         return self._opensearch_metadata_cache
@@ -651,7 +645,7 @@ class Capture(BaseModel):
         """Extract frequency metadata from OpenSearch source data."""
 
         search_props = source.get("search_props", {})
-        log.debug("OpenSearch data for %s: search_props=%s", self.uuid, search_props)
+        log.debug(f"OpenSearch data for {self.uuid}: search_props={search_props}")
 
         # Try search_props first (preferred)
         center_frequency = search_props.get("center_frequency")
@@ -662,8 +656,8 @@ class Capture(BaseModel):
         if not center_frequency or not sample_rate:
             capture_props = source.get("capture_props", {})
             log.info(
-                "search_props incomplete, checking capture_props: %s",
-                list(capture_props.keys()),
+                f"search_props incomplete, checking capture_props: "
+                f"{list(capture_props.keys())}"
             )
 
             if self.capture_type == CaptureType.DigitalRF:
@@ -699,7 +693,7 @@ class Capture(BaseModel):
         end_time = search_props.get("end_time")
 
         if start_time is None or end_time is None:
-            log.warning("Start or end time not found for DRF capture %s", self.uuid)
+            log.warning(f"Start or end time not found for DRF capture {self.uuid}")
             return None
 
         if count == 0:
@@ -738,7 +732,7 @@ class Capture(BaseModel):
                 )
                 frequency_data.update(type_frequency_data)
 
-        except Exception:
+        except Exception:  # noqa: BLE001
             log.exception("Error bulk loading frequency metadata")
             return {}
         else:
@@ -780,10 +774,8 @@ class Capture(BaseModel):
         _request_cache.opensearch_metadata = metadata
 
         log.debug(
-            "set_bulk_metadata_cache: loaded=%d, missing=%d, total=%d",
-            loaded,
-            missing,
-            len(captures),
+            f"set_bulk_metadata_cache: loaded={loaded}, missing={missing}, "
+            f"total={len(captures)}"
         )
 
     def debug_opensearch_response(self) -> dict[str, Any] | None:
@@ -806,9 +798,9 @@ class Capture(BaseModel):
             query = {"query": {"term": {"_id": str(self.uuid)}}}
 
             log.debug("=== DEBUG: OpenSearch Query ===")
-            log.debug("Index: %s", index_name)
-            log.debug("UUID: %s", self.uuid)
-            log.debug("Query: %s", query)
+            log.debug(f"Index: {index_name}")
+            log.debug(f"UUID: {self.uuid}")
+            log.debug(f"Query: {query}")
 
             response = client.search(
                 index=index_name,
@@ -817,21 +809,21 @@ class Capture(BaseModel):
             )
 
             log.debug("=== DEBUG: OpenSearch Response ===")
-            log.debug("Total hits: %s", response["hits"]["total"]["value"])
+            log.debug(f"Total hits: {response['hits']['total']['value']}")
 
             if response["hits"]["total"]["value"] > 0:
                 source = response["hits"]["hits"][0]["_source"]
                 log.debug("=== DEBUG: Full Source Data ===")
-                log.debug("Source keys: %s", list(source.keys()))
+                log.debug(f"Source keys: {list(source.keys())}")
 
                 search_props = source.get("search_props", {})
                 log.debug("=== DEBUG: search_props ===")
-                log.debug("search_props keys: %s", list(search_props.keys()))
-                log.debug("search_props content: %s", search_props)
+                log.debug(f"search_props keys: {list(search_props.keys())}")
+                log.debug(f"search_props content: {search_props}")
 
                 capture_props = source.get("capture_props", {})
                 log.debug("=== DEBUG: capture_props ===")
-                log.debug("capture_props keys: %s", list(capture_props.keys()))
+                log.debug(f"capture_props keys: {list(capture_props.keys())}")
                 if capture_props:
                     # Just show a few key fields to avoid log spam
                     key_fields = [
@@ -844,12 +836,10 @@ class Capture(BaseModel):
                     ]
                     for field in key_fields:
                         if field in capture_props:
-                            log.debug(
-                                "capture_props.%s = %s", field, capture_props[field]
-                            )
+                            log.debug(f"capture_props.{field} = {capture_props[field]}")
 
                 return source
-        except Exception:
+        except Exception:  # noqa: BLE001
             log.exception("=== DEBUG: Exception occurred ===")
             log.exception("Error occurred during frequency metadata extraction")
             return None
@@ -1104,17 +1094,16 @@ class Dataset(BaseModel):
         # from_db should have already converted JSON string to list
         if not isinstance(self.authors, list):
             log.warning(
-                "Dataset %s: authors field is not a list (type: %s)",
-                self.uuid,
-                type(self.authors).__name__,
+                f"Dataset {self.uuid}: authors field is not a list "
+                f"(type: {type(self.authors).__name__})",
             )
             return []
 
         # Check if authors are in old string format and need conversion
         if self.authors and isinstance(self.authors[0], str):
             log.warning(
-                "Dataset %s: authors still in old string format, needs migration",
-                self.uuid,
+                f"Dataset {self.uuid}: authors still in old string format, "
+                f"needs migration",
             )
             # Convert old format for backward compatibility
             return [{"name": author, "orcid_id": ""} for author in self.authors]
@@ -1604,8 +1593,7 @@ def _extract_drf_capture_props(
     # if still no center_frequency, log warning but continue
     if not center_frequency:
         log.warning(
-            "No center frequency found for DRF capture %s",
-            capture_uuid,
+            f"No center frequency found for DRF capture {capture_uuid}",
         )
 
     return center_frequency, sample_rate
@@ -1648,15 +1636,12 @@ def _extract_drf_sample_rate(capture_props: dict[str, Any]) -> float | None:
         # try sample_rate_numerator/denominator first
         sample_rate = numerator / denominator
         log.debug(
-            "Calculated DRF sample_rate: %s/%s = %s",
-            numerator,
-            denominator,
-            sample_rate,
+            f"Calculated DRF sample_rate: {numerator}/{denominator} = {sample_rate}",
         )
     elif capture_props.get("samples_per_second"):
         # fallback to samples_per_second if numerator/denominator missing
         sample_rate = capture_props.get("samples_per_second")
-        log.debug("Using DRF samples_per_second: %s", sample_rate)
+        log.debug(f"Using DRF samples_per_second: {sample_rate}")
     return sample_rate
 
 
