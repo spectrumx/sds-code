@@ -41,10 +41,7 @@
     "[typescript]": {
         "editor.defaultFormatter": "biomejs.biome"
     },
-    "python.testing.pytestArgs": [
-        "-m",
-        "not integration"
-    ],
+    "python.testing.pytestArgs": ["-m", "not integration"],
     "python.testing.pytestEnabled": true,
     "python.testing.unittestEnabled": false
 }
