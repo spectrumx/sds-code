@@ -950,9 +950,7 @@ class TestDetailsModalFragmentView:
     def user(self) -> User:
         return cast("User", UserFactory(is_approved=True))
 
-    def test_anonymous_redirects_to_login(
-        self, client: Client, user: User
-    ) -> None:
+    def test_anonymous_redirects_to_login(self, client: Client, user: User) -> None:
         cap = CaptureFactory(owner=user)
         url = reverse(
             "users:details_modal_fragment",
@@ -1105,9 +1103,7 @@ class TestDetailsModalFragmentView:
         payload = client.get(url).json()
         assert payload["title"] == "My DS (v7)"
 
-    def test_shared_private_dataset_modal_ok(
-        self, client: Client, user: User
-    ) -> None:
+    def test_shared_private_dataset_modal_ok(self, client: Client, user: User) -> None:
         owner = cast("User", UserFactory(is_approved=True))
         ds = DatasetFactory(owner=owner, is_public=False, keywords=None)
         UserSharePermissionFactory(

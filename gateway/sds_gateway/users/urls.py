@@ -9,6 +9,7 @@ from .views import FileH5InfoView
 from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
+from .views import details_modal_fragment_view
 from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
@@ -17,7 +18,6 @@ from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
 from .views import user_captures_api_view
-from .views import details_modal_fragment_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
 from .views import user_dataset_versioning_view

@@ -286,10 +286,11 @@ class DatasetInfoForm(forms.Form):
         status = cleaned_data.get("status") or DatasetStatus.DRAFT
         is_public = cleaned_data.get("is_public", False)
         if is_public and status != DatasetStatus.FINAL:
-            raise ValidationError(
+            _msg = (
                 "Draft datasets cannot be made public. Set status to Final on the "
-                "Publishing step before making the dataset public.",
+                "Publishing step before making the dataset public."
             )
+            raise ValidationError(_msg)
         return cleaned_data
 
 

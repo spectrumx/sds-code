@@ -1045,7 +1045,9 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     permission_level = row.get("permission_level")
     is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
     is_co_owner = permission_level == PermissionLevel.CO_OWNER
-    dataset_published = row.get("status") == DatasetStatus.FINAL and row.get("is_public")
+    dataset_published = row.get("status") == DatasetStatus.FINAL and row.get(
+        "is_public"
+    )
 
     items: list[dict[str, Any]] = []
     if is_owner or is_contributor or is_co_owner:
@@ -1100,7 +1102,6 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                     "extra_class": "publish-dataset-btn",
                 }
             )
-
 
     # Web download button
     items.append(
@@ -1298,7 +1299,9 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
                     "sort_order": sort_order,
                     "ajax_fragment": True,
                     "asset_type": "dataset",
-                    "asset_row_template": "users/components/dataset_list_table_row.html",
+                    "asset_row_template": (
+                        "users/components/dataset_list_table_row.html"
+                    ),
                     "table_headers": DATASET_LIST_TABLE_HEADERS,
                     "table_class": DATASET_LIST_TABLE_CLASS,
                     "no_assets_message": DATASET_LIST_NO_ASSETS_MESSAGE,
@@ -1398,9 +1401,7 @@ def load_dataset_details_bundle(
     except Dataset.DoesNotExist:
         return None
 
-    has_public_access = (
-        dataset.is_public and dataset.status == DatasetStatus.FINAL
-    )
+    has_public_access = dataset.is_public and dataset.status == DatasetStatus.FINAL
     has_user_access = request.user.is_authenticated and user_has_access_to_item(
         request.user, dataset_uuid, ItemType.DATASET
     )

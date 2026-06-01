@@ -47,7 +47,7 @@ repos:
       rev: v2.4.15
       hooks:
           - id: biome-check
-            additional_dependencies: [ "@biomejs/biome@^1.0.0" ]
+            additional_dependencies: [ "@biomejs/biome@^1.9.4" ]
 
     # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade

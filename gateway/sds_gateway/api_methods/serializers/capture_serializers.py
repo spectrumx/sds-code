@@ -1,12 +1,10 @@
 """Capture serializers for the SDS Gateway API methods."""
 
-import logging
 from datetime import UTC
 from datetime import datetime
 from typing import Any
 from typing import cast
 
-from django.db.models import Sum
 from django.utils import timezone as django_timezone
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -15,10 +13,10 @@ from rest_framework.utils.serializer_helpers import ReturnList
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
-from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.serializers.summary_serializers import (
     DatasetSummarySerializer,
@@ -155,13 +153,17 @@ class CaptureGetSerializer(serializers.ModelSerializer[Capture]):
         """Get whether the capture is shared with the current user."""
         request = (self.context or {}).get("request")
         if request and hasattr(request, "user"):
-            return UserSharePermission.objects.filter(
-                shared_with=request.user,
-                item_type=ItemType.CAPTURE,
-                item_uuid=capture.uuid,
-                is_enabled=True,
-                is_deleted=False,
-            ).exclude(owner=request.user).exists()
+            return (
+                UserSharePermission.objects.filter(
+                    shared_with=request.user,
+                    item_type=ItemType.CAPTURE,
+                    item_uuid=capture.uuid,
+                    is_enabled=True,
+                    is_deleted=False,
+                )
+                .exclude(owner=request.user)
+                .exists()
+            )
         return False
 
     def get_is_shared(self, capture: Capture) -> bool:
@@ -636,7 +638,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
     def get_files(self, obj: dict[str, Any]) -> ReturnList[File]:
         """Get all files from all channels in the composite capture."""
         all_files: list[File] = []
-        
+
         exclude_files = (self.context or {}).get("exclude_files", False)
         if exclude_files:
             return all_files
@@ -695,7 +697,7 @@ class CompositeCaptureSerializer(serializers.Serializer):
                 drf_size += data_files["total_size"]
 
         result: dict[str, Any] = {
-            "count": drf_count if drf_count else total_count,
+            "count": drf_count or total_count,
             "total_size": total_size,
             "total_count": total_count,
         }

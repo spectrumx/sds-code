@@ -42,6 +42,9 @@ from .datasets import user_group_captures_view
 from .datasets import user_publish_dataset_view
 from .datasets import user_search_datasets_view
 
+# Utility views
+from .details_modal import details_modal_fragment_view
+
 # Download views
 from .downloads import DownloadItemView
 from .downloads import TemporaryZipDownloadView
@@ -83,9 +86,6 @@ from .user_profile import UserUpdateView
 from .user_profile import user_detail_view
 from .user_profile import user_redirect_view
 from .user_profile import user_update_view
-
-# Utility views
-from .details_modal import details_modal_fragment_view
 from .utilities import RenderHTMLFragmentView
 from .utilities import render_html_fragment_view
 
@@ -96,7 +96,6 @@ __all__ = [
     "CheckFileExistsView",
     "DatasetDetailsView",
     "DatasetVersioningView",
-    "details_modal_fragment_view",
     "DownloadItemView",
     "FileContentView",
     "FileDetailView",
@@ -126,6 +125,7 @@ __all__ = [
     "UserRedirectView",
     "UserUpdateView",
     "_get_captures_for_template",
+    "details_modal_fragment_view",
     "files_view",
     "generate_api_key_form_view",
     "get_active_api_key_count",

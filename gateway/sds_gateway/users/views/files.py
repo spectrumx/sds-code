@@ -1,6 +1,7 @@
 import json
 from typing import cast
 
+from django.conf import settings
 from django.db.models.query import QuerySet
 from django.http import HttpRequest
 from django.http import HttpResponse
@@ -9,7 +10,6 @@ from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.conf import settings
 from django.views import View
 from django.views.generic import DetailView
 from loguru import logger as log
@@ -36,6 +36,7 @@ from sds_gateway.users.item_models import Item
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.navigation_models import NavigationContext
 from sds_gateway.users.navigation_models import NavigationType
+from sds_gateway.visualizations.config import get_visualization_compatibility
 
 
 class FileDetailView(Auth0LoginRequiredMixin, DetailView):  # pyright: ignore[reportMissingTypeArgument]
@@ -269,8 +270,6 @@ class FilesView(Auth0LoginRequiredMixin, View):
             "user_email": request.user.email,
         }
         if settings.VISUALIZATIONS_ENABLED:
-            from sds_gateway.visualizations.config import get_visualization_compatibility
-
             ctx["visualization_compatibility"] = get_visualization_compatibility()
 
         return render(

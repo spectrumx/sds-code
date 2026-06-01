@@ -7,9 +7,9 @@ from django.http import Http404
 from django.http import HttpRequest
 from django.http import HttpResponse
 from django.http import JsonResponse
-from django.urls import reverse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.views import View
 from loguru import logger as log

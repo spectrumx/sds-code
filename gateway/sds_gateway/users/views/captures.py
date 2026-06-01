@@ -74,12 +74,12 @@ def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
     uuid = str(row.get("uuid") or "")
     if not uuid:
         return []
-    
+
     is_owner = row.get("is_owner")
     permission_level = row.get("permission_level")
     is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
     is_co_owner = permission_level == PermissionLevel.CO_OWNER
-    
+
     items: list[dict[str, Any]] = []
     if is_owner:
         display_name = (

@@ -18,7 +18,7 @@ Capture details modal body — rendered server-side for ModalManager injection.
                    value="{{ capture.name|default:'' }}"
                    placeholder="Enter capture name"
                    maxlength="255"
-                   data-uuid="{{ capture_uuid }}">
+                   data-uuid="{{ capture_uuid }}" />
             <button class="btn btn-outline-secondary edit-name-btn"
                     type="button"
                     id="edit-name-btn"
@@ -106,14 +106,14 @@ Capture details modal body — rendered server-side for ModalManager injection.
         <div class="col-md-6">
             <p class="mb-2">
                 <span class="fw-medium text-muted">Created At:</span>
-                <br>
+                <br />
                 <small class="text-muted">{{ capture.formatted_created_at|default:capture.created_at }}</small>
             </p>
         </div>
         <div class="col-md-6">
             <p class="mb-2">
                 <span class="fw-medium text-muted">Updated At:</span>
-                <br>
+                <br />
                 <small class="text-muted">{{ capture.updated_at }}</small>
             </p>
         </div>
@@ -159,6 +159,4 @@ Capture details modal body — rendered server-side for ModalManager injection.
         </div>
     </div>
 {% endif %}
-<div class="mt-4">
-    {% include "users/components/capture_files_summary_fragment.html" %}
-</div>
+<div class="mt-4">{% include "users/components/capture_files_summary_fragment.html" %}</div>

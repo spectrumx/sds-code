@@ -59,13 +59,17 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
         """Check if the dataset is shared with the current user."""
         request = (self.context or {}).get("request")
         if request and hasattr(request, "user"):
-            return UserSharePermission.objects.filter(
-                shared_with=request.user,
-                item_type=ItemType.DATASET,
-                item_uuid=obj.uuid,
-                is_enabled=True,
-                is_deleted=False,
-            ).exclude(owner=request.user).exists()
+            return (
+                UserSharePermission.objects.filter(
+                    shared_with=request.user,
+                    item_type=ItemType.DATASET,
+                    item_uuid=obj.uuid,
+                    is_enabled=True,
+                    is_deleted=False,
+                )
+                .exclude(owner=request.user)
+                .exists()
+            )
         return False
 
     def get_is_owner(self, obj):

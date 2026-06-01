@@ -38,7 +38,7 @@ Follow `.cursor/rules/django_javascript_implementation.mdc` in full. Non-negotia
 
 Copy and track:
 
-```
+```text
 Refactor progress:
 - [ ] Baseline (fallow + identify targets)
 - [ ] Propose 2–4 scenarios (user picks or hybrid)

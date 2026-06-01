@@ -33,13 +33,13 @@ Config: `sds_gateway/static/js/tests-config/jest.config.js` (jsdom, `clearMocks`
 
 ## What to test (and what not to)
 
-**Do**
+## Do
 
 - Public methods and user-visible outcomes (DOM updates, calls to `DOMUtils`, `APIClient`, Bootstrap modal show/hide)
 - Branches that encode product rules (permissions denied, missing modal, API error responses)
 - Async flows: `await` the method under test, then assert mocks/callbacks
 
-**Avoid**
+## Avoid
 
 - Asserting private helpers or internal call order unless order is the contract
 - Tests that only `expect(x).toBeDefined()` or mirror the implementation line-for-line

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 from django.http import Http404
 from django.http import JsonResponse
@@ -18,24 +21,30 @@ class DetailsModalFragmentView(Auth0LoginRequiredMixin, View):
     """GET /users/details-modal/<asset_type>/<uuid>/ → JSON { html, title, meta }."""
 
     def dispatch(self, request, *args, **kwargs):
-        # Public published datasets: allow anonymous JSON/HTML fragment (access in registry).
+        # Public published datasets: allow anonymous JSON/HTML fragment
+        # (access in registry).
         if kwargs.get("asset_type") == "dataset":
             return View.dispatch(self, request, *args, **kwargs)
         return super().dispatch(request, *args, **kwargs)
 
-    def get(self, request, asset_type: str, uuid: UUID, *args, **kwargs) -> JsonResponse:
+    def get(
+        self, request, asset_type: str, uuid: UUID, *args, **kwargs
+    ) -> JsonResponse:
         builder = DETAILS_MODAL_REGISTRY.get(asset_type)
         json_builder = DETAILS_MODAL_JSON_BUILDERS.get(asset_type)
         if builder is None or json_builder is None:
-            raise Http404("Unknown asset type")
+            _unknown_asset_type = "Unknown asset type"
+            raise Http404(_unknown_asset_type)
 
         ctx = builder(request, uuid)
         if ctx is None:
-            raise Http404("Not found")
+            _builder_not_found = "Not found"
+            raise Http404(_builder_not_found)
 
         html = render_details_modal_body(request, asset_type, ctx)
         if not html:
-            raise Http404("Not found")
+            _html_not_found = "Not found"
+            raise Http404(_html_not_found)
 
         return JsonResponse(json_builder(ctx, html))
 
