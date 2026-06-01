@@ -4,1264 +4,1307 @@
  * Refactored to use core components and centralized management
  */
 class ShareGroupManager extends ModalManager {
-	/**
-	 * Initialize share group manager
-	 * @param {Object} config - Configuration object
-	 */
-	constructor(config = {}) {
-		super();
-		this.currentGroupUuid = null;
-		this.currentGroupName = null;
-		this.pendingDeleteGroupUuid = null;
-		this.pendingDeleteGroupName = null;
-		this.pendingRemovals = new Set();
-		this.shareGroupUserSearchHandler = null;
-
-		// Configuration
-		this.config = {
-			apiEndpoint: config.apiEndpoint || "/users/share-groups/",
-			...config,
-		};
-
-		this.initializeEventListeners();
-	}
-
-	/**
-	 * @param {Record<string, string>} fields
-	 */
-	/**
-	 * @param {object} response
-	 * @param {{ defaultError?: string }} [opts]
-	 * @returns {boolean}
-	 */
-	handleShareGroupResponse(response, opts = {}) {
-		if (response.success) {
-			this.successMessage(response.message);
-			if (response.errors?.length) {
-				for (const error of response.errors) {
-					this.warningMessage(error);
-				}
-			}
-			return true;
-		}
-		this.errorMessage(response.error || opts.defaultError || "Request failed.");
-		return false;
-	}
-
-	async postShareGroupAction(fields) {
-		const formData = new URLSearchParams();
-		for (const [key, value] of Object.entries(fields)) {
-			formData.append(key, value);
-		}
-		return window.APIClient.request(this.config.apiEndpoint, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/x-www-form-urlencoded",
-			},
-			body: formData,
-		});
-	}
-
-	/**
-	 * Initialize all event listeners
-	 */
-	initializeEventListeners() {
-		this.initializeCreateGroupForm();
-		this.initializeAddMembersForm();
-		this.initializeManageMembersModal();
-		this.initializeSaveButton();
-		this.initializeDeleteGroupConfirmation();
-		this.initializeShareGroupUserSearch();
-	}
-
-	/**
-	 * Initialize create group form
-	 */
-	initializeCreateGroupForm() {
-		const createGroupForm = document.getElementById("createGroupForm");
-		if (!createGroupForm) {
-			console.error("Create group form not found");
-			return;
-		}
-
-		createGroupForm.addEventListener("submit", (e) => {
-			e.preventDefault();
-			this.handleCreateGroup(createGroupForm);
-		});
-	}
-
-	/**
-	 * Handle create group form submission
-	 * @param {HTMLFormElement} form - Form element
-	 */
-	async handleCreateGroup(form) {
-		const groupName = document.getElementById("groupName").value;
-
-		if (!groupName.trim()) {
-			this.errorMessage("Group name is required");
-			return;
-		}
-
-		try {
-			const response = await this.postShareGroupAction({
-				action: "create",
-				name: groupName,
-			});
-
-			if (response.success) {
-				// Show success message
-				this.successMessage(response.message);
-
-				// Close the create modal
-				this.closeModal("createGroupModal");
-
-				// Clear the form
-				document.getElementById("groupName").value = "";
-
-				// Add the new group to the table dynamically
-				this.addNewGroupToTable(response.group);
-
-				// Automatically open the manage modal for the new group
-				setTimeout(() => {
-					this.openManageModalForGroup(
-						response.group.uuid,
-						response.group.name,
-					);
-				}, 500);
-			} else {
-				this.errorMessage(response.error);
-			}
-		} catch (error) {
-			// Extract specific error message from the response
-			let errorMessage = "An error occurred while creating the group.";
-			if (error.data?.error) {
-				errorMessage = error.data.error;
-			} else if (error.message?.includes("400")) {
-				errorMessage =
-					"Bad request - please check the form data and try again.";
-			}
-
-			this.errorMessage(errorMessage);
-		}
-	}
-
-	/**
-	 * Initialize add members form
-	 */
-	initializeAddMembersForm() {
-		const addMembersForm = document.getElementById("addMembersForm");
-		if (!addMembersForm) return;
-
-		addMembersForm.addEventListener("submit", (e) => {
-			e.preventDefault();
-			this.handleAddMembers(addMembersForm);
-		});
-	}
-
-	/**
-	 * Handle add members form submission
-	 * @param {HTMLFormElement} form - Form element
-	 */
-	async handleAddMembers(form) {
-		const inputId = "user-search-sharegroup";
-		const selectedUsers = this.shareGroupUserSearchHandler
-			? this.shareGroupUserSearchHandler.selectedUsersMap[inputId] || []
-			: [];
-
-		if (selectedUsers.length === 0) {
-			this.errorMessage("Please select at least one user to add.");
-			return;
-		}
-
-		const userEmails = selectedUsers.map((user) => user.email).join(",");
-
-		try {
-			const response = await this.postShareGroupAction({
-				action: "add_members",
-				group_uuid: this.currentGroupUuid,
-				user_emails: userEmails,
-			});
-
-			if (
-				this.handleShareGroupResponse(response, {
-					defaultError: "An error occurred while adding members.",
-				})
-			) {
-				if (this.shareGroupUserSearchHandler) {
-					this.shareGroupUserSearchHandler.resetShareGroup();
-				}
-				this.pendingRemovals.clear();
-				this.loadCurrentMembers();
-				this.updateSaveButtonState();
-
-				if (response.added_users?.length) {
-					this.updateTableMemberEmails(
-						this.currentGroupUuid,
-						response.added_users,
-						"add",
-					);
-				}
-			}
-		} catch (error) {
-			// Extract specific error message from the response
-			let errorMessage = "An error occurred while adding members.";
-			if (error.data?.error) {
-				errorMessage = error.data.error;
-			}
-
-			this.errorMessage(errorMessage);
-		}
-	}
-
-	/**
-	 * Initialize manage members modal
-	 */
-	initializeManageMembersModal() {
-		const manageMembersModal = document.getElementById(
-			"share-modal-sharegroup",
-		);
-		if (manageMembersModal) {
-			manageMembersModal.addEventListener("show.bs.modal", (event) => {
-				const button = event.relatedTarget;
-				// Only proceed if the button exists and has the required data attributes
-				if (!button || !button.hasAttribute("data-group-uuid")) {
-					return;
-				}
-				this.currentGroupUuid = button.getAttribute("data-group-uuid");
-				this.currentGroupName = button.getAttribute("data-group-name");
-
-				document.getElementById("addGroupUuid").value = this.currentGroupUuid;
-
-				// Update modal title
-				document.getElementById("manageMembersModalLabel").innerHTML =
-					`<i class="bi bi-person-plus me-2"></i>Manage Members: ${this.currentGroupName}`;
-
-				// Clear pending removals when opening modal
-				this.pendingRemovals.clear();
-
-				// Reset user search handler state
-				if (this.shareGroupUserSearchHandler) {
-					this.shareGroupUserSearchHandler.resetShareGroup();
-				}
-
-				// Load current members
-				this.loadCurrentMembers();
-
-				// Load and display shared assets information
-				this.loadSharedAssetsInfo();
-			});
-
-			// Also handle modal hidden event to reset state
-			manageMembersModal.addEventListener("hidden.bs.modal", () => {
-				// Reset user search handler state (but don't destroy it)
-				if (this.shareGroupUserSearchHandler) {
-					this.shareGroupUserSearchHandler.resetShareGroup();
-				}
-				// Clear current group info
-				this.currentGroupUuid = null;
-				this.currentGroupName = null;
-				// Clear pending removals
-				this.pendingRemovals.clear();
-				// Reset save button state
-				this.updateSaveButtonState();
-				// Hide shared assets section
-				const sharedAssetsSection = document.getElementById(
-					"sharedAssetsSection",
-				);
-				if (sharedAssetsSection) {
-					sharedAssetsSection.classList.add("d-none");
-				}
-			});
-		}
-	}
-
-	/**
-	 * Initialize save button
-	 */
-	initializeSaveButton() {
-		const saveBtn = document.getElementById("save-sharegroup-btn");
-		if (saveBtn) {
-			saveBtn.addEventListener("click", () => this.handleSaveButton(saveBtn));
-		}
-	}
-
-	/**
-	 * Handle save button click
-	 * @param {HTMLButtonElement} button - Save button element
-	 */
-	async handleSaveButton(button) {
-		const originalText = button.innerHTML;
-		button.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
-		button.disabled = true;
-
-		// Handle pending removals
-		if (this.pendingRemovals.size > 0) {
-			try {
-				const response = await this.postShareGroupAction({
-					action: "remove_members",
-					group_uuid: this.currentGroupUuid,
-					user_emails: Array.from(this.pendingRemovals).join(","),
-				});
-
-				if (
-					this.handleShareGroupResponse(response, {
-						defaultError: "An error occurred while removing members.",
-					})
-				) {
-					this.pendingRemovals.clear();
-					// Reset all remove buttons
-					this.resetRemoveButtons();
-					// Reload members
-					this.loadCurrentMembers();
-
-					// Update table member info by removing the members
-					if (response.removed_users && response.removed_users.length > 0) {
-						this.updateTableMemberEmails(
-							this.currentGroupUuid,
-							response.removed_users,
-							"remove",
-						);
-					}
-				}
-			} catch (error) {
-				let errorMessage = "An error occurred while removing members.";
-				if (error.data?.error) {
-					errorMessage = error.data.error;
-				}
-
-				this.errorMessage(errorMessage);
-			} finally {
-				button.innerHTML = originalText;
-				button.disabled = false;
-				this.updateSaveButtonState();
-			}
-		}
-	}
-
-	/**
-	 * Initialize delete group confirmation
-	 */
-	initializeDeleteGroupConfirmation() {
-		const confirmDeleteBtn = document.getElementById("confirmDeleteGroup");
-		if (confirmDeleteBtn) {
-			confirmDeleteBtn.addEventListener("click", () =>
-				this.handleDeleteGroup(confirmDeleteBtn),
-			);
-		}
-	}
-
-	/**
-	 * Handle delete group confirmation
-	 * @param {HTMLButtonElement} button - Delete button element
-	 */
-	async handleDeleteGroup(button) {
-		if (!this.pendingDeleteGroupUuid) {
-			return;
-		}
-		const originalText = button.innerHTML;
-		button.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...';
-		button.disabled = true;
-
-		const formData = new URLSearchParams();
-		formData.append("action", "delete_group");
-		formData.append("group_uuid", this.pendingDeleteGroupUuid);
-
-		try {
-			const response = await window.APIClient.request(this.config.apiEndpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: formData,
-			});
-
-			// Hide the confirmation modal
-			this.closeModal("deleteGroupModal");
-
-			if (response.success) {
-				// Store success message for after page reload
-				localStorage.setItem("shareGroupSuccessMessage", response.message);
-				setTimeout(() => window.location.reload(), 1000);
-			} else {
-				this.errorMessage(response.error);
-			}
-		} catch (error) {
-			// Extract specific error message from the response
-			let errorMessage = "An error occurred while deleting the group.";
-			if (error.data?.error) {
-				errorMessage = error.data.error;
-			}
-
-			this.errorMessage(errorMessage);
-		} finally {
-			// Reset button state
-			button.innerHTML = originalText;
-			button.disabled = false;
-
-			// Clear pending deletion data
-			this.pendingDeleteGroupUuid = null;
-			this.pendingDeleteGroupName = null;
-		}
-	}
-
-	/**
-	 * Load current members for a group
-	 */
-	async loadCurrentMembers() {
-		if (!this.currentGroupUuid) return;
-
-		const membersList = document.getElementById("currentMembers");
-		if (!membersList) return;
-
-		// Clear member count and show loading state
-		const memberCountElement = document.getElementById("memberCount");
-		if (memberCountElement) {
-			memberCountElement.textContent = "";
-		}
-
-		// Show loading state using table_rows template
-		await window.DOMUtils.renderTable(
-			membersList,
-			[
-				{
-					cells: [
-						{
-							kind: "html",
-							tag: "div",
-							class: "text-center text-muted",
-							nested: [
-								{
-									tag: "i",
-									class: "bi bi-people",
-								},
-								{
-									tag: "p",
-									class: "mb-0",
-									text: "Loading members...",
-								},
-							],
-							td_class: "p-2 shadow-sm",
-						},
-					],
-				},
-			],
-			{
-				empty_message: "",
-				empty_colspan: 1,
-			},
-		);
-
-		try {
-			const response = await window.APIClient.request(
-				`${this.config.apiEndpoint}?group_uuid=${this.currentGroupUuid}`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			if (response.success) {
-				// Render members using generic table_rows template
-				try {
-					const rows = response.members.map((member) => ({
-						cells: [
-							{
-								kind: "html",
-								tag: "div",
-								nested: [
-									{
-										tag: "h5",
-										class: "mb-1",
-										text: member.name || "No name",
-									},
-									{
-										tag: "p",
-										class: "mb-0",
-										nested: [
-											{
-												tag: "small",
-												class: "text-muted",
-												text: member.email,
-											},
-										],
-									},
-								],
-							},
-						],
-						actions_td_class: "text-end",
-						actions: [
-							{
-								label: "Remove",
-								icon: "bi-person-slash",
-								css_class: "btn-outline-danger",
-								extra_class: "remove-member-btn",
-								data_attrs: {
-									user_email: member.email,
-									user_name: member.name || "No name",
-								},
-								onclick: `shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')`,
-							},
-						],
-					}));
-
-					await window.DOMUtils.renderTable(membersList, rows, {
-						empty_message: "No members in this group",
-						empty_colspan: 1,
-					});
-				} catch (renderError) {
-					console.error("Error rendering members:", renderError);
-					await this.showMessageInTarget(
-						"Error loading members",
-						membersList,
-						{
-							variant: "danger",
-							presentation: "table",
-							templateContext: { colspan: 1 },
-						},
-					);
-				}
-
-				// Update member count
-				const memberCountElement = document.getElementById("memberCount");
-				if (memberCountElement) {
-					if (response.members.length > 0) {
-						memberCountElement.textContent = `${response.count} member${response.count !== 1 ? "s" : ""}`;
-					} else {
-						memberCountElement.textContent = "";
-					}
-				}
-
-				// Update table member info
-				if (response.members.length > 0) {
-					this.updateTableMemberInfo(this.currentGroupUuid, response.members);
-				}
-
-				// Update save button state after loading members
-				this.updateSaveButtonState();
-			} else {
-				await this.showMessageInTarget(
-					response.error || "Error loading members",
-					membersList,
-					{
-						variant: "danger",
-						presentation: "table",
-						templateContext: { colspan: 1 },
-					},
-				);
-			}
-		} catch (error) {
-			console.error("Error loading members:", error);
-			await this.showMessageInTarget("Error loading members", membersList, {
-				variant: "danger",
-				presentation: "table",
-				templateContext: { colspan: 1 },
-			});
-		}
-	}
-
-	/**
-	 * Load shared assets info
-	 */
-	async loadSharedAssetsInfo() {
-		if (!this.currentGroupUuid) {
-			return;
-		}
-
-		// Create a temporary request to get shared assets info
-		const formData = new URLSearchParams();
-		formData.append("action", "get_shared_assets");
-		formData.append("group_uuid", this.currentGroupUuid);
-
-		try {
-			const response = await window.APIClient.request(this.config.apiEndpoint, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/x-www-form-urlencoded",
-				},
-				body: formData,
-			});
-
-			if (response.success) {
-				this.displaySharedAssetsInfo(response.shared_assets);
-			} else {
-				console.error("Error loading shared assets:", response.error);
-			}
-		} catch (error) {
-			console.error("Error loading shared assets:", error);
-		}
-	}
-
-	/**
-	 * Display shared assets info
-	 * @param {Array} sharedAssets - Array of shared assets
-	 */
-	async displaySharedAssetsInfo(sharedAssets) {
-		// Find the shared assets section in the modal
-		const sharedAssetsSection = document.getElementById("sharedAssetsSection");
-
-		if (!sharedAssetsSection) return;
-
-		try {
-			if (sharedAssets && sharedAssets.length > 0) {
-				// Separate assets by type
-				const datasets = sharedAssets
-					.filter((asset) => asset.type === "dataset")
-					.sort((a, b) => a.name.localeCompare(b.name));
-				const captures = sharedAssets
-					.filter((asset) => asset.type === "capture")
-					.sort((a, b) => a.name.localeCompare(b.name));
-
-				const totalDatasets = datasets.length;
-				const totalCaptures = captures.length;
-
-				// Show first 3 of each type
-				const displayDatasets = datasets.slice(0, 3);
-				const displayCaptures = captures.slice(0, 3);
-
-				const hasMoreDatasets = totalDatasets > 3;
-				const hasMoreCaptures = totalCaptures > 3;
-
-				// Prepare context for template
-				const context = {
-					has_assets: true,
-					datasets: displayDatasets,
-					captures: displayCaptures,
-					total_datasets: totalDatasets,
-					total_captures: totalCaptures,
-					show_datasets: displayDatasets.length > 0,
-					show_captures: displayCaptures.length > 0,
-					has_more_datasets: hasMoreDatasets,
-					has_more_captures: hasMoreCaptures,
-					remaining_datasets: totalDatasets - 3,
-					remaining_captures: totalCaptures - 3,
-				};
-
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/shared_assets_display.html",
-						context: context,
-					},
-					null,
-					true,
-				); // true = send as JSON
-
-				if (response.html) {
-					sharedAssetsSection.innerHTML = response.html;
-					sharedAssetsSection.classList.remove("d-none");
-				}
-			} else {
-				const response = await window.APIClient.post(
-					"/users/render-html/",
-					{
-						template: "users/components/shared_assets_display.html",
-						context: { has_assets: false },
-					},
-					null,
-					true,
-				); // true = send as JSON
-
-				if (response.html) {
-					sharedAssetsSection.innerHTML = response.html;
-					sharedAssetsSection.classList.remove("d-none");
-				}
-			}
-		} catch (error) {
-			console.error("Error rendering shared assets:", error);
-			sharedAssetsSection.innerHTML =
-				'<div class="alert alert-danger">Error loading shared assets</div>';
-			sharedAssetsSection.classList.remove("d-none");
-		}
-	}
-
-	/**
-	 * Delete Group Function - shows confirmation modal
-	 * @param {string} groupUuid - Group UUID
-	 * @param {string} groupName - Group name
-	 */
-	deleteGroup(groupUuid, groupName) {
-		// Store the group info for confirmation
-		this.pendingDeleteGroupUuid = groupUuid;
-		this.pendingDeleteGroupName = groupName;
-
-		// Update the confirmation modal content
-		document.getElementById("deleteGroupName").textContent = groupName;
-
-		// Hide any other open modals first
-		const openModals = document.querySelectorAll(".modal.show");
-		for (const modal of openModals) {
-			this.closeModal(modal.id);
-		}
-
-		this.openModal("deleteGroupModal");
-	}
-
-	/**
-	 * Initialize share group user search using ShareActionManager functionality
-	 */
-	initializeShareGroupUserSearch() {
-		// Create a custom search handler for ShareGroup using ShareActionManager's methods
-		this.shareGroupUserSearchHandler = {
-			selectedUsersMap: {},
-			searchTimeout: null,
-			currentRequest: null,
-
-			// Search users using ShareGroup endpoint
-			searchUsers: async (query, dropdown) => {
-				if (query.length < 2) {
-					this.hideDropdown(dropdown);
-					return;
-				}
-
-				// Cancel previous request if still pending
-				if (this.shareGroupUserSearchHandler.currentRequest) {
-					this.shareGroupUserSearchHandler.currentRequest.abort();
-				}
-
-				try {
-					this.shareGroupUserSearchHandler.currentRequest =
-						new AbortController();
-					const response = await window.APIClient.get(
-						`${this.config.apiEndpoint}?q=${encodeURIComponent(query)}&group_uuid=${this.currentGroupUuid}`,
-						{},
-						null, // No loading state for search
-					);
-
-					if (Array.isArray(response)) {
-						this.shareGroupUserSearchHandler.displayResults(
-							response,
-							dropdown,
-							query,
-						);
-					} else {
-						this.hideDropdown(dropdown);
-					}
-				} catch (error) {
-					if (error.name === "AbortError") {
-						return;
-					}
-					console.error("Search error:", error);
-					this.shareGroupUserSearchHandler.displayError(dropdown);
-				} finally {
-					this.shareGroupUserSearchHandler.currentRequest = null;
-				}
-			},
-
-			// Display search results (adapted from ShareActionManager)
-			displayResults: async (users, dropdown, query) => {
-				const listGroup = dropdown.querySelector(".list-group");
-
-				// Use server-side rendering for user results
-				try {
-					const response = await window.APIClient.post(
-						"/users/render-html/",
-						{
-							template: "users/components/user_search_results.html",
-							context: { users: users },
-						},
-						null,
-						true,
-					); // true = send as JSON
-
-					if (response.html) {
-						listGroup.innerHTML = response.html;
-					}
-				} catch (error) {
-					console.error("Error rendering user search results:", error);
-					listGroup.innerHTML =
-						'<div class="list-group-item no-results">Error loading users</div>';
-				}
-
-				this.showDropdown(dropdown);
-			},
-
-			// Display error (adapted from ShareActionManager)
-			displayError: (dropdown) => {
-				const listGroup = dropdown.querySelector(".list-group");
-				listGroup.innerHTML =
-					'<div class="list-group-item no-results">Error loading users</div>';
-				this.showDropdown(dropdown);
-			},
-
-			// Select user from dropdown
-			selectUser: (item, input) => {
-				const userName = item.dataset.userName;
-				const userEmail = item.dataset.userEmail;
-				const inputId = input.id;
-
-				if (!this.shareGroupUserSearchHandler.selectedUsersMap[inputId]) {
-					this.shareGroupUserSearchHandler.selectedUsersMap[inputId] = [];
-				}
-
-				// Check if user is already selected
-				if (
-					!this.shareGroupUserSearchHandler.selectedUsersMap[inputId].some(
-						(u) => u.email === userEmail,
-					)
-				) {
-					this.shareGroupUserSearchHandler.selectedUsersMap[inputId].push({
-						name: userName,
-						email: userEmail,
-					});
-					this.shareGroupUserSearchHandler.renderChips(input);
-				}
-
-				// Clear the input field
-				input.value = "";
-				this.hideDropdown(item.closest(".user-search-dropdown"));
-				input.focus();
-
-				// Update save button state for share group
-				this.updateSaveButtonState();
-			},
-
-			// Render user chips
-			renderChips: (input) => {
-				const inputId = input.id;
-				const chipContainer = input
-					.closest(".user-search-input-container")
-					.querySelector(".selected-users-chips");
-
-				if (!chipContainer) {
-					console.warn("Chip container not found for input:", inputId);
-					return;
-				}
-
-				chipContainer.innerHTML = "";
-				for (const user of this.shareGroupUserSearchHandler.selectedUsersMap[
-					inputId
-				]) {
-					const chip = document.createElement("span");
-					chip.className = "user-chip";
-					chip.textContent = user.email;
-					const remove = document.createElement("span");
-					remove.className = "remove-chip";
-					remove.innerHTML = "&times;";
-					remove.onclick = () => {
-						this.shareGroupUserSearchHandler.selectedUsersMap[inputId] =
-							this.shareGroupUserSearchHandler.selectedUsersMap[inputId].filter(
-								(u) => u.email !== user.email,
-							);
-						this.shareGroupUserSearchHandler.renderChips(input);
-						// Update save button state when removing chips
-						this.updateSaveButtonState();
-					};
-					chip.appendChild(remove);
-					chipContainer.appendChild(chip);
-				}
-			},
-
-			// Reset share group state
-			resetShareGroup: () => {
-				// Clear selected users
-				this.shareGroupUserSearchHandler.selectedUsersMap = {};
-
-				// Clear input and chips
-				const input = document.getElementById("user-search-sharegroup");
-				if (input) {
-					input.value = "";
-					const chipContainer = input
-						.closest(".user-search-input-container")
-						.querySelector(".selected-users-chips");
-					if (chipContainer) {
-						chipContainer.innerHTML = "";
-					}
-				}
-
-				// Update save button state
-				this.updateSaveButtonState();
-			},
-
-			// Initialize search input (adapted from ShareActionManager)
-			init: () => {
-				const modal = document.getElementById("share-modal-sharegroup");
-				if (!modal) {
-					console.error("Modal not found for sharegroup");
-					return;
-				}
-
-				// Setup search input
-				const searchInput = modal.querySelector(".user-search-input");
-				if (searchInput) {
-					this.setupSearchInput(searchInput);
-				}
-			},
-		};
-
-		// Initialize the handler
-		this.shareGroupUserSearchHandler.init();
-	}
-
-	/**
-	 * Helper methods adapted from ShareActionManager
-	 */
-
-	/**
-	 * Highlight search matches - No longer needed, server-side rendering handles this
-	 * @param {string} text - Text to highlight
-	 * @param {string} query - Search query
-	 * @returns {string} Highlighted text
-	 * @deprecated Server-side rendering now handles text display
-	 */
-	highlightMatch(text, query) {
-		// This method is kept for backwards compatibility but is no longer used
-		// Server-side rendering via Django templates handles all HTML generation
-		console.warn(
-			"highlightMatch is deprecated, use server-side rendering instead",
-		);
-		return text;
-	}
-
-	/**
-	 * Setup search input with event listeners
-	 * @param {Element} input - Search input element
-	 */
-	setupSearchInput(input) {
-		const handler = this.shareGroupUserSearchHandler;
-		window.UserInputController.bindUserSearchInput(input, {
-			selectedUsersMap: handler.selectedUsersMap,
-			getSearchTimeout: () => handler.searchTimeout,
-			setSearchTimeout: (id) => {
-				handler.searchTimeout = id;
-			},
-			getDropdownForInput: (inp) => this.getDropdownForInput(inp),
-			hideDropdown: (d) => this.hideDropdown(d),
-			navigateDropdown: (items, idx, dir) =>
-				this.navigateDropdown(items, idx, dir),
-			searchUsers: (query, d) => handler.searchUsers(query, d),
-			selectUser: (item, inp) => handler.selectUser(item, inp),
-		});
-	}
-
-	/**
-	 * Get dropdown for input
-	 * @param {Element} input - Input element
-	 * @returns {Element|null} Dropdown element
-	 */
-	getDropdownForInput(input) {
-		return window.UserSearchDropdown.getDropdownForInput(input, {});
-	}
-
-	/**
-	 * Navigate dropdown with keyboard
-	 * @param {NodeList} items - Dropdown items
-	 * @param {number} currentIndex - Current selected index
-	 * @param {number} direction - Direction to navigate
-	 */
-	navigateDropdown(items, currentIndex, direction) {
-		window.UserSearchDropdown.navigateDropdown(items, currentIndex, direction);
-	}
-
-	/**
-	 * Show dropdown
-	 * @param {Element} dropdown - Dropdown element
-	 */
-	showDropdown(dropdown) {
-		window.UserSearchDropdown.showDropdown(dropdown);
-	}
-
-	/**
-	 * Hide dropdown
-	 * @param {Element} dropdown - Dropdown element
-	 */
-	hideDropdown(dropdown) {
-		window.UserSearchDropdown.hideDropdown(dropdown);
-	}
-
-	/**
-	 * Remove member from group (inline) - marks for pending removal
-	 * @param {Event} event - Click event
-	 * @param {string} email - User email
-	 * @param {string} name - User name
-	 */
-	removeMemberFromGroup(event, email, name) {
-		const button = event.target.closest(".remove-member-btn");
-		if (!button) return;
-
-		// Toggle removal state
-		if (this.pendingRemovals.has(email)) {
-			// Remove from pending removals
-			this.pendingRemovals.delete(email);
-
-			// Change button back to outline style
-			button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove';
-			button.classList.remove("btn-danger");
-			button.classList.add("btn-outline-danger");
-		} else {
-			// Add to pending removals
-			this.pendingRemovals.add(email);
-
-			// Change button to solid red style
-			button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove';
-			button.classList.remove("btn-outline-danger");
-			button.classList.add("btn-danger");
-		}
-
-		// Update save button state
-		this.updateSaveButtonState();
-	}
-
-	/**
-	 * Update save button state based on pending changes
-	 */
-	updateSaveButtonState() {
-		const saveBtn = document.getElementById("save-sharegroup-btn");
-		const pendingMessage = document.getElementById(
-			"pending-changes-message-sharegroup",
-		);
-		const pendingMessageFooter = document.getElementById(
-			"pending-changes-message-sharegroup-footer",
-		);
-
-		const hasSelectedUsers =
-			this.shareGroupUserSearchHandler?.selectedUsersMap[
-				"user-search-sharegroup"
-			] &&
-			this.shareGroupUserSearchHandler.selectedUsersMap[
-				"user-search-sharegroup"
-			].length > 0;
-		const hasPendingRemovals = this.pendingRemovals.size > 0;
-
-		if (saveBtn) {
-			// Save button should only be enabled when there are pending removals
-			// Adding members is handled by the "Add Members" button, not the save button
-			if (hasPendingRemovals) {
-				saveBtn.disabled = false;
-			} else {
-				saveBtn.disabled = true;
-			}
-		}
-
-		// Update "Add Members" button state
-		const addMembersBtn = document.getElementById("add-members-btn");
-		if (addMembersBtn) {
-			// Enable "Add Members" button when users are selected
-			addMembersBtn.disabled = !hasSelectedUsers;
-		}
-
-		if (pendingMessage) {
-			if (hasPendingRemovals) {
-				pendingMessage.classList.remove("d-none");
-			} else {
-				pendingMessage.classList.add("d-none");
-			}
-		}
-
-		if (pendingMessageFooter) {
-			if (hasPendingRemovals) {
-				pendingMessageFooter.classList.remove("d-none");
-			} else {
-				pendingMessageFooter.classList.add("d-none");
-			}
-		}
-	}
-
-	/**
-	 * Reset all remove buttons to their original state
-	 */
-	resetRemoveButtons() {
-		const buttons = document.querySelectorAll(".remove-member-btn");
-		for (const button of buttons) {
-			button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove';
-			button.classList.remove("btn-danger");
-			button.classList.add("btn-outline-danger");
-		}
-	}
-
-	/**
-	 * Update member count and emails in the table
-	 * @param {string} groupUuid - Group UUID
-	 * @param {Array} members - Array of members
-	 */
-	updateTableMemberInfo(groupUuid, members) {
-		const memberCountElement = document.querySelector(
-			`.member-count[data-group-uuid="${groupUuid}"]`,
-		);
-		const memberEmailsElement = document.querySelector(
-			`.member-emails[data-group-uuid="${groupUuid}"]`,
-		);
-
-		if (memberCountElement) {
-			const count = members.length;
-			memberCountElement.textContent = `${count} member${count !== 1 ? "s" : ""}`;
-		}
-
-		if (memberEmailsElement) {
-			if (members.length === 0) {
-				window.DOMUtils.hide(memberEmailsElement);
-				memberEmailsElement.innerHTML = "";
-			} else {
-				window.DOMUtils.show(memberEmailsElement);
-				const emails = members.slice(0, 3).map((member) => member.email);
-				let emailsHtml = emails.join(", ");
-				if (members.length > 3) {
-					emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`;
-				}
-				memberEmailsElement.innerHTML = emailsHtml;
-			}
-		}
-	}
-
-	/**
-	 * Update member emails list by adding or removing specific emails
-	 * @param {string} groupUuid - Group UUID
-	 * @param {Array} emails - Array of emails
-	 * @param {string} action - Action type (add or remove)
-	 */
-	updateTableMemberEmails(groupUuid, emails, action) {
-		const memberCountElement = document.querySelector(
-			`.member-count[data-group-uuid="${groupUuid}"]`,
-		);
-		const memberEmailsElement = document.querySelector(
-			`.member-emails[data-group-uuid="${groupUuid}"]`,
-		);
-
-		if (!memberCountElement || !memberEmailsElement) {
-			return;
-		}
-
-		// Get current member count
-		const currentCountText = memberCountElement.textContent;
-		const currentCount = Number.parseInt(currentCountText.match(/(\d+)/)[1]);
-
-		// Get current emails from the display
-		let currentEmails = [];
-		if (memberEmailsElement.style.display !== "none") {
-			const emailsText = memberEmailsElement.textContent;
-			// Extract emails from the text (remove "and X more" part)
-			const emailsMatch = emailsText.match(
-				/([^,]+(?:,[^,]+)*?)(?:\s+and\s+\d+\s+more)?$/,
-			);
-			if (emailsMatch) {
-				currentEmails = emailsMatch[1].split(",").map((email) => email.trim());
-			}
-		}
-
-		const newEmails = [...currentEmails];
-		let newCount = currentCount;
-
-		if (action === "add") {
-			// Add new emails to the list
-			for (const email of emails) {
-				if (!newEmails.includes(email)) {
-					newEmails.push(email);
-					newCount++;
-				}
-			}
-		} else if (action === "remove") {
-			// Remove emails from the list
-			for (const email of emails) {
-				const index = newEmails.indexOf(email);
-				if (index > -1) {
-					newEmails.splice(index, 1);
-					newCount--;
-				}
-			}
-		}
-
-		// Update the count
-		memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`;
-
-		// Update the emails display
-		if (newCount === 0) {
-			window.DOMUtils.hide(memberEmailsElement);
-			memberEmailsElement.innerHTML = "";
-		} else {
-			window.DOMUtils.show(memberEmailsElement);
-			const displayEmails = newEmails.slice(0, 3);
-			let emailsHtml = displayEmails.join(", ");
-			if (newEmails.length > 3) {
-				emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`;
-			}
-			memberEmailsElement.innerHTML = emailsHtml;
-		}
-	}
-
-	/**
-	 * Add new group to the table dynamically
-	 * @param {Object} groupData - Group data object
-	 */
-	async addNewGroupToTable(groupData) {
-		const tableBody = document.querySelector(".table-responsive .table tbody");
-		if (!tableBody) {
-			console.error("Table body not found");
-			return;
-		}
-
-		try {
-			// Use server-side rendering for the new group row
-			const response = await window.APIClient.post(
-				"/users/render-html/",
-				{
-					template: "users/components/share_group_table_row.html",
-					context: { group: groupData },
-				},
-				null,
-				true,
-			); // true = send as JSON
-
-			if (response.html) {
-				// Insert the rendered HTML directly
-				tableBody.insertAdjacentHTML("beforeend", response.html);
-
-				// Hide the "no groups" message if it exists
-				const noGroupsMessage = document.querySelector(".text-center.py-5");
-				if (noGroupsMessage) {
-					window.DOMUtils.hide(noGroupsMessage);
-				}
-			} else {
-				console.error("No HTML returned from server for new group row");
-				// Fallback: reload the page
-				window.location.reload();
-			}
-		} catch (error) {
-			console.error("Error rendering new group row:", error);
-			// Fallback: reload the page
-			window.location.reload();
-		}
-	}
-
-	/**
-	 * Open manage modal for a specific group
-	 * @param {string} groupUuid - Group UUID
-	 * @param {string} groupName - Group name
-	 */
-	openManageModalForGroup(groupUuid, groupName) {
-		// Set the current group info
-		this.currentGroupUuid = groupUuid;
-		this.currentGroupName = groupName;
-
-		// Set the hidden input value
-		document.getElementById("addGroupUuid").value = groupUuid;
-
-		// Update modal title
-		document.getElementById("manageMembersModalLabel").innerHTML =
-			`<i class="bi bi-person-plus me-2"></i>Manage Members: ${groupName}`;
-
-		// Clear pending removals
-		this.pendingRemovals.clear();
-
-		// Reset user search handler state
-		if (this.shareGroupUserSearchHandler) {
-			this.shareGroupUserSearchHandler.resetShareGroup();
-		}
-
-		// Load current members
-		this.loadCurrentMembers();
-
-		// Load and display shared assets information
-		this.loadSharedAssetsInfo();
-
-		// Show the modal
-		this.openModal("share-modal-sharegroup");
-	}
+    /**
+     * Initialize share group manager
+     * @param {Object} config - Configuration object
+     */
+    constructor(config = {}) {
+        super()
+        this.currentGroupUuid = null
+        this.currentGroupName = null
+        this.pendingDeleteGroupUuid = null
+        this.pendingDeleteGroupName = null
+        this.pendingRemovals = new Set()
+        this.shareGroupUserSearchHandler = null
+
+        // Configuration
+        this.config = {
+            apiEndpoint: config.apiEndpoint || "/users/share-groups/",
+            ...config,
+        }
+
+        this.initializeEventListeners()
+    }
+
+    /**
+     * @param {Record<string, string>} fields
+     */
+    /**
+     * @param {object} response
+     * @param {{ defaultError?: string }} [opts]
+     * @returns {boolean}
+     */
+    handleShareGroupResponse(response, opts = {}) {
+        if (response.success) {
+            this.successMessage(response.message)
+            if (response.errors?.length) {
+                for (const error of response.errors) {
+                    this.warningMessage(error)
+                }
+            }
+            return true
+        }
+        this.errorMessage(
+            response.error || opts.defaultError || "Request failed.",
+        )
+        return false
+    }
+
+    async postShareGroupAction(fields) {
+        const formData = new URLSearchParams()
+        for (const [key, value] of Object.entries(fields)) {
+            formData.append(key, value)
+        }
+        return window.APIClient.request(this.config.apiEndpoint, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: formData,
+        })
+    }
+
+    /**
+     * Initialize all event listeners
+     */
+    initializeEventListeners() {
+        this.initializeCreateGroupForm()
+        this.initializeAddMembersForm()
+        this.initializeManageMembersModal()
+        this.initializeSaveButton()
+        this.initializeDeleteGroupConfirmation()
+        this.initializeShareGroupUserSearch()
+    }
+
+    /**
+     * Initialize create group form
+     */
+    initializeCreateGroupForm() {
+        const createGroupForm = document.getElementById("createGroupForm")
+        if (!createGroupForm) {
+            console.error("Create group form not found")
+            return
+        }
+
+        createGroupForm.addEventListener("submit", (e) => {
+            e.preventDefault()
+            this.handleCreateGroup(createGroupForm)
+        })
+    }
+
+    /**
+     * Handle create group form submission
+     * @param {HTMLFormElement} form - Form element
+     */
+    async handleCreateGroup(form) {
+        const groupName = document.getElementById("groupName").value
+
+        if (!groupName.trim()) {
+            this.errorMessage("Group name is required")
+            return
+        }
+
+        try {
+            const response = await this.postShareGroupAction({
+                action: "create",
+                name: groupName,
+            })
+
+            if (response.success) {
+                // Show success message
+                this.successMessage(response.message)
+
+                // Close the create modal
+                this.closeModal("createGroupModal")
+
+                // Clear the form
+                document.getElementById("groupName").value = ""
+
+                // Add the new group to the table dynamically
+                this.addNewGroupToTable(response.group)
+
+                // Automatically open the manage modal for the new group
+                setTimeout(() => {
+                    this.openManageModalForGroup(
+                        response.group.uuid,
+                        response.group.name,
+                    )
+                }, 500)
+            } else {
+                this.errorMessage(response.error)
+            }
+        } catch (error) {
+            // Extract specific error message from the response
+            let errorMessage = "An error occurred while creating the group."
+            if (error.data?.error) {
+                errorMessage = error.data.error
+            } else if (error.message?.includes("400")) {
+                errorMessage =
+                    "Bad request - please check the form data and try again."
+            }
+
+            this.errorMessage(errorMessage)
+        }
+    }
+
+    /**
+     * Initialize add members form
+     */
+    initializeAddMembersForm() {
+        const addMembersForm = document.getElementById("addMembersForm")
+        if (!addMembersForm) return
+
+        addMembersForm.addEventListener("submit", (e) => {
+            e.preventDefault()
+            this.handleAddMembers(addMembersForm)
+        })
+    }
+
+    /**
+     * Handle add members form submission
+     * @param {HTMLFormElement} form - Form element
+     */
+    async handleAddMembers(form) {
+        const inputId = "user-search-sharegroup"
+        const selectedUsers = this.shareGroupUserSearchHandler
+            ? this.shareGroupUserSearchHandler.selectedUsersMap[inputId] || []
+            : []
+
+        if (selectedUsers.length === 0) {
+            this.errorMessage("Please select at least one user to add.")
+            return
+        }
+
+        const userEmails = selectedUsers.map((user) => user.email).join(",")
+
+        try {
+            const response = await this.postShareGroupAction({
+                action: "add_members",
+                group_uuid: this.currentGroupUuid,
+                user_emails: userEmails,
+            })
+
+            if (
+                this.handleShareGroupResponse(response, {
+                    defaultError: "An error occurred while adding members.",
+                })
+            ) {
+                if (this.shareGroupUserSearchHandler) {
+                    this.shareGroupUserSearchHandler.resetShareGroup()
+                }
+                this.pendingRemovals.clear()
+                this.loadCurrentMembers()
+                this.updateSaveButtonState()
+
+                if (response.added_users?.length) {
+                    this.updateTableMemberEmails(
+                        this.currentGroupUuid,
+                        response.added_users,
+                        "add",
+                    )
+                }
+            }
+        } catch (error) {
+            // Extract specific error message from the response
+            let errorMessage = "An error occurred while adding members."
+            if (error.data?.error) {
+                errorMessage = error.data.error
+            }
+
+            this.errorMessage(errorMessage)
+        }
+    }
+
+    /**
+     * Initialize manage members modal
+     */
+    initializeManageMembersModal() {
+        const manageMembersModal = document.getElementById(
+            "share-modal-sharegroup",
+        )
+        if (manageMembersModal) {
+            manageMembersModal.addEventListener("show.bs.modal", (event) => {
+                const button = event.relatedTarget
+                // Only proceed if the button exists and has the required data attributes
+                if (!button || !button.hasAttribute("data-group-uuid")) {
+                    return
+                }
+                this.currentGroupUuid = button.getAttribute("data-group-uuid")
+                this.currentGroupName = button.getAttribute("data-group-name")
+
+                document.getElementById("addGroupUuid").value =
+                    this.currentGroupUuid
+
+                // Update modal title
+                document.getElementById("manageMembersModalLabel").innerHTML =
+                    `<i class="bi bi-person-plus me-2"></i>Manage Members: ${this.currentGroupName}`
+
+                // Clear pending removals when opening modal
+                this.pendingRemovals.clear()
+
+                // Reset user search handler state
+                if (this.shareGroupUserSearchHandler) {
+                    this.shareGroupUserSearchHandler.resetShareGroup()
+                }
+
+                // Load current members
+                this.loadCurrentMembers()
+
+                // Load and display shared assets information
+                this.loadSharedAssetsInfo()
+            })
+
+            // Also handle modal hidden event to reset state
+            manageMembersModal.addEventListener("hidden.bs.modal", () => {
+                // Reset user search handler state (but don't destroy it)
+                if (this.shareGroupUserSearchHandler) {
+                    this.shareGroupUserSearchHandler.resetShareGroup()
+                }
+                // Clear current group info
+                this.currentGroupUuid = null
+                this.currentGroupName = null
+                // Clear pending removals
+                this.pendingRemovals.clear()
+                // Reset save button state
+                this.updateSaveButtonState()
+                // Hide shared assets section
+                const sharedAssetsSection = document.getElementById(
+                    "sharedAssetsSection",
+                )
+                if (sharedAssetsSection) {
+                    sharedAssetsSection.classList.add("d-none")
+                }
+            })
+        }
+    }
+
+    /**
+     * Initialize save button
+     */
+    initializeSaveButton() {
+        const saveBtn = document.getElementById("save-sharegroup-btn")
+        if (saveBtn) {
+            saveBtn.addEventListener("click", () =>
+                this.handleSaveButton(saveBtn),
+            )
+        }
+    }
+
+    /**
+     * Handle save button click
+     * @param {HTMLButtonElement} button - Save button element
+     */
+    async handleSaveButton(button) {
+        const originalText = button.innerHTML
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...'
+        button.disabled = true
+
+        // Handle pending removals
+        if (this.pendingRemovals.size > 0) {
+            try {
+                const response = await this.postShareGroupAction({
+                    action: "remove_members",
+                    group_uuid: this.currentGroupUuid,
+                    user_emails: Array.from(this.pendingRemovals).join(","),
+                })
+
+                if (
+                    this.handleShareGroupResponse(response, {
+                        defaultError:
+                            "An error occurred while removing members.",
+                    })
+                ) {
+                    this.pendingRemovals.clear()
+                    // Reset all remove buttons
+                    this.resetRemoveButtons()
+                    // Reload members
+                    this.loadCurrentMembers()
+
+                    // Update table member info by removing the members
+                    if (
+                        response.removed_users &&
+                        response.removed_users.length > 0
+                    ) {
+                        this.updateTableMemberEmails(
+                            this.currentGroupUuid,
+                            response.removed_users,
+                            "remove",
+                        )
+                    }
+                }
+            } catch (error) {
+                let errorMessage = "An error occurred while removing members."
+                if (error.data?.error) {
+                    errorMessage = error.data.error
+                }
+
+                this.errorMessage(errorMessage)
+            } finally {
+                button.innerHTML = originalText
+                button.disabled = false
+                this.updateSaveButtonState()
+            }
+        }
+    }
+
+    /**
+     * Initialize delete group confirmation
+     */
+    initializeDeleteGroupConfirmation() {
+        const confirmDeleteBtn = document.getElementById("confirmDeleteGroup")
+        if (confirmDeleteBtn) {
+            confirmDeleteBtn.addEventListener("click", () =>
+                this.handleDeleteGroup(confirmDeleteBtn),
+            )
+        }
+    }
+
+    /**
+     * Handle delete group confirmation
+     * @param {HTMLButtonElement} button - Delete button element
+     */
+    async handleDeleteGroup(button) {
+        if (!this.pendingDeleteGroupUuid) {
+            return
+        }
+        const originalText = button.innerHTML
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Deleting...'
+        button.disabled = true
+
+        const formData = new URLSearchParams()
+        formData.append("action", "delete_group")
+        formData.append("group_uuid", this.pendingDeleteGroupUuid)
+
+        try {
+            const response = await window.APIClient.request(
+                this.config.apiEndpoint,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: formData,
+                },
+            )
+
+            // Hide the confirmation modal
+            this.closeModal("deleteGroupModal")
+
+            if (response.success) {
+                // Store success message for after page reload
+                localStorage.setItem(
+                    "shareGroupSuccessMessage",
+                    response.message,
+                )
+                setTimeout(() => window.location.reload(), 1000)
+            } else {
+                this.errorMessage(response.error)
+            }
+        } catch (error) {
+            // Extract specific error message from the response
+            let errorMessage = "An error occurred while deleting the group."
+            if (error.data?.error) {
+                errorMessage = error.data.error
+            }
+
+            this.errorMessage(errorMessage)
+        } finally {
+            // Reset button state
+            button.innerHTML = originalText
+            button.disabled = false
+
+            // Clear pending deletion data
+            this.pendingDeleteGroupUuid = null
+            this.pendingDeleteGroupName = null
+        }
+    }
+
+    /**
+     * Load current members for a group
+     */
+    async loadCurrentMembers() {
+        if (!this.currentGroupUuid) return
+
+        const membersList = document.getElementById("currentMembers")
+        if (!membersList) return
+
+        // Clear member count and show loading state
+        const memberCountElement = document.getElementById("memberCount")
+        if (memberCountElement) {
+            memberCountElement.textContent = ""
+        }
+
+        // Show loading state using table_rows template
+        await window.DOMUtils.renderTable(
+            membersList,
+            [
+                {
+                    cells: [
+                        {
+                            kind: "html",
+                            tag: "div",
+                            class: "text-center text-muted",
+                            nested: [
+                                {
+                                    tag: "i",
+                                    class: "bi bi-people",
+                                },
+                                {
+                                    tag: "p",
+                                    class: "mb-0",
+                                    text: "Loading members...",
+                                },
+                            ],
+                            td_class: "p-2 shadow-sm",
+                        },
+                    ],
+                },
+            ],
+            {
+                empty_message: "",
+                empty_colspan: 1,
+            },
+        )
+
+        try {
+            const response = await window.APIClient.request(
+                `${this.config.apiEndpoint}?group_uuid=${this.currentGroupUuid}`,
+                {
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                },
+            )
+
+            if (response.success) {
+                // Render members using generic table_rows template
+                try {
+                    const rows = response.members.map((member) => ({
+                        cells: [
+                            {
+                                kind: "html",
+                                tag: "div",
+                                nested: [
+                                    {
+                                        tag: "h5",
+                                        class: "mb-1",
+                                        text: member.name || "No name",
+                                    },
+                                    {
+                                        tag: "p",
+                                        class: "mb-0",
+                                        nested: [
+                                            {
+                                                tag: "small",
+                                                class: "text-muted",
+                                                text: member.email,
+                                            },
+                                        ],
+                                    },
+                                ],
+                            },
+                        ],
+                        actions_td_class: "text-end",
+                        actions: [
+                            {
+                                label: "Remove",
+                                icon: "bi-person-slash",
+                                css_class: "btn-outline-danger",
+                                extra_class: "remove-member-btn",
+                                data_attrs: {
+                                    user_email: member.email,
+                                    user_name: member.name || "No name",
+                                },
+                                onclick: `shareGroupManager.removeMemberFromGroup(event, '${member.email}', '${member.name || "No name"}')`,
+                            },
+                        ],
+                    }))
+
+                    await window.DOMUtils.renderTable(membersList, rows, {
+                        empty_message: "No members in this group",
+                        empty_colspan: 1,
+                    })
+                } catch (renderError) {
+                    console.error("Error rendering members:", renderError)
+                    await this.showMessageInTarget(
+                        "Error loading members",
+                        membersList,
+                        {
+                            variant: "danger",
+                            presentation: "table",
+                            templateContext: { colspan: 1 },
+                        },
+                    )
+                }
+
+                // Update member count
+                const memberCountElement =
+                    document.getElementById("memberCount")
+                if (memberCountElement) {
+                    if (response.members.length > 0) {
+                        memberCountElement.textContent = `${response.count} member${response.count !== 1 ? "s" : ""}`
+                    } else {
+                        memberCountElement.textContent = ""
+                    }
+                }
+
+                // Update table member info
+                if (response.members.length > 0) {
+                    this.updateTableMemberInfo(
+                        this.currentGroupUuid,
+                        response.members,
+                    )
+                }
+
+                // Update save button state after loading members
+                this.updateSaveButtonState()
+            } else {
+                await this.showMessageInTarget(
+                    response.error || "Error loading members",
+                    membersList,
+                    {
+                        variant: "danger",
+                        presentation: "table",
+                        templateContext: { colspan: 1 },
+                    },
+                )
+            }
+        } catch (error) {
+            console.error("Error loading members:", error)
+            await this.showMessageInTarget(
+                "Error loading members",
+                membersList,
+                {
+                    variant: "danger",
+                    presentation: "table",
+                    templateContext: { colspan: 1 },
+                },
+            )
+        }
+    }
+
+    /**
+     * Load shared assets info
+     */
+    async loadSharedAssetsInfo() {
+        if (!this.currentGroupUuid) {
+            return
+        }
+
+        // Create a temporary request to get shared assets info
+        const formData = new URLSearchParams()
+        formData.append("action", "get_shared_assets")
+        formData.append("group_uuid", this.currentGroupUuid)
+
+        try {
+            const response = await window.APIClient.request(
+                this.config.apiEndpoint,
+                {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                    },
+                    body: formData,
+                },
+            )
+
+            if (response.success) {
+                this.displaySharedAssetsInfo(response.shared_assets)
+            } else {
+                console.error("Error loading shared assets:", response.error)
+            }
+        } catch (error) {
+            console.error("Error loading shared assets:", error)
+        }
+    }
+
+    /**
+     * Display shared assets info
+     * @param {Array} sharedAssets - Array of shared assets
+     */
+    async displaySharedAssetsInfo(sharedAssets) {
+        // Find the shared assets section in the modal
+        const sharedAssetsSection = document.getElementById(
+            "sharedAssetsSection",
+        )
+
+        if (!sharedAssetsSection) return
+
+        try {
+            if (sharedAssets && sharedAssets.length > 0) {
+                // Separate assets by type
+                const datasets = sharedAssets
+                    .filter((asset) => asset.type === "dataset")
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                const captures = sharedAssets
+                    .filter((asset) => asset.type === "capture")
+                    .sort((a, b) => a.name.localeCompare(b.name))
+
+                const totalDatasets = datasets.length
+                const totalCaptures = captures.length
+
+                // Show first 3 of each type
+                const displayDatasets = datasets.slice(0, 3)
+                const displayCaptures = captures.slice(0, 3)
+
+                const hasMoreDatasets = totalDatasets > 3
+                const hasMoreCaptures = totalCaptures > 3
+
+                // Prepare context for template
+                const context = {
+                    has_assets: true,
+                    datasets: displayDatasets,
+                    captures: displayCaptures,
+                    total_datasets: totalDatasets,
+                    total_captures: totalCaptures,
+                    show_datasets: displayDatasets.length > 0,
+                    show_captures: displayCaptures.length > 0,
+                    has_more_datasets: hasMoreDatasets,
+                    has_more_captures: hasMoreCaptures,
+                    remaining_datasets: totalDatasets - 3,
+                    remaining_captures: totalCaptures - 3,
+                }
+
+                const response = await window.APIClient.post(
+                    "/users/render-html/",
+                    {
+                        template: "users/components/shared_assets_display.html",
+                        context: context,
+                    },
+                    null,
+                    true,
+                ) // true = send as JSON
+
+                if (response.html) {
+                    sharedAssetsSection.innerHTML = response.html
+                    sharedAssetsSection.classList.remove("d-none")
+                }
+            } else {
+                const response = await window.APIClient.post(
+                    "/users/render-html/",
+                    {
+                        template: "users/components/shared_assets_display.html",
+                        context: { has_assets: false },
+                    },
+                    null,
+                    true,
+                ) // true = send as JSON
+
+                if (response.html) {
+                    sharedAssetsSection.innerHTML = response.html
+                    sharedAssetsSection.classList.remove("d-none")
+                }
+            }
+        } catch (error) {
+            console.error("Error rendering shared assets:", error)
+            sharedAssetsSection.innerHTML =
+                '<div class="alert alert-danger">Error loading shared assets</div>'
+            sharedAssetsSection.classList.remove("d-none")
+        }
+    }
+
+    /**
+     * Delete Group Function - shows confirmation modal
+     * @param {string} groupUuid - Group UUID
+     * @param {string} groupName - Group name
+     */
+    deleteGroup(groupUuid, groupName) {
+        // Store the group info for confirmation
+        this.pendingDeleteGroupUuid = groupUuid
+        this.pendingDeleteGroupName = groupName
+
+        // Update the confirmation modal content
+        document.getElementById("deleteGroupName").textContent = groupName
+
+        // Hide any other open modals first
+        const openModals = document.querySelectorAll(".modal.show")
+        for (const modal of openModals) {
+            this.closeModal(modal.id)
+        }
+
+        this.openModal("deleteGroupModal")
+    }
+
+    /**
+     * Initialize share group user search using ShareActionManager functionality
+     */
+    initializeShareGroupUserSearch() {
+        // Create a custom search handler for ShareGroup using ShareActionManager's methods
+        this.shareGroupUserSearchHandler = {
+            selectedUsersMap: {},
+            searchTimeout: null,
+            currentRequest: null,
+
+            // Search users using ShareGroup endpoint
+            searchUsers: async (query, dropdown) => {
+                if (query.length < 2) {
+                    this.hideDropdown(dropdown)
+                    return
+                }
+
+                // Cancel previous request if still pending
+                if (this.shareGroupUserSearchHandler.currentRequest) {
+                    this.shareGroupUserSearchHandler.currentRequest.abort()
+                }
+
+                try {
+                    this.shareGroupUserSearchHandler.currentRequest =
+                        new AbortController()
+                    const response = await window.APIClient.get(
+                        `${this.config.apiEndpoint}?q=${encodeURIComponent(query)}&group_uuid=${this.currentGroupUuid}`,
+                        {},
+                        null, // No loading state for search
+                    )
+
+                    if (Array.isArray(response)) {
+                        this.shareGroupUserSearchHandler.displayResults(
+                            response,
+                            dropdown,
+                            query,
+                        )
+                    } else {
+                        this.hideDropdown(dropdown)
+                    }
+                } catch (error) {
+                    if (error.name === "AbortError") {
+                        return
+                    }
+                    console.error("Search error:", error)
+                    this.shareGroupUserSearchHandler.displayError(dropdown)
+                } finally {
+                    this.shareGroupUserSearchHandler.currentRequest = null
+                }
+            },
+
+            // Display search results (adapted from ShareActionManager)
+            displayResults: async (users, dropdown, query) => {
+                const listGroup = dropdown.querySelector(".list-group")
+
+                // Use server-side rendering for user results
+                try {
+                    const response = await window.APIClient.post(
+                        "/users/render-html/",
+                        {
+                            template:
+                                "users/components/user_search_results.html",
+                            context: { users: users },
+                        },
+                        null,
+                        true,
+                    ) // true = send as JSON
+
+                    if (response.html) {
+                        listGroup.innerHTML = response.html
+                    }
+                } catch (error) {
+                    console.error("Error rendering user search results:", error)
+                    listGroup.innerHTML =
+                        '<div class="list-group-item no-results">Error loading users</div>'
+                }
+
+                this.showDropdown(dropdown)
+            },
+
+            // Display error (adapted from ShareActionManager)
+            displayError: (dropdown) => {
+                const listGroup = dropdown.querySelector(".list-group")
+                listGroup.innerHTML =
+                    '<div class="list-group-item no-results">Error loading users</div>'
+                this.showDropdown(dropdown)
+            },
+
+            // Select user from dropdown
+            selectUser: (item, input) => {
+                const userName = item.dataset.userName
+                const userEmail = item.dataset.userEmail
+                const inputId = input.id
+
+                if (
+                    !this.shareGroupUserSearchHandler.selectedUsersMap[inputId]
+                ) {
+                    this.shareGroupUserSearchHandler.selectedUsersMap[inputId] =
+                        []
+                }
+
+                // Check if user is already selected
+                if (
+                    !this.shareGroupUserSearchHandler.selectedUsersMap[
+                        inputId
+                    ].some((u) => u.email === userEmail)
+                ) {
+                    this.shareGroupUserSearchHandler.selectedUsersMap[
+                        inputId
+                    ].push({
+                        name: userName,
+                        email: userEmail,
+                    })
+                    this.shareGroupUserSearchHandler.renderChips(input)
+                }
+
+                // Clear the input field
+                input.value = ""
+                this.hideDropdown(item.closest(".user-search-dropdown"))
+                input.focus()
+
+                // Update save button state for share group
+                this.updateSaveButtonState()
+            },
+
+            // Render user chips
+            renderChips: (input) => {
+                const inputId = input.id
+                const chipContainer = input
+                    .closest(".user-search-input-container")
+                    .querySelector(".selected-users-chips")
+
+                if (!chipContainer) {
+                    console.warn("Chip container not found for input:", inputId)
+                    return
+                }
+
+                chipContainer.innerHTML = ""
+                for (const user of this.shareGroupUserSearchHandler
+                    .selectedUsersMap[inputId]) {
+                    const chip = document.createElement("span")
+                    chip.className = "user-chip"
+                    chip.textContent = user.email
+                    const remove = document.createElement("span")
+                    remove.className = "remove-chip"
+                    remove.innerHTML = "&times;"
+                    remove.onclick = () => {
+                        this.shareGroupUserSearchHandler.selectedUsersMap[
+                            inputId
+                        ] = this.shareGroupUserSearchHandler.selectedUsersMap[
+                            inputId
+                        ].filter((u) => u.email !== user.email)
+                        this.shareGroupUserSearchHandler.renderChips(input)
+                        // Update save button state when removing chips
+                        this.updateSaveButtonState()
+                    }
+                    chip.appendChild(remove)
+                    chipContainer.appendChild(chip)
+                }
+            },
+
+            // Reset share group state
+            resetShareGroup: () => {
+                // Clear selected users
+                this.shareGroupUserSearchHandler.selectedUsersMap = {}
+
+                // Clear input and chips
+                const input = document.getElementById("user-search-sharegroup")
+                if (input) {
+                    input.value = ""
+                    const chipContainer = input
+                        .closest(".user-search-input-container")
+                        .querySelector(".selected-users-chips")
+                    if (chipContainer) {
+                        chipContainer.innerHTML = ""
+                    }
+                }
+
+                // Update save button state
+                this.updateSaveButtonState()
+            },
+
+            // Initialize search input (adapted from ShareActionManager)
+            init: () => {
+                const modal = document.getElementById("share-modal-sharegroup")
+                if (!modal) {
+                    console.error("Modal not found for sharegroup")
+                    return
+                }
+
+                // Setup search input
+                const searchInput = modal.querySelector(".user-search-input")
+                if (searchInput) {
+                    this.setupSearchInput(searchInput)
+                }
+            },
+        }
+
+        // Initialize the handler
+        this.shareGroupUserSearchHandler.init()
+    }
+
+    /**
+     * Helper methods adapted from ShareActionManager
+     */
+
+    /**
+     * Highlight search matches - No longer needed, server-side rendering handles this
+     * @param {string} text - Text to highlight
+     * @param {string} query - Search query
+     * @returns {string} Highlighted text
+     * @deprecated Server-side rendering now handles text display
+     */
+    highlightMatch(text, query) {
+        // This method is kept for backwards compatibility but is no longer used
+        // Server-side rendering via Django templates handles all HTML generation
+        console.warn(
+            "highlightMatch is deprecated, use server-side rendering instead",
+        )
+        return text
+    }
+
+    /**
+     * Setup search input with event listeners
+     * @param {Element} input - Search input element
+     */
+    setupSearchInput(input) {
+        const handler = this.shareGroupUserSearchHandler
+        window.UserInputController.bindUserSearchInput(input, {
+            selectedUsersMap: handler.selectedUsersMap,
+            getSearchTimeout: () => handler.searchTimeout,
+            setSearchTimeout: (id) => {
+                handler.searchTimeout = id
+            },
+            getDropdownForInput: (inp) => this.getDropdownForInput(inp),
+            hideDropdown: (d) => this.hideDropdown(d),
+            navigateDropdown: (items, idx, dir) =>
+                this.navigateDropdown(items, idx, dir),
+            searchUsers: (query, d) => handler.searchUsers(query, d),
+            selectUser: (item, inp) => handler.selectUser(item, inp),
+        })
+    }
+
+    /**
+     * Get dropdown for input
+     * @param {Element} input - Input element
+     * @returns {Element|null} Dropdown element
+     */
+    getDropdownForInput(input) {
+        return window.UserSearchDropdown.getDropdownForInput(input, {})
+    }
+
+    /**
+     * Navigate dropdown with keyboard
+     * @param {NodeList} items - Dropdown items
+     * @param {number} currentIndex - Current selected index
+     * @param {number} direction - Direction to navigate
+     */
+    navigateDropdown(items, currentIndex, direction) {
+        window.UserSearchDropdown.navigateDropdown(
+            items,
+            currentIndex,
+            direction,
+        )
+    }
+
+    /**
+     * Show dropdown
+     * @param {Element} dropdown - Dropdown element
+     */
+    showDropdown(dropdown) {
+        window.UserSearchDropdown.showDropdown(dropdown)
+    }
+
+    /**
+     * Hide dropdown
+     * @param {Element} dropdown - Dropdown element
+     */
+    hideDropdown(dropdown) {
+        window.UserSearchDropdown.hideDropdown(dropdown)
+    }
+
+    /**
+     * Remove member from group (inline) - marks for pending removal
+     * @param {Event} event - Click event
+     * @param {string} email - User email
+     * @param {string} name - User name
+     */
+    removeMemberFromGroup(event, email, name) {
+        const button = event.target.closest(".remove-member-btn")
+        if (!button) return
+
+        // Toggle removal state
+        if (this.pendingRemovals.has(email)) {
+            // Remove from pending removals
+            this.pendingRemovals.delete(email)
+
+            // Change button back to outline style
+            button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove'
+            button.classList.remove("btn-danger")
+            button.classList.add("btn-outline-danger")
+        } else {
+            // Add to pending removals
+            this.pendingRemovals.add(email)
+
+            // Change button to solid red style
+            button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove'
+            button.classList.remove("btn-outline-danger")
+            button.classList.add("btn-danger")
+        }
+
+        // Update save button state
+        this.updateSaveButtonState()
+    }
+
+    /**
+     * Update save button state based on pending changes
+     */
+    updateSaveButtonState() {
+        const saveBtn = document.getElementById("save-sharegroup-btn")
+        const pendingMessage = document.getElementById(
+            "pending-changes-message-sharegroup",
+        )
+        const pendingMessageFooter = document.getElementById(
+            "pending-changes-message-sharegroup-footer",
+        )
+
+        const hasSelectedUsers =
+            this.shareGroupUserSearchHandler?.selectedUsersMap[
+                "user-search-sharegroup"
+            ] &&
+            this.shareGroupUserSearchHandler.selectedUsersMap[
+                "user-search-sharegroup"
+            ].length > 0
+        const hasPendingRemovals = this.pendingRemovals.size > 0
+
+        if (saveBtn) {
+            // Save button should only be enabled when there are pending removals
+            // Adding members is handled by the "Add Members" button, not the save button
+            if (hasPendingRemovals) {
+                saveBtn.disabled = false
+            } else {
+                saveBtn.disabled = true
+            }
+        }
+
+        // Update "Add Members" button state
+        const addMembersBtn = document.getElementById("add-members-btn")
+        if (addMembersBtn) {
+            // Enable "Add Members" button when users are selected
+            addMembersBtn.disabled = !hasSelectedUsers
+        }
+
+        if (pendingMessage) {
+            if (hasPendingRemovals) {
+                pendingMessage.classList.remove("d-none")
+            } else {
+                pendingMessage.classList.add("d-none")
+            }
+        }
+
+        if (pendingMessageFooter) {
+            if (hasPendingRemovals) {
+                pendingMessageFooter.classList.remove("d-none")
+            } else {
+                pendingMessageFooter.classList.add("d-none")
+            }
+        }
+    }
+
+    /**
+     * Reset all remove buttons to their original state
+     */
+    resetRemoveButtons() {
+        const buttons = document.querySelectorAll(".remove-member-btn")
+        for (const button of buttons) {
+            button.innerHTML = '<i class="bi bi-person-slash me-1"></i>Remove'
+            button.classList.remove("btn-danger")
+            button.classList.add("btn-outline-danger")
+        }
+    }
+
+    /**
+     * Update member count and emails in the table
+     * @param {string} groupUuid - Group UUID
+     * @param {Array} members - Array of members
+     */
+    updateTableMemberInfo(groupUuid, members) {
+        const memberCountElement = document.querySelector(
+            `.member-count[data-group-uuid="${groupUuid}"]`,
+        )
+        const memberEmailsElement = document.querySelector(
+            `.member-emails[data-group-uuid="${groupUuid}"]`,
+        )
+
+        if (memberCountElement) {
+            const count = members.length
+            memberCountElement.textContent = `${count} member${count !== 1 ? "s" : ""}`
+        }
+
+        if (memberEmailsElement) {
+            if (members.length === 0) {
+                window.DOMUtils.hide(memberEmailsElement)
+                memberEmailsElement.innerHTML = ""
+            } else {
+                window.DOMUtils.show(memberEmailsElement)
+                const emails = members.slice(0, 3).map((member) => member.email)
+                let emailsHtml = emails.join(", ")
+                if (members.length > 3) {
+                    emailsHtml += `<span class="text-muted"> and ${members.length - 3} more</span>`
+                }
+                memberEmailsElement.innerHTML = emailsHtml
+            }
+        }
+    }
+
+    /**
+     * Update member emails list by adding or removing specific emails
+     * @param {string} groupUuid - Group UUID
+     * @param {Array} emails - Array of emails
+     * @param {string} action - Action type (add or remove)
+     */
+    updateTableMemberEmails(groupUuid, emails, action) {
+        const memberCountElement = document.querySelector(
+            `.member-count[data-group-uuid="${groupUuid}"]`,
+        )
+        const memberEmailsElement = document.querySelector(
+            `.member-emails[data-group-uuid="${groupUuid}"]`,
+        )
+
+        if (!memberCountElement || !memberEmailsElement) {
+            return
+        }
+
+        // Get current member count
+        const currentCountText = memberCountElement.textContent
+        const currentCount = Number.parseInt(currentCountText.match(/(\d+)/)[1])
+
+        // Get current emails from the display
+        let currentEmails = []
+        if (memberEmailsElement.style.display !== "none") {
+            const emailsText = memberEmailsElement.textContent
+            // Extract emails from the text (remove "and X more" part)
+            const emailsMatch = emailsText.match(
+                /([^,]+(?:,[^,]+)*?)(?:\s+and\s+\d+\s+more)?$/,
+            )
+            if (emailsMatch) {
+                currentEmails = emailsMatch[1]
+                    .split(",")
+                    .map((email) => email.trim())
+            }
+        }
+
+        const newEmails = [...currentEmails]
+        let newCount = currentCount
+
+        if (action === "add") {
+            // Add new emails to the list
+            for (const email of emails) {
+                if (!newEmails.includes(email)) {
+                    newEmails.push(email)
+                    newCount++
+                }
+            }
+        } else if (action === "remove") {
+            // Remove emails from the list
+            for (const email of emails) {
+                const index = newEmails.indexOf(email)
+                if (index > -1) {
+                    newEmails.splice(index, 1)
+                    newCount--
+                }
+            }
+        }
+
+        // Update the count
+        memberCountElement.textContent = `${newCount} member${newCount !== 1 ? "s" : ""}`
+
+        // Update the emails display
+        if (newCount === 0) {
+            window.DOMUtils.hide(memberEmailsElement)
+            memberEmailsElement.innerHTML = ""
+        } else {
+            window.DOMUtils.show(memberEmailsElement)
+            const displayEmails = newEmails.slice(0, 3)
+            let emailsHtml = displayEmails.join(", ")
+            if (newEmails.length > 3) {
+                emailsHtml += `<span class="text-muted"> and ${newEmails.length - 3} more</span>`
+            }
+            memberEmailsElement.innerHTML = emailsHtml
+        }
+    }
+
+    /**
+     * Add new group to the table dynamically
+     * @param {Object} groupData - Group data object
+     */
+    async addNewGroupToTable(groupData) {
+        const tableBody = document.querySelector(
+            ".table-responsive .table tbody",
+        )
+        if (!tableBody) {
+            console.error("Table body not found")
+            return
+        }
+
+        try {
+            // Use server-side rendering for the new group row
+            const response = await window.APIClient.post(
+                "/users/render-html/",
+                {
+                    template: "users/components/share_group_table_row.html",
+                    context: { group: groupData },
+                },
+                null,
+                true,
+            ) // true = send as JSON
+
+            if (response.html) {
+                // Insert the rendered HTML directly
+                tableBody.insertAdjacentHTML("beforeend", response.html)
+
+                // Hide the "no groups" message if it exists
+                const noGroupsMessage =
+                    document.querySelector(".text-center.py-5")
+                if (noGroupsMessage) {
+                    window.DOMUtils.hide(noGroupsMessage)
+                }
+            } else {
+                console.error("No HTML returned from server for new group row")
+                // Fallback: reload the page
+                window.location.reload()
+            }
+        } catch (error) {
+            console.error("Error rendering new group row:", error)
+            // Fallback: reload the page
+            window.location.reload()
+        }
+    }
+
+    /**
+     * Open manage modal for a specific group
+     * @param {string} groupUuid - Group UUID
+     * @param {string} groupName - Group name
+     */
+    openManageModalForGroup(groupUuid, groupName) {
+        // Set the current group info
+        this.currentGroupUuid = groupUuid
+        this.currentGroupName = groupName
+
+        // Set the hidden input value
+        document.getElementById("addGroupUuid").value = groupUuid
+
+        // Update modal title
+        document.getElementById("manageMembersModalLabel").innerHTML =
+            `<i class="bi bi-person-plus me-2"></i>Manage Members: ${groupName}`
+
+        // Clear pending removals
+        this.pendingRemovals.clear()
+
+        // Reset user search handler state
+        if (this.shareGroupUserSearchHandler) {
+            this.shareGroupUserSearchHandler.resetShareGroup()
+        }
+
+        // Load current members
+        this.loadCurrentMembers()
+
+        // Load and display shared assets information
+        this.loadSharedAssetsInfo()
+
+        // Show the modal
+        this.openModal("share-modal-sharegroup")
+    }
 }
 
 // Make class available globally
-window.ShareGroupManager = ShareGroupManager;
+window.ShareGroupManager = ShareGroupManager
 
 // Export for ES6 modules (Jest testing) - only if in module context
 if (typeof module !== "undefined" && module.exports) {
-	module.exports = { ShareGroupManager };
+    module.exports = { ShareGroupManager }
 }

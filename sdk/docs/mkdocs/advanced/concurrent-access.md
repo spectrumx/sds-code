@@ -22,8 +22,8 @@ If this is needed, SDK users have a few options:
 1. Restructure their architecture to forward writes to a single centralized client
    responsible for them.
 2. Restructure the code by writing to different locations and/or at different
-    application stages. The latter assumes all conflicting clients are part of the same
-    application.
+   application stages. The latter assumes all conflicting clients are part of the same
+   application.
 3. Implement a custom locking mechanism for writes to serve their specific use case.
 
 One writer (an SDK client that creates, updates, and/or deletes contents) and multiple

@@ -15,11 +15,11 @@ Checklist to use the script below:
 
 + [ ] Have a Python environment with `spectrumx` and `loguru` installed.
 + [ ] Make sure the `download_path` location has enough disk space to store the dataset
-    you are downloading.
+  you are downloading.
 + [ ] Set up your SDS API key in a `.env` file in the same directory as the script
-    below. Generate a key at <https://sds.crc.nd.edu/users/generate-api-key-form/>
+  below. Generate a key at <https://sds.crc.nd.edu/users/generate-api-key-form/>
 + [ ] Update the `dataset_uuid_str` variable with the UUID of the dataset you want to
-    download.
+  download.
 + [ ] Follow any other "`TODO`" comments in the script.
 
 ## Context

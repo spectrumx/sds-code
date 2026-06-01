@@ -1,13 +1,13 @@
 body.admin-env-production #header {
-	background: #800020;
+    background: #800020;
 }
 
 body.admin-env-staging #header {
-	background: #ff8c00;
+    background: #ff8c00;
 }
 
 body.admin-env-local #header {
-	background: #198754;
+    background: #198754;
 }
 
 body.admin-env-production #header,
@@ -19,50 +19,50 @@ body.admin-env-staging #header a:visited,
 body.admin-env-local #header,
 body.admin-env-local #header a:link,
 body.admin-env-local #header a:visited {
-	color: #fff;
+    color: #fff;
 }
 
 .mono {
-	font-family: monospace;
+    font-family: monospace;
 }
 
 .admin-monitoring-pill {
-	display: inline-block;
-	margin-left: 1rem;
-	padding: 0.2rem 0.8rem;
-	white-space: nowrap;
-	border-radius: 999px;
-	font-size: 1rem;
-	font-weight: 600;
-	text-transform: uppercase;
-	letter-spacing: 0.03rem;
-	background: #6c757d;
-	border: 1px dashed #0f2d47;
+    display: inline-block;
+    margin-left: 1rem;
+    padding: 0.2rem 0.8rem;
+    white-space: nowrap;
+    border-radius: 999px;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03rem;
+    background: #6c757d;
+    border: 1px dashed #0f2d47;
 }
 
 .admin-monitoring-pill--healthy {
-	background: #3fa676;
+    background: #3fa676;
 }
 
 .admin-monitoring-pill--degraded {
-	background: #fd7e14;
+    background: #fd7e14;
 }
 
 .admin-monitoring-pill--down {
-	background: #dc3545;
+    background: #dc3545;
 }
 
 .monitoring-panel {
-	margin-bottom: 1rem;
-	border: 1px solid #0f2d47;
-	padding: 1rem;
-	border-radius: 1rem;
+    margin-bottom: 1rem;
+    border: 1px solid #0f2d47;
+    padding: 1rem;
+    border-radius: 1rem;
 }
 
 .monitoring-muted {
-	opacity: 0.6;
+    opacity: 0.6;
 }
 
 .monitoring-panel h2 {
-	margin-top: 0;
+    margin-top: 0;
 }

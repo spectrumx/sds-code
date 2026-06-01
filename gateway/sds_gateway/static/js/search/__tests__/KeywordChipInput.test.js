@@ -5,854 +5,891 @@
 
 // Import classes and functions
 // Note: These are exported to window, so we'll access them via window in tests
-import "../KeywordChipInput.js";
+import "../KeywordChipInput.js"
 
 describe("KeywordChipInput", () => {
-	let chipInput;
-	let mockInput;
-	let mockHiddenInput;
-	let mockChipContainer;
+    let chipInput
+    let mockInput
+    let mockHiddenInput
+    let mockChipContainer
+
+    beforeEach(() => {
+        // Reset mocks
+        jest.clearAllMocks()
+
+        // Create mock DOM elements
+        mockChipContainer = document.createElement("div")
+        mockChipContainer.className = "keyword-chips-wrapper"
+
+        mockInput = document.createElement("input")
+        mockInput.type = "text"
+        mockInput.className = "keyword-input"
+        mockChipContainer.appendChild(mockInput)
+
+        mockHiddenInput = document.createElement("input")
+        mockHiddenInput.type = "hidden"
+        mockHiddenInput.id = "keywords-hidden"
+        mockHiddenInput.value = ""
+
+        // Add to document body for proper DOM structure
+        document.body.appendChild(mockChipContainer)
+        document.body.appendChild(mockHiddenInput)
+
+        // Mock parentElement
+        Object.defineProperty(mockInput, "parentElement", {
+            get: () => mockChipContainer,
+            configurable: true,
+        })
+    })
+
+    afterEach(() => {
+        // Clean up DOM
+        if (mockChipContainer.parentNode) {
+            mockChipContainer.parentNode.removeChild(mockChipContainer)
+        }
+        if (mockHiddenInput.parentNode) {
+            mockHiddenInput.parentNode.removeChild(mockHiddenInput)
+        }
+    })
+
+    describe("Initialization", () => {
+        test("should initialize with input and hidden input elements", () => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+
+            expect(chipInput.input).toBe(mockInput)
+            expect(chipInput.hiddenInput).toBe(mockHiddenInput)
+            expect(chipInput.chips).toEqual([])
+            expect(chipInput.chipContainer).toBe(mockChipContainer)
+        })
+
+        test("should load existing keywords from hidden input", () => {
+            mockHiddenInput.value = "keyword1,keyword2,keyword3"
+
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+
+            expect(chipInput.chips).toEqual([
+                "keyword1",
+                "keyword2",
+                "keyword3",
+            ])
+        })
+
+        test("should handle empty hidden input", () => {
+            mockHiddenInput.value = ""
+
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+
+            expect(chipInput.chips).toEqual([])
+        })
+
+        test("should trim whitespace from loaded keywords", () => {
+            mockHiddenInput.value = " keyword1 , keyword2 , keyword3 "
+
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+
+            expect(chipInput.chips).toEqual([
+                "keyword1",
+                "keyword2",
+                "keyword3",
+            ])
+        })
+
+        test("should filter out empty keywords", () => {
+            mockHiddenInput.value = "keyword1,,keyword2, ,keyword3"
+
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+
+            expect(chipInput.chips).toEqual([
+                "keyword1",
+                "keyword2",
+                "keyword3",
+            ])
+        })
+
+        test("should setup event listeners on initialization", () => {
+            const keydownSpy = jest.spyOn(mockInput, "addEventListener")
+            const blurSpy = jest.spyOn(mockInput, "addEventListener")
+            const pasteSpy = jest.spyOn(mockInput, "addEventListener")
 
-	beforeEach(() => {
-		// Reset mocks
-		jest.clearAllMocks();
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
 
-		// Create mock DOM elements
-		mockChipContainer = document.createElement("div");
-		mockChipContainer.className = "keyword-chips-wrapper";
+            expect(keydownSpy).toHaveBeenCalledWith(
+                "keydown",
+                expect.any(Function),
+            )
+            expect(blurSpy).toHaveBeenCalledWith("blur", expect.any(Function))
+            expect(pasteSpy).toHaveBeenCalledWith("paste", expect.any(Function))
+        })
+    })
 
-		mockInput = document.createElement("input");
-		mockInput.type = "text";
-		mockInput.className = "keyword-input";
-		mockChipContainer.appendChild(mockInput);
+    describe("Adding Chips", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+        })
 
-		mockHiddenInput = document.createElement("input");
-		mockHiddenInput.type = "hidden";
-		mockHiddenInput.id = "keywords-hidden";
-		mockHiddenInput.value = "";
+        test("should add a chip from input value", () => {
+            mockInput.value = "newkeyword"
 
-		// Add to document body for proper DOM structure
-		document.body.appendChild(mockChipContainer);
-		document.body.appendChild(mockHiddenInput);
+            chipInput.addChip("newkeyword")
 
-		// Mock parentElement
-		Object.defineProperty(mockInput, "parentElement", {
-			get: () => mockChipContainer,
-			configurable: true,
-		});
-	});
+            expect(chipInput.chips).toContain("newkeyword")
+            expect(mockInput.value).toBe("")
+            expect(mockHiddenInput.value).toBe("newkeyword")
+        })
 
-	afterEach(() => {
-		// Clean up DOM
-		if (mockChipContainer.parentNode) {
-			mockChipContainer.parentNode.removeChild(mockChipContainer);
-		}
-		if (mockHiddenInput.parentNode) {
-			mockHiddenInput.parentNode.removeChild(mockHiddenInput);
-		}
-	});
+        test("should prevent duplicate chips", () => {
+            chipInput.chips = ["existing"]
 
-	describe("Initialization", () => {
-		test("should initialize with input and hidden input elements", () => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+            chipInput.addChip("existing")
 
-			expect(chipInput.input).toBe(mockInput);
-			expect(chipInput.hiddenInput).toBe(mockHiddenInput);
-			expect(chipInput.chips).toEqual([]);
-			expect(chipInput.chipContainer).toBe(mockChipContainer);
-		});
+            expect(chipInput.chips).toEqual(["existing"])
+            expect(chipInput.chips.length).toBe(1)
+        })
 
-		test("should load existing keywords from hidden input", () => {
-			mockHiddenInput.value = "keyword1,keyword2,keyword3";
+        test("should not add empty chips", () => {
+            chipInput.addChip("")
+            chipInput.addChip("   ")
 
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+            expect(chipInput.chips).toEqual([])
+        })
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword2", "keyword3"]);
-		});
+        test("should render chips after adding", () => {
+            chipInput.addChip("keyword1")
+            chipInput.addChip("keyword2")
 
-		test("should handle empty hidden input", () => {
-			mockHiddenInput.value = "";
+            const chips = mockChipContainer.querySelectorAll(".keyword-chip")
+            expect(chips.length).toBe(2)
+        })
 
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+        test("should update hidden input when adding chips", () => {
+            chipInput.addChip("keyword1")
+            chipInput.addChip("keyword2")
 
-			expect(chipInput.chips).toEqual([]);
-		});
+            expect(mockHiddenInput.value).toBe("keyword1,keyword2")
+        })
+    })
 
-		test("should trim whitespace from loaded keywords", () => {
-			mockHiddenInput.value = " keyword1 , keyword2 , keyword3 ";
+    describe("Removing Chips", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+            chipInput.chips = ["keyword1", "keyword2", "keyword3"]
+        })
 
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+        test("should remove chip by index", () => {
+            chipInput.removeChip(1)
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword2", "keyword3"]);
-		});
+            expect(chipInput.chips).toEqual(["keyword1", "keyword3"])
+            expect(mockHiddenInput.value).toBe("keyword1,keyword3")
+        })
 
-		test("should filter out empty keywords", () => {
-			mockHiddenInput.value = "keyword1,,keyword2, ,keyword3";
+        test("should remove chip by keyword", () => {
+            chipInput.removeChipByKeyword("keyword2")
 
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+            expect(chipInput.chips).toEqual(["keyword1", "keyword3"])
+        })
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword2", "keyword3"]);
-		});
+        test("should not remove chip if index is out of bounds", () => {
+            const originalChips = [...chipInput.chips]
 
-		test("should setup event listeners on initialization", () => {
-			const keydownSpy = jest.spyOn(mockInput, "addEventListener");
-			const blurSpy = jest.spyOn(mockInput, "addEventListener");
-			const pasteSpy = jest.spyOn(mockInput, "addEventListener");
+            chipInput.removeChip(10)
+            chipInput.removeChip(-1)
 
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+            expect(chipInput.chips).toEqual(originalChips)
+        })
 
-			expect(keydownSpy).toHaveBeenCalledWith("keydown", expect.any(Function));
-			expect(blurSpy).toHaveBeenCalledWith("blur", expect.any(Function));
-			expect(pasteSpy).toHaveBeenCalledWith("paste", expect.any(Function));
-		});
-	});
+        test("should not remove chip if keyword not found", () => {
+            const originalChips = [...chipInput.chips]
 
-	describe("Adding Chips", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-		});
+            chipInput.removeChipByKeyword("nonexistent")
 
-		test("should add a chip from input value", () => {
-			mockInput.value = "newkeyword";
+            expect(chipInput.chips).toEqual(originalChips)
+        })
 
-			chipInput.addChip("newkeyword");
+        test("should focus input after removing chip", () => {
+            const focusSpy = jest.spyOn(mockInput, "focus")
 
-			expect(chipInput.chips).toContain("newkeyword");
-			expect(mockInput.value).toBe("");
-			expect(mockHiddenInput.value).toBe("newkeyword");
-		});
+            chipInput.removeChip(0)
 
-		test("should prevent duplicate chips", () => {
-			chipInput.chips = ["existing"];
+            expect(focusSpy).toHaveBeenCalled()
+        })
 
-			chipInput.addChip("existing");
+        test("should update hidden input when removing chips", () => {
+            chipInput.removeChip(1)
 
-			expect(chipInput.chips).toEqual(["existing"]);
-			expect(chipInput.chips.length).toBe(1);
-		});
+            expect(mockHiddenInput.value).toBe("keyword1,keyword3")
+        })
+    })
 
-		test("should not add empty chips", () => {
-			chipInput.addChip("");
-			chipInput.addChip("   ");
+    describe("Keyboard Events", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+        })
 
-			expect(chipInput.chips).toEqual([]);
-		});
+        test("should create chip on comma key", () => {
+            mockInput.value = "newkeyword"
+            const event = new KeyboardEvent("keydown", { key: "," })
 
-		test("should render chips after adding", () => {
-			chipInput.addChip("keyword1");
-			chipInput.addChip("keyword2");
+            mockInput.dispatchEvent(event)
 
-			const chips = mockChipContainer.querySelectorAll(".keyword-chip");
-			expect(chips.length).toBe(2);
-		});
+            expect(chipInput.chips).toContain("newkeyword")
+            expect(mockInput.value).toBe("")
+        })
 
-		test("should update hidden input when adding chips", () => {
-			chipInput.addChip("keyword1");
-			chipInput.addChip("keyword2");
+        test("should create chip on Enter key", () => {
+            mockInput.value = "newkeyword"
+            const event = new KeyboardEvent("keydown", { key: "Enter" })
 
-			expect(mockHiddenInput.value).toBe("keyword1,keyword2");
-		});
-	});
+            mockInput.dispatchEvent(event)
 
-	describe("Removing Chips", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-			chipInput.chips = ["keyword1", "keyword2", "keyword3"];
-		});
+            expect(chipInput.chips).toContain("newkeyword")
+            expect(mockInput.value).toBe("")
+        })
 
-		test("should remove chip by index", () => {
-			chipInput.removeChip(1);
+        test("should remove last chip on Backspace when input is empty", () => {
+            chipInput.chips = ["keyword1", "keyword2"]
+            mockInput.value = ""
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword3"]);
-			expect(mockHiddenInput.value).toBe("keyword1,keyword3");
-		});
+            const event = new KeyboardEvent("keydown", { key: "Backspace" })
+            mockInput.dispatchEvent(event)
 
-		test("should remove chip by keyword", () => {
-			chipInput.removeChipByKeyword("keyword2");
+            expect(chipInput.chips).toEqual(["keyword1"])
+        })
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword3"]);
-		});
+        test("should not remove chip on Backspace when input has value", () => {
+            chipInput.chips = ["keyword1"]
+            mockInput.value = "text"
 
-		test("should not remove chip if index is out of bounds", () => {
-			const originalChips = [...chipInput.chips];
+            const event = new KeyboardEvent("keydown", { key: "Backspace" })
+            mockInput.dispatchEvent(event)
 
-			chipInput.removeChip(10);
-			chipInput.removeChip(-1);
+            expect(chipInput.chips).toEqual(["keyword1"])
+        })
 
-			expect(chipInput.chips).toEqual(originalChips);
-		});
+        test("should not remove chip on Backspace when no chips exist", () => {
+            chipInput.chips = []
+            mockInput.value = ""
 
-		test("should not remove chip if keyword not found", () => {
-			const originalChips = [...chipInput.chips];
+            const event = new KeyboardEvent("keydown", { key: "Backspace" })
+            mockInput.dispatchEvent(event)
 
-			chipInput.removeChipByKeyword("nonexistent");
+            expect(chipInput.chips).toEqual([])
+        })
+    })
 
-			expect(chipInput.chips).toEqual(originalChips);
-		});
+    describe("Blur Event", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+        })
 
-		test("should focus input after removing chip", () => {
-			const focusSpy = jest.spyOn(mockInput, "focus");
+        test("should add chip on blur if input has value", () => {
+            mockInput.value = "newkeyword"
 
-			chipInput.removeChip(0);
+            mockInput.dispatchEvent(new Event("blur"))
 
-			expect(focusSpy).toHaveBeenCalled();
-		});
+            expect(chipInput.chips).toContain("newkeyword")
+            expect(mockInput.value).toBe("")
+        })
 
-		test("should update hidden input when removing chips", () => {
-			chipInput.removeChip(1);
+        test("should not add chip on blur if input is empty", () => {
+            mockInput.value = ""
 
-			expect(mockHiddenInput.value).toBe("keyword1,keyword3");
-		});
-	});
+            mockInput.dispatchEvent(new Event("blur"))
 
-	describe("Keyboard Events", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-		});
+            expect(chipInput.chips).toEqual([])
+        })
 
-		test("should create chip on comma key", () => {
-			mockInput.value = "newkeyword";
-			const event = new KeyboardEvent("keydown", { key: "," });
+        test("should not add chip on blur if input only has whitespace", () => {
+            mockInput.value = "   "
 
-			mockInput.dispatchEvent(event);
+            mockInput.dispatchEvent(new Event("blur"))
 
-			expect(chipInput.chips).toContain("newkeyword");
-			expect(mockInput.value).toBe("");
-		});
+            expect(chipInput.chips).toEqual([])
+        })
+    })
 
-		test("should create chip on Enter key", () => {
-			mockInput.value = "newkeyword";
-			const event = new KeyboardEvent("keydown", { key: "Enter" });
+    describe("Paste Event", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+            jest.useFakeTimers()
+        })
 
-			mockInput.dispatchEvent(event);
+        afterEach(() => {
+            jest.useRealTimers()
+        })
 
-			expect(chipInput.chips).toContain("newkeyword");
-			expect(mockInput.value).toBe("");
-		});
+        test("should parse comma-separated pasted values", () => {
+            mockInput.value = "keyword1,keyword2,keyword3"
 
-		test("should remove last chip on Backspace when input is empty", () => {
-			chipInput.chips = ["keyword1", "keyword2"];
-			mockInput.value = "";
+            mockInput.dispatchEvent(new Event("paste"))
 
-			const event = new KeyboardEvent("keydown", { key: "Backspace" });
-			mockInput.dispatchEvent(event);
+            jest.advanceTimersByTime(10)
 
-			expect(chipInput.chips).toEqual(["keyword1"]);
-		});
+            expect(chipInput.chips).toEqual([
+                "keyword1",
+                "keyword2",
+                "keyword3",
+            ])
+            expect(mockInput.value).toBe("")
+        })
 
-		test("should not remove chip on Backspace when input has value", () => {
-			chipInput.chips = ["keyword1"];
-			mockInput.value = "text";
+        test("should handle paste with whitespace", () => {
+            mockInput.value = " keyword1 , keyword2 , keyword3 "
 
-			const event = new KeyboardEvent("keydown", { key: "Backspace" });
-			mockInput.dispatchEvent(event);
+            mockInput.dispatchEvent(new Event("paste"))
 
-			expect(chipInput.chips).toEqual(["keyword1"]);
-		});
+            jest.advanceTimersByTime(10)
 
-		test("should not remove chip on Backspace when no chips exist", () => {
-			chipInput.chips = [];
-			mockInput.value = "";
+            expect(chipInput.chips).toEqual([
+                "keyword1",
+                "keyword2",
+                "keyword3",
+            ])
+        })
 
-			const event = new KeyboardEvent("keydown", { key: "Backspace" });
-			mockInput.dispatchEvent(event);
+        test("should not process paste if no commas", () => {
+            mockInput.value = "singlekeyword"
 
-			expect(chipInput.chips).toEqual([]);
-		});
-	});
+            mockInput.dispatchEvent(new Event("paste"))
 
-	describe("Blur Event", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-		});
+            jest.advanceTimersByTime(10)
 
-		test("should add chip on blur if input has value", () => {
-			mockInput.value = "newkeyword";
+            expect(chipInput.chips).toEqual([])
+        })
+    })
 
-			mockInput.dispatchEvent(new Event("blur"));
+    describe("Rendering Chips", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+        })
 
-			expect(chipInput.chips).toContain("newkeyword");
-			expect(mockInput.value).toBe("");
-		});
+        test("should render chips with correct structure", () => {
+            chipInput.chips = ["keyword1", "keyword2"]
 
-		test("should not add chip on blur if input is empty", () => {
-			mockInput.value = "";
+            chipInput.renderChips()
 
-			mockInput.dispatchEvent(new Event("blur"));
+            const chips = mockChipContainer.querySelectorAll(".keyword-chip")
+            expect(chips.length).toBe(2)
 
-			expect(chipInput.chips).toEqual([]);
-		});
+            // Check chip structure
+            const firstChip = chips[0]
+            expect(firstChip.textContent).toContain("keyword1")
+            expect(firstChip.querySelector(".btn-close")).toBeTruthy()
+        })
 
-		test("should not add chip on blur if input only has whitespace", () => {
-			mockInput.value = "   ";
+        test("should escape HTML in chip text", () => {
+            chipInput.chips = ["<script>alert('xss')</script>"]
 
-			mockInput.dispatchEvent(new Event("blur"));
+            chipInput.renderChips()
 
-			expect(chipInput.chips).toEqual([]);
-		});
-	});
+            const chip = mockChipContainer.querySelector(".keyword-chip")
+            const span = chip.querySelector("span")
+            expect(span.innerHTML).not.toContain("<script>")
+        })
 
-	describe("Paste Event", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-			jest.useFakeTimers();
-		});
+        test("should remove existing chips before rendering", () => {
+            chipInput.chips = ["keyword1"]
+            chipInput.renderChips()
 
-		afterEach(() => {
-			jest.useRealTimers();
-		});
+            chipInput.chips = ["keyword2"]
+            chipInput.renderChips()
 
-		test("should parse comma-separated pasted values", () => {
-			mockInput.value = "keyword1,keyword2,keyword3";
+            const chips = mockChipContainer.querySelectorAll(".keyword-chip")
+            expect(chips.length).toBe(1)
+            expect(chips[0].textContent).toContain("keyword2")
+        })
 
-			mockInput.dispatchEvent(new Event("paste"));
+        test("should handle remove button click", () => {
+            chipInput.chips = ["keyword1"]
+            chipInput.renderChips()
 
-			jest.advanceTimersByTime(10);
+            const chip = mockChipContainer.querySelector(".keyword-chip")
+            const removeBtn = chip.querySelector(".btn-close")
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword2", "keyword3"]);
-			expect(mockInput.value).toBe("");
-		});
+            removeBtn.click()
 
-		test("should handle paste with whitespace", () => {
-			mockInput.value = " keyword1 , keyword2 , keyword3 ";
+            expect(chipInput.chips).toEqual([])
+        })
+    })
 
-			mockInput.dispatchEvent(new Event("paste"));
+    describe("Utility Methods", () => {
+        beforeEach(() => {
+            chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput)
+        })
 
-			jest.advanceTimersByTime(10);
+        test("should get keywords array", () => {
+            chipInput.chips = ["keyword1", "keyword2"]
 
-			expect(chipInput.chips).toEqual(["keyword1", "keyword2", "keyword3"]);
-		});
+            expect(chipInput.getKeywords()).toEqual(["keyword1", "keyword2"])
+        })
 
-		test("should not process paste if no commas", () => {
-			mockInput.value = "singlekeyword";
+        test("should clear all chips", () => {
+            chipInput.chips = ["keyword1", "keyword2"]
+            mockInput.value = "text"
 
-			mockInput.dispatchEvent(new Event("paste"));
+            chipInput.clear()
 
-			jest.advanceTimersByTime(10);
+            expect(chipInput.chips).toEqual([])
+            expect(mockInput.value).toBe("")
+            expect(mockHiddenInput.value).toBe("")
+        })
 
-			expect(chipInput.chips).toEqual([]);
-		});
-	});
+        test("should escape HTML correctly", () => {
+            const escaped = chipInput.escapeHtml(
+                "<script>alert('xss')</script>",
+            )
 
-	describe("Rendering Chips", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-		});
-
-		test("should render chips with correct structure", () => {
-			chipInput.chips = ["keyword1", "keyword2"];
-
-			chipInput.renderChips();
-
-			const chips = mockChipContainer.querySelectorAll(".keyword-chip");
-			expect(chips.length).toBe(2);
-
-			// Check chip structure
-			const firstChip = chips[0];
-			expect(firstChip.textContent).toContain("keyword1");
-			expect(firstChip.querySelector(".btn-close")).toBeTruthy();
-		});
-
-		test("should escape HTML in chip text", () => {
-			chipInput.chips = ["<script>alert('xss')</script>"];
-
-			chipInput.renderChips();
-
-			const chip = mockChipContainer.querySelector(".keyword-chip");
-			const span = chip.querySelector("span");
-			expect(span.innerHTML).not.toContain("<script>");
-		});
-
-		test("should remove existing chips before rendering", () => {
-			chipInput.chips = ["keyword1"];
-			chipInput.renderChips();
-
-			chipInput.chips = ["keyword2"];
-			chipInput.renderChips();
-
-			const chips = mockChipContainer.querySelectorAll(".keyword-chip");
-			expect(chips.length).toBe(1);
-			expect(chips[0].textContent).toContain("keyword2");
-		});
-
-		test("should handle remove button click", () => {
-			chipInput.chips = ["keyword1"];
-			chipInput.renderChips();
-
-			const chip = mockChipContainer.querySelector(".keyword-chip");
-			const removeBtn = chip.querySelector(".btn-close");
-
-			removeBtn.click();
-
-			expect(chipInput.chips).toEqual([]);
-		});
-	});
-
-	describe("Utility Methods", () => {
-		beforeEach(() => {
-			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
-		});
-
-		test("should get keywords array", () => {
-			chipInput.chips = ["keyword1", "keyword2"];
-
-			expect(chipInput.getKeywords()).toEqual(["keyword1", "keyword2"]);
-		});
-
-		test("should clear all chips", () => {
-			chipInput.chips = ["keyword1", "keyword2"];
-			mockInput.value = "text";
-
-			chipInput.clear();
-
-			expect(chipInput.chips).toEqual([]);
-			expect(mockInput.value).toBe("");
-			expect(mockHiddenInput.value).toBe("");
-		});
-
-		test("should escape HTML correctly", () => {
-			const escaped = chipInput.escapeHtml("<script>alert('xss')</script>");
-
-			expect(escaped).not.toContain("<script>");
-			expect(escaped).toContain("&lt;");
-		});
-	});
-});
+            expect(escaped).not.toContain("<script>")
+            expect(escaped).toContain("&lt;")
+        })
+    })
+})
 
 describe("initializeKeywordChipInput", () => {
-	let mockContainer;
-	let mockWrapper;
-	let mockInput;
-	let mockHiddenInput;
+    let mockContainer
+    let mockWrapper
+    let mockInput
+    let mockHiddenInput
 
-	beforeEach(() => {
-		jest.clearAllMocks();
-		window.keywordChipInput = null;
+    beforeEach(() => {
+        jest.clearAllMocks()
+        window.keywordChipInput = null
 
-		mockContainer = document.createElement("div");
-		mockWrapper = document.createElement("div");
-		mockWrapper.className = "keyword-chips-wrapper";
-		mockInput = document.createElement("input");
-		mockInput.type = "text";
-		mockWrapper.appendChild(mockInput);
-		mockContainer.appendChild(mockWrapper);
+        mockContainer = document.createElement("div")
+        mockWrapper = document.createElement("div")
+        mockWrapper.className = "keyword-chips-wrapper"
+        mockInput = document.createElement("input")
+        mockInput.type = "text"
+        mockWrapper.appendChild(mockInput)
+        mockContainer.appendChild(mockWrapper)
 
-		mockHiddenInput = document.createElement("input");
-		mockHiddenInput.type = "hidden";
-		mockHiddenInput.id = "keywords-hidden";
+        mockHiddenInput = document.createElement("input")
+        mockHiddenInput.type = "hidden"
+        mockHiddenInput.id = "keywords-hidden"
 
-		document.body.appendChild(mockContainer);
-		document.body.appendChild(mockHiddenInput);
+        document.body.appendChild(mockContainer)
+        document.body.appendChild(mockHiddenInput)
 
-		document.getElementById = jest.fn((id) => {
-			if (id === "keywords-hidden" || id === "custom-hidden")
-				return mockHiddenInput;
-			return null;
-		});
-	});
+        document.getElementById = jest.fn((id) => {
+            if (id === "keywords-hidden" || id === "custom-hidden")
+                return mockHiddenInput
+            return null
+        })
+    })
 
-	afterEach(() => {
-		if (mockContainer.parentNode) {
-			mockContainer.parentNode.removeChild(mockContainer);
-		}
-		if (mockHiddenInput.parentNode) {
-			mockHiddenInput.parentNode.removeChild(mockHiddenInput);
-		}
-	});
+    afterEach(() => {
+        if (mockContainer.parentNode) {
+            mockContainer.parentNode.removeChild(mockContainer)
+        }
+        if (mockHiddenInput.parentNode) {
+            mockHiddenInput.parentNode.removeChild(mockHiddenInput)
+        }
+    })
 
-	test("should initialize KeywordChipInput with default options", () => {
-		const result = window.KeywordChipInputInitializer.initialize(mockContainer);
+    test("should initialize KeywordChipInput with default options", () => {
+        const result =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(result).toBeInstanceOf(window.KeywordChipInput);
-		expect(window.keywordChipInput).toBe(result);
-	});
+        expect(result).toBeInstanceOf(window.KeywordChipInput)
+        expect(window.keywordChipInput).toBe(result)
+    })
 
-	test("should return null if container not found", () => {
-		const result =
-			window.KeywordChipInputInitializer.initialize("#nonexistent");
+    test("should return null if container not found", () => {
+        const result =
+            window.KeywordChipInputInitializer.initialize("#nonexistent")
 
-		expect(result).toBeNull();
-	});
+        expect(result).toBeNull()
+    })
 
-	test("should return null if wrapper not found", () => {
-		mockContainer.removeChild(mockWrapper);
+    test("should return null if wrapper not found", () => {
+        mockContainer.removeChild(mockWrapper)
 
-		const result = window.KeywordChipInputInitializer.initialize(mockContainer);
+        const result =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(result).toBeNull();
-	});
+        expect(result).toBeNull()
+    })
 
-	test("should return null if input not found", () => {
-		mockWrapper.removeChild(mockInput);
+    test("should return null if input not found", () => {
+        mockWrapper.removeChild(mockInput)
 
-		const result = window.KeywordChipInputInitializer.initialize(mockContainer);
+        const result =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(result).toBeNull();
-	});
+        expect(result).toBeNull()
+    })
 
-	test("should return null if hidden input not found", () => {
-		document.getElementById.mockReturnValue(null);
+    test("should return null if hidden input not found", () => {
+        document.getElementById.mockReturnValue(null)
 
-		const result = window.KeywordChipInputInitializer.initialize(mockContainer);
+        const result =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(result).toBeNull();
-	});
+        expect(result).toBeNull()
+    })
 
-	test("should use custom selectors", () => {
-		mockWrapper.className = "custom-wrapper";
-		mockInput.className = "custom-input";
-		mockHiddenInput.id = "custom-hidden";
-		document.getElementById.mockImplementation((id) => {
-			if (id === "custom-hidden" || id === "keywords-hidden")
-				return mockHiddenInput;
-			return null;
-		});
+    test("should use custom selectors", () => {
+        mockWrapper.className = "custom-wrapper"
+        mockInput.className = "custom-input"
+        mockHiddenInput.id = "custom-hidden"
+        document.getElementById.mockImplementation((id) => {
+            if (id === "custom-hidden" || id === "keywords-hidden")
+                return mockHiddenInput
+            return null
+        })
 
-		const result = window.KeywordChipInputInitializer.initialize(
-			mockContainer,
-			{
-				wrapperSelector: ".custom-wrapper",
-				inputSelector: ".custom-input",
-				hiddenInputId: "custom-hidden",
-			},
-		);
+        const result = window.KeywordChipInputInitializer.initialize(
+            mockContainer,
+            {
+                wrapperSelector: ".custom-wrapper",
+                inputSelector: ".custom-input",
+                hiddenInputId: "custom-hidden",
+            },
+        )
 
-		expect(result).toBeInstanceOf(window.KeywordChipInput);
-	});
+        expect(result).toBeInstanceOf(window.KeywordChipInput)
+    })
 
-	test("should allow multiple instances when allowMultiple is true", () => {
-		const result1 = window.KeywordChipInputInitializer.initialize(
-			mockContainer,
-			{
-				allowMultiple: true,
-			},
-		);
+    test("should allow multiple instances when allowMultiple is true", () => {
+        const result1 = window.KeywordChipInputInitializer.initialize(
+            mockContainer,
+            {
+                allowMultiple: true,
+            },
+        )
 
-		const result2 = window.KeywordChipInputInitializer.initialize(
-			mockContainer,
-			{
-				allowMultiple: true,
-			},
-		);
+        const result2 = window.KeywordChipInputInitializer.initialize(
+            mockContainer,
+            {
+                allowMultiple: true,
+            },
+        )
 
-		expect(result1).not.toBe(result2);
-	});
+        expect(result1).not.toBe(result2)
+    })
 
-	test("should reuse existing instance when allowMultiple is false", () => {
-		const result1 =
-			window.KeywordChipInputInitializer.initialize(mockContainer);
+    test("should reuse existing instance when allowMultiple is false", () => {
+        const result1 =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		const result2 =
-			window.KeywordChipInputInitializer.initialize(mockContainer);
+        const result2 =
+            window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(result1).toBe(result2);
-		expect(window.keywordChipInput).toBe(result1);
-	});
+        expect(result1).toBe(result2)
+        expect(window.keywordChipInput).toBe(result1)
+    })
 
-	test("should add required classes to input", () => {
-		window.KeywordChipInputInitializer.initialize(mockContainer);
+    test("should add required classes to input", () => {
+        window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(mockInput.classList.contains("keyword-input")).toBe(true);
-		expect(mockInput.classList.contains("border-0")).toBe(true);
-		expect(mockInput.classList.contains("flex-grow-1")).toBe(true);
-	});
+        expect(mockInput.classList.contains("keyword-input")).toBe(true)
+        expect(mockInput.classList.contains("border-0")).toBe(true)
+        expect(mockInput.classList.contains("flex-grow-1")).toBe(true)
+    })
 
-	test("should set input placeholder if not set", () => {
-		mockInput.placeholder = "";
+    test("should set input placeholder if not set", () => {
+        mockInput.placeholder = ""
 
-		window.KeywordChipInputInitializer.initialize(mockContainer);
+        window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(mockInput.placeholder).toBe("Type keywords and press comma");
-	});
+        expect(mockInput.placeholder).toBe("Type keywords and press comma")
+    })
 
-	test("should not override existing placeholder", () => {
-		mockInput.placeholder = "Custom placeholder";
+    test("should not override existing placeholder", () => {
+        mockInput.placeholder = "Custom placeholder"
 
-		window.KeywordChipInputInitializer.initialize(mockContainer);
+        window.KeywordChipInputInitializer.initialize(mockContainer)
 
-		expect(mockInput.placeholder).toBe("Custom placeholder");
-	});
-});
+        expect(mockInput.placeholder).toBe("Custom placeholder")
+    })
+})
 
 describe("initializeKeywordChipInputOnCollapseShow", () => {
-	let mockCollapse;
-	let mockWrapper;
-	let mockInput;
-	let mockHiddenInput;
+    let mockCollapse
+    let mockWrapper
+    let mockInput
+    let mockHiddenInput
 
-	beforeEach(() => {
-		jest.clearAllMocks();
+    beforeEach(() => {
+        jest.clearAllMocks()
 
-		mockCollapse = document.createElement("div");
-		mockCollapse.className = "collapse";
+        mockCollapse = document.createElement("div")
+        mockCollapse.className = "collapse"
 
-		mockWrapper = document.createElement("div");
-		mockWrapper.className = "keyword-chips-wrapper";
-		mockInput = document.createElement("input");
-		mockInput.type = "text";
-		mockWrapper.appendChild(mockInput);
-		mockCollapse.appendChild(mockWrapper);
+        mockWrapper = document.createElement("div")
+        mockWrapper.className = "keyword-chips-wrapper"
+        mockInput = document.createElement("input")
+        mockInput.type = "text"
+        mockWrapper.appendChild(mockInput)
+        mockCollapse.appendChild(mockWrapper)
 
-		mockHiddenInput = document.createElement("input");
-		mockHiddenInput.type = "hidden";
-		mockHiddenInput.id = "keywords-hidden";
+        mockHiddenInput = document.createElement("input")
+        mockHiddenInput.type = "hidden"
+        mockHiddenInput.id = "keywords-hidden"
 
-		document.body.appendChild(mockCollapse);
-		document.body.appendChild(mockHiddenInput);
+        document.body.appendChild(mockCollapse)
+        document.body.appendChild(mockHiddenInput)
 
-		document.getElementById = jest.fn((id) => {
-			if (id === "keywords-hidden") return mockHiddenInput;
-			return null;
-		});
+        document.getElementById = jest.fn((id) => {
+            if (id === "keywords-hidden") return mockHiddenInput
+            return null
+        })
 
-		// Mock Bootstrap
-		window.bootstrap = {
-			Collapse: jest.fn(),
-		};
-	});
+        // Mock Bootstrap
+        window.bootstrap = {
+            Collapse: jest.fn(),
+        }
+    })
 
-	afterEach(() => {
-		if (mockCollapse.parentNode) {
-			mockCollapse.parentNode.removeChild(mockCollapse);
-		}
-		if (mockHiddenInput.parentNode) {
-			mockHiddenInput.parentNode.removeChild(mockHiddenInput);
-		}
-	});
+    afterEach(() => {
+        if (mockCollapse.parentNode) {
+            mockCollapse.parentNode.removeChild(mockCollapse)
+        }
+        if (mockHiddenInput.parentNode) {
+            mockHiddenInput.parentNode.removeChild(mockHiddenInput)
+        }
+    })
 
-	test("should initialize immediately if collapse is already shown", () => {
-		mockCollapse.classList.add("show");
+    test("should initialize immediately if collapse is already shown", () => {
+        mockCollapse.classList.add("show")
 
-		const result =
-			window.KeywordChipInputInitializer.initializeOnCollapseShow(mockCollapse);
+        const result =
+            window.KeywordChipInputInitializer.initializeOnCollapseShow(
+                mockCollapse,
+            )
 
-		expect(result).toBeInstanceOf(window.KeywordChipInput);
-	});
+        expect(result).toBeInstanceOf(window.KeywordChipInput)
+    })
 
-	test("should wait for collapse show event if not shown", () => {
-		const result =
-			window.KeywordChipInputInitializer.initializeOnCollapseShow(mockCollapse);
+    test("should wait for collapse show event if not shown", () => {
+        const result =
+            window.KeywordChipInputInitializer.initializeOnCollapseShow(
+                mockCollapse,
+            )
 
-		expect(result).toBeNull();
+        expect(result).toBeNull()
 
-		// Simulate collapse show event
-		mockCollapse.classList.add("show");
-		const event = new Event("shown.bs.collapse");
-		mockCollapse.dispatchEvent(event);
+        // Simulate collapse show event
+        mockCollapse.classList.add("show")
+        const event = new Event("shown.bs.collapse")
+        mockCollapse.dispatchEvent(event)
 
-		// Should have initialized after event
-		expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput);
-	});
+        // Should have initialized after event
+        expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput)
+    })
 
-	test("should return null if bootstrap not available", () => {
-		const originalBootstrap = window.bootstrap;
-		window.bootstrap = undefined;
+    test("should return null if bootstrap not available", () => {
+        const originalBootstrap = window.bootstrap
+        window.bootstrap = undefined
 
-		const result =
-			window.KeywordChipInputInitializer.initializeOnCollapseShow(mockCollapse);
+        const result =
+            window.KeywordChipInputInitializer.initializeOnCollapseShow(
+                mockCollapse,
+            )
 
-		expect(result).toBeNull();
+        expect(result).toBeNull()
 
-		window.bootstrap = originalBootstrap;
-	});
-});
+        window.bootstrap = originalBootstrap
+    })
+})
 
 describe("autoInitializeKeywordChipInput", () => {
-	let mockWrapper;
-	let mockInput;
-	let mockHiddenInput;
+    let mockWrapper
+    let mockInput
+    let mockHiddenInput
 
-	beforeEach(() => {
-		jest.clearAllMocks();
+    beforeEach(() => {
+        jest.clearAllMocks()
 
-		mockWrapper = document.createElement("div");
-		mockWrapper.className = "keyword-chips-wrapper";
-		mockInput = document.createElement("input");
-		mockInput.type = "text";
-		mockWrapper.appendChild(mockInput);
+        mockWrapper = document.createElement("div")
+        mockWrapper.className = "keyword-chips-wrapper"
+        mockInput = document.createElement("input")
+        mockInput.type = "text"
+        mockWrapper.appendChild(mockInput)
 
-		mockHiddenInput = document.createElement("input");
-		mockHiddenInput.type = "hidden";
-		mockHiddenInput.id = "keywords-hidden";
+        mockHiddenInput = document.createElement("input")
+        mockHiddenInput.type = "hidden"
+        mockHiddenInput.id = "keywords-hidden"
 
-		document.getElementById = jest.fn((id) => {
-			if (id === "keywords-hidden") return mockHiddenInput;
-			return null;
-		});
-	});
+        document.getElementById = jest.fn((id) => {
+            if (id === "keywords-hidden") return mockHiddenInput
+            return null
+        })
+    })
 
-	afterEach(() => {
-		if (mockWrapper.parentNode) {
-			mockWrapper.parentNode.removeChild(mockWrapper);
-		}
-		if (mockHiddenInput.parentNode) {
-			mockHiddenInput.parentNode.removeChild(mockHiddenInput);
-		}
-	});
+    afterEach(() => {
+        if (mockWrapper.parentNode) {
+            mockWrapper.parentNode.removeChild(mockWrapper)
+        }
+        if (mockHiddenInput.parentNode) {
+            mockHiddenInput.parentNode.removeChild(mockHiddenInput)
+        }
+    })
 
-	test("should initialize on DOMContentLoaded if DOM is loading", () => {
-		Object.defineProperty(document, "readyState", {
-			value: "loading",
-			writable: true,
-			configurable: true,
-		});
+    test("should initialize on DOMContentLoaded if DOM is loading", () => {
+        Object.defineProperty(document, "readyState", {
+            value: "loading",
+            writable: true,
+            configurable: true,
+        })
 
-		document.body.appendChild(mockWrapper);
+        document.body.appendChild(mockWrapper)
 
-		window.KeywordChipInputInitializer.autoInitialize();
+        window.KeywordChipInputInitializer.autoInitialize()
 
-		// Simulate DOMContentLoaded
-		const event = new Event("DOMContentLoaded");
-		document.dispatchEvent(event);
+        // Simulate DOMContentLoaded
+        const event = new Event("DOMContentLoaded")
+        document.dispatchEvent(event)
 
-		expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput);
-	});
+        expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput)
+    })
 
-	test("should initialize immediately if DOM is already loaded", () => {
-		Object.defineProperty(document, "readyState", {
-			value: "complete",
-			writable: true,
-			configurable: true,
-		});
+    test("should initialize immediately if DOM is already loaded", () => {
+        Object.defineProperty(document, "readyState", {
+            value: "complete",
+            writable: true,
+            configurable: true,
+        })
 
-		document.body.appendChild(mockWrapper);
+        document.body.appendChild(mockWrapper)
 
-		window.KeywordChipInputInitializer.autoInitialize();
+        window.KeywordChipInputInitializer.autoInitialize()
 
-		expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput);
-	});
-});
+        expect(window.keywordChipInput).toBeInstanceOf(window.KeywordChipInput)
+    })
+})
 
 describe("KeywordAutocomplete", () => {
-	let autocomplete;
-	let mockInput;
-	let mockApiUrl;
+    let autocomplete
+    let mockInput
+    let mockApiUrl
 
-	beforeEach(() => {
-		jest.clearAllMocks();
-		jest.useFakeTimers();
+    beforeEach(() => {
+        jest.clearAllMocks()
+        jest.useFakeTimers()
 
-		mockInput = document.createElement("input");
-		mockInput.type = "text";
-		document.body.appendChild(mockInput);
+        mockInput = document.createElement("input")
+        mockInput.type = "text"
+        document.body.appendChild(mockInput)
 
-		mockApiUrl = "/users/api/keyword-autocomplete/";
+        mockApiUrl = "/users/api/keyword-autocomplete/"
 
-		// Mock fetch
-		global.fetch = jest.fn().mockResolvedValue({
-			json: jest.fn().mockResolvedValue({
-				suggestions: ["keyword1", "keyword2", "keyword3"],
-			}),
-		});
-	});
+        // Mock fetch
+        global.fetch = jest.fn().mockResolvedValue({
+            json: jest.fn().mockResolvedValue({
+                suggestions: ["keyword1", "keyword2", "keyword3"],
+            }),
+        })
+    })
 
-	afterEach(() => {
-		jest.useRealTimers();
-		if (mockInput.parentNode) {
-			mockInput.parentNode.removeChild(mockInput);
-		}
-		if (autocomplete?.suggestionsContainer?.parentNode) {
-			autocomplete.suggestionsContainer.parentNode.removeChild(
-				autocomplete.suggestionsContainer,
-			);
-		}
-	});
+    afterEach(() => {
+        jest.useRealTimers()
+        if (mockInput.parentNode) {
+            mockInput.parentNode.removeChild(mockInput)
+        }
+        if (autocomplete?.suggestionsContainer?.parentNode) {
+            autocomplete.suggestionsContainer.parentNode.removeChild(
+                autocomplete.suggestionsContainer,
+            )
+        }
+    })
 
-	test("should initialize with input and API URL", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
+    test("should initialize with input and API URL", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
 
-		expect(autocomplete.input).toBe(mockInput);
-		expect(autocomplete.apiUrl).toBe(mockApiUrl);
-		expect(autocomplete.minChars).toBe(1);
-		expect(autocomplete.debounceMs).toBe(300);
-	});
+        expect(autocomplete.input).toBe(mockInput)
+        expect(autocomplete.apiUrl).toBe(mockApiUrl)
+        expect(autocomplete.minChars).toBe(1)
+        expect(autocomplete.debounceMs).toBe(300)
+    })
 
-	test("should create suggestions container", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
+    test("should create suggestions container", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
 
-		expect(autocomplete.suggestionsContainer).toBeTruthy();
-		expect(autocomplete.suggestionsContainer.className).toBe(
-			"keyword-autocomplete-suggestions",
-		);
-	});
+        expect(autocomplete.suggestionsContainer).toBeTruthy()
+        expect(autocomplete.suggestionsContainer.className).toBe(
+            "keyword-autocomplete-suggestions",
+        )
+    })
 
-	test("should fetch suggestions on input", async () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		mockInput.value = "key";
+    test("should fetch suggestions on input", async () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        mockInput.value = "key"
 
-		mockInput.dispatchEvent(new Event("input"));
+        mockInput.dispatchEvent(new Event("input"))
 
-		jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(300)
 
-		expect(global.fetch).toHaveBeenCalledWith(expect.stringContaining("q=key"));
-	});
+        expect(global.fetch).toHaveBeenCalledWith(
+            expect.stringContaining("q=key"),
+        )
+    })
 
-	test("should not fetch if input is too short", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		mockInput.value = "";
+    test("should not fetch if input is too short", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        mockInput.value = ""
 
-		mockInput.dispatchEvent(new Event("input"));
+        mockInput.dispatchEvent(new Event("input"))
 
-		jest.advanceTimersByTime(300);
+        jest.advanceTimersByTime(300)
 
-		expect(global.fetch).not.toHaveBeenCalled();
-	});
+        expect(global.fetch).not.toHaveBeenCalled()
+    })
 
-	test("should get current word correctly", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		mockInput.value = "keyword1,keyword2,test";
-		mockInput.selectionStart = mockInput.value.length;
+    test("should get current word correctly", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        mockInput.value = "keyword1,keyword2,test"
+        mockInput.selectionStart = mockInput.value.length
 
-		const currentWord = autocomplete.getCurrentWord();
+        const currentWord = autocomplete.getCurrentWord()
 
-		expect(currentWord).toBe("test");
-	});
+        expect(currentWord).toBe("test")
+    })
 
-	test("should show suggestions", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		const suggestions = ["keyword1", "keyword2"];
+    test("should show suggestions", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        const suggestions = ["keyword1", "keyword2"]
 
-		autocomplete.showSuggestions(suggestions);
+        autocomplete.showSuggestions(suggestions)
 
-		const items = autocomplete.suggestionsContainer.querySelectorAll(
-			".keyword-autocomplete-item",
-		);
-		expect(items.length).toBe(2);
-		expect(autocomplete.suggestionsContainer.style.display).toBe("block");
-	});
+        const items = autocomplete.suggestionsContainer.querySelectorAll(
+            ".keyword-autocomplete-item",
+        )
+        expect(items.length).toBe(2)
+        expect(autocomplete.suggestionsContainer.style.display).toBe("block")
+    })
 
-	test("should select suggestion on click", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		mockInput.value = "key";
-		mockInput.selectionStart = mockInput.value.length;
+    test("should select suggestion on click", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        mockInput.value = "key"
+        mockInput.selectionStart = mockInput.value.length
 
-		autocomplete.showSuggestions(["keyword1"]);
+        autocomplete.showSuggestions(["keyword1"])
 
-		const item = autocomplete.suggestionsContainer.querySelector(
-			".keyword-autocomplete-item",
-		);
-		item.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        const item = autocomplete.suggestionsContainer.querySelector(
+            ".keyword-autocomplete-item",
+        )
+        item.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }))
 
-		expect(mockInput.value).toContain("keyword1");
-	});
+        expect(mockInput.value).toContain("keyword1")
+    })
 
-	test("should handle arrow key navigation", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		autocomplete.showSuggestions(["keyword1", "keyword2"]);
+    test("should handle arrow key navigation", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        autocomplete.showSuggestions(["keyword1", "keyword2"])
 
-		const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown" });
-		mockInput.dispatchEvent(arrowDown);
+        const arrowDown = new KeyboardEvent("keydown", { key: "ArrowDown" })
+        mockInput.dispatchEvent(arrowDown)
 
-		expect(autocomplete.currentFocus).toBe(0);
-	});
+        expect(autocomplete.currentFocus).toBe(0)
+    })
 
-	test("should close suggestions on Escape", () => {
-		autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl);
-		autocomplete.showSuggestions(["keyword1"]);
+    test("should close suggestions on Escape", () => {
+        autocomplete = new window.KeywordAutocomplete(mockInput, mockApiUrl)
+        autocomplete.showSuggestions(["keyword1"])
 
-		const escapeKeydown = new KeyboardEvent("keydown", { key: "Escape" });
-		mockInput.dispatchEvent(escapeKeydown);
+        const escapeKeydown = new KeyboardEvent("keydown", { key: "Escape" })
+        mockInput.dispatchEvent(escapeKeydown)
 
-		expect(autocomplete.suggestionsContainer.style.display).toBe("none");
-	});
-});
+        expect(autocomplete.suggestionsContainer.style.display).toBe("none")
+    })
+})

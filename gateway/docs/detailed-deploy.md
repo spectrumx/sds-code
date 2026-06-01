@@ -503,7 +503,7 @@ production hosts.
 
     + `roles.yml`: Here, you can set up custom roles for users. The extensive list of
       allowed permissions can be found
-      [here](https://opensearch.org/docs/latest/security/access-control/permissions/).
+      [OpenSearch access control permissions documentation](https://opensearch.org/docs/latest/security/access-control/permissions/).
 
     + `roles_mapping.yml`: In this file, you can map roles to users defined in
       `internal_users.yml`. It is necessary to map a role directly to a user by adding
@@ -616,7 +616,7 @@ Here are some useful examples of advanced queries one might want to make to the 
     > `now` is a keyword in OpenSearch that refers to the current date and time.
 
     More information about `range` queries can be found
-    [here](https://opensearch.org/docs/latest/query-dsl/term/range/).
+    [OpenSearch range queries documentation](https://opensearch.org/docs/latest/query-dsl/term/range/).
 
 2. Geo-bounding Box Queries
 
@@ -647,7 +647,7 @@ Here are some useful examples of advanced queries one might want to make to the 
     ```
 
     More information about `geo_bounding_box` queries can be found
-    [here](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geo-bounding-box/).
+    [OpenSearch geo-bounding box queries documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geo-bounding-box/).
 
 3. Geodistance Queries
 
@@ -672,4 +672,4 @@ Here are some useful examples of advanced queries one might want to make to the 
     ```
 
    More information about `geo_distance` queries can be found
-   [here](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).
+   [OpenSearch geodistance queries documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).

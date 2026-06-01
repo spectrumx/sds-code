@@ -1,9 +1,9 @@
 {
-	"$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-	"ignorePatterns": [
-		"sds_gateway/static/js/deprecated/**",
-		"compose/**",
-		"sds_gateway/static/css/**"
-	],
-	"ignoreExportsUsedInFile": true
+    "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+    "ignorePatterns": [
+        "sds_gateway/static/js/deprecated/**",
+        "compose/**",
+        "sds_gateway/static/css/**"
+    ],
+    "ignoreExportsUsedInFile": true
 }

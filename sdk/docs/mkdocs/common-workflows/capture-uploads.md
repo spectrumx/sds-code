@@ -17,17 +17,17 @@ next steps.
     + Recommended: `uv init` + `uv add spectrumx loguru` to create an isolated
       environment with the required dependencies.
 + [ ] Make sure the local Digital-RF directory exists and follows the standard
-    directory layout (top-level directory containing channel subdirectories, each
-     with `rf_data` and `metadata` folders).
+  directory layout (top-level directory containing channel subdirectories, each
+      with `rf_data` and `metadata` folders).
 + [ ] Set up your SDS API key in a `.env` file in the same directory as the script
-    below.
+  below.
         + Generate a key at <https://sds.crc.nd.edu/users/generate-api-key-form/>
         + Create a `.env` file with the line `SDS_SECRET_TOKEN=your_api_key_here`
 + [ ] Update the `drf_local_path` variable below to point to your Digital-RF directory.
 + [ ] Update `sds_destination` to the virtual path in SDS where the files should live.
 + [ ] By default, channels are auto-discovered by this script from subdirectories
-    containing `drf_properties.h5`. To override, set `drf_channel` (single) or
-    `drf_channels` (multi) manually in the script.
+  containing `drf_properties.h5`. To override, set `drf_channel` (single) or
+  `drf_channels` (multi) manually in the script.
 + [ ] Follow any other "`TODO`" comments in the script.
 
 ## Context
@@ -37,7 +37,7 @@ workflow is therefore two steps:
 
 1. **Upload** the local Digital-RF directory to SDS via `client.upload()`.
 2. **Create the capture** via `client.captures.create()`, pointing it at the
-    virtual path where the files now live.
+   virtual path where the files now live.
 
 Because the upload is independent of the capture, a failure during step 2 does
 **not** mean data was lost — the files remain safely stored in SDS and the capture

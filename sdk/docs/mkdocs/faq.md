@@ -185,11 +185,11 @@ sds.upload(local_path="my_files", sds_path="remote_path")
 Check out:
 
 + **[SpectrumX SDK
-    Walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb)**:
-    An example Jupyter notebook
+  Walkthrough](https://github.com/crcresearch/spx-events/blob/main/demos/data_system/walkthrough.ipynb)**:
+  An example Jupyter notebook
 + **[More
-    Examples](https://github.com/spectrumx/sds-code/blob/master/sdk/tests/e2e_examples/check_build_acceptance.py)**:
-    A live, up-to-date Python script showing basic operations
+  Examples](https://github.com/spectrumx/sds-code/blob/master/sdk/tests/e2e_examples/check_build_acceptance.py)**:
+  A live, up-to-date Python script showing basic operations
 
 ## File Operations
 
@@ -247,9 +247,9 @@ the impact of interruptions.
 /// tip | If an operation is interrupted:
 
 + **Uploads**: `sds.upload()` will restart a partial file transfer from where it left
-    off, but won't re-upload files that are already complete. It might take a while to
-    check with the server it has all the files, but this check is much faster than
-    re-uploading everything.
+  off, but won't re-upload files that are already complete. It might take a while to
+  check with the server it has all the files, but this check is much faster than
+  re-uploading everything.
 + **Downloads**: Similarly, the download process can resume from interruption points.
 
 ///
@@ -324,25 +324,25 @@ dataset.
 ### What's the difference between a Directory and a Dataset?
 
 + A **Directory** is like a folder in your local machine. Except that it is a completely
-    virtual concept on SDS: files are stored in a flat structure on the server, and
-    directories are just a way for clients to organize files logically and make it
-    easier to browse them. You can't share a directory in SDS.
+  virtual concept on SDS: files are stored in a flat structure on the server, and
+  directories are just a way for clients to organize files logically and make it
+  easier to browse them. You can't share a directory in SDS.
 + A **Dataset** can hold files (named artifact files), captures, and can hold metadata
-    about its creation date, authors, DOI, and other relevant information. Datasets are
-    ideal for exporting collections of files and captures for sharing with
-    collaborators and for publication. A dataset may hold data from multiple users too.
+  about its creation date, authors, DOI, and other relevant information. Datasets are
+  ideal for exporting collections of files and captures for sharing with
+  collaborators and for publication. A dataset may hold data from multiple users too.
 
 ### What is the difference between a Capture and a Dataset?
 
 + A **Capture** is a collection of files that represent a single data acquisition event.
-    A capture has a type (e.g. Digital-RF or RadioHound), and it groups files
-    that are likely to be read or analyzed together. The exact files that become part
-    of a capture are determined automatically, so if you need to add files with
-    arbitrary contents, consider using a Dataset instead.
+  A capture has a type (e.g. Digital-RF or RadioHound), and it groups files
+  that are likely to be read or analyzed together. The exact files that become part
+  of a capture are determined automatically, so if you need to add files with
+  arbitrary contents, consider using a Dataset instead.
 + **Datasets** on the other hand, can hold any files uploaded into SDS that you want to
-    group together for sharing, publication, or just for organization purposes. A
-    dataset can contain files from multiple captures, directories, or standalone files,
-    a.k.a. artifact files.
+  group together for sharing, publication, or just for organization purposes. A
+  dataset can contain files from multiple captures, directories, or standalone files,
+  a.k.a. artifact files.
 
 ## Data Sharing and Collaboration
 
@@ -408,9 +408,9 @@ SDS layers several safeguards to keep assets from being removed unintentionally:
 ### I'm getting an `AuthError` when trying to authenticate. What should I check?
 
 1. **Verify your token**: Make sure your `SDS_SECRET_TOKEN` is correct and hasn't
-    expired
+   expired
 2. **Check token location**: Ensure the `.env` file or environment variable is being
-    read correctly
+   read correctly
 3. **Verify the host**: Confirm you're connecting to the correct SDS Gateway host
 4. **Network access**: Ensure your machine can reach the SDS Gateway
 
@@ -422,7 +422,7 @@ Check:
 1. **Network connectivity**: Verify your internet connection
 2. **Host address**: Confirm the `host` parameter is correct and accessible
 3. **Gateway status**: If you're hosting the SDS Gateway locally, ensure it's running
-    and accessible
+   and accessible
 4. **Firewall/proxy**: Check if any firewall or proxy is blocking the connection
 
 ### I'm getting a `ServiceError`. What should I do?
@@ -435,14 +435,14 @@ to support if the issue persists for more than an hour during business hours (ET
 ### My upload/download is very slow or seems stalled. What can I do?
 
 + **Check the progress bar**: The `verbose=True` parameter shows a progress bar during
-    operations
+  operations
 + **Network issues**: Slow speeds may indicate network congestion. Consider retrying
-    later
+  later
 + **File size**: Large files take longer to transfer
 + **Multipart support**: The SDK supports multipart uploads for better performance with
-    large files
+  large files
 + **Concurrency**: The SDK handles multiple network requests concurrently for improved
-    throughput
+  throughput
 
 ### I'm seeing an `Internal Server Error` from the Gateway. What now?
 
@@ -496,13 +496,13 @@ Not in the foreseeable future.
 ### What are some best practices for using the SDK?
 
 1. **Keep your SDK up to date**: Regularly check for updates to the SDK and incorporate
-    them into your project to benefit from the latest features and bug fixes.
+   them into your project to benefit from the latest features and bug fixes.
 2. **Implement error handling**: Gracefully handle errors and exceptions in your
-    application to improve user experience and facilitate troubleshooting.
+   application to improve user experience and facilitate troubleshooting.
 3. **Use loggers instead of print**: They have timestamps that might be helpful when
    reading the output after long runs.
 4. **Use environment variables**: Store sensitive information, such as API keys and
-    tokens, in environment variables instead of hardcoding them in your source code.
+   tokens, in environment variables instead of hardcoding them in your source code.
 
 ## Federation
 

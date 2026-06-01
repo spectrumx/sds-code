@@ -5,20 +5,20 @@
  * @param {number} [intervalMs]
  */
 export function startAsyncJobPolling(host, tick, intervalMs = 3000) {
-	if (host.pollingInterval) {
-		clearInterval(host.pollingInterval);
-	}
-	host.pollingInterval = setInterval(() => {
-		void tick();
-	}, intervalMs);
+    if (host.pollingInterval) {
+        clearInterval(host.pollingInterval)
+    }
+    host.pollingInterval = setInterval(() => {
+        void tick()
+    }, intervalMs)
 }
 
 /**
  * @param {{ pollingInterval?: ReturnType<typeof setInterval> | null }} host
  */
 export function stopAsyncJobPolling(host) {
-	if (host.pollingInterval) {
-		clearInterval(host.pollingInterval);
-		host.pollingInterval = null;
-	}
+    if (host.pollingInterval) {
+        clearInterval(host.pollingInterval)
+        host.pollingInterval = null
+    }
 }

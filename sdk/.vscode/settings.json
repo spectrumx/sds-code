@@ -1,48 +1,50 @@
 {
-	"[dockerfile]": {
-		"editor.defaultFormatter": "ms-azuretools.vscode-docker"
-	},
-	"[dotenv]": {
-		"editor.defaultFormatter": "foxundermoon.shell-format"
-	},
-	"[html]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[ignore]": {
-		"editor.defaultFormatter": "foxundermoon.shell-format"
-	},
-	"[javascript]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[json]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[jsonc]": {
-		"editor.defaultFormatter": "vscode.json-language-features"
-	},
-	"[properties]": {
-		"editor.defaultFormatter": "foxundermoon.shell-format"
-	},
-	"[python]": {
-		"editor.codeActionsOnSave": {
-			"source.fixAll.ruff": "explicit"
-		},
-		"editor.defaultFormatter": "charliermarsh.ruff"
-	},
-	"[shellscript]": {
-		"editor.defaultFormatter": "foxundermoon.shell-format"
-	},
-	"[toml]": {
-		"editor.defaultFormatter": "tombi-toml.tombi"
-	},
-	"[ts]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"[typescript]": {
-		"editor.defaultFormatter": "biomejs.biome"
-	},
-	"markdownlint.configFile": "../.markdownlint.yaml",
-	"python.testing.pytestArgs": ["-m", "not integration"],
-	"python.testing.pytestEnabled": true,
-	"python.testing.unittestEnabled": false
+    "[dockerfile]": {
+        "editor.defaultFormatter": "ms-azuretools.vscode-docker"
+    },
+    "[dotenv]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "[ignore]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[properties]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
+    "[python]": {
+        "editor.codeActionsOnSave": {
+            "source.fixAll.ruff": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    "[shellscript]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
+    "[toml]": {
+        "editor.defaultFormatter": "tombi-toml.tombi"
+    },
+    "[ts]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "biomejs.biome"
+    },
+    "python.testing.pytestArgs": [
+        "-m",
+        "not integration"
+    ],
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false
 }

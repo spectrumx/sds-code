@@ -1,4 +1,3 @@
 {
-	"markdownlint.configFile": "../.markdownlint.yaml",
-	"python.analysis.enablePytestSupport": false
+    "python.analysis.enablePytestSupport": false
 }

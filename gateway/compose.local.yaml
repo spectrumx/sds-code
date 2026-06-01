@@ -26,7 +26,7 @@ networks:
     sds-gateway-local-opensearch-net:
         driver: bridge
     sds-network-local:
-        # external: true # make it external if running with traefik on this machine
+        external: true # make it external if running with traefik on this machine
         # should match traefik's network name
         name: sds-network-local
         driver: bridge

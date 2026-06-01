@@ -4,447 +4,465 @@
  */
 
 import {
-	DEFAULT_COLOR_MAP,
-	DEFAULT_SCALE_MAX,
-	DEFAULT_SCALE_MIN,
-	PLOTS_LEFT_MARGIN,
-	PLOTS_RIGHT_MARGIN,
-	WATERFALL_BOTTOM_MARGIN,
-	WATERFALL_TOP_MARGIN,
-	WATERFALL_WINDOW_SIZE,
-} from "./constants.js";
-import { colorForNormalizedPower } from "./waterfallColorMaps.js";
+    DEFAULT_COLOR_MAP,
+    DEFAULT_SCALE_MAX,
+    DEFAULT_SCALE_MIN,
+    PLOTS_LEFT_MARGIN,
+    PLOTS_RIGHT_MARGIN,
+    WATERFALL_BOTTOM_MARGIN,
+    WATERFALL_TOP_MARGIN,
+    WATERFALL_WINDOW_SIZE,
+} from "./constants.js"
+import { colorForNormalizedPower } from "./waterfallColorMaps.js"
 
 class WaterfallRenderer {
-	constructor(canvas, overlayCanvas) {
-		this.canvas = canvas;
-		this.overlayCanvas = overlayCanvas;
-		this.ctx = canvas ? canvas.getContext("2d") : null;
-		this.overlayCtx = overlayCanvas ? overlayCanvas.getContext("2d") : null;
+    constructor(canvas, overlayCanvas) {
+        this.canvas = canvas
+        this.overlayCanvas = overlayCanvas
+        this.ctx = canvas ? canvas.getContext("2d") : null
+        this.overlayCtx = overlayCanvas ? overlayCanvas.getContext("2d") : null
 
-		// Constants from shared constants file
-		this.WATERFALL_WINDOW_SIZE = WATERFALL_WINDOW_SIZE;
-		this.TOP_MARGIN = WATERFALL_TOP_MARGIN;
-		this.BOTTOM_MARGIN = WATERFALL_BOTTOM_MARGIN;
-		this.PLOTS_LEFT_MARGIN = PLOTS_LEFT_MARGIN;
-		this.PLOTS_RIGHT_MARGIN = PLOTS_RIGHT_MARGIN;
+        // Constants from shared constants file
+        this.WATERFALL_WINDOW_SIZE = WATERFALL_WINDOW_SIZE
+        this.TOP_MARGIN = WATERFALL_TOP_MARGIN
+        this.BOTTOM_MARGIN = WATERFALL_BOTTOM_MARGIN
+        this.PLOTS_LEFT_MARGIN = PLOTS_LEFT_MARGIN
+        this.PLOTS_RIGHT_MARGIN = PLOTS_RIGHT_MARGIN
 
-		// State
-		this.colorMap = DEFAULT_COLOR_MAP;
-		this.scaleMin = DEFAULT_SCALE_MIN;
-		this.scaleMax = DEFAULT_SCALE_MAX;
-		this.hoveredSliceIndex = null;
-		this.currentSliceIndex = 0;
-		this.waterfallWindowStart = 0;
-		this.totalSlices = 0;
-	}
+        // State
+        this.colorMap = DEFAULT_COLOR_MAP
+        this.scaleMin = DEFAULT_SCALE_MIN
+        this.scaleMax = DEFAULT_SCALE_MAX
+        this.hoveredSliceIndex = null
+        this.currentSliceIndex = 0
+        this.waterfallWindowStart = 0
+        this.totalSlices = 0
+    }
 
-	/**
-	 * Set color map
-	 */
-	setColorMap(colorMap) {
-		this.colorMap = colorMap;
-	}
+    /**
+     * Set color map
+     */
+    setColorMap(colorMap) {
+        this.colorMap = colorMap
+    }
 
-	/**
-	 * Set scale bounds
-	 */
-	setScaleBounds(scaleMin, scaleMax) {
-		this.scaleMin = scaleMin;
-		this.scaleMax = scaleMax;
-	}
+    /**
+     * Set scale bounds
+     */
+    setScaleBounds(scaleMin, scaleMax) {
+        this.scaleMin = scaleMin
+        this.scaleMax = scaleMax
+    }
 
-	/**
-	 * Set current slice index
-	 */
-	setCurrentSliceIndex(index) {
-		this.currentSliceIndex = index;
-	}
+    /**
+     * Set current slice index
+     */
+    setCurrentSliceIndex(index) {
+        this.currentSliceIndex = index
+    }
 
-	/**
-	 * Set waterfall window start
-	 */
-	setWaterfallWindowStart(start) {
-		this.waterfallWindowStart = start;
-	}
+    /**
+     * Set waterfall window start
+     */
+    setWaterfallWindowStart(start) {
+        this.waterfallWindowStart = start
+    }
 
-	/**
-	 * Set total slices count
-	 */
-	setTotalSlices(total) {
-		this.totalSlices = total;
-	}
+    /**
+     * Set total slices count
+     */
+    setTotalSlices(total) {
+        this.totalSlices = total
+    }
 
-	/**
-	 * Set hovered slice index
-	 */
-	setHoveredSliceIndex(index) {
-		this.hoveredSliceIndex = index;
-	}
+    /**
+     * Set hovered slice index
+     */
+    setHoveredSliceIndex(index) {
+        this.hoveredSliceIndex = index
+    }
 
-	/**
-	 * Resize canvas to fit container
-	 */
-	resizeCanvas() {
-		if (!this.canvas || !this.overlayCanvas) return;
+    /**
+     * Resize canvas to fit container
+     */
+    resizeCanvas() {
+        if (!this.canvas || !this.overlayCanvas) return
 
-		const container = this.canvas.parentElement;
-		const rect = container.getBoundingClientRect();
+        const container = this.canvas.parentElement
+        const rect = container.getBoundingClientRect()
 
-		this.canvas.width = rect.width;
-		this.canvas.height = rect.height;
+        this.canvas.width = rect.width
+        this.canvas.height = rect.height
 
-		// Resize overlay canvas to match
-		this.overlayCanvas.width = rect.width;
-		this.overlayCanvas.height = rect.height;
-		this.overlayCanvas.style.width = `${rect.width}px`;
-		this.overlayCanvas.style.height = `${rect.height}px`;
+        // Resize overlay canvas to match
+        this.overlayCanvas.width = rect.width
+        this.overlayCanvas.height = rect.height
+        this.overlayCanvas.style.width = `${rect.width}px`
+        this.overlayCanvas.style.height = `${rect.height}px`
 
-		// Clear overlay when resizing
-		this.clearOverlay();
-	}
+        // Clear overlay when resizing
+        this.clearOverlay()
+    }
 
-	/**
-	 * Render the waterfall plot
-	 * @param {Array} waterfallData - Array of slice data (may be sparse in streaming mode)
-	 * @param {number} totalSlices - Total number of slices
-	 * @param {number} startIndex - Starting index of the data array (for streaming mode)
-	 */
-	renderWaterfall(waterfallData, totalSlices, startIndex = 0) {
-		if (!this.ctx || !this.canvas) return;
+    /**
+     * Render the waterfall plot
+     * @param {Array} waterfallData - Array of slice data (may be sparse in streaming mode)
+     * @param {number} totalSlices - Total number of slices
+     * @param {number} startIndex - Starting index of the data array (for streaming mode)
+     */
+    renderWaterfall(waterfallData, totalSlices, startIndex = 0) {
+        if (!this.ctx || !this.canvas) return
 
-		// Store total slices for overlay updates
-		this.totalSlices = totalSlices;
+        // Store total slices for overlay updates
+        this.totalSlices = totalSlices
 
-		// Clear canvas
-		this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        // Clear canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
 
-		// Calculate dimensions with margins
-		const plotHeight =
-			this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
-		const maxVisibleSlices = Math.min(totalSlices, this.WATERFALL_WINDOW_SIZE);
-		const sliceHeight = plotHeight / maxVisibleSlices;
+        // Calculate dimensions with margins
+        const plotHeight =
+            this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN
+        const maxVisibleSlices = Math.min(
+            totalSlices,
+            this.WATERFALL_WINDOW_SIZE,
+        )
+        const sliceHeight = plotHeight / maxVisibleSlices
 
-		// Calculate which slices to display
-		const windowStart = this.waterfallWindowStart;
+        // Calculate which slices to display
+        const windowStart = this.waterfallWindowStart
 
-		// Draw waterfall slices from bottom to top
-		for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
-			const sliceIndex = windowStart + i;
-			if (sliceIndex >= totalSlices) break;
+        // Draw waterfall slices from bottom to top
+        for (let i = 0; i < this.WATERFALL_WINDOW_SIZE; i++) {
+            const sliceIndex = windowStart + i
+            if (sliceIndex >= totalSlices) break
 
-			// Index into waterfallData using startIndex so we support both window-aligned
-			// arrays (startIndex === windowStart) and full arrays (startIndex === 0)
-			const dataIndex = sliceIndex - startIndex;
-			const slice =
-				dataIndex >= 0 && dataIndex < waterfallData.length
-					? waterfallData[dataIndex]
-					: null;
+            // Index into waterfallData using startIndex so we support both window-aligned
+            // arrays (startIndex === windowStart) and full arrays (startIndex === 0)
+            const dataIndex = sliceIndex - startIndex
+            const slice =
+                dataIndex >= 0 && dataIndex < waterfallData.length
+                    ? waterfallData[dataIndex]
+                    : null
 
-			// Calculate Y position
-			const y = this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight;
+            // Calculate Y position
+            const y =
+                this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - i) * sliceHeight
 
-			if (slice?.data) {
-				// Draw the slice
-				this.drawWaterfallSlice(slice.data, y, sliceHeight, this.canvas.width);
-			} else if (slice?._gap) {
-				// Known data gap (backend had no data for this range)
-				this.drawGapPlaceholder(sliceIndex, y, sliceHeight, this.canvas.width);
-			} else {
-				// Draw loading placeholder for missing slice
-				this.drawLoadingPlaceholder(
-					sliceIndex,
-					y,
-					sliceHeight,
-					this.canvas.width,
-				);
-			}
-		}
+            if (slice?.data) {
+                // Draw the slice
+                this.drawWaterfallSlice(
+                    slice.data,
+                    y,
+                    sliceHeight,
+                    this.canvas.width,
+                )
+            } else if (slice?._gap) {
+                // Known data gap (backend had no data for this range)
+                this.drawGapPlaceholder(
+                    sliceIndex,
+                    y,
+                    sliceHeight,
+                    this.canvas.width,
+                )
+            } else {
+                // Draw loading placeholder for missing slice
+                this.drawLoadingPlaceholder(
+                    sliceIndex,
+                    y,
+                    sliceHeight,
+                    this.canvas.width,
+                )
+            }
+        }
 
-		// Update the overlay with highlights and index legend
-		this.updateOverlay();
-	}
+        // Update the overlay with highlights and index legend
+        this.updateOverlay()
+    }
 
-	/**
-	 * Draw a single waterfall slice
-	 */
-	drawWaterfallSlice(data, y, height, width) {
-		if (!this.ctx) return;
+    /**
+     * Draw a single waterfall slice
+     */
+    drawWaterfallSlice(data, y, height, width) {
+        if (!this.ctx) return
 
-		const fftPoints = data.length;
-		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
-		const pointWidth = plotWidth / fftPoints;
+        const fftPoints = data.length
+        const plotWidth =
+            width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN
+        const pointWidth = plotWidth / fftPoints
 
-		const powerRange = this.scaleMax - this.scaleMin;
+        const powerRange = this.scaleMax - this.scaleMin
 
-		for (let i = 0; i < fftPoints; i++) {
-			const power = data[i];
+        for (let i = 0; i < fftPoints; i++) {
+            const power = data[i]
 
-			// Clamp power to the scale range and normalize
-			const clampedPower = Math.max(
-				this.scaleMin,
-				Math.min(this.scaleMax, power),
-			);
-			const normalizedPower = (clampedPower - this.scaleMin) / powerRange;
+            // Clamp power to the scale range and normalize
+            const clampedPower = Math.max(
+                this.scaleMin,
+                Math.min(this.scaleMax, power),
+            )
+            const normalizedPower = (clampedPower - this.scaleMin) / powerRange
 
-			const color = this.getColorForPower(normalizedPower);
+            const color = this.getColorForPower(normalizedPower)
 
-			this.ctx.fillStyle = color;
-			this.ctx.fillRect(
-				this.PLOTS_LEFT_MARGIN + i * pointWidth,
-				y,
-				pointWidth,
-				height,
-			);
-		}
-	}
+            this.ctx.fillStyle = color
+            this.ctx.fillRect(
+                this.PLOTS_LEFT_MARGIN + i * pointWidth,
+                y,
+                pointWidth,
+                height,
+            )
+        }
+    }
 
-	/**
-	 * Draw a loading placeholder for a missing slice
-	 * @param {number} sliceIndex - The slice index
-	 * @param {number} y - Y position
-	 * @param {number} height - Slice height
-	 * @param {number} width - Canvas width
-	 */
-	drawLoadingPlaceholder(sliceIndex, y, height, width) {
-		if (!this.ctx) return;
+    /**
+     * Draw a loading placeholder for a missing slice
+     * @param {number} sliceIndex - The slice index
+     * @param {number} y - Y position
+     * @param {number} height - Slice height
+     * @param {number} width - Canvas width
+     */
+    drawLoadingPlaceholder(sliceIndex, y, height, width) {
+        if (!this.ctx) return
 
-		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+        const plotWidth =
+            width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN
 
-		// Draw a subtle loading pattern (diagonal stripes)
-		this.ctx.fillStyle = "rgba(200, 200, 200, 0.3)";
-		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+        // Draw a subtle loading pattern (diagonal stripes)
+        this.ctx.fillStyle = "rgba(200, 200, 200, 0.3)"
+        this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height)
 
-		// Draw loading text
-		this.ctx.fillStyle = "rgba(100, 100, 100, 0.6)";
-		this.ctx.font = "12px Arial";
-		this.ctx.textAlign = "center";
-		this.ctx.fillText(
-			"Loading...",
-			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
-			y + height / 2,
-		);
-	}
+        // Draw loading text
+        this.ctx.fillStyle = "rgba(100, 100, 100, 0.6)"
+        this.ctx.font = "12px Arial"
+        this.ctx.textAlign = "center"
+        this.ctx.fillText(
+            "Loading...",
+            this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+            y + height / 2,
+        )
+    }
 
-	/**
-	 * Draw a placeholder for a known data gap (no data in this range)
-	 * @param {number} sliceIndex - The slice index
-	 * @param {number} y - Y position
-	 * @param {number} height - Slice height
-	 * @param {number} width - Canvas width
-	 */
-	drawGapPlaceholder(sliceIndex, y, height, width) {
-		if (!this.ctx) return;
+    /**
+     * Draw a placeholder for a known data gap (no data in this range)
+     * @param {number} sliceIndex - The slice index
+     * @param {number} y - Y position
+     * @param {number} height - Slice height
+     * @param {number} width - Canvas width
+     */
+    drawGapPlaceholder(sliceIndex, y, height, width) {
+        if (!this.ctx) return
 
-		const plotWidth = width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
+        const plotWidth =
+            width - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN
 
-		this.ctx.fillStyle = "rgba(120, 120, 120, 0.25)";
-		this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height);
+        this.ctx.fillStyle = "rgba(120, 120, 120, 0.25)"
+        this.ctx.fillRect(this.PLOTS_LEFT_MARGIN, y, plotWidth, height)
 
-		this.ctx.fillStyle = "rgba(80, 80, 80, 0.5)";
-		this.ctx.font = "12px Arial";
-		this.ctx.textAlign = "center";
-		this.ctx.fillText(
-			"No data",
-			this.PLOTS_LEFT_MARGIN + plotWidth / 2,
-			y + height / 2,
-		);
-	}
+        this.ctx.fillStyle = "rgba(80, 80, 80, 0.5)"
+        this.ctx.font = "12px Arial"
+        this.ctx.textAlign = "center"
+        this.ctx.fillText(
+            "No data",
+            this.PLOTS_LEFT_MARGIN + plotWidth / 2,
+            y + height / 2,
+        )
+    }
 
-	/**
-	 * Get color for power value using selected color map
-	 */
-	getColorForPower(normalizedPower) {
-		return colorForNormalizedPower(this.colorMap, normalizedPower);
-	}
+    /**
+     * Get color for power value using selected color map
+     */
+    getColorForPower(normalizedPower) {
+        return colorForNormalizedPower(this.colorMap, normalizedPower)
+    }
 
-	/**
-	 * Draw highlight box around a slice
-	 */
-	drawHighlightBox(
-		sliceIndex,
-		startSliceIndex,
-		endSliceIndex,
-		sliceHeight,
-		canvasWidth,
-		strokeStyle,
-		lineWidth = 1,
-	) {
-		if (!this.overlayCtx || !this.overlayCanvas) return;
+    /**
+     * Draw highlight box around a slice
+     */
+    drawHighlightBox(
+        sliceIndex,
+        startSliceIndex,
+        endSliceIndex,
+        sliceHeight,
+        canvasWidth,
+        strokeStyle,
+        lineWidth = 1,
+    ) {
+        if (!this.overlayCtx || !this.overlayCanvas) return
 
-		// Find the position of the slice in the visible range
-		const sliceInRange = sliceIndex - startSliceIndex;
-		if (sliceInRange < 0 || sliceInRange >= endSliceIndex - startSliceIndex)
-			return;
+        // Find the position of the slice in the visible range
+        const sliceInRange = sliceIndex - startSliceIndex
+        if (sliceInRange < 0 || sliceInRange >= endSliceIndex - startSliceIndex)
+            return
 
-		const maxVisibleSlices = Math.min(this.WATERFALL_WINDOW_SIZE, 100);
-		const y =
-			this.BOTTOM_MARGIN + (maxVisibleSlices - 1 - sliceInRange) * sliceHeight;
+        const maxVisibleSlices = Math.min(this.WATERFALL_WINDOW_SIZE, 100)
+        const y =
+            this.BOTTOM_MARGIN +
+            (maxVisibleSlices - 1 - sliceInRange) * sliceHeight
 
-		// Draw highlight box using consistent margins for alignment
-		this.overlayCtx.strokeStyle = strokeStyle;
-		this.overlayCtx.lineWidth = lineWidth;
-		const plotWidth =
-			canvasWidth - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN;
-		this.overlayCtx.strokeRect(
-			this.PLOTS_LEFT_MARGIN,
-			y,
-			plotWidth,
-			sliceHeight,
-		);
-	}
+        // Draw highlight box using consistent margins for alignment
+        this.overlayCtx.strokeStyle = strokeStyle
+        this.overlayCtx.lineWidth = lineWidth
+        const plotWidth =
+            canvasWidth - this.PLOTS_LEFT_MARGIN - this.PLOTS_RIGHT_MARGIN
+        this.overlayCtx.strokeRect(
+            this.PLOTS_LEFT_MARGIN,
+            y,
+            plotWidth,
+            sliceHeight,
+        )
+    }
 
-	/**
-	 * Update the overlay canvas with highlights and index legend
-	 */
-	updateOverlay() {
-		if (!this.overlayCanvas || !this.overlayCtx) return;
+    /**
+     * Update the overlay canvas with highlights and index legend
+     */
+    updateOverlay() {
+        if (!this.overlayCanvas || !this.overlayCtx) return
 
-		// Get current canvas dimensions
-		const plotHeight =
-			this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN;
-		const maxVisibleSlices = Math.min(
-			this.totalSlices || 100,
-			this.WATERFALL_WINDOW_SIZE,
-		);
-		const sliceHeight = plotHeight / maxVisibleSlices;
+        // Get current canvas dimensions
+        const plotHeight =
+            this.canvas.height - this.TOP_MARGIN - this.BOTTOM_MARGIN
+        const maxVisibleSlices = Math.min(
+            this.totalSlices || 100,
+            this.WATERFALL_WINDOW_SIZE,
+        )
+        const sliceHeight = plotHeight / maxVisibleSlices
 
-		// Calculate slice indices for current window
-		const startSliceIndex = this.waterfallWindowStart;
-		const endSliceIndex = Math.min(
-			this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
-			this.totalSlices || 100,
-		);
+        // Calculate slice indices for current window
+        const startSliceIndex = this.waterfallWindowStart
+        const endSliceIndex = Math.min(
+            this.waterfallWindowStart + this.WATERFALL_WINDOW_SIZE,
+            this.totalSlices || 100,
+        )
 
-		// Clear and redraw everything on the overlay
-		this.clearOverlay();
+        // Clear and redraw everything on the overlay
+        this.clearOverlay()
 
-		// Draw current slice highlight
-		this.drawHighlightBox(
-			this.currentSliceIndex,
-			startSliceIndex,
-			endSliceIndex,
-			sliceHeight,
-			this.canvas.width,
-			"#000000", // Black color for current slice
-			1,
-		);
+        // Draw current slice highlight
+        this.drawHighlightBox(
+            this.currentSliceIndex,
+            startSliceIndex,
+            endSliceIndex,
+            sliceHeight,
+            this.canvas.width,
+            "#000000", // Black color for current slice
+            1,
+        )
 
-		// Draw hover highlight if there is one
-		if (this.hoveredSliceIndex !== null) {
-			this.drawHighlightBox(
-				this.hoveredSliceIndex,
-				startSliceIndex,
-				endSliceIndex,
-				sliceHeight,
-				this.canvas.width,
-				"#808080", // Light grey color for hover
-				1,
-			);
-		}
+        // Draw hover highlight if there is one
+        if (this.hoveredSliceIndex !== null) {
+            this.drawHighlightBox(
+                this.hoveredSliceIndex,
+                startSliceIndex,
+                endSliceIndex,
+                sliceHeight,
+                this.canvas.width,
+                "#808080", // Light grey color for hover
+                1,
+            )
+        }
 
-		// Draw the index legend
-		this.updateSliceIndexLegend(
-			this.totalSlices || 100,
-			maxVisibleSlices,
-			sliceHeight,
-		);
-	}
+        // Draw the index legend
+        this.updateSliceIndexLegend(
+            this.totalSlices || 100,
+            maxVisibleSlices,
+            sliceHeight,
+        )
+    }
 
-	/**
-	 * Clear the overlay canvas
-	 */
-	clearOverlay() {
-		if (!this.overlayCtx || !this.overlayCanvas) return;
-		this.overlayCtx.clearRect(
-			0,
-			0,
-			this.overlayCanvas.width,
-			this.overlayCanvas.height,
-		);
-	}
+    /**
+     * Clear the overlay canvas
+     */
+    clearOverlay() {
+        if (!this.overlayCtx || !this.overlayCanvas) return
+        this.overlayCtx.clearRect(
+            0,
+            0,
+            this.overlayCanvas.width,
+            this.overlayCanvas.height,
+        )
+    }
 
-	/**
-	 * Update the slice index legend on the overlay canvas
-	 */
-	updateSliceIndexLegend(totalSlices, maxVisibleSlices, sliceHeight) {
-		if (!this.overlayCtx || !this.overlayCanvas) return;
+    /**
+     * Update the slice index legend on the overlay canvas
+     */
+    updateSliceIndexLegend(totalSlices, maxVisibleSlices, sliceHeight) {
+        if (!this.overlayCtx || !this.overlayCanvas) return
 
-		// Clear the left side area for labels using consistent margins
-		const labelWidth = this.PLOTS_LEFT_MARGIN;
-		this.overlayCtx.fillStyle = "rgba(255, 255, 255, 0.95)";
-		this.overlayCtx.fillRect(0, 0, labelWidth, this.overlayCanvas.height);
+        // Clear the left side area for labels using consistent margins
+        const labelWidth = this.PLOTS_LEFT_MARGIN
+        this.overlayCtx.fillStyle = "rgba(255, 255, 255, 0.95)"
+        this.overlayCtx.fillRect(0, 0, labelWidth, this.overlayCanvas.height)
 
-		// Only draw indices if we have 5 or more rows
-		if (maxVisibleSlices >= 5) {
-			this.overlayCtx.font = "10px Arial";
-			this.overlayCtx.textAlign = "right";
-			this.overlayCtx.fillStyle = "#000";
+        // Only draw indices if we have 5 or more rows
+        if (maxVisibleSlices >= 5) {
+            this.overlayCtx.font = "10px Arial"
+            this.overlayCtx.textAlign = "right"
+            this.overlayCtx.fillStyle = "#000"
 
-			// Show every 5th index
-			for (let i = 0; i < maxVisibleSlices; i++) {
-				const sliceIndex = this.waterfallWindowStart + i;
-				if (sliceIndex >= totalSlices) break;
+            // Show every 5th index
+            for (let i = 0; i < maxVisibleSlices; i++) {
+                const sliceIndex = this.waterfallWindowStart + i
+                if (sliceIndex >= totalSlices) break
 
-				const displayedIndex = sliceIndex + 1; // Convert to 1-based for display
-				// Calculate Y position with margins
-				const y =
-					this.BOTTOM_MARGIN +
-					(maxVisibleSlices - 1 - i) * sliceHeight +
-					sliceHeight / 2;
+                const displayedIndex = sliceIndex + 1 // Convert to 1-based for display
+                // Calculate Y position with margins
+                const y =
+                    this.BOTTOM_MARGIN +
+                    (maxVisibleSlices - 1 - i) * sliceHeight +
+                    sliceHeight / 2
 
-				// Only draw if this index should be highlighted (every 5th, current slice, or hovered slice)
-				if (
-					displayedIndex % 5 === 0 ||
-					sliceIndex === this.currentSliceIndex ||
-					sliceIndex === this.hoveredSliceIndex
-				) {
-					// Determine highlight color based on slice type
-					if (sliceIndex === this.currentSliceIndex) {
-						this.overlayCtx.fillStyle = "#000"; // Black for current slice
-					} else if (sliceIndex === this.hoveredSliceIndex) {
-						this.overlayCtx.fillStyle = "#333"; // Dark grey for hovered slice
-					} else {
-						this.overlayCtx.fillStyle = "#999"; // Light grey for other indices
-					}
+                // Only draw if this index should be highlighted (every 5th, current slice, or hovered slice)
+                if (
+                    displayedIndex % 5 === 0 ||
+                    sliceIndex === this.currentSliceIndex ||
+                    sliceIndex === this.hoveredSliceIndex
+                ) {
+                    // Determine highlight color based on slice type
+                    if (sliceIndex === this.currentSliceIndex) {
+                        this.overlayCtx.fillStyle = "#000" // Black for current slice
+                    } else if (sliceIndex === this.hoveredSliceIndex) {
+                        this.overlayCtx.fillStyle = "#333" // Dark grey for hovered slice
+                    } else {
+                        this.overlayCtx.fillStyle = "#999" // Light grey for other indices
+                    }
 
-					this.overlayCtx.fillText(
-						String(displayedIndex),
-						labelWidth - 5,
-						y + 3,
-					);
-				}
-			}
-		}
-	}
+                    this.overlayCtx.fillText(
+                        String(displayedIndex),
+                        labelWidth - 5,
+                        y + 3,
+                    )
+                }
+            }
+        }
+    }
 
-	/**
-	 * Generate CSS gradient string for the selected color map
-	 */
-	generateColorMapGradient() {
-		const stops = [];
-		const numStops = 20;
+    /**
+     * Generate CSS gradient string for the selected color map
+     */
+    generateColorMapGradient() {
+        const stops = []
+        const numStops = 20
 
-		for (let i = 0; i <= numStops; i++) {
-			const fraction = i / numStops;
-			const normalizedPower = fraction;
-			const color = this.getColorForPower(normalizedPower);
-			stops.push(`${color} ${fraction * 100}%`);
-		}
+        for (let i = 0; i <= numStops; i++) {
+            const fraction = i / numStops
+            const normalizedPower = fraction
+            const color = this.getColorForPower(normalizedPower)
+            stops.push(`${color} ${fraction * 100}%`)
+        }
 
-		return `linear-gradient(to bottom, ${stops.join(", ")})`;
-	}
+        return `linear-gradient(to bottom, ${stops.join(", ")})`
+    }
 
-	/**
-	 * Cleanup resources
-	 */
-	destroy() {
-		this.canvas = null;
-		this.overlayCanvas = null;
-		this.ctx = null;
-		this.overlayCtx = null;
-	}
+    /**
+     * Cleanup resources
+     */
+    destroy() {
+        this.canvas = null
+        this.overlayCanvas = null
+        this.ctx = null
+        this.overlayCtx = null
+    }
 }
 
 // Make the class globally available
-window.WaterfallRenderer = WaterfallRenderer;
+window.WaterfallRenderer = WaterfallRenderer

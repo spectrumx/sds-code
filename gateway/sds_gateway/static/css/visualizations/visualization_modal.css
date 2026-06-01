@@ -1,54 +1,54 @@
 /* Visualization Modal Styles */
 
 .visualization-grid {
-	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-	gap: 1rem;
-	justify-items: center;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+    justify-items: center;
 }
 
 .visualization-option {
-	display: block;
-	width: 100%;
-	max-width: 400px;
+    display: block;
+    width: 100%;
+    max-width: 400px;
 }
 
 .visualization-option .bi {
-	font-size: 3rem;
+    font-size: 3rem;
 }
 
 .visualization-option .card-footer {
-	border-top: none;
+    border-top: none;
 }
 
 .visualization-option .visualization-select-btn {
-	transition: all 0.2s ease-in-out;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	gap: 0.5rem;
+    transition: all 0.2s ease-in-out;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .visualization-option .visualization-select-btn:hover {
-	transform: translateX(2px);
+    transform: translateX(2px);
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-	.visualization-grid {
-		grid-template-columns: 1fr;
-		gap: 0.75rem;
-	}
+    .visualization-grid {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
 
-	.visualization-option .bi {
-		font-size: 2.5rem;
-	}
+    .visualization-option .bi {
+        font-size: 2.5rem;
+    }
 
-	.visualization-option .card-title {
-		font-size: 1.1rem;
-	}
+    .visualization-option .card-title {
+        font-size: 1.1rem;
+    }
 
-	.visualization-option .card-text {
-		font-size: 0.9rem;
-	}
+    .visualization-option .card-text {
+        font-size: 0.9rem;
+    }
 }

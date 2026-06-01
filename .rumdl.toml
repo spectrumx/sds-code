@@ -1,0 +1,40 @@
+# Based on:
+# https://github.com/rvben/rumdl/blob/main/rumdl.toml.example
+
+# Global configuration options
+[global]
+    exclude           = [
+        # e.g. exclude any obsidian-style files
+        "sdk/docs/mkdocs/api/client.md",
+        "sdk/docs/mkdocs/api/models.md",
+    ]
+    include           = ["**/*.md", "**/*.mdc", "**/*.gfm"]
+    # Globally disable specific rules based on .markdownlint.json
+    disable           = [
+        "MD013",                                             # line length
+        "MD024",                                             # no duplicate heading
+        "MD025",                                             # multiple top-level headings in the same document
+        "MD033",                                             # no inline HTML
+        "MD077",                                             # list continuation content indentation
+    ]
+    respect-gitignore = true
+
+[MD007]
+    # https://rumdl.dev/md007/
+    # Unordered list indentation
+    indent         = 4
+    start-indented = false
+    # style          = "fixed" # indentation style: "text-aligned" (default) | "fixed"
+
+[MD073]
+    # https://rumdl.dev/md073/
+    # ToC validation
+    enabled       = true  # whether to validate the TOC (default: false)
+    enforce-order = true  # whether TOC order must match document order (default: true)
+    max-level     = 4     # max heading level to include (default: 6)
+    min-level     = 2     # min heading level to include (default: 4)
+    # indent        = 4            # spaces per indentation level (default: from MD007, or 2)
+
+[MD046]
+    # https://rumdl.dev/md046
+    style = "fenced"  # "consistent" | "fenced" | "indented"

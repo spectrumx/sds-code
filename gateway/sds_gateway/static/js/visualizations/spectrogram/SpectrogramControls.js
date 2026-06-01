@@ -4,245 +4,249 @@
  */
 
 export class SpectrogramControls {
-	constructor() {
-		this.settings = null;
-		this.defaultSettings = null;
-		this.inputRanges = {};
-		this.onSettingsChange = null;
-		this.onGenerateClick = null;
-		this.initializeControls();
-	}
+    constructor() {
+        this.settings = null
+        this.defaultSettings = null
+        this.inputRanges = {}
+        this.onSettingsChange = null
+        this.onGenerateClick = null
+        this.initializeControls()
+    }
 
-	/**
-	 * Initialize the control panel elements and event listeners
-	 */
-	initializeControls() {
-		this.fftSizeSelect = document.getElementById("fftSize");
-		this.stdDevInput = document.getElementById("stdDev");
-		this.hopSizeInput = document.getElementById("hopSize");
-		this.colorMapSelect = document.getElementById("colorMap");
-		this.generateBtn = document.getElementById("generateSpectrogramBtn");
+    /**
+     * Initialize the control panel elements and event listeners
+     */
+    initializeControls() {
+        this.fftSizeSelect = document.getElementById("fftSize")
+        this.stdDevInput = document.getElementById("stdDev")
+        this.hopSizeInput = document.getElementById("hopSize")
+        this.colorMapSelect = document.getElementById("colorMap")
+        this.generateBtn = document.getElementById("generateSpectrogramBtn")
 
-		if (
-			!this.fftSizeSelect ||
-			!this.stdDevInput ||
-			!this.hopSizeInput ||
-			!this.colorMapSelect ||
-			!this.generateBtn
-		) {
-			console.error("Required control elements not found", {
-				fftSizeSelect: !!this.fftSizeSelect,
-				stdDevInput: !!this.stdDevInput,
-				hopSizeInput: !!this.hopSizeInput,
-				colorMapSelect: !!this.colorMapSelect,
-				generateBtn: !!this.generateBtn,
-			});
-			return;
-		}
+        if (
+            !this.fftSizeSelect ||
+            !this.stdDevInput ||
+            !this.hopSizeInput ||
+            !this.colorMapSelect ||
+            !this.generateBtn
+        ) {
+            console.error("Required control elements not found", {
+                fftSizeSelect: !!this.fftSizeSelect,
+                stdDevInput: !!this.stdDevInput,
+                hopSizeInput: !!this.hopSizeInput,
+                colorMapSelect: !!this.colorMapSelect,
+                generateBtn: !!this.generateBtn,
+            })
+            return
+        }
 
-		this.settings = this.getSettingsFromControls();
-		this.defaultSettings = { ...this.settings };
-		this.inputRanges = this.getInputRanges();
-		this.setupEventListeners();
-		this.updateControlValues();
-	}
+        this.settings = this.getSettingsFromControls()
+        this.defaultSettings = { ...this.settings }
+        this.inputRanges = this.getInputRanges()
+        this.setupEventListeners()
+        this.updateControlValues()
+    }
 
-	/**
-	 * Set up event listeners for all controls
-	 */
-	setupEventListeners() {
-		// FFT Size change
-		this.fftSizeSelect.addEventListener("change", (e) => {
-			this.settings.fftSize = Number.parseInt(e.target.value);
-			this.notifySettingsChange();
-		});
+    /**
+     * Set up event listeners for all controls
+     */
+    setupEventListeners() {
+        // FFT Size change
+        this.fftSizeSelect.addEventListener("change", (e) => {
+            this.settings.fftSize = Number.parseInt(e.target.value)
+            this.notifySettingsChange()
+        })
 
-		// Standard Deviation change
-		this.stdDevInput.addEventListener("change", (e) => {
-			const value = Number.parseInt(e.target.value);
-			if (this.validateInput(value, this.inputRanges.stdDev)) {
-				this.settings.stdDev = value;
-				this.notifySettingsChange();
-			} else {
-				this.resetInputValue(this.stdDevInput, this.settings.stdDev);
-			}
-		});
+        // Standard Deviation change
+        this.stdDevInput.addEventListener("change", (e) => {
+            const value = Number.parseInt(e.target.value)
+            if (this.validateInput(value, this.inputRanges.stdDev)) {
+                this.settings.stdDev = value
+                this.notifySettingsChange()
+            } else {
+                this.resetInputValue(this.stdDevInput, this.settings.stdDev)
+            }
+        })
 
-		// Hop Size change
-		this.hopSizeInput.addEventListener("change", (e) => {
-			const value = Number.parseInt(e.target.value);
-			if (this.validateInput(value, this.inputRanges.hopSize)) {
-				this.settings.hopSize = value;
-				this.notifySettingsChange();
-			} else {
-				this.resetInputValue(this.hopSizeInput, this.settings.hopSize);
-			}
-		});
+        // Hop Size change
+        this.hopSizeInput.addEventListener("change", (e) => {
+            const value = Number.parseInt(e.target.value)
+            if (this.validateInput(value, this.inputRanges.hopSize)) {
+                this.settings.hopSize = value
+                this.notifySettingsChange()
+            } else {
+                this.resetInputValue(this.hopSizeInput, this.settings.hopSize)
+            }
+        })
 
-		// Color Map change
-		this.colorMapSelect.addEventListener("change", (e) => {
-			this.settings.colorMap = e.target.value;
-			this.notifySettingsChange();
-		});
-	}
+        // Color Map change
+        this.colorMapSelect.addEventListener("change", (e) => {
+            this.settings.colorMap = e.target.value
+            this.notifySettingsChange()
+        })
+    }
 
-	/**
-	 * Read the initial settings rendered by the server
-	 */
-	getSettingsFromControls() {
-		return {
-			fftSize: Number.parseInt(this.fftSizeSelect.value, 10),
-			stdDev: Number.parseInt(this.stdDevInput.value, 10),
-			hopSize: Number.parseInt(this.hopSizeInput.value, 10),
-			colorMap: this.colorMapSelect.value,
-		};
-	}
+    /**
+     * Read the initial settings rendered by the server
+     */
+    getSettingsFromControls() {
+        return {
+            fftSize: Number.parseInt(this.fftSizeSelect.value, 10),
+            stdDev: Number.parseInt(this.stdDevInput.value, 10),
+            hopSize: Number.parseInt(this.hopSizeInput.value, 10),
+            colorMap: this.colorMapSelect.value,
+        }
+    }
 
-	/**
-	 * Read numeric validation ranges from the current form inputs
-	 */
-	getInputRanges() {
-		return {
-			stdDev: {
-				min: Number.parseInt(this.stdDevInput.min, 10),
-				max: Number.parseInt(this.stdDevInput.max, 10),
-			},
-			hopSize: {
-				min: Number.parseInt(this.hopSizeInput.min, 10),
-				max: Number.parseInt(this.hopSizeInput.max, 10),
-			},
-		};
-	}
+    /**
+     * Read numeric validation ranges from the current form inputs
+     */
+    getInputRanges() {
+        return {
+            stdDev: {
+                min: Number.parseInt(this.stdDevInput.min, 10),
+                max: Number.parseInt(this.stdDevInput.max, 10),
+            },
+            hopSize: {
+                min: Number.parseInt(this.hopSizeInput.min, 10),
+                max: Number.parseInt(this.hopSizeInput.max, 10),
+            },
+        }
+    }
 
-	/**
-	 * Validate input value against specified range
-	 */
-	validateInput(value, range) {
-		return Number.isInteger(value) && value >= range.min && value <= range.max;
-	}
+    /**
+     * Validate input value against specified range
+     */
+    validateInput(value, range) {
+        return (
+            Number.isInteger(value) && value >= range.min && value <= range.max
+        )
+    }
 
-	/**
-	 * Reset input value to last valid setting
-	 */
-	resetInputValue(input, value) {
-		input.value = value;
-		const range = this.inputRanges[input.id];
-		this.showValidationError(
-			input,
-			`Value must be between ${range.min} and ${range.max}`,
-		);
-	}
+    /**
+     * Reset input value to last valid setting
+     */
+    resetInputValue(input, value) {
+        input.value = value
+        const range = this.inputRanges[input.id]
+        this.showValidationError(
+            input,
+            `Value must be between ${range.min} and ${range.max}`,
+        )
+    }
 
-	/**
-	 * Show validation error for input field
-	 */
-	showValidationError(input, message) {
-		// Remove existing error styling
-		input.classList.remove("is-invalid");
+    /**
+     * Show validation error for input field
+     */
+    showValidationError(input, message) {
+        // Remove existing error styling
+        input.classList.remove("is-invalid")
 
-		// Remove existing error message
-		const existingError = input.parentNode.querySelector(".invalid-feedback");
-		if (existingError) {
-			existingError.remove();
-		}
+        // Remove existing error message
+        const existingError =
+            input.parentNode.querySelector(".invalid-feedback")
+        if (existingError) {
+            existingError.remove()
+        }
 
-		// Add error styling and message
-		input.classList.add("is-invalid");
-		const errorDiv = document.createElement("div");
-		errorDiv.className = "invalid-feedback";
-		errorDiv.textContent = message;
-		input.parentNode.appendChild(errorDiv);
+        // Add error styling and message
+        input.classList.add("is-invalid")
+        const errorDiv = document.createElement("div")
+        errorDiv.className = "invalid-feedback"
+        errorDiv.textContent = message
+        input.parentNode.appendChild(errorDiv)
 
-		// Auto-remove error after 3 seconds
-		setTimeout(() => {
-			input.classList.remove("is-invalid");
-			if (errorDiv.parentNode) {
-				errorDiv.remove();
-			}
-		}, 3000);
-	}
+        // Auto-remove error after 3 seconds
+        setTimeout(() => {
+            input.classList.remove("is-invalid")
+            if (errorDiv.parentNode) {
+                errorDiv.remove()
+            }
+        }, 3000)
+    }
 
-	/**
-	 * Update control values to match current settings
-	 */
-	updateControlValues() {
-		this.fftSizeSelect.value = this.settings.fftSize;
-		this.stdDevInput.value = this.settings.stdDev;
-		this.hopSizeInput.value = this.settings.hopSize;
-		this.colorMapSelect.value = this.settings.colorMap;
-	}
+    /**
+     * Update control values to match current settings
+     */
+    updateControlValues() {
+        this.fftSizeSelect.value = this.settings.fftSize
+        this.stdDevInput.value = this.settings.stdDev
+        this.hopSizeInput.value = this.settings.hopSize
+        this.colorMapSelect.value = this.settings.colorMap
+    }
 
-	/**
-	 * Get current settings
-	 */
-	getSettings() {
-		return { ...this.settings };
-	}
+    /**
+     * Get current settings
+     */
+    getSettings() {
+        return { ...this.settings }
+    }
 
-	/**
-	 * Set settings and update controls
-	 */
-	setSettings(newSettings) {
-		this.settings = { ...newSettings };
-		this.updateControlValues();
-	}
+    /**
+     * Set settings and update controls
+     */
+    setSettings(newSettings) {
+        this.settings = { ...newSettings }
+        this.updateControlValues()
+    }
 
-	/**
-	 * Set callback for settings changes
-	 */
-	setSettingsChangeCallback(callback) {
-		this.onSettingsChange = callback;
-	}
+    /**
+     * Set callback for settings changes
+     */
+    setSettingsChangeCallback(callback) {
+        this.onSettingsChange = callback
+    }
 
-	/**
-	 * Set callback for generate button clicks
-	 */
-	setGenerateCallback(callback) {
-		if (this.onGenerateClick) {
-			this.generateBtn.removeEventListener("click", this.onGenerateClick);
-		}
-		this.generateBtn.addEventListener("click", callback);
-		this.onGenerateClick = callback;
-	}
+    /**
+     * Set callback for generate button clicks
+     */
+    setGenerateCallback(callback) {
+        if (this.onGenerateClick) {
+            this.generateBtn.removeEventListener("click", this.onGenerateClick)
+        }
+        this.generateBtn.addEventListener("click", callback)
+        this.onGenerateClick = callback
+    }
 
-	/**
-	 * Notify that settings have changed
-	 */
-	notifySettingsChange() {
-		if (this.onSettingsChange) {
-			this.onSettingsChange(this.settings);
-		}
-	}
+    /**
+     * Notify that settings have changed
+     */
+    notifySettingsChange() {
+        if (this.onSettingsChange) {
+            this.onSettingsChange(this.settings)
+        }
+    }
 
-	/**
-	 * Enable/disable the generate button
-	 */
-	setGenerateButtonState(enabled) {
-		this.generateBtn.disabled = !enabled;
-		if (enabled) {
-			this.generateBtn.innerHTML = '<i class="bi bi-play-fill"></i> Generate';
-		} else {
-			this.generateBtn.innerHTML =
-				'<span class="spinner-border spinner-border-sm me-2" role="status"></span>Generating...';
-		}
-	}
+    /**
+     * Enable/disable the generate button
+     */
+    setGenerateButtonState(enabled) {
+        this.generateBtn.disabled = !enabled
+        if (enabled) {
+            this.generateBtn.innerHTML =
+                '<i class="bi bi-play-fill"></i> Generate'
+        } else {
+            this.generateBtn.innerHTML =
+                '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Generating...'
+        }
+    }
 
-	/**
-	 * Reset controls to default values
-	 */
-	resetToDefaults() {
-		this.settings = { ...this.defaultSettings };
-		this.updateControlValues();
-		this.notifySettingsChange();
-	}
+    /**
+     * Reset controls to default values
+     */
+    resetToDefaults() {
+        this.settings = { ...this.defaultSettings }
+        this.updateControlValues()
+        this.notifySettingsChange()
+    }
 
-	/**
-	 * Clean up event listeners
-	 */
-	destroy() {
-		if (this.generateBtn && this.onGenerateClick) {
-			this.generateBtn.removeEventListener("click", this.onGenerateClick);
-			this.onGenerateClick = null;
-		}
-	}
+    /**
+     * Clean up event listeners
+     */
+    destroy() {
+        if (this.generateBtn && this.onGenerateClick) {
+            this.generateBtn.removeEventListener("click", this.onGenerateClick)
+            this.onGenerateClick = null
+        }
+    }
 }
