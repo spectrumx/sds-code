@@ -376,9 +376,6 @@ def get_composite_captures(
         if len(capture_list) > 1:
             # Multiple captures with same top_level_dir - create composite
             composite_data = build_composite_capture_data(capture_list)
-            # Inject original instances so CompositeCaptureSerializer finds them
-            # with tier-1 cache already populated, avoiding extra DB query.
-            composite_data["_captures_by_uuid"] = {str(c.uuid): c for c in capture_list}
             composite_captures.append(composite_data)
         else:
             # Single capture - serialize normally
