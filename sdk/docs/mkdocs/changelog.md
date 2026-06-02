@@ -1,5 +1,14 @@
 # SpectrumX SDK Changelog
 
+## `0.1.20` - 2026-06-02
+
++ Fixes:
+    + **Fixed crash when `owner` and related fields are missing from API responses**: the
+      `Capture.owner` field (and `User.name`/`User.email` for cascading partial data) are
+      now optional with `None` defaults. Previously, the SDK would raise a Pydantic
+      `ValidationError` when the server omitted these fields from capture payloads during
+      file and capture listing, causing the entire operation to fail.
+
 ## `0.1.19` - 2026-05-15
 
 + Features:
