@@ -16,7 +16,7 @@
     ]
 
     name            = "spectrumx"
-    version         = "0.1.19"
+    version         = "0.1.20"
     description     = "SpectrumX Data System SDK"
     readme          = "./docs/README.md"
     requires-python = ">=3.11"
