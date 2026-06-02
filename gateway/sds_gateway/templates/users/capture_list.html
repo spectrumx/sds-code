@@ -64,16 +64,19 @@
                                 <!-- Frequency -->
                                 <div class="accordion-item">
                                     <h2 class="accordion-header" id="headingFrequency">
-                                        <button class="accordion-button collapsed"
+                                        <button class="accordion-button"
                                                 type="button"
+                                                data-bs-toggle="collapse"
                                                 data-bs-target="#collapseFrequency"
-                                                aria-expanded="false"
+                                                aria-expanded="true"
                                                 aria-controls="collapseFrequency">
                                             <i class="fas fa-signal me-2"></i>
                                             Center Frequency
                                         </button>
                                     </h2>
-                                    <div id="collapseFrequency" class="accordion-collapse collapse">
+                                    <div id="collapseFrequency"
+                                         class="accordion-collapse collapse show"
+                                         data-bs-parent="#filtersAccordion">
                                         <div class="accordion-body">
                                             <label for="frequency-range" class="form-label">Center Frequency Range</label>
                                             <div id="frequency-range-slider"
@@ -96,7 +99,7 @@
                                                            min="0"
                                                            max="10"
                                                            step="0.1"
-                                                           value="0"
+                                                           value="{{ min_freq|default:'0' }}"
                                                            placeholder="0" />
                                                 </div>
                                                 <div class="col-6">
@@ -107,7 +110,7 @@
                                                            min="0"
                                                            max="10"
                                                            step="0.1"
-                                                           value="10"
+                                                           value="{{ max_freq|default:'10' }}"
                                                            placeholder="10" />
                                                 </div>
                                             </div>
@@ -119,6 +122,7 @@
                                     <h2 class="accordion-header" id="headingDate">
                                         <button class="accordion-button collapsed"
                                                 type="button"
+                                                data-bs-toggle="collapse"
                                                 data-bs-target="#collapseDate"
                                                 aria-expanded="false"
                                                 aria-controls="collapseDate">
@@ -126,16 +130,26 @@
                                             Date Range
                                         </button>
                                     </h2>
-                                    <div id="collapseDate" class="accordion-collapse collapse">
+                                    <div id="collapseDate"
+                                         class="accordion-collapse collapse"
+                                         data-bs-parent="#filtersAccordion">
                                         <div class="accordion-body">
                                             <div class="row">
                                                 <div class="col mb-3">
                                                     <label class="form-label" for="start_date">Start Date</label>
-                                                    <input type="date" class="form-control" id="start_date" name="date_start" />
+                                                    <input type="date"
+                                                           class="form-control"
+                                                           id="start_date"
+                                                           name="date_start"
+                                                           value="{{ date_start|default:'' }}" />
                                                 </div>
                                                 <div class="col">
                                                     <label class="form-label" for="end_date">End Date</label>
-                                                    <input type="date" class="form-control" id="end_date" name="date_end" />
+                                                    <input type="date"
+                                                           class="form-control"
+                                                           id="end_date"
+                                                           name="date_end"
+                                                           value="{{ date_end|default:'' }}" />
                                                 </div>
                                             </div>
                                         </div>
@@ -332,9 +346,21 @@
         // Initialize noUiSlider for frequency range
         document.addEventListener('DOMContentLoaded', function() {
             const frequencyRangeSlider = document.getElementById('frequency-range-slider');
-            if (frequencyRangeSlider) {
+            const lowerValue = document.getElementById('frequency-range-lower');
+            const upperValue = document.getElementById('frequency-range-upper');
+            const minInput = document.getElementById('centerFreqMinInput');
+            const maxInput = document.getElementById('centerFreqMaxInput');
+            if (frequencyRangeSlider && minInput && maxInput) {
+                // Read server-rendered values (from URL params) BEFORE slider creation,
+                // so the slider starts at the correct position and the 'update' handler
+                // doesn't overwrite the server values with defaults.
+                const initMin = parseFloat(minInput.value);
+                const initMax = parseFloat(maxInput.value);
+                const start0 = !isNaN(initMin) ? Math.max(0, Math.min(10, initMin)) : 0;
+                const start1 = !isNaN(initMax) ? Math.max(0, Math.min(10, initMax)) : 10;
+
                 noUiSlider.create(frequencyRangeSlider, {
-                    start: [0, 10],
+                    start: [start0, start1],
                     connect: true,
                     range: {
                         'min': 0,
@@ -351,14 +377,6 @@
                     }
                 });
 
-                const lowerValue = document.getElementById('frequency-range-lower');
-                const upperValue = document.getElementById('frequency-range-upper');
-                const minInput = document.getElementById('centerFreqMinInput');
-                const maxInput = document.getElementById('centerFreqMaxInput');
-
-                // Track user interaction with slider
-                let userInteractedWithSlider = false;
-
                 frequencyRangeSlider.noUiSlider.on('update', function(values, handle) {
                     const value = parseFloat(values[handle]);
                     if (handle === 0) {
@@ -374,13 +392,9 @@
 
                 // Mark as interacted when user changes slider
                 frequencyRangeSlider.noUiSlider.on('change', function() {
-                    userInteractedWithSlider = true;
-                    // Trigger the global tracking
-                    if (window.initializeFrequencySlider) {
-                        // Update the global interaction tracking
-                        const event = new Event('change');
-                        minInput.dispatchEvent(event);
-                    }
+                    // Trigger the change event on minInput to propagate
+                    const event = new Event('change');
+                    minInput.dispatchEvent(event);
                 });
 
                 // Update slider when input values change
@@ -397,11 +411,6 @@
                         frequencyRangeSlider.noUiSlider.set([null, value]);
                     }
                 });
-
-                // Initialize from URL parameters after slider is created
-                if (window.initializeFrequencySlider) {
-                    window.initializeFrequencySlider();
-                }
             }
         });
 

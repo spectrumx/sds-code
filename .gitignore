@@ -3,3 +3,6 @@
 .agents
 seaweedfs
 **/agents.md
+.coverage
+.coverage.*
+htmlcov/
