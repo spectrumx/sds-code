@@ -329,6 +329,47 @@ def test_listing_defaults_missing_optional_fields() -> None:
     assert capture.files == []
 
 
+def test_listing_tolerates_missing_owner() -> None:
+    """Listing must not crash when owner field is absent from the payload."""
+    payload_without_owner = _build_drf_capture_payload()
+    payload_without_owner.pop("owner")
+    gateway = _GatewayStub(payload={"results": [payload_without_owner]})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 1
+    assert captures[0].owner is None
+
+
+def test_listing_tolerates_null_owner() -> None:
+    """Listing must not crash when owner is null in the payload."""
+    payload_null_owner = _build_drf_capture_payload(owner=None)
+    gateway = _GatewayStub(payload={"results": [payload_null_owner]})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 1
+    assert captures[0].owner is None
+
+
+def test_listing_tolerates_partial_owner() -> None:
+    """Listing must not crash when owner has missing name/email fields."""
+    payload_partial_owner = _build_drf_capture_payload(
+        owner={"id": 1},
+    )
+    gateway = _GatewayStub(payload={"results": [payload_partial_owner]})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 1
+    assert captures[0].owner is not None
+    assert captures[0].owner.name is None
+    assert captures[0].owner.email is None
+
+
 def test_read_capture(
     client: Client,
     responses: responses.RequestsMock,

@@ -135,6 +135,59 @@ def test_file_parses_captures_list_from_api(
     assert f.captures[0].uuid == cap_uid
 
 
+def test_file_tolerates_capture_without_owner(
+    file_properties: dict[str, Any],
+) -> None:
+    """File must not crash when capture lacks the owner field."""
+    nested_capture = {
+        "capture_props": {},
+        "capture_type": CaptureType.DigitalRF.value,
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/c/tdir",
+        "uuid": str(uuid.uuid4()),
+        "files": [],
+    }
+    raw = {
+        "uuid": str(uuid.uuid4()),
+        **file_properties,
+        "captures": [nested_capture],
+    }
+    f = File.model_validate(raw)
+    assert f.captures is not None
+    assert len(f.captures) == 1
+    assert f.captures[0].owner is None
+
+
+def test_file_tolerates_partial_capture_owner(
+    file_properties: dict[str, Any],
+) -> None:
+    """File must not crash when capture owner lacks name/email."""
+    nested_capture = {
+        "owner": {"id": 1},
+        "capture_props": {},
+        "capture_type": CaptureType.DigitalRF.value,
+        "created_at": datetime.now(UTC).isoformat(),
+        "index_name": "captures-drf",
+        "origin": CaptureOrigin.User.value,
+        "top_level_dir": "/c/tdir",
+        "uuid": str(uuid.uuid4()),
+        "files": [],
+    }
+    raw = {
+        "uuid": str(uuid.uuid4()),
+        **file_properties,
+        "captures": [nested_capture],
+    }
+    f = File.model_validate(raw)
+    assert f.captures is not None
+    assert len(f.captures) == 1
+    assert f.captures[0].owner is not None
+    assert f.captures[0].owner.name is None
+    assert f.captures[0].owner.email is None
+
+
 def test_file_payload_may_include_redundant_singular_capture(
     file_properties: dict[str, Any],
 ) -> None:
