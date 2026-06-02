@@ -39,8 +39,8 @@ class User(SDSModel):
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
-    name: Annotated[str, Field(description=_d_name)]
-    email: Annotated[str, Field(description=_d_email)]
+    name: Annotated[str | None, Field(description=_d_name, default=None)]
+    email: Annotated[str | None, Field(description=_d_email, default=None)]
 
 
 class UserSharePermission(SDSModel):

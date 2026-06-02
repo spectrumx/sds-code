@@ -81,7 +81,7 @@ class Capture(SDSModel):
     datasets: Annotated[
         list[Dataset], Field(description=_d_datasets, default_factory=list)
     ]
-    owner: Annotated[User, Field(description=_d_owner)]
+    owner: Annotated[User | None, Field(description=_d_owner, default=None)]
     share_permissions: Annotated[
         list[UserSharePermission],
         Field(description=_d_share_permissions, default_factory=list),
