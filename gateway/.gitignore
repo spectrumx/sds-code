@@ -2,6 +2,7 @@
 .envs/*
 data/*
 opensearch/data/*
+version.json
 !/.envs/example
 
 # data dirs
