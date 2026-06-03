@@ -1103,6 +1103,27 @@ def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                 }
             )
 
+        status = row.get("status")
+        is_public = bool(row.get("is_public"))
+        is_deletable_dataset = (
+            status == DatasetStatus.DRAFT and not is_public
+        )
+        if is_deletable_dataset:
+            dataset_name = str(row.get("name") or "").strip() or "Dataset"
+            items.append(
+                {
+                    "label": "Delete",
+                    "icon": "trash",
+                    "type": "button",
+                    "extra_class": "delete-asset-btn",
+                    "data_attrs": {
+                        "asset-type": "dataset",
+                        "asset-uuid": uuid,
+                        "asset-name": dataset_name[:200],
+                    },
+                }
+            )
+
     # Web download button
     items.append(
         {

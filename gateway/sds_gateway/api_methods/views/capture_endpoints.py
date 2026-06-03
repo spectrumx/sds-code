@@ -2,6 +2,7 @@ import concurrent.futures
 import json
 import re
 import tempfile
+import threading
 import uuid
 from pathlib import Path
 from typing import Any
@@ -352,24 +353,41 @@ class CaptureViewSet(viewsets.ViewSet):
         )
 
         try:
-            # Use the Celery task for post-processing to ensure proper async execution
-            # Launch the visualization processing task asynchronously
             processing_config = {
                 ProcessingType.Waterfall.value: {},
                 ProcessingType.Spectrogram.value: {},
             }
+            capture_uuid = str(capture.uuid)
 
-            result = start_capture_post_processing.delay(  # pyright: ignore[reportFunctionMemberAccess]
-                str(capture.uuid), processing_config
-            )
-            log.info(
-                f"Launched visualization processing task for capture {capture.uuid}, "
-                f"task_id: {result.id}"
+            def run_post_processing_task() -> None:
+                try:
+                    result = start_capture_post_processing.delay(  # pyright: ignore[reportFunctionMemberAccess]
+                        capture_uuid, processing_config
+                    )
+                    log.info(
+                        f"Launched visualization processing task for capture "
+                        f"{capture_uuid}, task_id: {result.id}"
+                    )
+                except Exception as e:  # noqa: BLE001
+                    log.error(
+                        f"Failed to launch visualization processing task for "
+                        f"capture {capture_uuid}: {e}"
+                    )
+
+            # on_commit runs before the HTTP response is flushed; run the Celery
+            # enqueue (and eager-mode task body) off the request thread so reindex
+            # PUT returns after ingest/indexing only.
+            transaction.on_commit(
+                lambda: threading.Thread(
+                    target=run_post_processing_task,
+                    daemon=True,
+                    name=f"postproc-{capture_uuid}",
+                ).start()
             )
 
         except Exception as e:  # noqa: BLE001
             log.error(
-                f"Failed to launch visualization processing task for capture "
+                f"Failed to schedule visualization processing for capture "
                 f"{capture.uuid}: {e}"
             )
 

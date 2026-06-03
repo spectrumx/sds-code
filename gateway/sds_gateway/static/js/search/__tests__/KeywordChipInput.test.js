@@ -438,11 +438,78 @@ describe("KeywordChipInput", () => {
                 "<script>alert('xss')</script>",
             )
 
-            expect(escaped).not.toContain("<script>")
-            expect(escaped).toContain("&lt;")
-        })
-    })
-})
+		test("should render chips with correct structure", () => {
+			chipInput.chips = ["keyword1", "keyword2"];
+
+			chipInput.renderChips();
+
+			const chips = mockChipContainer.querySelectorAll(".keyword-chip");
+			expect(chips.length).toBe(2);
+
+			// Check chip structure
+			const firstChip = chips[0];
+			expect(firstChip.textContent).toContain("keyword1");
+			expect(firstChip.querySelector(".btn-close")).toBeTruthy();
+		});
+
+		test("should escape HTML in chip text", () => {
+			chipInput.chips = ["<script>alert('xss')</script>"];
+
+			chipInput.renderChips();
+
+			const chip = mockChipContainer.querySelector(".keyword-chip");
+			const span = chip.querySelector("span");
+			expect(span.innerHTML).not.toContain("<script>");
+		});
+
+		test("should remove existing chips before rendering", () => {
+			chipInput.chips = ["keyword1"];
+			chipInput.renderChips();
+
+			chipInput.chips = ["keyword2"];
+			chipInput.renderChips();
+
+			const chips = mockChipContainer.querySelectorAll(".keyword-chip");
+			expect(chips.length).toBe(1);
+			expect(chips[0].textContent).toContain("keyword2");
+		});
+
+		test("should handle remove button click", () => {
+			chipInput.chips = ["keyword1"];
+			chipInput.renderChips();
+
+			const chip = mockChipContainer.querySelector(".keyword-chip");
+			const removeBtn = chip.querySelector(".btn-close");
+
+			removeBtn.click();
+
+			expect(chipInput.chips).toEqual([]);
+		});
+	});
+
+	describe("Utility Methods", () => {
+		beforeEach(() => {
+			chipInput = new window.KeywordChipInput(mockInput, mockHiddenInput);
+		});
+
+		test("should get keywords array", () => {
+			chipInput.chips = ["keyword1", "keyword2"];
+
+			expect(chipInput.getKeywords()).toEqual(["keyword1", "keyword2"]);
+		});
+
+		test("should clear all chips", () => {
+			chipInput.chips = ["keyword1", "keyword2"];
+			mockInput.value = "text";
+
+			chipInput.clear();
+
+			expect(chipInput.chips).toEqual([]);
+			expect(mockInput.value).toBe("");
+			expect(mockHiddenInput.value).toBe("");
+		});
+	});
+});
 
 describe("initializeKeywordChipInput", () => {
     let mockContainer

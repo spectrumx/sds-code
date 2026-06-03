@@ -3,7 +3,7 @@ Loading Component - Generalized
 Renders loading states in various formats: spinner, modal, block
 Context:
   - text: Loading message text (default: "Loading...")
-  - format: 'spinner' | 'modal' | 'block' (default: 'spinner')
+  - format: 'spinner' | 'modal' | 'block' | 'progress' (default: 'spinner')
   - size: 'sm' | 'md' | 'lg' for spinner size (default: 'md')
   - color: Bootstrap color class (default: 'primary')
 {% endcomment %}
@@ -25,6 +25,16 @@ Context:
         </div>
         {% if text %}<p class="mt-2 mb-0 text-muted">{{ text }}</p>{% endif %}
     </div>
+{% elif format == 'progress' %}
+    {# Indeterminate progress (long-running operations) #}
+    <div class="progress"
+         role="progressbar"
+         aria-label="{{ text|default:'In progress' }}"
+         aria-valuemin="0"
+         aria-valuemax="100">
+        <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+    </div>
+    {% if text %}<p class="small text-muted mt-2 mb-0">{{ text }}</p>{% endif %}
 {% else %}
     {# Inline spinner (default) #}
     <span class="spinner-border {% if size == 'sm' %}spinner-border-sm{% endif %} me-2 {% if color %}text-{{ color }}{% endif %}"
