@@ -110,19 +110,19 @@ class KeywordChipInput {
             chip.remove()
         }
 
-        // Add chips before the input
-        this.chips.forEach((keyword, index) => {
-            const chip = document.createElement("span")
-            chip.className =
-                "keyword-chip badge bg-secondary d-inline-flex align-items-center gap-1 me-1"
-            chip.innerHTML = `
-                <span>${this.escapeHtml(keyword)}</span>
+		// Add chips before the input
+		this.chips.forEach((keyword, index) => {
+			const chip = document.createElement("span");
+			chip.className =
+				"keyword-chip badge bg-secondary d-inline-flex align-items-center gap-1 me-1";
+			chip.innerHTML = `
+                <span>${keyword}</span>
                 <button type="button"
                         class="btn-close btn-close-white"
                         style="font-size: 0.65em;"
-                        aria-label="Remove ${this.escapeHtml(keyword)}"
-                        data-keyword="${this.escapeHtml(keyword)}"></button>
-            `
+                        aria-label="Remove ${keyword}"
+                        data-keyword="${keyword}"></button>
+            `;
 
             // Add remove handler - use keyword instead of index to avoid index issues
             const removeBtn = chip.querySelector(".btn-close")
@@ -141,15 +141,9 @@ class KeywordChipInput {
         this.hiddenInput.value = this.chips.join(",")
     }
 
-    escapeHtml(text) {
-        const div = document.createElement("div")
-        div.textContent = text
-        return div.innerHTML
-    }
-
-    getKeywords() {
-        return this.chips
-    }
+	getKeywords() {
+		return this.chips;
+	}
 
     clear() {
         this.chips = []

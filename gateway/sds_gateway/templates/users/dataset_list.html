@@ -35,6 +35,7 @@
     <div id="dataset-modals-container">
         {% include "users/components/dataset_list_modals.html" with page_obj=page_obj %}
     </div>
+    {% include "users/partials/delete_asset_modal.html" %}
 {% endblock content %}
 {% block javascript %}
     {# djlint:off #}
@@ -57,6 +58,7 @@
     <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/PublishActionManager.js' %}"></script>
     <script src="{% static 'js/actions/VersioningActionManager.js' %}"></script>
+    <script src="{% static 'js/actions/AssetDeletionManager.js' %}"></script>
     <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/core/PageController.js' %}"></script>
     <script>
@@ -90,6 +92,10 @@
             // Initialize PublishActionManager for publish modals
             if (typeof PublishActionManager !== 'undefined') {
                 window.publishActionManager = new PublishActionManager();
+            }
+
+            if (window.AssetDeletionManager && document.getElementById("deleteAssetModal")) {
+                window.assetDeletionManager = new window.AssetDeletionManager();
             }
 
             // Check for dataset download alert messages only

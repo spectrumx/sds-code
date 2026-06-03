@@ -23,6 +23,7 @@ from .captures import ListCapturesView
 from .captures import QuickAddCaptureToDatasetView
 from .captures import UserDatasetsForQuickAddView
 from .captures import _get_captures_for_template  # Exported for tests
+from .captures import capture_reindex_preview_view
 from .captures import keyword_autocomplete_api_view
 from .captures import quick_add_capture_to_dataset_view
 from .captures import user_capture_list_view
@@ -132,6 +133,7 @@ __all__ = [
     "home_page_view",
     "keyword_autocomplete_api_view",
     "new_api_key_view",
+    "capture_reindex_preview_view",
     "quick_add_capture_to_dataset_view",
     "render_html_fragment_view",
     "revoke_api_key_view",

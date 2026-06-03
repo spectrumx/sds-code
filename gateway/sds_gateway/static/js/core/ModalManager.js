@@ -67,15 +67,35 @@ class ModalManager extends BaseManager {
         }
     }
 
-    /**
-     * @param {string | HTMLElement} idOrElement
-     */
-    closeModal(modalId) {
-        const element = document.getElementById(modalId)
-        if (!element || !window.bootstrap?.Modal) return
-        const inst = bootstrap.Modal.getInstance(element)
-        if (inst) inst.hide()
-    }
+	/**
+	 * @param {string | HTMLElement} idOrElement
+	 */
+	closeModal(modalId) {
+		const element = document.getElementById(modalId);
+		if (!element || !window.bootstrap?.Modal) return;
+		const inst = bootstrap.Modal.getInstance(element);
+		if (!inst) return;
+		try {
+			inst.hide();
+		} catch (err) {
+			console.warn("Modal hide failed, forcing cleanup:", err);
+			element.classList.remove("show");
+			element.setAttribute("aria-hidden", "true");
+			element.removeAttribute("aria-modal");
+			element.style.display = "none";
+			document.body.classList.remove("modal-open");
+			document.body.style.removeProperty("overflow");
+			document.body.style.removeProperty("padding-right");
+			for (const backdrop of document.querySelectorAll(".modal-backdrop")) {
+				backdrop.remove();
+			}
+			try {
+				inst.dispose();
+			} catch (_) {
+				/* ignore */
+			}
+		}
+	}
 
     /**
      * @param {object} config

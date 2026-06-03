@@ -2,6 +2,7 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from .api.views import GetAPIKeyView
+from .views import capture_reindex_preview_view
 from .views import CheckFileExistsView
 from .views import FileContentView
 from .views import FileDownloadView
@@ -83,6 +84,11 @@ urlpatterns = [
         "quick-add-capture-to-dataset/",
         quick_add_capture_to_dataset_view,
         name="quick_add_capture_to_dataset",
+    ),
+    path(
+        "captures/<uuid:uuid>/reindex-preview/",
+        capture_reindex_preview_view,
+        name="capture_reindex_preview",
     ),
     path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),
