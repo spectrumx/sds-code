@@ -1,13 +1,17 @@
 # https://hub.docker.com/_/node/tags?name=slim
-FROM docker.io/node:24-trixie-slim AS client-builder
+FROM ghcr.io/pnpm/pnpm:11 AS client-builder
+
+RUN pnpm runtime set node 24 -g && cp /pnpm/bin/node /usr/local/bin/node && rm /pnpm/bin/node
 
 ARG APP_HOME=/app
 WORKDIR ${APP_HOME}
 
 COPY ./package.json ${APP_HOME}
-RUN npm install && npm cache clean --force
+COPY ./pnpm-lock.yaml ${APP_HOME}
+COPY ./pnpm-workspace.yaml ${APP_HOME}
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY . ${APP_HOME}
-RUN npm run build
+RUN pnpm run build
 
 # https://hub.docker.com/_/python/tags?name=3.13
 FROM docker.io/python:3.13-slim-trixie AS python

@@ -1,0 +1,8 @@
+packages:
+  - '.'
+
+allowBuilds:
+  '@biomejs/biome': true
+  '@parcel/watcher': true
+
+minimumReleaseAge: 4320

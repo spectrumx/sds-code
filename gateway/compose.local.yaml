@@ -395,7 +395,7 @@ services:
               type: bind
               bind:
                   selinux: z
-        command: "npm run dev"
+        command: "pnpm run dev"
         ports:
             - "3000:3000"
         develop:

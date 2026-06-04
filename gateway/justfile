@@ -272,7 +272,7 @@ test-py *args:
 [group('qa')]
 test-js *args:
     @echo "Running JavaScript tests"
-    {{ docker_compose }} run node npm run test {{ args }}
+    {{ docker_compose }} run node pnpm run test {{ args }}
 
 # starts services in detached mode; if env is local, starts process to watch files
 [group('service')]
@@ -302,7 +302,7 @@ update:
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
     @echo "Upgrading node dependencies"
-    {{ docker_compose }} run node npm update
+    {{ docker_compose }} run node pnpm update
 
 # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
 [group('utilities')]
