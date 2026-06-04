@@ -7,9 +7,17 @@ import { AssetDeletionManager } from "../AssetDeletionManager.js";
 function installDeleteModalDom() {
 	document.body.innerHTML = `
 		<div id="deleteAssetModal">
+			<span id="delete-asset-title-deletable"></span>
+			<span id="delete-asset-title-shared" class="d-none"></span>
 			<span id="delete-asset-type-label"></span>
-			<strong id="delete-asset-name"></strong>
-			<div id="delete-asset-message" class="d-none"></div>
+			<span id="delete-asset-type-label-shared"></span>
+			<div id="delete-asset-body-deletable">
+				<strong id="delete-asset-name"></strong>
+				<div id="delete-asset-message" class="d-none"></div>
+			</div>
+			<div id="delete-asset-body-shared" class="d-none">
+				<strong id="delete-asset-name-shared"></strong>
+			</div>
 			<button id="delete-asset-confirm-btn"></button>
 		</div>
 	`;
@@ -47,5 +55,31 @@ describe("AssetDeletionManager", () => {
 		expect(window.APIClient.delete).toHaveBeenCalledWith(
 			"/api/v1/assets/captures/uuid-1/",
 		);
+	});
+
+	test("shared capture shows warning and skips delete API", async () => {
+		window.bootstrap = {
+			Modal: Object.assign(
+				jest.fn(() => ({ show: jest.fn(), hide: jest.fn() })),
+				{
+					getInstance: jest.fn(() => null),
+				},
+			),
+		};
+		const mgr = new AssetDeletionManager();
+		mgr.assetType = "capture";
+		mgr.assetUuid = "uuid-2";
+		mgr.assetName = "My Capture";
+		mgr.assetIsShared = true;
+		mgr.applySharedState();
+
+		expect(mgr.assetIsShared).toBe(true);
+		expect(window.DOMUtils.toggleHidden).toHaveBeenCalledWith(
+			mgr.confirmBtn,
+			true,
+		);
+
+		await mgr.confirmDeletion();
+		expect(window.APIClient.delete).not.toHaveBeenCalled();
 	});
 });

@@ -9,13 +9,26 @@ class AssetDeletionManager extends ModalManager {
 		if (!this.modalEl) return;
 
 		this.typeLabelEl = document.getElementById("delete-asset-type-label");
+		this.typeLabelSharedEl = document.getElementById(
+			"delete-asset-type-label-shared",
+		);
+		this.titleDeletableEl = document.getElementById(
+			"delete-asset-title-deletable",
+		);
+		this.titleSharedEl = document.getElementById("delete-asset-title-shared");
 		this.nameEl = document.getElementById("delete-asset-name");
+		this.nameSharedEl = document.getElementById("delete-asset-name-shared");
+		this.deletableBodyEl = document.getElementById(
+			"delete-asset-body-deletable",
+		);
+		this.sharedBodyEl = document.getElementById("delete-asset-body-shared");
 		this.messageEl = document.getElementById("delete-asset-message");
 		this.confirmBtn = document.getElementById("delete-asset-confirm-btn");
 
 		this.assetType = null;
 		this.assetUuid = null;
 		this.assetName = null;
+		this.assetIsShared = false;
 
 		this.initializeEventListeners();
 	}
@@ -33,6 +46,7 @@ class AssetDeletionManager extends ModalManager {
 				assetType,
 				assetUuid,
 				btn.getAttribute("data-asset-name") || "",
+				btn.getAttribute("data-asset-shared") === "true",
 			);
 		});
 
@@ -40,20 +54,22 @@ class AssetDeletionManager extends ModalManager {
 
 		this.modalEl.addEventListener("show.bs.modal", () => {
 			this.clearInlineMessage();
-			if (this.confirmBtn) {
-				this.confirmBtn.disabled = false;
-			}
+			this.applySharedState();
 		});
 
 		if (this.confirmBtn) {
-			this.confirmBtn.addEventListener("click", () => void this.confirmDeletion());
+			this.confirmBtn.addEventListener(
+				"click",
+				() => void this.confirmDeletion(),
+			);
 		}
 	}
 
-	openForAsset(assetType, assetUuid, assetName) {
+	openForAsset(assetType, assetUuid, assetName, assetIsShared = false) {
 		this.assetType = assetType;
 		this.assetUuid = assetUuid;
 		this.assetName = assetName || "this asset";
+		this.assetIsShared = Boolean(assetIsShared);
 
 		const typeLabel =
 			assetType === "dataset"
@@ -64,11 +80,32 @@ class AssetDeletionManager extends ModalManager {
 		if (this.typeLabelEl) {
 			this.typeLabelEl.textContent = typeLabel;
 		}
+		if (this.typeLabelSharedEl) {
+			this.typeLabelSharedEl.textContent = typeLabel;
+		}
+		const displayName = this.assetName;
 		if (this.nameEl) {
-			this.nameEl.textContent = this.assetName;
+			this.nameEl.textContent = displayName;
+		}
+		if (this.nameSharedEl) {
+			this.nameSharedEl.textContent = displayName;
 		}
 
+		this.applySharedState();
 		this.openModal(this.modalId);
+	}
+
+	applySharedState() {
+		const isShared = this.assetIsShared;
+		window.DOMUtils?.toggleHidden(this.deletableBodyEl, isShared);
+		window.DOMUtils?.toggleHidden(this.sharedBodyEl, !isShared);
+		window.DOMUtils?.toggleHidden(this.confirmBtn, isShared);
+		window.DOMUtils?.toggleHidden(this.titleDeletableEl, isShared);
+		window.DOMUtils?.toggleHidden(this.titleSharedEl, !isShared);
+
+		if (this.confirmBtn) {
+			this.confirmBtn.disabled = isShared;
+		}
 	}
 
 	buildDeleteUrl(assetType, assetUuid) {
@@ -93,6 +130,8 @@ class AssetDeletionManager extends ModalManager {
 	}
 
 	async confirmDeletion() {
+		if (this.assetIsShared) return;
+
 		const { assetType, assetUuid } = this;
 		if (!assetType || !assetUuid) return;
 
@@ -108,15 +147,19 @@ class AssetDeletionManager extends ModalManager {
 					: assetType === "capture"
 						? "Capture"
 						: "Asset";
-			this.closeModalWithToast(`${label} deleted successfully.`, "success", () => {
-				if (!window.listRefreshManager?.loadTable) return;
-				const params = Object.fromEntries(
-					new URLSearchParams(window.location.search),
-				);
-				void window.listRefreshManager.loadTable(params, {
-					showLoading: false,
-				});
-			});
+			this.closeModalWithToast(
+				`${label} deleted successfully.`,
+				"success",
+				() => {
+					if (!window.listRefreshManager?.loadTable) return;
+					const params = Object.fromEntries(
+						new URLSearchParams(window.location.search),
+					);
+					void window.listRefreshManager.loadTable(params, {
+						showLoading: false,
+					});
+				},
+			);
 		} catch (err) {
 			console.error(err);
 			const detail =
