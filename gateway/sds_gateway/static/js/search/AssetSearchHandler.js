@@ -17,37 +17,37 @@ function getConfiguredSearchElements(config) {
 }
 
 class AssetSearchHandler {
-	static FILE_TREE_ROOT_ID = "file-tree-root";
-	static FILE_TREE_FILE_CHECKBOX_SELECTOR =
-		'#file-tree-root input[name="files"]';
+    static FILE_TREE_ROOT_ID = "file-tree-root"
+    static FILE_TREE_FILE_CHECKBOX_SELECTOR =
+        '#file-tree-root input[name="files"]'
 
-	/**
-	 * @returns {HTMLElement|null}
-	 */
-	getFileTreeRoot() {
-		return document.getElementById(AssetSearchHandler.FILE_TREE_ROOT_ID);
-	}
+    /**
+     * @returns {HTMLElement|null}
+     */
+    getFileTreeRoot() {
+        return document.getElementById(AssetSearchHandler.FILE_TREE_ROOT_ID)
+    }
 
-	/**
-	 * @returns {HTMLInputElement[]}
-	 */
-	getVisibleFileCheckboxes() {
-		return Array.from(
-			document.querySelectorAll(
-				`${AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR}:not(:disabled)`,
-			),
-		).filter((checkbox) => checkbox.offsetParent !== null);
-	}
-	/**
-	 * @param {object} target
-	 * @param {object} config
-	 */
-	static applySearchCoreElements(target, config) {
-		const searchEls = getConfiguredSearchElements(config);
-		target.searchForm = searchEls.searchForm;
-		target.searchButton = searchEls.searchButton;
-		target.clearButton = searchEls.clearButton;
-	}
+    /**
+     * @returns {HTMLInputElement[]}
+     */
+    getVisibleFileCheckboxes() {
+        return Array.from(
+            document.querySelectorAll(
+                `${AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR}:not(:disabled)`,
+            ),
+        ).filter((checkbox) => checkbox.offsetParent !== null)
+    }
+    /**
+     * @param {object} target
+     * @param {object} config
+     */
+    static applySearchCoreElements(target, config) {
+        const searchEls = getConfiguredSearchElements(config)
+        target.searchForm = searchEls.searchForm
+        target.searchButton = searchEls.searchButton
+        target.clearButton = searchEls.clearButton
+    }
 
     /**
      * Build URLSearchParams from config specs ({ param, elementId } or { param, el, get }).
@@ -407,9 +407,9 @@ class AssetSearchHandler {
             selectAllCheckbox.dataset.selectAllBound = "true"
         }
 
-		selectAllCheckbox.addEventListener("change", () => {
-			const isChecked = selectAllCheckbox.checked;
-			const fileCheckboxes = this.getVisibleFileCheckboxes();
+        selectAllCheckbox.addEventListener("change", () => {
+            const isChecked = selectAllCheckbox.checked
+            const fileCheckboxes = this.getVisibleFileCheckboxes()
 
             for (const checkbox of fileCheckboxes) {
                 if (checkbox.checked !== isChecked) {
@@ -433,20 +433,20 @@ class AssetSearchHandler {
             removeAllButton.dataset.removeAllBound = "true"
         }
 
-		removeAllButton.addEventListener("click", () => {
-			// Check if formHandler has a custom removal handler for edit mode
-			if (this.formHandler?.handleRemoveAllFiles) {
-				this.formHandler.handleRemoveAllFiles();
-			} else {
-				// Default behavior for create mode
-				// Deselect all files
-				const fileCheckboxes = document.querySelectorAll(
-					AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
-				);
-				for (const checkbox of fileCheckboxes) {
-					checkbox.checked = false;
-					checkbox.dispatchEvent(new Event("change"));
-				}
+        removeAllButton.addEventListener("click", () => {
+            // Check if formHandler has a custom removal handler for edit mode
+            if (this.formHandler?.handleRemoveAllFiles) {
+                this.formHandler.handleRemoveAllFiles()
+            } else {
+                // Default behavior for create mode
+                // Deselect all files
+                const fileCheckboxes = document.querySelectorAll(
+                    AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
+                )
+                for (const checkbox of fileCheckboxes) {
+                    checkbox.checked = false
+                    checkbox.dispatchEvent(new Event("change"))
+                }
 
                 this.selectedFiles.clear()
                 this.updateSelectedFilesList()
@@ -536,779 +536,804 @@ class AssetSearchHandler {
 					</div>
 				</div>
 			</div>
-		`;
-		capturesContainer.appendChild(selectedPane);
-	}
-
-	/**
-	 * Update selected captures pane
-	 */
-	async updateSelectedCapturesPane() {
-		const selectedList = document.getElementById("selected-captures-list");
-		const countBadge = document.querySelector(".selected-captures-count");
-		if (!selectedList || !countBadge || !this.formHandler) return;
-
-		const selectedCaptures = this.formHandler.selectedCaptures;
-		countBadge.textContent = `${selectedCaptures.size} selected`;
-
-		// Prepare captures data for server-side rendering
-		const capturesData = Array.from(selectedCaptures).map((captureId) => {
-			const data = this.selectedCaptureDetails.get(captureId) || {
-				type: "Unknown",
-				directory: "Unknown",
-			};
-			return {
-				id: captureId,
-				type: data.type,
-				directory: data.directory,
-			};
-		});
-
-		await this.renderSelectedCapturesTable(selectedList, capturesData);
-
-		// Add remove handlers after async render (DOM must contain buttons)
-		const removeSelectedButtons = selectedList.querySelectorAll(
-			".remove-selected-capture",
-		);
-		for (const button of removeSelectedButtons) {
-			button.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				const captureId = button.dataset.id;
-
-				// Check if formHandler has a custom removal handler for edit mode
-				if (this.formHandler?.handleCaptureRemoval) {
-					this.formHandler.handleCaptureRemoval(captureId);
-				} else {
-					// Default behavior for create mode
-					this.formHandler.selectedCaptures.delete(captureId);
-					this.selectedCaptureDetails.delete(captureId);
-
-					// Update checkbox if visible
-					const checkbox = document.querySelector(
-						`input[name="captures"][value="${captureId}"]`,
-					);
-					if (checkbox) {
-						checkbox.checked = false;
-						checkbox.closest("tr").classList.remove("table-warning");
-					}
-
-					void this.updateSelectedCapturesPane();
-					this.formHandler.updateHiddenFields();
-				}
-			});
-		}
-	}
-
-	/**
-	 * Render selected captures table asynchronously
-	 */
-	async renderSelectedCapturesTable(selectedList, capturesData) {
-		// Normalize for generic table_rows template
-		const rows = capturesData.map((capture) => ({
-			data_attrs: { "capture-id": capture.id },
-			cells: [
-				{ kind: "text", value: capture.type },
-				{ kind: "text", value: capture.directory },
-			],
-			actions: [
-				{
-					label: "Remove",
-					icon: "bi-x",
-					css_class: "btn-danger",
-					extra_class: "remove-selected-capture",
-					data_attrs: { id: capture.id },
-				},
-			],
-		}));
-
-		// Use the generic table_rows template via DOMUtils
-		const success = await window.DOMUtils.renderTable(selectedList, rows, {
-			empty_message: "No captures selected",
-			empty_colspan: 3,
-		});
-
-		if (!success) {
-			console.error("Error rendering selected captures table");
-		}
-	}
-
-	/**
-	 * Fetch captures data
-	 * @param {Object} params - Search parameters
-	 * @returns {Promise<Object>} Captures data
-	 */
-	async fetchCaptures(params = {}) {
-		try {
-			const searchParams = new URLSearchParams();
-
-			// Add all params to the search parameters
-			for (const [key, value] of Object.entries(params)) {
-				if (value) {
-					searchParams.append(key, value);
-				}
-			}
-
-			// Always add the search_captures parameter
-			searchParams.append("search_captures", "true");
-
-			const data = await window.APIClient.request(
-				`${this.config.apiEndpoint}?${searchParams.toString()}`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			// APIClient.request already returns parsed JSON data
-			return data;
-		} catch (error) {
-			console.error("Error fetching captures:", error);
-			return { results: [], pagination: {} };
-		}
-	}
-
-	/**
-	 * Fetch files data
-	 * @param {Object} params - Search parameters
-	 * @returns {Promise<Object>} Files data
-	 */
-	async fetchFiles(params = {}) {
-		try {
-			const searchParams = new URLSearchParams(params);
-			const data = await window.APIClient.request(
-				`${this.config.apiEndpoint}?${searchParams.toString()}&search_files=true`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			// APIClient.request already returns parsed JSON data
-			return data;
-		} catch (error) {
-			console.error("Error fetching files:", error);
-			return { tree: {}, pagination: {} };
-		}
-	}
-
-	/**
-	 * Update captures table
-	 * @param {Object} data - Captures data
-	 */
-	async updateCapturesTable(data) {
-		const tbody = document.querySelector("#captures-table tbody");
-
-		// Update the results count
-		this.updateResultsCount(data.results.length);
-
-		// Transform captures data for table_rows.html template
-		const rows = data.results.map((capture) => {
-			const captureIdStr = capture.id.toString();
-			const inExistingDataset =
-				this.isEditMode &&
-				this.formHandler?.currentCaptures &&
-				(this.formHandler.currentCaptures.has(capture.id) ||
-					this.formHandler.currentCaptures.has(captureIdStr));
-			const isSelected =
-				inExistingDataset ||
-				this.formHandler?.selectedCaptures?.has(captureIdStr);
-			const isOwnedByCurrentUser =
-				capture.owner_id === this.formHandler?.currentUserId;
-			const canSelect = isOwnedByCurrentUser;
-			// Edit only: captures already in the dataset stay checked and locked
-			const checkboxDisabled =
-				!canSelect || (this.isEditMode && inExistingDataset);
-			const ownerName = capture.owner
-				? capture.owner.name || capture.owner.email || "-"
-				: "-";
-			const createdAt = new Date(capture.created_at).toLocaleDateString(
-				"en-US",
-				{
-					month: "2-digit",
-					day: "2-digit",
-					year: "numeric",
-				},
-			);
-
-			return {
-				id: capture.id,
-				css_class: `capture-row${isSelected ? " table-warning" : ""}${checkboxDisabled ? " readonly-row" : ""}${inExistingDataset ? " capture-in-dataset" : ""}`,
-				data_attrs: {
-					"capture-id": capture.id,
-				},
-				cells: [
-					{
-						kind: "html",
-						tag: "input",
-						class: "form-check-input capture-checkbox",
-						name: "captures",
-						tag_attrs: {
-							type: "checkbox",
-							checked: isSelected,
-							disabled: checkboxDisabled,
-							value: capture.id,
-						},
-						data_attrs: {
-							"capture-type": capture.type,
-							"capture-directory": capture.directory,
-							"capture-channel": capture.channel,
-							"capture-scan-group": capture.scan_group,
-							"capture-created-at": capture.created_at,
-							"capture-owner-id": capture.owner_id,
-							"capture-owner-name": ownerName,
-						},
-					},
-					{ kind: "text", value: capture.type },
-					{ kind: "text", value: capture.directory },
-					{ kind: "text", value: capture.channel },
-					{ kind: "text", value: capture.scan_group },
-					{ kind: "text", value: ownerName },
-					{ kind: "text", value: createdAt },
-				],
-			};
-		});
-
-		// Render using DOMUtils
-		const success = await window.DOMUtils.renderTable(tbody, rows, {
-			empty_message: "No captures found",
-			empty_colspan: 7,
-		});
-
-		if (success) {
-			// Attach event handlers to rendered rows
-			this.attachCaptureRowHandlers(tbody);
-		} else {
-			await window.DOMUtils.showMessage("Error loading captures", {
-				variant: "danger",
-				placement: "replace",
-				target: tbody,
-				presentation: "table",
-				templateContext: { colspan: 7 },
-			});
-		}
-
-		// Update pagination with current filters
-		this.updatePagination("captures", data.pagination);
-
-		// Update selected captures pane
-		await this.updateSelectedCapturesPane();
-	}
-
-	/**
-	 * Attach event handlers to capture table rows
-	 * @param {Element} tbody - Table body element
-	 */
-	attachCaptureRowHandlers(tbody) {
-		const rows = tbody.querySelectorAll("tr[data-capture-id]");
-
-		for (const row of rows) {
-			const checkbox = row.querySelector("input.capture-checkbox");
-			if (!checkbox) continue;
-
-			const captureId = checkbox.value;
-			const captureData = {
-				type: checkbox.dataset.captureType,
-				directory: checkbox.dataset.captureDirectory,
-				channel: checkbox.dataset.captureChannel,
-				scan_group: checkbox.dataset.captureScanGroup,
-				created_at: checkbox.dataset.captureCreatedAt,
-				owner_id: checkbox.dataset.captureOwnerId,
-				owner_name: checkbox.dataset.captureOwnerName,
-			};
-
-			const handleSelection = (e) => {
-				if (checkbox.disabled) {
-					e.preventDefault();
-					e.stopPropagation();
-					return;
-				}
-
-				if (e.target.type !== "checkbox") {
-					checkbox.checked = !checkbox.checked;
-				}
-
-				if (checkbox.checked) {
-					// Check if this is an editing handler
-					if (this.formHandler.addCaptureToPending) {
-						this.formHandler.addCaptureToPending(captureId, captureData);
-					} else {
-						// Regular selection for creation
-						this.formHandler.selectedCaptures.add(captureId);
-						row.classList.add("table-warning");
-						this.selectedCaptureDetails.set(captureId, captureData);
-						this.formHandler.updateHiddenFields();
-						void this.updateSelectedCapturesPane();
-					}
-
-					if (this.formHandler.updateCurrentCapturesList) {
-						this.formHandler.updateCurrentCapturesList();
-					}
-				} else {
-					if (this.formHandler.addCaptureToPending) {
-						this.formHandler.cancelCaptureChange(captureId);
-					} else {
-						this.formHandler.selectedCaptures.delete(captureId);
-						row.classList.remove("table-warning");
-						this.selectedCaptureDetails.delete(captureId);
-						this.formHandler.updateHiddenFields();
-						void this.updateSelectedCapturesPane();
-					}
-
-					if (this.formHandler.updateCurrentCapturesList) {
-						this.formHandler.updateCurrentCapturesList();
-					}
-				}
-			};
-
-			// Add click handler for the row
-			row.addEventListener("click", handleSelection);
-
-			// Add specific handler for checkbox to prevent double-triggering
-			checkbox.addEventListener("change", (e) => {
-				e.stopPropagation();
-				handleSelection(e);
-			});
-		}
-	}
-
-	/**
-	 * Update pagination
-	 * @param {string} type - Type of pagination (captures or files)
-	 * @param {Object} pagination - Pagination data
-	 */
-	async updatePagination(type, pagination) {
-		const paginationContainer = document.querySelector(`#${type}-pagination`);
-		if (!paginationContainer) return;
-
-		const success = await window.DOMUtils.renderPagination(
-			paginationContainer,
-			pagination,
-		);
-
-		if (success && pagination && pagination.num_pages > 1) {
-			// Attach click handlers after rendering
-			this.attachPaginationHandlers(type, paginationContainer);
-		}
-	}
-
-	/**
-	 * Attach pagination click handlers
-	 * @param {string} type - Type of pagination (captures or files)
-	 * @param {Element} container - Pagination container element
-	 */
-	attachPaginationHandlers(type, container) {
-		const links = container.querySelectorAll("a.page-link");
-		for (const link of links) {
-			link.addEventListener("click", async (e) => {
-				e.preventDefault();
-				const target = e.target.closest("a.page-link");
-				const page = target?.dataset.page;
-
-				if (type === "captures") {
-					const params = {
-						...this.currentFilters,
-						page: page,
-					};
-					const data = await this.fetchCaptures(params);
-					this.updateCapturesTable(data);
-				} else {
-					const data = await this.fetchFiles(
-						this.getFileSearchParams({ page }),
-					);
-					this.updateFilesTable(data);
-				}
-			});
-		}
-	}
-
-	/**
-	 * Handle search
-	 */
-	async handleSearch() {
-		try {
-			// Get all input elements within the search container
-			const searchContainer = this.searchForm;
-			if (!searchContainer) {
-				console.error("Search container not found:", this.searchForm);
-				return;
-			}
-			const params = new URLSearchParams();
-
-			// Get all form inputs within the container
-			const inputs = searchContainer.querySelectorAll(
-				"input, select, textarea",
-			);
-			for (const input of inputs) {
-				if (input.value) {
-					params.append(input.name, input.value);
-				}
-			}
-
-			// Add the search type parameter
-			params.append(
-				this.type === "captures" ? "search_captures" : "search_files",
-				"true",
-			);
-
-			const data = await window.APIClient.request(
-				`${this.config.apiEndpoint}?${params.toString()}`,
-				{
-					headers: {
-						"X-Requested-With": "XMLHttpRequest",
-					},
-				},
-			);
-
-			// APIClient.request already returns parsed JSON data
-
-			if (this.type === "captures") {
-				this.updateCapturesTable(data);
-			} else {
-				// Reset select all checkbox
-				const selectAllCheckbox = document.getElementById(
-					"select-all-files-checkbox",
-				);
-				if (selectAllCheckbox) {
-					selectAllCheckbox.checked = false;
-				}
-				if (data.tree) {
-					// Update file extension select options while preserving current selection
-					const extensionSelect = document.getElementById("file-extension");
-					if (extensionSelect && data.extension_choices) {
-						const currentValue = extensionSelect.value;
-						await window.DOMUtils.renderSelectOptions(
-							extensionSelect,
-							data.extension_choices,
-							currentValue,
-						);
-					}
-
-					// Restore search values if they exist
-					if (data.search_values) {
-						const fileNameInput = document.getElementById("file-name");
-						const directoryInput = document.getElementById("file-directory");
-
-						if (fileNameInput) {
-							fileNameInput.value = data.search_values.file_name || "";
-						}
-						if (extensionSelect) {
-							extensionSelect.value = data.search_values.file_extension || "";
-						}
-						if (directoryInput) {
-							directoryInput.value = data.search_values.directory || "";
-						}
-					}
-
-					const searchTermEntered =
-						data.search_values.file_name ||
-						data.search_values.directory ||
-						data.search_values.file_extension;
-
-					this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
-
-					// Initialize select all checkbox handler for the current file tree
-					this.initializeSelectAllCheckbox();
-
-					// Initialize remove all button handler for the current file tree
-					this.initializeRemoveAllButton();
-				}
-			}
-
-			if (data.pagination) {
-				this.updatePagination(this.type, data.pagination);
-			}
-		} catch (error) {
-			console.error("Error during search:", error);
-			this.showError("An error occurred during the search. Please try again.");
-		}
-	}
-
-	/**
-	 * Handle clear
-	 */
-	handleClear() {
-		// Clear all form inputs
-		const searchContainer = this.searchForm;
-		if (!searchContainer) {
-			console.error("Search container not found:", this.searchForm);
-			return;
-		}
-
-		const inputs = searchContainer.querySelectorAll("input, select, textarea");
-		for (const input of inputs) {
-			input.value = "";
-		}
-
-		// Trigger a new search with empty parameters
-		this.handleSearch();
-	}
-
-	/**
-	 * Update selected files list
-	 */
-	updateSelectedFilesList() {
-		// Update form handler's selectedFiles with current selection (create mode only)
-		if (this.formHandler && !this.isEditMode) {
-			// Convert Map entries to array of file objects with IDs
-			const fileList = Array.from(this.selectedFiles.entries()).map(
-				([id, file]) => ({ ...file, id: id }),
-			);
-			this.formHandler.selectedFiles = new Set(fileList);
-		}
-
-		// Update selected files display input
-		const selectedFilesDisplay = document.getElementById(
-			"selected-files-display",
-		);
-		if (selectedFilesDisplay) {
-			selectedFilesDisplay.value = `${this.selectedFiles.size} file(s) selected`;
-		}
-
-		// Update Remove All button state
-		const removeAllButton = document.getElementById(
-			"remove-all-selected-files-button",
-		);
-		if (removeAllButton) {
-			removeAllButton.disabled = this.selectedFiles.size === 0;
-		}
-
-		// Update selected files table if it exists (only in create mode)
-		if (!this.isEditMode) {
-			const selectedFilesTable = document.getElementById(
-				"selected-files-table",
-			);
-			const selectedFilesBody = selectedFilesTable?.querySelector("tbody");
-			if (selectedFilesBody) {
-				this.renderSelectedFilesTable(selectedFilesBody);
-			}
-		}
-
-		// Update count badge
-		const countBadge = document.querySelector(".selected-files-count");
-		if (countBadge) {
-			countBadge.textContent = `${this.selectedFiles.size} selected`;
-		}
-	}
-
-	/**
-	 * Load file tree
-	 */
-	async loadFileTree() {
-		try {
-			const params = this.getFileSearchParams();
-			const extensionSelect = document.getElementById("file-extension");
-			const data = await this.fetchFiles(params);
-			if (!data.tree) {
-				console.error("No tree data received:", data);
-				return;
-			}
-
-			// Update file extension select options
-			if (extensionSelect && data.extension_choices) {
-				await window.DOMUtils.renderSelectOptions(
-					extensionSelect,
-					data.extension_choices,
-				);
-			}
-
-			// Pass the search parameters to renderFileTree
-			const searchTermEntered =
-				params.file_name || params.directory || params.file_extension;
-
-			this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
-
-			// Initialize select all checkbox handler for the current file tree
-			this.initializeSelectAllCheckbox();
-
-			// Initialize remove all button handler for the current file tree
-			this.initializeRemoveAllButton();
-		} catch (error) {
-			console.error("Error loading file tree:", error);
-		}
-	}
-
-	/**
-	 * Get relative path
-	 * @param {Object} file - File object
-	 * @param {string} currentPath - Current path
-	 * @returns {string} Relative path
-	 */
-	getRelativePath(file, currentPath = "") {
-		if (!currentPath) {
-			return "";
-		}
-		return `/${currentPath}`;
-	}
-
-	/**
-	 * Render file tree
-	 * @param {Object} tree - File tree data
-	 * @param {HTMLElement} parentElement - Parent element
-	 * @param {number} level - Nesting level
-	 * @param {string} currentPath - Current path
-	 * @param {boolean} searchTermEntered - Whether search term was entered
-	 */
-	renderFileTree(
-		tree,
-		parentElement = null,
-		level = 0,
-		currentPath = "",
-		searchTermEntered = false,
-	) {
-		this.currentTree = tree;
-		const targetElement = parentElement || this.getFileTreeRoot();
-		if (!targetElement) {
-			console.error("File tree root not found");
-			return;
-		}
-
-		if (!parentElement) {
-			targetElement.innerHTML = "";
-		}
-
-		if (
-			!tree ||
-			((!tree.files || tree.files.length === 0) &&
-				(!tree.children || Object.keys(tree.children).length === 0))
-		) {
-			targetElement.innerHTML =
-				'<li class="text-center text-muted py-4">No files or directories found</li>';
-			return;
-		}
-
-		const selectAllContainer = document.getElementById("select-all-container");
-		const hasFiles = tree.files && tree.files.length > 0;
-		if (selectAllContainer) {
-			if (searchTermEntered && hasFiles) {
-				window.DOMUtils.show(selectAllContainer);
-			} else {
-				window.DOMUtils.hide(selectAllContainer);
-			}
-		}
-
-		const directories = tree.children || {};
-
-		for (const [name, content] of Object.entries(directories)) {
-			if (
-				name === "files" ||
-				!content ||
-				typeof content !== "object" ||
-				!content.type ||
-				content.type !== "directory"
-			) {
-				continue;
-			}
-
-			const initiallyExpanded = searchTermEntered;
-			const folderIcon = initiallyExpanded
-				? "bi-folder2-open"
-				: "bi-folder-fill";
-			const dirPath = currentPath
-				? `${currentPath}/${content.name || name}`
-				: content.name || name;
-			const hasChildDirs =
-				Object.keys(content.children || {}).filter(
-					(key) =>
-						key !== "files" &&
-						content.children[key]?.type === "directory",
-				).length > 0;
-			const hasFilesInDir = content.files && content.files.length > 0;
-			const expandable = hasChildDirs || hasFilesInDir;
-
-			const li = document.createElement("li");
-			li.className = "folder-item";
-
-			const rowSpan = document.createElement("span");
-			rowSpan.className = "file-browser-row";
-			rowSpan.setAttribute("role", "button");
-			rowSpan.setAttribute("tabindex", "0");
-			rowSpan.setAttribute(
-				"aria-expanded",
-				initiallyExpanded ? "true" : "false",
-			);
-			rowSpan.innerHTML = `
+		`
+        capturesContainer.appendChild(selectedPane)
+    }
+
+    /**
+     * Update selected captures pane
+     */
+    async updateSelectedCapturesPane() {
+        const selectedList = document.getElementById("selected-captures-list")
+        const countBadge = document.querySelector(".selected-captures-count")
+        if (!selectedList || !countBadge || !this.formHandler) return
+
+        const selectedCaptures = this.formHandler.selectedCaptures
+        countBadge.textContent = `${selectedCaptures.size} selected`
+
+        // Prepare captures data for server-side rendering
+        const capturesData = Array.from(selectedCaptures).map((captureId) => {
+            const data = this.selectedCaptureDetails.get(captureId) || {
+                type: "Unknown",
+                directory: "Unknown",
+            }
+            return {
+                id: captureId,
+                type: data.type,
+                directory: data.directory,
+            }
+        })
+
+        await this.renderSelectedCapturesTable(selectedList, capturesData)
+
+        // Add remove handlers after async render (DOM must contain buttons)
+        const removeSelectedButtons = selectedList.querySelectorAll(
+            ".remove-selected-capture",
+        )
+        for (const button of removeSelectedButtons) {
+            button.addEventListener("click", (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                const captureId = button.dataset.id
+
+                // Check if formHandler has a custom removal handler for edit mode
+                if (this.formHandler?.handleCaptureRemoval) {
+                    this.formHandler.handleCaptureRemoval(captureId)
+                } else {
+                    // Default behavior for create mode
+                    this.formHandler.selectedCaptures.delete(captureId)
+                    this.selectedCaptureDetails.delete(captureId)
+
+                    // Update checkbox if visible
+                    const checkbox = document.querySelector(
+                        `input[name="captures"][value="${captureId}"]`,
+                    )
+                    if (checkbox) {
+                        checkbox.checked = false
+                        checkbox.closest("tr").classList.remove("table-warning")
+                    }
+
+                    void this.updateSelectedCapturesPane()
+                    this.formHandler.updateHiddenFields()
+                }
+            })
+        }
+    }
+
+    /**
+     * Render selected captures table asynchronously
+     */
+    async renderSelectedCapturesTable(selectedList, capturesData) {
+        // Normalize for generic table_rows template
+        const rows = capturesData.map((capture) => ({
+            data_attrs: { "capture-id": capture.id },
+            cells: [
+                { kind: "text", value: capture.type },
+                { kind: "text", value: capture.directory },
+            ],
+            actions: [
+                {
+                    label: "Remove",
+                    icon: "bi-x",
+                    css_class: "btn-danger",
+                    extra_class: "remove-selected-capture",
+                    data_attrs: { id: capture.id },
+                },
+            ],
+        }))
+
+        // Use the generic table_rows template via DOMUtils
+        const success = await window.DOMUtils.renderTable(selectedList, rows, {
+            empty_message: "No captures selected",
+            empty_colspan: 3,
+        })
+
+        if (!success) {
+            console.error("Error rendering selected captures table")
+        }
+    }
+
+    /**
+     * Fetch captures data
+     * @param {Object} params - Search parameters
+     * @returns {Promise<Object>} Captures data
+     */
+    async fetchCaptures(params = {}) {
+        try {
+            const searchParams = new URLSearchParams()
+
+            // Add all params to the search parameters
+            for (const [key, value] of Object.entries(params)) {
+                if (value) {
+                    searchParams.append(key, value)
+                }
+            }
+
+            // Always add the search_captures parameter
+            searchParams.append("search_captures", "true")
+
+            const data = await window.APIClient.request(
+                `${this.config.apiEndpoint}?${searchParams.toString()}`,
+                {
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                },
+            )
+
+            // APIClient.request already returns parsed JSON data
+            return data
+        } catch (error) {
+            console.error("Error fetching captures:", error)
+            return { results: [], pagination: {} }
+        }
+    }
+
+    /**
+     * Fetch files data
+     * @param {Object} params - Search parameters
+     * @returns {Promise<Object>} Files data
+     */
+    async fetchFiles(params = {}) {
+        try {
+            const searchParams = new URLSearchParams(params)
+            const data = await window.APIClient.request(
+                `${this.config.apiEndpoint}?${searchParams.toString()}&search_files=true`,
+                {
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                },
+            )
+
+            // APIClient.request already returns parsed JSON data
+            return data
+        } catch (error) {
+            console.error("Error fetching files:", error)
+            return { tree: {}, pagination: {} }
+        }
+    }
+
+    /**
+     * Update captures table
+     * @param {Object} data - Captures data
+     */
+    async updateCapturesTable(data) {
+        const tbody = document.querySelector("#captures-table tbody")
+
+        // Update the results count
+        this.updateResultsCount(data.results.length)
+
+        // Transform captures data for table_rows.html template
+        const rows = data.results.map((capture) => {
+            const captureIdStr = capture.id.toString()
+            const inExistingDataset =
+                this.isEditMode &&
+                this.formHandler?.currentCaptures &&
+                (this.formHandler.currentCaptures.has(capture.id) ||
+                    this.formHandler.currentCaptures.has(captureIdStr))
+            const isSelected =
+                inExistingDataset ||
+                this.formHandler?.selectedCaptures?.has(captureIdStr)
+            const isOwnedByCurrentUser =
+                capture.owner_id === this.formHandler?.currentUserId
+            const canSelect = isOwnedByCurrentUser
+            // Edit only: captures already in the dataset stay checked and locked
+            const checkboxDisabled =
+                !canSelect || (this.isEditMode && inExistingDataset)
+            const ownerName = capture.owner
+                ? capture.owner.name || capture.owner.email || "-"
+                : "-"
+            const createdAt = new Date(capture.created_at).toLocaleDateString(
+                "en-US",
+                {
+                    month: "2-digit",
+                    day: "2-digit",
+                    year: "numeric",
+                },
+            )
+
+            return {
+                id: capture.id,
+                css_class: `capture-row${isSelected ? " table-warning" : ""}${checkboxDisabled ? " readonly-row" : ""}${inExistingDataset ? " capture-in-dataset" : ""}`,
+                data_attrs: {
+                    "capture-id": capture.id,
+                },
+                cells: [
+                    {
+                        kind: "html",
+                        tag: "input",
+                        class: "form-check-input capture-checkbox",
+                        name: "captures",
+                        tag_attrs: {
+                            type: "checkbox",
+                            checked: isSelected,
+                            disabled: checkboxDisabled,
+                            value: capture.id,
+                        },
+                        data_attrs: {
+                            "capture-type": capture.type,
+                            "capture-directory": capture.directory,
+                            "capture-channel": capture.channel,
+                            "capture-scan-group": capture.scan_group,
+                            "capture-created-at": capture.created_at,
+                            "capture-owner-id": capture.owner_id,
+                            "capture-owner-name": ownerName,
+                        },
+                    },
+                    { kind: "text", value: capture.type },
+                    { kind: "text", value: capture.directory },
+                    { kind: "text", value: capture.channel },
+                    { kind: "text", value: capture.scan_group },
+                    { kind: "text", value: ownerName },
+                    { kind: "text", value: createdAt },
+                ],
+            }
+        })
+
+        // Render using DOMUtils
+        const success = await window.DOMUtils.renderTable(tbody, rows, {
+            empty_message: "No captures found",
+            empty_colspan: 7,
+        })
+
+        if (success) {
+            // Attach event handlers to rendered rows
+            this.attachCaptureRowHandlers(tbody)
+        } else {
+            await window.DOMUtils.showMessage("Error loading captures", {
+                variant: "danger",
+                placement: "replace",
+                target: tbody,
+                presentation: "table",
+                templateContext: { colspan: 7 },
+            })
+        }
+
+        // Update pagination with current filters
+        this.updatePagination("captures", data.pagination)
+
+        // Update selected captures pane
+        await this.updateSelectedCapturesPane()
+    }
+
+    /**
+     * Attach event handlers to capture table rows
+     * @param {Element} tbody - Table body element
+     */
+    attachCaptureRowHandlers(tbody) {
+        const rows = tbody.querySelectorAll("tr[data-capture-id]")
+
+        for (const row of rows) {
+            const checkbox = row.querySelector("input.capture-checkbox")
+            if (!checkbox) continue
+
+            const captureId = checkbox.value
+            const captureData = {
+                type: checkbox.dataset.captureType,
+                directory: checkbox.dataset.captureDirectory,
+                channel: checkbox.dataset.captureChannel,
+                scan_group: checkbox.dataset.captureScanGroup,
+                created_at: checkbox.dataset.captureCreatedAt,
+                owner_id: checkbox.dataset.captureOwnerId,
+                owner_name: checkbox.dataset.captureOwnerName,
+            }
+
+            const handleSelection = (e) => {
+                if (checkbox.disabled) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    return
+                }
+
+                if (e.target.type !== "checkbox") {
+                    checkbox.checked = !checkbox.checked
+                }
+
+                if (checkbox.checked) {
+                    // Check if this is an editing handler
+                    if (this.formHandler.addCaptureToPending) {
+                        this.formHandler.addCaptureToPending(
+                            captureId,
+                            captureData,
+                        )
+                    } else {
+                        // Regular selection for creation
+                        this.formHandler.selectedCaptures.add(captureId)
+                        row.classList.add("table-warning")
+                        this.selectedCaptureDetails.set(captureId, captureData)
+                        this.formHandler.updateHiddenFields()
+                        void this.updateSelectedCapturesPane()
+                    }
+
+                    if (this.formHandler.updateCurrentCapturesList) {
+                        this.formHandler.updateCurrentCapturesList()
+                    }
+                } else {
+                    if (this.formHandler.addCaptureToPending) {
+                        this.formHandler.cancelCaptureChange(captureId)
+                    } else {
+                        this.formHandler.selectedCaptures.delete(captureId)
+                        row.classList.remove("table-warning")
+                        this.selectedCaptureDetails.delete(captureId)
+                        this.formHandler.updateHiddenFields()
+                        void this.updateSelectedCapturesPane()
+                    }
+
+                    if (this.formHandler.updateCurrentCapturesList) {
+                        this.formHandler.updateCurrentCapturesList()
+                    }
+                }
+            }
+
+            // Add click handler for the row
+            row.addEventListener("click", handleSelection)
+
+            // Add specific handler for checkbox to prevent double-triggering
+            checkbox.addEventListener("change", (e) => {
+                e.stopPropagation()
+                handleSelection(e)
+            })
+        }
+    }
+
+    /**
+     * Update pagination
+     * @param {string} type - Type of pagination (captures or files)
+     * @param {Object} pagination - Pagination data
+     */
+    async updatePagination(type, pagination) {
+        const paginationContainer = document.querySelector(
+            `#${type}-pagination`,
+        )
+        if (!paginationContainer) return
+
+        const success = await window.DOMUtils.renderPagination(
+            paginationContainer,
+            pagination,
+        )
+
+        if (success && pagination && pagination.num_pages > 1) {
+            // Attach click handlers after rendering
+            this.attachPaginationHandlers(type, paginationContainer)
+        }
+    }
+
+    /**
+     * Attach pagination click handlers
+     * @param {string} type - Type of pagination (captures or files)
+     * @param {Element} container - Pagination container element
+     */
+    attachPaginationHandlers(type, container) {
+        const links = container.querySelectorAll("a.page-link")
+        for (const link of links) {
+            link.addEventListener("click", async (e) => {
+                e.preventDefault()
+                const target = e.target.closest("a.page-link")
+                const page = target?.dataset.page
+
+                if (type === "captures") {
+                    const params = {
+                        ...this.currentFilters,
+                        page: page,
+                    }
+                    const data = await this.fetchCaptures(params)
+                    this.updateCapturesTable(data)
+                } else {
+                    const data = await this.fetchFiles(
+                        this.getFileSearchParams({ page }),
+                    )
+                    this.updateFilesTable(data)
+                }
+            })
+        }
+    }
+
+    /**
+     * Handle search
+     */
+    async handleSearch() {
+        try {
+            // Get all input elements within the search container
+            const searchContainer = this.searchForm
+            if (!searchContainer) {
+                console.error("Search container not found:", this.searchForm)
+                return
+            }
+            const params = new URLSearchParams()
+
+            // Get all form inputs within the container
+            const inputs = searchContainer.querySelectorAll(
+                "input, select, textarea",
+            )
+            for (const input of inputs) {
+                if (input.value) {
+                    params.append(input.name, input.value)
+                }
+            }
+
+            // Add the search type parameter
+            params.append(
+                this.type === "captures" ? "search_captures" : "search_files",
+                "true",
+            )
+
+            const data = await window.APIClient.request(
+                `${this.config.apiEndpoint}?${params.toString()}`,
+                {
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest",
+                    },
+                },
+            )
+
+            // APIClient.request already returns parsed JSON data
+
+            if (this.type === "captures") {
+                this.updateCapturesTable(data)
+            } else {
+                // Reset select all checkbox
+                const selectAllCheckbox = document.getElementById(
+                    "select-all-files-checkbox",
+                )
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false
+                }
+                if (data.tree) {
+                    // Update file extension select options while preserving current selection
+                    const extensionSelect =
+                        document.getElementById("file-extension")
+                    if (extensionSelect && data.extension_choices) {
+                        const currentValue = extensionSelect.value
+                        await window.DOMUtils.renderSelectOptions(
+                            extensionSelect,
+                            data.extension_choices,
+                            currentValue,
+                        )
+                    }
+
+                    // Restore search values if they exist
+                    if (data.search_values) {
+                        const fileNameInput =
+                            document.getElementById("file-name")
+                        const directoryInput =
+                            document.getElementById("file-directory")
+
+                        if (fileNameInput) {
+                            fileNameInput.value =
+                                data.search_values.file_name || ""
+                        }
+                        if (extensionSelect) {
+                            extensionSelect.value =
+                                data.search_values.file_extension || ""
+                        }
+                        if (directoryInput) {
+                            directoryInput.value =
+                                data.search_values.directory || ""
+                        }
+                    }
+
+                    const searchTermEntered =
+                        data.search_values.file_name ||
+                        data.search_values.directory ||
+                        data.search_values.file_extension
+
+                    this.renderFileTree(
+                        data.tree,
+                        null,
+                        0,
+                        "",
+                        searchTermEntered,
+                    )
+
+                    // Initialize select all checkbox handler for the current file tree
+                    this.initializeSelectAllCheckbox()
+
+                    // Initialize remove all button handler for the current file tree
+                    this.initializeRemoveAllButton()
+                }
+            }
+
+            if (data.pagination) {
+                this.updatePagination(this.type, data.pagination)
+            }
+        } catch (error) {
+            console.error("Error during search:", error)
+            this.showError(
+                "An error occurred during the search. Please try again.",
+            )
+        }
+    }
+
+    /**
+     * Handle clear
+     */
+    handleClear() {
+        // Clear all form inputs
+        const searchContainer = this.searchForm
+        if (!searchContainer) {
+            console.error("Search container not found:", this.searchForm)
+            return
+        }
+
+        const inputs = searchContainer.querySelectorAll(
+            "input, select, textarea",
+        )
+        for (const input of inputs) {
+            input.value = ""
+        }
+
+        // Trigger a new search with empty parameters
+        this.handleSearch()
+    }
+
+    /**
+     * Update selected files list
+     */
+    updateSelectedFilesList() {
+        // Update form handler's selectedFiles with current selection (create mode only)
+        if (this.formHandler && !this.isEditMode) {
+            // Convert Map entries to array of file objects with IDs
+            const fileList = Array.from(this.selectedFiles.entries()).map(
+                ([id, file]) => ({ ...file, id: id }),
+            )
+            this.formHandler.selectedFiles = new Set(fileList)
+        }
+
+        // Update selected files display input
+        const selectedFilesDisplay = document.getElementById(
+            "selected-files-display",
+        )
+        if (selectedFilesDisplay) {
+            selectedFilesDisplay.value = `${this.selectedFiles.size} file(s) selected`
+        }
+
+        // Update Remove All button state
+        const removeAllButton = document.getElementById(
+            "remove-all-selected-files-button",
+        )
+        if (removeAllButton) {
+            removeAllButton.disabled = this.selectedFiles.size === 0
+        }
+
+        // Update selected files table if it exists (only in create mode)
+        if (!this.isEditMode) {
+            const selectedFilesTable = document.getElementById(
+                "selected-files-table",
+            )
+            const selectedFilesBody = selectedFilesTable?.querySelector("tbody")
+            if (selectedFilesBody) {
+                this.renderSelectedFilesTable(selectedFilesBody)
+            }
+        }
+
+        // Update count badge
+        const countBadge = document.querySelector(".selected-files-count")
+        if (countBadge) {
+            countBadge.textContent = `${this.selectedFiles.size} selected`
+        }
+    }
+
+    /**
+     * Load file tree
+     */
+    async loadFileTree() {
+        try {
+            const params = this.getFileSearchParams()
+            const extensionSelect = document.getElementById("file-extension")
+            const data = await this.fetchFiles(params)
+            if (!data.tree) {
+                console.error("No tree data received:", data)
+                return
+            }
+
+            // Update file extension select options
+            if (extensionSelect && data.extension_choices) {
+                await window.DOMUtils.renderSelectOptions(
+                    extensionSelect,
+                    data.extension_choices,
+                )
+            }
+
+            // Pass the search parameters to renderFileTree
+            const searchTermEntered =
+                params.file_name || params.directory || params.file_extension
+
+            this.renderFileTree(data.tree, null, 0, "", searchTermEntered)
+
+            // Initialize select all checkbox handler for the current file tree
+            this.initializeSelectAllCheckbox()
+
+            // Initialize remove all button handler for the current file tree
+            this.initializeRemoveAllButton()
+        } catch (error) {
+            console.error("Error loading file tree:", error)
+        }
+    }
+
+    /**
+     * Get relative path
+     * @param {Object} file - File object
+     * @param {string} currentPath - Current path
+     * @returns {string} Relative path
+     */
+    getRelativePath(file, currentPath = "") {
+        if (!currentPath) {
+            return ""
+        }
+        return `/${currentPath}`
+    }
+
+    /**
+     * Render file tree
+     * @param {Object} tree - File tree data
+     * @param {HTMLElement} parentElement - Parent element
+     * @param {number} level - Nesting level
+     * @param {string} currentPath - Current path
+     * @param {boolean} searchTermEntered - Whether search term was entered
+     */
+    renderFileTree(
+        tree,
+        parentElement = null,
+        level = 0,
+        currentPath = "",
+        searchTermEntered = false,
+    ) {
+        this.currentTree = tree
+        const targetElement = parentElement || this.getFileTreeRoot()
+        if (!targetElement) {
+            console.error("File tree root not found")
+            return
+        }
+
+        if (!parentElement) {
+            targetElement.innerHTML = ""
+        }
+
+        if (
+            !tree ||
+            ((!tree.files || tree.files.length === 0) &&
+                (!tree.children || Object.keys(tree.children).length === 0))
+        ) {
+            targetElement.innerHTML =
+                '<li class="text-center text-muted py-4">No files or directories found</li>'
+            return
+        }
+
+        const selectAllContainer = document.getElementById(
+            "select-all-container",
+        )
+        const hasFiles = tree.files && tree.files.length > 0
+        if (selectAllContainer) {
+            if (searchTermEntered && hasFiles) {
+                window.DOMUtils.show(selectAllContainer)
+            } else {
+                window.DOMUtils.hide(selectAllContainer)
+            }
+        }
+
+        const directories = tree.children || {}
+
+        for (const [name, content] of Object.entries(directories)) {
+            if (
+                name === "files" ||
+                !content ||
+                typeof content !== "object" ||
+                !content.type ||
+                content.type !== "directory"
+            ) {
+                continue
+            }
+
+            const initiallyExpanded = searchTermEntered
+            const folderIcon = initiallyExpanded
+                ? "bi-folder2-open"
+                : "bi-folder-fill"
+            const dirPath = currentPath
+                ? `${currentPath}/${content.name || name}`
+                : content.name || name
+            const hasChildDirs =
+                Object.keys(content.children || {}).filter(
+                    (key) =>
+                        key !== "files" &&
+                        content.children[key]?.type === "directory",
+                ).length > 0
+            const hasFilesInDir = content.files && content.files.length > 0
+            const expandable = hasChildDirs || hasFilesInDir
+
+            const li = document.createElement("li")
+            li.className = "folder-item"
+
+            const rowSpan = document.createElement("span")
+            rowSpan.className = "file-browser-row"
+            rowSpan.setAttribute("role", "button")
+            rowSpan.setAttribute("tabindex", "0")
+            rowSpan.setAttribute(
+                "aria-expanded",
+                initiallyExpanded ? "true" : "false",
+            )
+            rowSpan.innerHTML = `
 				<span class="item-content">
 					<i class="bi ${folderIcon}"></i>
 					${content.name || name}
 				</span>
-			`;
+			`
 
-			const childUl = document.createElement("ul");
-			childUl.setAttribute("role", "group");
+            const childUl = document.createElement("ul")
+            childUl.setAttribute("role", "group")
 
-			li.appendChild(rowSpan);
-			li.appendChild(childUl);
-			targetElement.appendChild(li);
+            li.appendChild(rowSpan)
+            li.appendChild(childUl)
+            targetElement.appendChild(li)
 
-			if (initiallyExpanded && expandable) {
-				this.renderFileTree(
-					content,
-					childUl,
-					level + 1,
-					dirPath,
-					searchTermEntered,
-				);
-				childUl.dataset.loaded = "true";
-			}
+            if (initiallyExpanded && expandable) {
+                this.renderFileTree(
+                    content,
+                    childUl,
+                    level + 1,
+                    dirPath,
+                    searchTermEntered,
+                )
+                childUl.dataset.loaded = "true"
+            }
 
-			rowSpan.addEventListener("click", (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				if (!expandable) {
-					return;
-				}
+            rowSpan.addEventListener("click", (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!expandable) {
+                    return
+                }
 
-				const isExpanded = rowSpan.getAttribute("aria-expanded") === "true";
-				const newExpanded = !isExpanded;
-				rowSpan.setAttribute(
-					"aria-expanded",
-					newExpanded ? "true" : "false",
-				);
+                const isExpanded =
+                    rowSpan.getAttribute("aria-expanded") === "true"
+                const newExpanded = !isExpanded
+                rowSpan.setAttribute(
+                    "aria-expanded",
+                    newExpanded ? "true" : "false",
+                )
 
-				const icon = rowSpan.querySelector(".bi");
-				if (icon) {
-					icon.classList.remove("bi-folder-fill", "bi-folder2-open");
-					icon.classList.add(
-						newExpanded ? "bi-folder2-open" : "bi-folder-fill",
-					);
-				}
+                const icon = rowSpan.querySelector(".bi")
+                if (icon) {
+                    icon.classList.remove("bi-folder-fill", "bi-folder2-open")
+                    icon.classList.add(
+                        newExpanded ? "bi-folder2-open" : "bi-folder-fill",
+                    )
+                }
 
-				if (newExpanded && childUl.dataset.loaded !== "true") {
-					this.renderFileTree(
-						content,
-						childUl,
-						level + 1,
-						dirPath,
-						searchTermEntered,
-					);
-					childUl.dataset.loaded = "true";
-				}
-			});
-		}
+                if (newExpanded && childUl.dataset.loaded !== "true") {
+                    this.renderFileTree(
+                        content,
+                        childUl,
+                        level + 1,
+                        dirPath,
+                        searchTermEntered,
+                    )
+                    childUl.dataset.loaded = "true"
+                }
+            })
+        }
 
-		if (tree.files && tree.files.length > 0) {
-			for (const file of tree.files) {
-				const filePath = this.getRelativePath(file, currentPath);
-				const isSelected = this.selectedFiles.has(file.id);
-				const isExistingFile =
-					this.isEditMode && this.formHandler?.currentFiles?.has(file.id);
+        if (tree.files && tree.files.length > 0) {
+            for (const file of tree.files) {
+                const filePath = this.getRelativePath(file, currentPath)
+                const isSelected = this.selectedFiles.has(file.id)
+                const isExistingFile =
+                    this.isEditMode &&
+                    this.formHandler?.currentFiles?.has(file.id)
 
-				const li = document.createElement("li");
-				li.className = "file-item";
-				li.dataset.fileId = file.id;
+                const li = document.createElement("li")
+                li.className = "file-item"
+                li.dataset.fileId = file.id
 
-				const rowSpan = document.createElement("span");
-				rowSpan.className = "file-browser-row";
-				rowSpan.setAttribute("role", "option");
-				rowSpan.setAttribute(
-					"aria-selected",
-					isSelected ? "true" : "false",
-				);
-				rowSpan.setAttribute("tabindex", "0");
-				rowSpan.innerHTML = `
+                const rowSpan = document.createElement("span")
+                rowSpan.className = "file-browser-row"
+                rowSpan.setAttribute("role", "option")
+                rowSpan.setAttribute(
+                    "aria-selected",
+                    isSelected ? "true" : "false",
+                )
+                rowSpan.setAttribute("tabindex", "0")
+                rowSpan.innerHTML = `
 					<span class="item-content">
 						<input type="checkbox" class="form-check-input file-checkbox" name="files" value="${file.id}"
 							${isSelected ? "checked" : ""}
@@ -1318,99 +1343,99 @@ class AssetSearchHandler {
 						<i class="bi bi-file-earmark" aria-hidden="true"></i>
 						<span class="file-browser-name">${file.name}</span>
 					</span>
-				`;
+				`
 
-				li.appendChild(rowSpan);
-				const checkbox = rowSpan.querySelector('input[type="checkbox"]');
+                li.appendChild(rowSpan)
+                const checkbox = rowSpan.querySelector('input[type="checkbox"]')
 
-				if (!isExistingFile) {
-					const syncRowSelectionVisual = () => {
-						li.classList.toggle("is-selected", checkbox.checked);
-						rowSpan.setAttribute(
-							"aria-selected",
-							checkbox.checked ? "true" : "false",
-						);
-					};
+                if (!isExistingFile) {
+                    const syncRowSelectionVisual = () => {
+                        li.classList.toggle("is-selected", checkbox.checked)
+                        rowSpan.setAttribute(
+                            "aria-selected",
+                            checkbox.checked ? "true" : "false",
+                        )
+                    }
 
-					if (isSelected) {
-						li.classList.add("is-selected");
-					}
+                    if (isSelected) {
+                        li.classList.add("is-selected")
+                    }
 
-					checkbox.addEventListener("change", (e) => {
-						e.stopPropagation();
-						if (checkbox.checked) {
-							this.selectedFiles.set(file.id, {
-								...file,
-								relative_path: filePath,
-							});
-						} else {
-							this.selectedFiles.delete(file.id);
-						}
-						syncRowSelectionVisual();
-						this.updateSelectAllCheckboxState();
-						this.updateSelectedFilesList();
-					});
+                    checkbox.addEventListener("change", (e) => {
+                        e.stopPropagation()
+                        if (checkbox.checked) {
+                            this.selectedFiles.set(file.id, {
+                                ...file,
+                                relative_path: filePath,
+                            })
+                        } else {
+                            this.selectedFiles.delete(file.id)
+                        }
+                        syncRowSelectionVisual()
+                        this.updateSelectAllCheckboxState()
+                        this.updateSelectedFilesList()
+                    })
 
-					const toggleRowSelection = () => {
-						checkbox.checked = !checkbox.checked;
-						checkbox.dispatchEvent(new Event("change"));
-					};
+                    const toggleRowSelection = () => {
+                        checkbox.checked = !checkbox.checked
+                        checkbox.dispatchEvent(new Event("change"))
+                    }
 
-					rowSpan.addEventListener("click", (e) => {
-						if (e.target.type === "checkbox") {
-							return;
-						}
-						toggleRowSelection();
-					});
+                    rowSpan.addEventListener("click", (e) => {
+                        if (e.target.type === "checkbox") {
+                            return
+                        }
+                        toggleRowSelection()
+                    })
 
-					rowSpan.addEventListener("keydown", (e) => {
-						if (e.key === "Enter" || e.key === " ") {
-							e.preventDefault();
-							toggleRowSelection();
-						}
-					});
+                    rowSpan.addEventListener("keydown", (e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault()
+                            toggleRowSelection()
+                        }
+                    })
 
-					li.classList.add("clickable-row");
-				} else {
-					li.classList.add("readonly-row");
-					li.title = "This file is already in the dataset";
-				}
+                    li.classList.add("clickable-row")
+                } else {
+                    li.classList.add("readonly-row")
+                    li.title = "This file is already in the dataset"
+                }
 
-				targetElement.appendChild(li);
-			}
-		}
+                targetElement.appendChild(li)
+            }
+        }
 
-		this.updateSelectAllCheckboxState();
-	}
+        this.updateSelectAllCheckboxState()
+    }
 
-	/**
-	 * Update files table
-	 * @param {Object} data - Files data
-	 */
-	updateFilesTable(data) {
-		const root = this.getFileTreeRoot();
-		if (!root) {
-			console.error("File tree root not found");
-			return;
-		}
-		root.innerHTML = "";
+    /**
+     * Update files table
+     * @param {Object} data - Files data
+     */
+    updateFilesTable(data) {
+        const root = this.getFileTreeRoot()
+        if (!root) {
+            console.error("File tree root not found")
+            return
+        }
+        root.innerHTML = ""
 
-		if (!data.tree) {
-			this.renderEmptyFileTree(root);
-			return;
-		}
+        if (!data.tree) {
+            this.renderEmptyFileTree(root)
+            return
+        }
 
         this.renderFileTree(data.tree)
     }
 
-	/**
-	 * Render empty file tree placeholder
-	 * @param {HTMLElement} root - File tree root element
-	 */
-	renderEmptyFileTree(root) {
-		root.innerHTML =
-			'<li class="text-center text-muted py-4">No files or directories found</li>';
-	}
+    /**
+     * Render empty file tree placeholder
+     * @param {HTMLElement} root - File tree root element
+     */
+    renderEmptyFileTree(root) {
+        root.innerHTML =
+            '<li class="text-center text-muted py-4">No files or directories found</li>'
+    }
 
     /**
      * Show error message
@@ -1549,15 +1574,20 @@ class AssetSearchHandler {
         )
         if (!selectAllCheckbox) return
 
-		const fileCheckboxes = this.getVisibleFileCheckboxes();
-		const checkedBoxes = fileCheckboxes.filter((checkbox) => checkbox.checked);
+        const fileCheckboxes = this.getVisibleFileCheckboxes()
+        const checkedBoxes = fileCheckboxes.filter(
+            (checkbox) => checkbox.checked,
+        )
 
-		if (checkedBoxes.length === fileCheckboxes.length && fileCheckboxes.length > 0) {
-			selectAllCheckbox.checked = true;
-		} else {
-			selectAllCheckbox.checked = false;
-		}
-	}
+        if (
+            checkedBoxes.length === fileCheckboxes.length &&
+            fileCheckboxes.length > 0
+        ) {
+            selectAllCheckbox.checked = true
+        } else {
+            selectAllCheckbox.checked = false
+        }
+    }
 
     /**
      * Update results count
