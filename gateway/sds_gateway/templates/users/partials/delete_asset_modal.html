@@ -8,7 +8,13 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title text-danger" id="deleteAssetModalLabel">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i>Delete <span id="delete-asset-type-label">asset</span>
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    <span id="delete-asset-title-deletable">
+                        Delete <span id="delete-asset-type-label">asset</span>
+                    </span>
+                    <span id="delete-asset-title-shared" class="d-none">
+                        Cannot delete <span id="delete-asset-type-label-shared">asset</span>
+                    </span>
                 </h5>
                 <button type="button"
                         class="btn-close"
@@ -16,21 +22,31 @@
                         aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <p class="mb-2">
-                    You are about to permanently delete
-                    <strong id="delete-asset-name">this asset</strong>.
-                </p>
-                <div class="alert alert-warning mb-0" role="alert">
-                    This action cannot be undone. The asset will be removed from your account
-                    and will no longer appear in lists or search results.
+                <div id="delete-asset-body-deletable">
+                    <p class="mb-2">
+                        You are about to permanently delete
+                        <strong id="delete-asset-name">this asset</strong>.
+                    </p>
+                    <div class="alert alert-danger mb-0" role="alert">
+                        This action cannot be undone. The asset will be removed from your account
+                        and will no longer appear in lists or search results.
+                    </div>
+                    <div id="delete-asset-message"
+                         class="alert alert-danger d-none mt-3"
+                         role="alert"></div>
                 </div>
-                <div id="delete-asset-message" class="alert alert-danger d-none mt-3" role="alert"></div>
+                <div id="delete-asset-body-shared" class="d-none">
+                    <div class="alert alert-warning mb-0" role="alert">
+                        <i class="bi bi-people-fill me-2" aria-hidden="true"></i>
+                        <strong id="delete-asset-name-shared">This asset</strong>
+                        is shared with other users and cannot be deleted.
+                        Unshare it from all users first if you want to remove it.
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button"
-                        class="btn btn-danger"
-                        id="delete-asset-confirm-btn">Delete permanently</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="delete-asset-confirm-btn">Delete permanently</button>
             </div>
         </div>
     </div>

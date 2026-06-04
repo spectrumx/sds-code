@@ -9,6 +9,7 @@ from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -55,7 +56,7 @@ def _truthy_query_param(raw: str | None) -> bool:
 
 
 class DatasetViewSet(ViewSet):
-    authentication_classes = [APIKeyAuthentication]
+    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
     permission_classes = [IsAuthenticated]
 
     def _get_file_objects(

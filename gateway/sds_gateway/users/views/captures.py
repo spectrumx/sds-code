@@ -117,7 +117,7 @@ def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
             }
         )
 
-    if is_owner or is_co_owner:
+    if is_owner:
         display_name = (
             str(row.get("name") or "").strip()
             or str(row.get("top_level_dir") or "").strip()
@@ -133,6 +133,7 @@ def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                     "asset-type": "capture",
                     "asset-uuid": uuid,
                     "asset-name": display_name[:200],
+                    **({"asset-shared": "true"} if row.get("is_shared") else {}),
                 },
             }
         )
