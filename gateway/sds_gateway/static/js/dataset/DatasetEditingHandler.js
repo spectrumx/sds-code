@@ -84,6 +84,19 @@ class DatasetEditingHandler extends BaseManager {
 			// Populate initial data now that handlers are ready
 			this.populateFromInitialData(this.initialCaptures, this.initialFiles);
 		}
+
+		const datasetForm = document.getElementById("datasetForm");
+		if (datasetForm && !datasetForm.dataset.enterSubmitGuardBound) {
+			datasetForm.dataset.enterSubmitGuardBound = "true";
+			datasetForm.addEventListener("submit", (e) => {
+				e.preventDefault();
+			});
+			datasetForm.addEventListener("keypress", (e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+				}
+			});
+		}
 	}
 
 	/**

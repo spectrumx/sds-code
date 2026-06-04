@@ -310,6 +310,8 @@ class AssetSearchHandler {
             config.formHandler.setSearchHandler(this, config.type)
         }
 
+        this._coreSearchListenersBound = false
+
         this.initializeEventListeners()
     }
 
@@ -332,6 +334,11 @@ class AssetSearchHandler {
      * Initialize event listeners
      */
     initializeEventListeners() {
+        if (this._coreSearchListenersBound) {
+            return
+        }
+        this._coreSearchListenersBound = true
+
         // Search form handlers
         if (this.searchButton) {
             this.searchButton.addEventListener("click", () =>
@@ -379,6 +386,8 @@ class AssetSearchHandler {
         for (const input of searchInputs) {
             input.addEventListener("keypress", (e) => {
                 if (e.key === "Enter") {
+                    e.preventDefault()
+                    e.stopPropagation()
                     this.handleSearch()
                 }
             })
@@ -393,6 +402,10 @@ class AssetSearchHandler {
             "select-all-files-checkbox",
         )
         if (!selectAllCheckbox) return
+        if (selectAllCheckbox.dataset?.selectAllBound === "true") return
+        if (selectAllCheckbox.dataset) {
+            selectAllCheckbox.dataset.selectAllBound = "true"
+        }
 
 		selectAllCheckbox.addEventListener("change", () => {
 			const isChecked = selectAllCheckbox.checked;
@@ -415,6 +428,10 @@ class AssetSearchHandler {
             "remove-all-selected-files-button",
         )
         if (!removeAllButton) return
+        if (removeAllButton.dataset?.removeAllBound === "true") return
+        if (removeAllButton.dataset) {
+            removeAllButton.dataset.removeAllBound = "true"
+        }
 
 		removeAllButton.addEventListener("click", () => {
 			// Check if formHandler has a custom removal handler for edit mode
@@ -1103,9 +1120,6 @@ class AssetSearchHandler {
 
 			this.renderFileTree(data.tree, null, 0, "", searchTermEntered);
 
-			// Initialize search handler after tree is loaded
-			this.initializeEventListeners();
-
 			// Initialize select all checkbox handler for the current file tree
 			this.initializeSelectAllCheckbox();
 
@@ -1208,6 +1222,7 @@ class AssetSearchHandler {
 			li.className = "folder-item";
 
 			const rowSpan = document.createElement("span");
+			rowSpan.className = "file-browser-row";
 			rowSpan.setAttribute("role", "button");
 			rowSpan.setAttribute("tabindex", "0");
 			rowSpan.setAttribute(
@@ -1286,14 +1301,22 @@ class AssetSearchHandler {
 				li.dataset.fileId = file.id;
 
 				const rowSpan = document.createElement("span");
+				rowSpan.className = "file-browser-row";
+				rowSpan.setAttribute("role", "option");
+				rowSpan.setAttribute(
+					"aria-selected",
+					isSelected ? "true" : "false",
+				);
 				rowSpan.setAttribute("tabindex", "0");
 				rowSpan.innerHTML = `
 					<span class="item-content">
 						<input type="checkbox" class="form-check-input file-checkbox" name="files" value="${file.id}"
 							${isSelected ? "checked" : ""}
-							${isExistingFile ? "disabled" : ""}>
-						<i class="bi bi-file-earmark"></i>
-						${file.name}
+							${isExistingFile ? "disabled" : ""}
+							aria-hidden="true"
+							tabindex="-1">
+						<i class="bi bi-file-earmark" aria-hidden="true"></i>
+						<span class="file-browser-name">${file.name}</span>
 					</span>
 				`;
 
@@ -1301,6 +1324,18 @@ class AssetSearchHandler {
 				const checkbox = rowSpan.querySelector('input[type="checkbox"]');
 
 				if (!isExistingFile) {
+					const syncRowSelectionVisual = () => {
+						li.classList.toggle("is-selected", checkbox.checked);
+						rowSpan.setAttribute(
+							"aria-selected",
+							checkbox.checked ? "true" : "false",
+						);
+					};
+
+					if (isSelected) {
+						li.classList.add("is-selected");
+					}
+
 					checkbox.addEventListener("change", (e) => {
 						e.stopPropagation();
 						if (checkbox.checked) {
@@ -1311,16 +1346,28 @@ class AssetSearchHandler {
 						} else {
 							this.selectedFiles.delete(file.id);
 						}
+						syncRowSelectionVisual();
 						this.updateSelectAllCheckboxState();
 						this.updateSelectedFilesList();
 					});
+
+					const toggleRowSelection = () => {
+						checkbox.checked = !checkbox.checked;
+						checkbox.dispatchEvent(new Event("change"));
+					};
 
 					rowSpan.addEventListener("click", (e) => {
 						if (e.target.type === "checkbox") {
 							return;
 						}
-						checkbox.checked = !checkbox.checked;
-						checkbox.dispatchEvent(new Event("change"));
+						toggleRowSelection();
+					});
+
+					rowSpan.addEventListener("keydown", (e) => {
+						if (e.key === "Enter" || e.key === " ") {
+							e.preventDefault();
+							toggleRowSelection();
+						}
 					});
 
 					li.classList.add("clickable-row");
