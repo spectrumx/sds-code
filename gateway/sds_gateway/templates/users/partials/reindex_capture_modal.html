@@ -24,9 +24,7 @@
                     Path: <span id="reindex-top-level-dir" class="font-monospace">—</span>
                 </p>
                 <div id="reindex-loading" class="d-none"></div>
-                <div id="reindex-empty-hint"
-                     class="alert alert-info d-none"
-                     role="status">
+                <div id="reindex-empty-hint" class="alert alert-info d-none" role="status">
                     No new or updated files were found under this capture path. You can still
                     <strong>re-run indexing on existing files</strong> (same as SDK
                     <code>captures.update()</code>).
@@ -37,8 +35,7 @@
                         changed since they were linked:
                     </p>
                     <div class="table-responsive">
-                        <table class="table table-sm table-striped mb-0"
-                               id="reindex-pending-table">
+                        <table class="table table-sm table-striped mb-0" id="reindex-pending-table">
                             <thead>
                                 <tr>
                                     <th>File</th>
@@ -46,7 +43,8 @@
                                     <th class="text-end">Size</th>
                                 </tr>
                             </thead>
-                            <tbody id="reindex-pending-tbody"></tbody>
+                            <tbody id="reindex-pending-tbody">
+                            </tbody>
                         </table>
                     </div>
                 </div>
@@ -55,9 +53,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button"
-                        class="btn btn-primary"
-                        id="reindex-confirm-btn">Reindex capture</button>
+                <button type="button" class="btn btn-primary" id="reindex-confirm-btn">Reindex capture</button>
             </div>
         </div>
     </div>
