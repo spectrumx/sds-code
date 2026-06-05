@@ -2,7 +2,6 @@ from django.urls import path
 from django.views.generic import RedirectView
 
 from .api.views import GetAPIKeyView
-from .views import capture_reindex_preview_view
 from .views import CheckFileExistsView
 from .views import FileContentView
 from .views import FileDownloadView
@@ -10,6 +9,7 @@ from .views import FileH5InfoView
 from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
+from .views import capture_reindex_preview_view
 from .views import details_modal_fragment_view
 from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view

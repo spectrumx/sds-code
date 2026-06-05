@@ -33,7 +33,7 @@ Reference implementations: `ShareActionManager`, `PublishActionManager`, `Downlo
 
 Copy this checklist and update it in the chat (or write `docs/features/<feature-slug>-todo.md` only if the user asks for a file):
 
-```
+```text
 Planning progress:
 - [ ] Name feature, entry point(s), and asset/page scope
 - [ ] Draft numbered user journey (happy path)
@@ -109,13 +109,16 @@ After mapping, output this template filled in for the feature:
 # [Feature name] — implementation todo
 
 ## Summary
+
 [One paragraph: what the user can do and where]
 
 ## User journey
+
 1. …
 2. …
 
 ## Manager: `[ClassName]` (`[path/to/Class].js`)
+
 - [ ] Create class extending `[BaseManager|ModalManager]`
 - [ ] `constructor(config)` — …
 - [ ] `initializeEventListeners()` — …
@@ -123,18 +126,22 @@ After mapping, output this template filled in for the feature:
 - [ ] …
 
 ## Templates & init
+
 - [ ] Page/partial: `[template]` — script tags + `new ClassName({…})`
 - [ ] Modal/partial: `[partial]` — markup only, no inline logic
 - [ ] Component fragment (if dynamic): `[component]` + view context
 
 ## Backend (if needed)
+
 - [ ] Endpoint / view: …
 - [ ] Permissions: …
 
 ## Tests
+
 - [ ] `__tests__/[ClassName].test.js` — critical paths per journey step (see `.cursor/skills/jest-test-writing/SKILL.md`)
 
 ## Done when
+
 - [ ] Happy path matches journey
 - [ ] Errors toasts / disabled states documented in journey
 - [ ] Page shows updated data after confirm (refresh, fragment, or DOM patch)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Literal
 
@@ -14,7 +15,9 @@ from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
-from sds_gateway.users.models import User
+
+if TYPE_CHECKING:
+    from sds_gateway.users.models import User
 
 ReindexCandidateStatus = Literal["not_linked", "updated"]
 
@@ -105,7 +108,9 @@ def get_capture_reindex_candidates(capture: Capture) -> list[dict[str, Any]]:
         virtual_top_dir=virtual_top_dir,
         owner=owner,
         drf_channel=capture.channel if cap_type == CaptureType.DigitalRF else None,
-        rh_scan_group=capture.scan_group if cap_type == CaptureType.RadioHound else None,
+        rh_scan_group=capture.scan_group
+        if cap_type == CaptureType.RadioHound
+        else None,
     )
     eligible = list(eligible_qs.order_by("directory", "name"))
     linked = list(get_capture_files(capture))
