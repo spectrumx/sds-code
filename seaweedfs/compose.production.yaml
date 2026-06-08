@@ -25,490 +25,517 @@
 # IMAGE: 4.23_large_disk_full — supports large volumes, full backend suite.
 
 x-logging: &default-logging
-  driver: "json-file"
-  options:
-    max-size: "100m"
-    max-file: "3"
+    driver: "json-file"
+    options:
+        max-size: "100m"
+        max-file: "3"
 
 networks:
-  # Internal SeaweedFS network (created before deploy)
-  sds-gateway-prod-seaweed-net:
-    external: true
-  # Shared network with gateway services
-  sds-network-prod:
-    external: true
+    # Internal SeaweedFS network (created before deploy)
+    sds-gateway-prod-seaweed-net:
+        external: true
+    # Shared network with gateway services
+    sds-network-prod:
+        external: true
 
 volumes:
-  prometheus-data:
-  grafana-data:
+    prometheus-data:
+    grafana-data:
 
 services:
-  # ─────────────────────────────────────────────────────────
-  # MASTER — cluster coordinator, assigns volumes, signs JWTs
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-master:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-master
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "9333:9333" # HTTP
-      - "19333:19333" # gRPC
-    environment:
-      # JWT signing key for volume write auth
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -fsS http://localhost:9333/cluster/status >/dev/null",
-        ]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    volumes:
-      # Persistent metadata (filer store, master state)
-      - /data/seaweedfs/master:/data
-      # Config files
-      - ./config/master.toml:/etc/seaweedfs/master.toml:ro
-      - ./config/security.toml:/etc/seaweedfs/security.toml:ro
-    logging: *default-logging
-    command: |
-      master
-      -mdir=/data
-      -ip=sds-gateway-prod-sfs-master
-      -ip.bind=0.0.0.0
-      -port=9333
-      -volumePreallocate
-      -volumeSizeLimitMB=30000
-      -master.metrics.address=http://sds-gateway-prod-sfs-pushgateway:9091
+    # ─────────────────────────────────────────────────────────
+    # MASTER — cluster coordinator, assigns volumes, signs JWTs
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-master:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-master
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "9333:9333" # HTTP
+            - "19333:19333" # gRPC
+        environment:
+            # JWT signing key for volume write auth
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:9333/cluster/status >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        volumes:
+            # Persistent metadata (filer store, master state)
+            - /data/seaweedfs/master:/data
+            # Config files
+            - ./config/master.toml:/etc/seaweedfs/master.toml:ro
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
+        logging: *default-logging
+        command: |
+            master
+            -mdir=/data
+            -ip=sds-gateway-prod-sfs-master
+            -ip.bind=0.0.0.0
+            -port=9333
+            -volumePreallocate
+            -volumeSizeLimitMB=30000
+            -master.metrics.address=http://sds-gateway-prod-sfs-pushgateway:9091
 
-  # ─────────────────────────────────────────────────────────
-  # 5 VOLUME SERVERS — one per 22TB XFS drive
-  # Each has dedicated data + idx paths, leveldb index,
-  # and per-drive healthcheck.
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-volume1:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-volume1
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8081:8081" # HTTP
-      - "18081:18081" # gRPC
-    environment:
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    volumes:
-      - /disk1/data:/data
-      - /disk1/idx:/idx
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8081/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      volume
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-volume1
-      -ip.bind=0.0.0.0
-      -port=8081
-      -max=0
-      -dir=/data
-      -dir.idx=/idx
-      -index=leveldb
-      -dataCenter=dc1
-      -rack=rack1
-      -compactionMBps=40
-      -minFreeSpacePercent=7
+    # ─────────────────────────────────────────────────────────
+    # 5 VOLUME SERVERS — one per 22TB XFS drive
+    # Each has dedicated data + idx paths, leveldb index,
+    # and per-drive healthcheck.
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-volume1:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-volume1
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8081:8081" # HTTP
+            - "18081:18081" # gRPC
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        volumes:
+            - /disk1/data:/data
+            - /disk1/idx:/idx
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8081/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            volume
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-volume1
+            -ip.bind=0.0.0.0
+            -port=8081
+            -max=0
+            -dir=/data
+            -dir.idx=/idx
+            -index=leveldb
+            -dataCenter=dc1
+            -rack=rack1
+            -compactionMBps=40
+            -minFreeSpacePercent=7
 
-  sds-gateway-prod-sfs-volume2:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-volume2
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8082:8082"
-      - "18082:18082"
-    environment:
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    volumes:
-      - /disk2/data:/data
-      - /disk2/idx:/idx
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8082/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      volume
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-volume2
-      -ip.bind=0.0.0.0
-      -port=8082
-      -max=0
-      -dir=/data
-      -dir.idx=/idx
-      -index=leveldb
-      -dataCenter=dc1
-      -rack=rack1
-      -compactionMBps=40
-      -minFreeSpacePercent=7
+    sds-gateway-prod-sfs-volume2:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-volume2
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8082:8082"
+            - "18082:18082"
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        volumes:
+            - /disk2/data:/data
+            - /disk2/idx:/idx
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8082/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            volume
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-volume2
+            -ip.bind=0.0.0.0
+            -port=8082
+            -max=0
+            -dir=/data
+            -dir.idx=/idx
+            -index=leveldb
+            -dataCenter=dc1
+            -rack=rack1
+            -compactionMBps=40
+            -minFreeSpacePercent=7
 
-  sds-gateway-prod-sfs-volume3:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-volume3
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8083:8083"
-      - "18083:18083"
-    environment:
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    volumes:
-      - /disk3/data:/data
-      - /disk3/idx:/idx
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8083/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      volume
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-volume3
-      -ip.bind=0.0.0.0
-      -port=8083
-      -max=0
-      -dir=/data
-      -dir.idx=/idx
-      -index=leveldb
-      -dataCenter=dc1
-      -rack=rack1
-      -compactionMBps=40
-      -minFreeSpacePercent=7
+    sds-gateway-prod-sfs-volume3:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-volume3
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8083:8083"
+            - "18083:18083"
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        volumes:
+            - /disk3/data:/data
+            - /disk3/idx:/idx
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8083/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            volume
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-volume3
+            -ip.bind=0.0.0.0
+            -port=8083
+            -max=0
+            -dir=/data
+            -dir.idx=/idx
+            -index=leveldb
+            -dataCenter=dc1
+            -rack=rack1
+            -compactionMBps=40
+            -minFreeSpacePercent=7
 
-  sds-gateway-prod-sfs-volume4:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-volume4
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8084:8084"
-      - "18084:18084"
-    environment:
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    volumes:
-      - /disk4/data:/data
-      - /disk4/idx:/idx
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8084/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      volume
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-volume4
-      -ip.bind=0.0.0.0
-      -port=8084
-      -max=0
-      -dir=/data
-      -dir.idx=/idx
-      -index=leveldb
-      -dataCenter=dc1
-      -rack=rack1
-      -compactionMBps=40
-      -minFreeSpacePercent=7
+    sds-gateway-prod-sfs-volume4:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-volume4
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8084:8084"
+            - "18084:18084"
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        volumes:
+            - /disk4/data:/data
+            - /disk4/idx:/idx
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8084/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            volume
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-volume4
+            -ip.bind=0.0.0.0
+            -port=8084
+            -max=0
+            -dir=/data
+            -dir.idx=/idx
+            -index=leveldb
+            -dataCenter=dc1
+            -rack=rack1
+            -compactionMBps=40
+            -minFreeSpacePercent=7
 
-  sds-gateway-prod-sfs-volume5:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-volume5
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8085:8085"
-      - "18085:18085"
-    environment:
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-    volumes:
-      - /disk5/data:/data
-      - /disk5/idx:/idx
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8085/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      volume
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-volume5
-      -ip.bind=0.0.0.0
-      -port=8085
-      -max=0
-      -dir=/data
-      -dir.idx=/idx
-      -index=leveldb
-      -dataCenter=dc1
-      -rack=rack1
-      -compactionMBps=40
-      -minFreeSpacePercent=7
+    sds-gateway-prod-sfs-volume5:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-volume5
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8085:8085"
+            - "18085:18085"
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+        volumes:
+            - /disk5/data:/data
+            - /disk5/idx:/idx
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8085/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            volume
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-volume5
+            -ip.bind=0.0.0.0
+            -port=8085
+            -max=0
+            -dir=/data
+            -dir.idx=/idx
+            -index=leveldb
+            -dataCenter=dc1
+            -rack=rack1
+            -compactionMBps=40
+            -minFreeSpacePercent=7
 
-  # ─────────────────────────────────────────────────────────
-  # FILER — metadata store, file namespace, HTTP file browser
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-filer:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-filer
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-master
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "8888:8888" # HTTP
-      - "18888:18888" # gRPC
-    environment:
-      # JWT key for volume write auth
-      WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
-      # JWT key for filer HTTP write auth — S3 gateway signs, filer validates
-      WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
-    volumes:
-      # Persistent filer metadata (leveldb2 store)
-      - /data/seaweedfs/filer:/data
-      # Config files
-      - ./config/filer.toml:/etc/seaweedfs/filer.toml:ro
-      - ./config/security.toml:/etc/seaweedfs/security.toml:ro
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8888/ >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      filer
-      -master=sds-gateway-prod-sfs-master:9333
-      -ip=sds-gateway-prod-sfs-filer
-      -ip.bind=0.0.0.0
-      -port=8888
-      -encryptVolumeData=false
-      -maxMB=32
+    # ─────────────────────────────────────────────────────────
+    # FILER — metadata store, file namespace, HTTP file browser
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-filer:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-filer
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-master
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "8888:8888" # HTTP
+            - "18888:18888" # gRPC
+        environment:
+            # JWT key for volume write auth
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            # JWT key for filer HTTP write auth — S3 gateway signs, filer validates
+            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
+        volumes:
+            # Persistent filer metadata (leveldb2 store)
+            - /data/seaweedfs/filer:/data
+            # Config files
+            - ./config/filer.toml:/etc/seaweedfs/filer.toml:ro
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
+        logging: *default-logging
+        healthcheck:
+            test: ["CMD-SHELL", "curl -fsS http://localhost:8888/ >/dev/null"]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            filer
+            -master=sds-gateway-prod-sfs-master:9333
+            -ip=sds-gateway-prod-sfs-filer
+            -ip.bind=0.0.0.0
+            -port=8888
+            -encryptVolumeData=false
+            -maxMB=32
 
-  # ─────────────────────────────────────────────────────────
-  # S3 GATEWAY — S3-compatible API, connects to filer
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-s3:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-s3
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-filer
-    networks:
-      # Internal: connects to filer/volume
-      - sds-gateway-prod-seaweed-net
-      # External: gateway services connect here
-      - sds-network-prod
-    ports:
-      - "8333:8333"
-    environment:
-      # Must match filer's WEED_JWT_FILER_SIGNING_KEY
-      WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
-      # SSE-S3 Key Encryption Key
-      WEED_S3_SSE_KEK: "${S3_SSE_KEK}"
-    volumes:
-      - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8333/healthz >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      s3
-      -filer=sds-gateway-prod-sfs-filer:8888
-      -port=8333
-      -config=/etc/seaweedfs/s3.json
-      -domain=.s3.example.com
+    # ─────────────────────────────────────────────────────────
+    # S3 GATEWAY — S3-compatible API, connects to filer
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-s3:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-s3
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-filer
+        networks:
+            # Internal: connects to filer/volume
+            - sds-gateway-prod-seaweed-net
+            # External: gateway services connect here
+            - sds-network-prod
+        ports:
+            - "8333:8333"
+        environment:
+            # Must match filer's WEED_JWT_FILER_SIGNING_KEY
+            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
+            # SSE-S3 Key Encryption Key
+            WEED_S3_SSE_KEK: "${S3_SSE_KEK}"
+        volumes:
+            - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
+        logging: *default-logging
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:8333/healthz >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            s3
+            -filer=sds-gateway-prod-sfs-filer:8888
+            -port=8333
+            -config=/etc/seaweedfs/s3.json
+            -domain=.s3.example.com
 
-  # ─────────────────────────────────────────────────────────
-  # WEBDAV — WebDAV access to filer namespace
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-webdav:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-webdav
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-master
-      - sds-gateway-prod-sfs-filer
-    networks:
-      - sds-gateway-prod-seaweed-net
-    logging: *default-logging
-    command: |
-      webdav
-      -filer=sds-gateway-prod-sfs-filer:8888
+    # ─────────────────────────────────────────────────────────
+    # WEBDAV — WebDAV access to filer namespace
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-webdav:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-webdav
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-master
+            - sds-gateway-prod-sfs-filer
+        networks:
+            - sds-gateway-prod-seaweed-net
+        logging: *default-logging
+        command: |
+            webdav
+            -filer=sds-gateway-prod-sfs-filer:8888
 
-  # ─────────────────────────────────────────────────────────
-  # ADMIN — cluster admin server (EC management, maintenance)
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-admin:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-admin
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-master
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "23646:23646" # Admin HTTP
-    logging: *default-logging
-    healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:23646/ >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    command: |
-      admin
-      -master=sds-gateway-prod-sfs-master:9333
+    # ─────────────────────────────────────────────────────────
+    # ADMIN — cluster admin server (EC management, maintenance)
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-admin:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-admin
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-master
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "23646:23646" # Admin HTTP
+        logging: *default-logging
+        healthcheck:
+            test: ["CMD-SHELL", "curl -fsS http://localhost:23646/ >/dev/null"]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        command: |
+            admin
+            -master=sds-gateway-prod-sfs-master:9333
 
-  # ─────────────────────────────────────────────────────────
-  # WORKER — runs erasure_coding plugin and maintenance scripts
-  # Continuously converts full/quiet volumes to EC shards.
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-worker:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-worker
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-admin
-    networks:
-      - sds-gateway-prod-seaweed-net
-    logging: *default-logging
-    command: |
-      worker
-      -admin=sds-gateway-prod-sfs-admin:23646
+    # ─────────────────────────────────────────────────────────
+    # WORKER — runs erasure_coding plugin and maintenance scripts
+    # Continuously converts full/quiet volumes to EC shards.
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-worker:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-worker
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-admin
+        networks:
+            - sds-gateway-prod-seaweed-net
+        logging: *default-logging
+        command: |
+            worker
+            -admin=sds-gateway-prod-sfs-admin:23646
 
-  # ─────────────────────────────────────────────────────────
-  # PROMETHEUS + PUSHGATEWAY — push-based metrics collection
-  # SeaweedFS components push metrics to pushgateway;
-  # Prometheus scrapes from pushgateway (simpler than
-  # dynamic target discovery for volume servers).
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-prometheus:
-    image: docker.io/prom/prometheus:v2.53.0
-    container_name: sds-gateway-prod-sfs-prometheus
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "9090:9090"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --spider -q http://localhost:9090/-/healthy || exit 1",
-        ]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    volumes:
-      - prometheus-data:/prometheus
-      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
-    command:
-      - "--config.file=/etc/prometheus/prometheus.yaml"
-      - "--storage.tsdb.path=/prometheus"
-      - "--web.enable-lifecycle"
+    # ─────────────────────────────────────────────────────────
+    # PROMETHEUS + PUSHGATEWAY — push-based metrics collection
+    # SeaweedFS components push metrics to pushgateway;
+    # Prometheus scrapes from pushgateway (simpler than
+    # dynamic target discovery for volume servers).
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-prometheus:
+        image: docker.io/prom/prometheus:v2.53.0
+        container_name: sds-gateway-prod-sfs-prometheus
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "9090:9090"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget --spider -q http://localhost:9090/-/healthy || exit 1",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        volumes:
+            - prometheus-data:/prometheus
+            - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+        command:
+            - "--config.file=/etc/prometheus/prometheus.yaml"
+            - "--storage.tsdb.path=/prometheus"
+            - "--web.enable-lifecycle"
 
-  sds-gateway-prod-sfs-pushgateway:
-    image: docker.io/prom/pushgateway:v1.9.0
-    container_name: sds-gateway-prod-sfs-pushgateway
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "9091:9091"
-    healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "wget --spider -q http://localhost:9091/-/healthy || exit 1",
-        ]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
+    sds-gateway-prod-sfs-pushgateway:
+        image: docker.io/prom/pushgateway:v1.9.0
+        container_name: sds-gateway-prod-sfs-pushgateway
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "9091:9091"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget --spider -q http://localhost:9091/-/healthy || exit 1",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
 
-  # ─────────────────────────────────────────────────────────
-  # GRAFANA — dashboards + alerting
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-grafana:
-    image: docker.io/grafana/grafana:11.1.0
-    container_name: sds-gateway-prod-sfs-grafana
-    restart: unless-stopped
-    networks:
-      - sds-gateway-prod-seaweed-net
-    ports:
-      - "3000:3000"
-    healthcheck:
-      test:
-        ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
-      interval: 15s
-      retries: 5
-      start_interval: 5s
-      start_period: 30s
-      timeout: 5s
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD}"
-    volumes:
-      - grafana-data:/var/lib/grafana
+    # ─────────────────────────────────────────────────────────
+    # GRAFANA — dashboards + alerting
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-grafana:
+        image: docker.io/grafana/grafana:11.1.0
+        container_name: sds-gateway-prod-sfs-grafana
+        restart: unless-stopped
+        networks:
+            - sds-gateway-prod-seaweed-net
+        ports:
+            - "3000:3000"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -fsS http://localhost:3000/api/health >/dev/null",
+                ]
+            interval: 15s
+            retries: 5
+            start_interval: 5s
+            start_period: 30s
+            timeout: 5s
+        environment:
+            GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_PASSWORD}"
+        volumes:
+            - grafana-data:/var/lib/grafana
 
-  # ─────────────────────────────────────────────────────────
-  # FILER BACKUP — async replication to MinIO (S3 sink)
-  # Subscribes to filer metadata change log (CDC) and
-  # replicates file content to the configured S3-compatible
-  # storage (MinIO). Checkpointed for safe restarts.
-  # ─────────────────────────────────────────────────────────
-  sds-gateway-prod-sfs-filer-backup:
-    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-    container_name: sds-gateway-prod-sfs-filer-backup
-    restart: unless-stopped
-    depends_on:
-      - sds-gateway-prod-sfs-filer
-    networks:
-      - sds-gateway-prod-seaweed-net
-    volumes:
-      - ./config/replication.toml:/etc/seaweedfs/replication.toml:ro
-    command: |
-      filer.backup
-      -filer=sds-gateway-prod-sfs-filer:8888
-      -config=/etc/seaweedfs/replication.toml
+    # ─────────────────────────────────────────────────────────
+    # FILER BACKUP — async replication to MinIO (S3 sink)
+    # Subscribes to filer metadata change log (CDC) and
+    # replicates file content to the configured S3-compatible
+    # storage (MinIO). Checkpointed for safe restarts.
+    # ─────────────────────────────────────────────────────────
+    sds-gateway-prod-sfs-filer-backup:
+        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+        container_name: sds-gateway-prod-sfs-filer-backup
+        restart: unless-stopped
+        depends_on:
+            - sds-gateway-prod-sfs-filer
+        networks:
+            - sds-gateway-prod-seaweed-net
+        volumes:
+            - ./config/replication.toml:/etc/seaweedfs/replication.toml:ro
+        command: |
+            filer.backup
+            -filer=sds-gateway-prod-sfs-filer:8888
+            -config=/etc/seaweedfs/replication.toml
