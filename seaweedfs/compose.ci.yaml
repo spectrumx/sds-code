@@ -19,7 +19,7 @@ services:
   # MASTER
   # ─────────────────────────────────────────────────────────
   sds-gateway-ci-sfs-master:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-ci-sfs-master
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -34,7 +34,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_MASTER_PORT:-9333}/cluster/status >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_MASTER_PORT:-9333}/cluster/status >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -52,7 +56,7 @@ services:
   # VOLUME
   # ─────────────────────────────────────────────────────────
   sds-gateway-ci-sfs-volume:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-ci-sfs-volume
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -68,7 +72,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -89,7 +97,7 @@ services:
   # FILER
   # ─────────────────────────────────────────────────────────
   sds-gateway-ci-sfs-filer:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-ci-sfs-filer
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -107,7 +115,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_FILER_PORT:-8888}/ >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_FILER_PORT:-8888}/ >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -125,7 +137,7 @@ services:
   # S3 GATEWAY
   # ─────────────────────────────────────────────────────────
   sds-gateway-ci-sfs-s3:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-ci-sfs-s3
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -142,7 +154,11 @@ services:
       - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s

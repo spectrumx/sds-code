@@ -47,19 +47,23 @@ services:
   # MASTER — cluster coordinator, assigns volumes, signs JWTs
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-master:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-master
     restart: unless-stopped
     networks:
       - sds-gateway-prod-seaweed-net
     ports:
-      - "9333:9333"    # HTTP
-      - "19333:19333"  # gRPC
+      - "9333:9333" # HTTP
+      - "19333:19333" # gRPC
     environment:
       # JWT signing key for volume write auth
       WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:9333/cluster/status >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:9333/cluster/status >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -88,14 +92,14 @@ services:
   # and per-drive healthcheck.
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-volume1:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-volume1
     restart: unless-stopped
     networks:
       - sds-gateway-prod-seaweed-net
     ports:
-      - "8081:8081"    # HTTP
-      - "18081:18081"  # gRPC
+      - "8081:8081" # HTTP
+      - "18081:18081" # gRPC
     environment:
       WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
     volumes:
@@ -125,7 +129,7 @@ services:
       -minFreeSpacePercent=7
 
   sds-gateway-prod-sfs-volume2:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-volume2
     restart: unless-stopped
     networks:
@@ -162,7 +166,7 @@ services:
       -minFreeSpacePercent=7
 
   sds-gateway-prod-sfs-volume3:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-volume3
     restart: unless-stopped
     networks:
@@ -199,7 +203,7 @@ services:
       -minFreeSpacePercent=7
 
   sds-gateway-prod-sfs-volume4:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-volume4
     restart: unless-stopped
     networks:
@@ -236,7 +240,7 @@ services:
       -minFreeSpacePercent=7
 
   sds-gateway-prod-sfs-volume5:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-volume5
     restart: unless-stopped
     networks:
@@ -276,7 +280,7 @@ services:
   # FILER — metadata store, file namespace, HTTP file browser
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-filer:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-filer
     restart: unless-stopped
     depends_on:
@@ -284,8 +288,8 @@ services:
     networks:
       - sds-gateway-prod-seaweed-net
     ports:
-      - "8888:8888"    # HTTP
-      - "18888:18888"  # gRPC
+      - "8888:8888" # HTTP
+      - "18888:18888" # gRPC
     environment:
       # JWT key for volume write auth
       WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
@@ -318,7 +322,7 @@ services:
   # S3 GATEWAY — S3-compatible API, connects to filer
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-s3:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-s3
     restart: unless-stopped
     depends_on:
@@ -356,7 +360,7 @@ services:
   # WEBDAV — WebDAV access to filer namespace
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-webdav:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-webdav
     restart: unless-stopped
     depends_on:
@@ -373,7 +377,7 @@ services:
   # ADMIN — cluster admin server (EC management, maintenance)
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-admin:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-admin
     restart: unless-stopped
     depends_on:
@@ -381,7 +385,7 @@ services:
     networks:
       - sds-gateway-prod-seaweed-net
     ports:
-      - "23646:23646"  # Admin HTTP
+      - "23646:23646" # Admin HTTP
     logging: *default-logging
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:23646/ >/dev/null"]
@@ -399,7 +403,7 @@ services:
   # Continuously converts full/quiet volumes to EC shards.
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-worker:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-worker
     restart: unless-stopped
     depends_on:
@@ -426,7 +430,11 @@ services:
     ports:
       - "9090:9090"
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:9090/-/healthy || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:9090/-/healthy || exit 1",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -449,7 +457,11 @@ services:
     ports:
       - "9091:9091"
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:9091/-/healthy || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:9091/-/healthy || exit 1",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -468,7 +480,8 @@ services:
     ports:
       - "3000:3000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
+      test:
+        ["CMD-SHELL", "curl -fsS http://localhost:3000/api/health >/dev/null"]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -486,7 +499,7 @@ services:
   # storage (MinIO). Checkpointed for safe restarts.
   # ─────────────────────────────────────────────────────────
   sds-gateway-prod-sfs-filer-backup:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-prod-sfs-filer-backup
     restart: unless-stopped
     depends_on:

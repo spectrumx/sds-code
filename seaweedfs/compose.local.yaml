@@ -18,7 +18,7 @@ services:
   # MASTER
   # ─────────────────────────────────────────────────────────
   sds-gateway-local-sfs-master:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-local-sfs-master
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -33,7 +33,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_MASTER_PORT:-9333}/cluster/status >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_MASTER_PORT:-9333}/cluster/status >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -51,7 +55,7 @@ services:
   # VOLUME — single volume server
   # ─────────────────────────────────────────────────────────
   sds-gateway-local-sfs-volume:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-local-sfs-volume
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -67,7 +71,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_VOLUME_PORT:-8080}/healthz >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -88,7 +96,7 @@ services:
   # FILER
   # ─────────────────────────────────────────────────────────
   sds-gateway-local-sfs-filer:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-local-sfs-filer
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -106,7 +114,11 @@ services:
       - ./config/security.toml:/etc/seaweedfs/security.toml:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_FILER_PORT:-8888}/ >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_FILER_PORT:-8888}/ >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -124,7 +136,7 @@ services:
   # S3 GATEWAY
   # ─────────────────────────────────────────────────────────
   sds-gateway-local-sfs-s3:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-local-sfs-s3
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -141,7 +153,11 @@ services:
       - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -fsS http://localhost:${SFS_S3_PORT:-8333}/healthz >/dev/null",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -159,7 +175,7 @@ services:
   # WEBDAV
   # ─────────────────────────────────────────────────────────
   sds-gateway-local-sfs-webdav:
-    image: docker.io/chrislusf/seaweedfs:4.23_large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: sds-gateway-local-sfs-webdav
     user: "${UID:-1000}:${GID:-1000}"
     restart: unless-stopped
@@ -173,7 +189,11 @@ services:
       - "${SFS_WEBDAV_PORT:-7333}:${SFS_WEBDAV_PORT:-7333}"
     logging: *default-logging
     healthcheck:
-      test: ["CMD-SHELL", "curl -sS -o /dev/null http://localhost:${SFS_WEBDAV_PORT:-7333}/"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -sS -o /dev/null http://localhost:${SFS_WEBDAV_PORT:-7333}/",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s
@@ -193,7 +213,11 @@ services:
     depends_on:
       - sds-gateway-local-sfs-s3
     healthcheck:
-      test: ["CMD-SHELL", "wget --spider -q http://localhost:${SFS_PROMETHEUS_CONTAINER_PORT:-9090}/-/healthy || exit 1"]
+      test:
+        [
+          "CMD-SHELL",
+          "wget --spider -q http://localhost:${SFS_PROMETHEUS_CONTAINER_PORT:-9090}/-/healthy || exit 1",
+        ]
       interval: 15s
       retries: 5
       start_interval: 5s

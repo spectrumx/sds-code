@@ -100,26 +100,28 @@ def test_dashboard_context_avoids_n_plus_one_queries() -> None:
 
 def test_dashboard_context_splits_trends_by_service_host_and_port() -> None:
     checked_at = timezone.now()
-    ServiceCheck.objects.bulk_create([
-        ServiceCheck(
-            service_name="seaweedfs",
-            host="sfs-a.local",
-            port=8333,
-            status=HealthStatus.HEALTHY,
-            checked_at=checked_at,
-            latency_ms=5,
-            detail="",
-        ),
-        ServiceCheck(
-            service_name="seaweedfs",
-            host="sfs-b.local",
-            port=8333,
-            status=HealthStatus.DOWN,
-            checked_at=checked_at,
-            latency_ms=None,
-            detail="refused",
-        ),
-    ])
+    ServiceCheck.objects.bulk_create(
+        [
+            ServiceCheck(
+                service_name="seaweedfs",
+                host="sfs-a.local",
+                port=8333,
+                status=HealthStatus.HEALTHY,
+                checked_at=checked_at,
+                latency_ms=5,
+                detail="",
+            ),
+            ServiceCheck(
+                service_name="seaweedfs",
+                host="sfs-b.local",
+                port=8333,
+                status=HealthStatus.DOWN,
+                checked_at=checked_at,
+                latency_ms=None,
+                detail="refused",
+            ),
+        ]
+    )
 
     model_admin = SystemHealthSnapshotAdmin(SystemHealthSnapshot, AdminSite())
     dashboard = model_admin._dashboard_context()  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
