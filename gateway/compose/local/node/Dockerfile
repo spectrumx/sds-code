@@ -4,6 +4,12 @@ RUN pnpm runtime set node 24 -g && cp /pnpm/bin/node /usr/local/bin/node && rm /
 
 WORKDIR /app
 
+# Pin the store directory so it's consistent between docker build
+# (with cache mount at /pnpm/store) and docker compose run (without cache mount).
+# Without this, pnpm 11 defaults to a project-local store (/app/.pnpm-store/v11)
+# which conflicts with the symlinks in node_modules linked from /pnpm/store/v11.
+RUN pnpm config set store-dir /pnpm/store --global
+
 COPY ./package.json /app
 COPY ./pnpm-lock.yaml /app
 COPY ./pnpm-workspace.yaml /app
