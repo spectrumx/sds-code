@@ -36,7 +36,7 @@ jobs:
         env:
             UV_LINK_MODE: copy
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             # this ubuntu-latest version ships node 18, which was causing issues
             - uses: actions/setup-node@v6
@@ -58,9 +58,14 @@ jobs:
                   key: prek-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}
                   path: ~/.cache/prek/
 
+            - name: Setup pnpm
+              uses: pnpm/action-setup@v6
+              with:
+                  version: 11.5.1
+
             - name: Install gateway frontend dependencies
               working-directory: ./gateway
-              run: npm ci
+              run: pnpm install --frozen-lockfile
 
             - name: Install hooks
               working-directory: ./gateway
@@ -83,7 +88,7 @@ jobs:
                 # This is faster, saving some GH action minutes and dev time.
                 platform: [ubuntu-latest]
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v6
 
             # - name: Install dependencies
             #   run: sudo apt update && sudo apt install -y rsync
