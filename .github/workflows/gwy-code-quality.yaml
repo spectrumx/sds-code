@@ -39,6 +39,7 @@ jobs:
             - uses: actions/checkout@v6
 
             # this ubuntu-latest version ships node 18, which was causing issues
+            # https://github.com/actions/setup-node#usage
             - uses: actions/setup-node@v6
               with:
                   node-version: 24
@@ -52,7 +53,7 @@ jobs:
 
             - name: Cache prek hooks
               id: cache-prek
-              uses: actions/cache@v4
+              uses: actions/cache@v5
               # https://github.com/actions/cache/blob/main/examples.md#python---pip
               with:
                   key: prek-gateway-${{ hashFiles('gateway/.pre-commit-config.yaml') }}

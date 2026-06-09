@@ -239,6 +239,33 @@ function load_secondary_credentials() {
 	printf '%s\n%s' "${access_key}" "${secret_key}"
 }
 
+function validate_production_credentials() {
+	local env_type="$1"
+	local access_key="$2"
+	local secret_key="$3"
+
+	if [[ "${env_type}" != "production" ]]; then
+		log_msg "Skipping credential validation for '${env_type}' environment"
+		return 0
+	fi
+
+	log_header "Validating Production Credentials"
+
+	if [[ "${access_key}" == "admin-access-key" || "${access_key}" == "backup-access-key" ]]; then
+		log_fatal_and_exit "Access key '${access_key}' is a well-known default. Set strong credentials in the env file."
+	fi
+
+	if [[ ${#access_key} -lt 16 ]]; then
+		log_fatal_and_exit "Access key is too short (${#access_key} chars). Minimum 16 characters required for production."
+	fi
+
+	if [[ ${#secret_key} -lt 16 ]]; then
+		log_fatal_and_exit "Secret key is too short (${#secret_key} chars). Minimum 16 characters required for production."
+	fi
+
+	log_success "Production credentials validated"
+}
+
 function parse_arguments() {
 	local -n _args_ref=$1
 	shift
@@ -340,10 +367,27 @@ function ensure_ci_sfs_env() {
 	local ci_env_file="${SFS_ROOT}/.envs/ci/sfs.env"
 
 	if [[ -f "${ci_env_file}" ]]; then
+		# File exists — ensure JWT keys are present
+		local needs_update=false
+		if ! grep -qE '^JWT_SIGNING_KEY=.+' "${ci_env_file}" 2>/dev/null; then
+			echo "JWT_SIGNING_KEY=$(openssl rand -hex 16)" >>"${ci_env_file}"
+			needs_update=true
+		fi
+		if ! grep -qE '^JWT_FILER_SIGNING_KEY=.+' "${ci_env_file}" 2>/dev/null; then
+			echo "JWT_FILER_SIGNING_KEY=$(openssl rand -hex 16)" >>"${ci_env_file}"
+			needs_update=true
+		fi
+		if ! grep -qE '^S3_SSE_KEK=.+' "${ci_env_file}" 2>/dev/null; then
+			echo "S3_SSE_KEK=$(openssl rand -hex 16)" >>"${ci_env_file}"
+			needs_update=true
+		fi
+		if [[ "${needs_update}" == "true" ]]; then
+			log_success "Appended missing JWT keys to CI sfs.env"
+		fi
 		return 0
 	fi
 
-	log_msg "Generating minimal CI sfs.env (git-ignored, safe for ephemeral CI)..."
+	log_msg "Generating CI sfs.env with JWT keys..."
 	local uid gid
 	uid=$(id -u)
 	gid=$(id -g)
@@ -368,8 +412,100 @@ SFS_S3_METRICS_PORT=9327
 SFS_WEBDAV_PORT=7333
 SFS_PROMETHEUS_HOST_PORT=9000
 SFS_PROMETHEUS_CONTAINER_PORT=9090
+JWT_SIGNING_KEY=$(openssl rand -hex 16)
+JWT_FILER_SIGNING_KEY=$(openssl rand -hex 16)
+S3_SSE_KEK=$(openssl rand -hex 16)
 EOF
 	chmod 600 "${ci_env_file}"
+	log_success "CI sfs.env created with generated JWT keys"
+}
+
+function ensure_local_sfs_env() {
+	local env_type="$1"
+	if [[ "${env_type}" != "local" ]]; then
+		return 0
+	fi
+
+	local local_env_file="${SFS_ROOT}/.envs/local/sfs.env"
+	mkdir -p "$(dirname "${local_env_file}")"
+
+	if [[ ! -f "${local_env_file}" ]]; then
+		log_msg "Generating local sfs.env with JWT keys..."
+		cat >"${local_env_file}" <<EOF
+# Auto-generated JWT keys for local development
+JWT_SIGNING_KEY=$(openssl rand -hex 16)
+JWT_FILER_SIGNING_KEY=$(openssl rand -hex 16)
+S3_SSE_KEK=$(openssl rand -hex 16)
+EOF
+		chmod 600 "${local_env_file}"
+		log_success "Local sfs.env created with generated JWT keys"
+		return 0
+	fi
+
+	# File exists — check if JWT keys are set, append if missing
+	local needs_update=false
+	if ! grep -qE '^JWT_SIGNING_KEY=.+' "${local_env_file}" 2>/dev/null; then
+		echo "JWT_SIGNING_KEY=$(openssl rand -hex 16)" >>"${local_env_file}"
+		needs_update=true
+	fi
+	if ! grep -qE '^JWT_FILER_SIGNING_KEY=.+' "${local_env_file}" 2>/dev/null; then
+		echo "JWT_FILER_SIGNING_KEY=$(openssl rand -hex 16)" >>"${local_env_file}"
+		needs_update=true
+	fi
+	if ! grep -qE '^S3_SSE_KEK=.+' "${local_env_file}" 2>/dev/null; then
+		echo "S3_SSE_KEK=$(openssl rand -hex 16)" >>"${local_env_file}"
+		needs_update=true
+	fi
+
+	if [[ "${needs_update}" == "true" ]]; then
+		log_success "Appended missing JWT keys to local sfs.env"
+	fi
+}
+
+function validate_required_secrets() {
+	local env_type="$1"
+	local env_file
+
+	case "${env_type}" in
+	local) env_file="${SFS_ROOT}/.envs/local/sfs.env" ;;
+	ci) env_file="${SFS_ROOT}/.envs/ci/sfs.env" ;;
+	production) env_file="${SFS_ROOT}/.envs/production/sfs.env" ;;
+	*)
+		log_error "Unknown environment: ${env_type}"
+		return 1
+		;;
+	esac
+
+	if [[ ! -f "${env_file}" ]]; then
+		log_error "Environment file not found: ${env_file}"
+		log_msg "Run deploy.sh to generate it automatically (local/CI) or create it manually (production)."
+		return 1
+	fi
+
+	local missing=()
+	if ! grep -qE '^JWT_SIGNING_KEY=.+' "${env_file}" 2>/dev/null; then
+		missing+=("JWT_SIGNING_KEY")
+	fi
+	if ! grep -qE '^JWT_FILER_SIGNING_KEY=.+' "${env_file}" 2>/dev/null; then
+		missing+=("JWT_FILER_SIGNING_KEY")
+	fi
+	if ! grep -qE '^S3_SSE_KEK=.+' "${env_file}" 2>/dev/null; then
+		missing+=("S3_SSE_KEK")
+	fi
+
+	if [[ ${#missing[@]} -gt 0 ]]; then
+		log_error "Required JWT secrets missing or empty in ${env_file}:"
+		for secret in "${missing[@]}"; do
+			log_msg "  - ${secret}"
+		done
+		log_msg "Generate them with: openssl rand -hex 16 for each missing key."
+		if [[ "${env_type}" == "production" ]]; then
+			log_msg "For production, set these via secure secret injection before deploying."
+		fi
+		return 1
+	fi
+
+	log_success "All required JWT secrets are set in ${env_file}"
 }
 
 function main() {
@@ -386,6 +522,8 @@ function main() {
 
 	assert_selected_env "${args[env_type]}"
 	ensure_ci_sfs_env
+	ensure_local_sfs_env "${args[env_type]}"
+	validate_required_secrets "${args[env_type]}"
 	setup_prod_hostnames "${args[env_type]}"
 	setup_data_dirs "${args[env_type]}"
 	start_stack "${args[env_type]}"
@@ -400,6 +538,7 @@ function main() {
 		secret_key=$(echo "${creds}" | sed -n '2p')
 		bucket_name=$(echo "${creds}" | sed -n '3p')
 
+		validate_production_credentials "${args[env_type]}" "${access_key}" "${secret_key}"
 		configure_s3_credentials "${args[env_type]}" "${access_key}" "${secret_key}"
 		create_bucket "${args[env_type]}" "${bucket_name}" "${access_key}" "${secret_key}"
 
@@ -411,6 +550,7 @@ function main() {
 			sec_access_key=$(echo "${secondary_creds}" | sed -n '1p')
 			sec_secret_key=$(echo "${secondary_creds}" | sed -n '2p')
 			log_msg "Configuring SECONDARY S3 identity on SeaweedFS..."
+			validate_production_credentials "${args[env_type]}" "${sec_access_key}" "${sec_secret_key}"
 			configure_s3_credentials "${args[env_type]}" "${sec_access_key}" "${sec_secret_key}"
 			log_success "SECONDARY S3 identity configured on SeaweedFS"
 		fi

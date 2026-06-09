@@ -8,30 +8,13 @@ from urllib.parse import urlparse
 from django.conf import settings
 from minio import Minio
 
-log = logging.getLogger(__name__)
+from .storage_errors import is_missing_object_error as _is_missing_object_error
 
-_MISSING_OBJECT_ERROR_CODES = {
-    "404",
-    "NoSuchBucket",
-    "NoSuchKey",
-    "NoSuchObject",
-    "NoSuchVersion",
-    "NotFound",
-}
+log = logging.getLogger(__name__)
 
 _BUCKET_NAME_POSITION = 0
 _OBJECT_NAME_POSITION = 1
 _BUCKET_AND_OBJECT_ARGUMENT_COUNT = 2
-
-
-def _is_missing_object_error(error: Exception) -> bool:
-    """Return True when error represents a missing object/bucket condition."""
-    error_code = str(getattr(error, "code", ""))
-    if error_code in _MISSING_OBJECT_ERROR_CODES:
-        return True
-
-    status_code = str(getattr(error, "status", ""))
-    return status_code == "404"
 
 
 def _normalize_endpoint(endpoint: str) -> str:

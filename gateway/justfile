@@ -100,6 +100,9 @@ dev-setup:
     if ! command -v just &> /dev/null; then
         missing_deps+=("just (install from: https://github.com/casey/just#installation/)")
     fi
+    if ! command -v pnpm &> /dev/null; then
+        missing_deps+=("pnpm (install from: https://pnpm.io/installation)")
+    fi
 
     # check postgresql client
     pg_client_found=false
@@ -122,11 +125,13 @@ dev-setup:
         echo "    sudo apt install -y docker.io docker-compose-v2 python3-dev libpq-dev postgresql-client"
         echo "    curl -LsSf https://astral.sh/uv/install.sh | sh"
         echo "    curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/bin"
+        echo "    curl -fsSL https://get.pnpm.io/install.sh | sh -"
         echo -e "  RHEL/Fedora:"
         echo "    sudo dnf install -y docker docker-compose-plugin python3-devel postgresql-devel postgresql"
         echo "    curl -LsSf https://astral.sh/uv/install.sh | sh"
         echo "    curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to ~/bin"
-        echo -e "\n  Node.js 20: https://nodejs.org/ or use nvm/fnm"
+        echo "    curl -fsSL https://get.pnpm.io/install.sh | sh -"
+        echo -e "\n  Node.js 24: https://nodejs.org/ or use nvm/fnm"
         echo ""
         exit 1
     fi
@@ -301,7 +306,8 @@ update:
     @echo "Upgrading gateway dependencies"
     uv sync --upgrade --all-extras
     @echo "Upgrading node dependencies"
-    {{ docker_compose }} run node pnpm update
+    @# using --no-save prevents GH actions issues with over-specifying the node version
+    pnpm update --no-save
 
 # shorthand for 'uv' commands (e.g. `just uv run manage.py migrate`)
 [group('utilities')]

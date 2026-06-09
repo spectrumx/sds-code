@@ -20,46 +20,35 @@ from django.core.files.base import File
 from django.core.files.storage import Storage
 from storages.backends.s3boto3 import S3Boto3Storage
 
+from .storage_errors import is_missing_object_error as _is_missing_object_error
+
 log = logging.getLogger(__name__)
-
-_MISSING_OBJECT_ERROR_CODES = {
-    "404",
-    "NoSuchBucket",
-    "NoSuchKey",
-    "NoSuchObject",
-    "NoSuchVersion",
-    "NotFound",
-}
-
-
-def _is_missing_object_error(error: Exception) -> bool:
-    """Return True when error represents missing object/bucket condition."""
-    error_code = str(getattr(error, "code", ""))
-    if error_code in _MISSING_OBJECT_ERROR_CODES:
-        return True
-
-    response = getattr(error, "response", None)
-    if isinstance(response, dict):
-        response_error = response.get("Error", {})
-        code = str(response_error.get("Code", ""))
-        if code in _MISSING_OBJECT_ERROR_CODES:
-            return True
-
-    status_code = str(getattr(error, "status", ""))
-    return status_code == "404"
 
 
 def _build_storage_options(store_prefix: str) -> dict[str, Any]:
     """Build S3Boto3Storage options for a configured object store prefix."""
+
+    def _setting(name: str) -> Any:
+        """Try a store-specific setting first, fall back to global.
+
+        Example: for store_prefix="PRIMARY" and name="AWS_S3_REGION_NAME",
+        checks settings.PRIMARY_AWS_S3_REGION_NAME first, then
+        settings.AWS_S3_REGION_NAME as fallback.
+        """
+        store_attr = f"{store_prefix}_{name}"
+        if hasattr(settings, store_attr):
+            return getattr(settings, store_attr)
+        return getattr(settings, name)
+
     return {
         "access_key": getattr(settings, f"{store_prefix}_ACCESS_KEY_ID"),
         "secret_key": getattr(settings, f"{store_prefix}_SECRET_ACCESS_KEY"),
         "bucket_name": getattr(settings, f"{store_prefix}_STORAGE_BUCKET_NAME"),
         "endpoint_url": getattr(settings, f"{store_prefix}_S3_ENDPOINT_URL"),
-        "region_name": settings.AWS_S3_REGION_NAME,
-        "signature_version": settings.AWS_S3_SIGNATURE_VERSION,
-        "default_acl": settings.AWS_DEFAULT_ACL,
-        "file_overwrite": settings.AWS_S3_FILE_OVERWRITE,
+        "region_name": _setting("AWS_S3_REGION_NAME"),
+        "signature_version": _setting("AWS_S3_SIGNATURE_VERSION"),
+        "default_acl": _setting("AWS_DEFAULT_ACL"),
+        "file_overwrite": _setting("AWS_S3_FILE_OVERWRITE"),
     }
 
 

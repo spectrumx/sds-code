@@ -53,11 +53,10 @@ services:
         networks:
             - sds-gateway-prod-seaweed-net
         ports:
-            - "9333:9333" # HTTP
             - "19333:19333" # gRPC
         environment:
             # JWT signing key for volume write auth
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         healthcheck:
             test:
                 [
@@ -98,10 +97,10 @@ services:
         networks:
             - sds-gateway-prod-seaweed-net
         ports:
-            - "8081:8081" # HTTP
-            - "18081:18081" # gRPC
+            - "8081:8081"
+            - "18081:18081"
         environment:
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
             - /disk1/data:/data
             - /disk1/idx:/idx
@@ -142,7 +141,7 @@ services:
             - "8082:8082"
             - "18082:18082"
         environment:
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
             - /disk2/data:/data
             - /disk2/idx:/idx
@@ -183,7 +182,7 @@ services:
             - "8083:8083"
             - "18083:18083"
         environment:
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
             - /disk3/data:/data
             - /disk3/idx:/idx
@@ -224,7 +223,7 @@ services:
             - "8084:8084"
             - "18084:18084"
         environment:
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
             - /disk4/data:/data
             - /disk4/idx:/idx
@@ -265,7 +264,7 @@ services:
             - "8085:8085"
             - "18085:18085"
         environment:
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
             - /disk5/data:/data
             - /disk5/idx:/idx
@@ -312,9 +311,9 @@ services:
             - "18888:18888" # gRPC
         environment:
             # JWT key for volume write auth
-            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY}"
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
             # JWT key for filer HTTP write auth — S3 gateway signs, filer validates
-            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
+            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY:?required}"
         volumes:
             # Persistent filer metadata (leveldb2 store)
             - /data/seaweedfs/filer:/data
@@ -356,9 +355,9 @@ services:
             - "8333:8333"
         environment:
             # Must match filer's WEED_JWT_FILER_SIGNING_KEY
-            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY}"
+            WEED_JWT_FILER_SIGNING_KEY: "${JWT_FILER_SIGNING_KEY:?required}"
             # SSE-S3 Key Encryption Key
-            WEED_S3_SSE_KEK: "${S3_SSE_KEK}"
+            WEED_S3_SSE_KEK: "${S3_SSE_KEK:?required}"
         volumes:
             - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
         logging: *default-logging
@@ -408,8 +407,8 @@ services:
             - sds-gateway-prod-sfs-master
         networks:
             - sds-gateway-prod-seaweed-net
-        ports:
-            - "23646:23646" # Admin HTTP
+        environment:
+            WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         logging: *default-logging
         healthcheck:
             test: ["CMD-SHELL", "curl -fsS http://localhost:23646/ >/dev/null"]
@@ -451,8 +450,7 @@ services:
         restart: unless-stopped
         networks:
             - sds-gateway-prod-seaweed-net
-        ports:
-            - "9090:9090"
+
         healthcheck:
             test:
                 [
@@ -478,8 +476,7 @@ services:
         restart: unless-stopped
         networks:
             - sds-gateway-prod-seaweed-net
-        ports:
-            - "9091:9091"
+
         healthcheck:
             test:
                 [
@@ -502,7 +499,7 @@ services:
         networks:
             - sds-gateway-prod-seaweed-net
         ports:
-            - "3000:3000"
+            - "127.0.0.1:3000:3000"
         healthcheck:
             test:
                 [

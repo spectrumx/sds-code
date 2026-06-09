@@ -352,7 +352,7 @@ for details on `-volumePreallocate` and XFS support.
 - [ ] **Generate `security.toml` scaffold**:
 
   ```bash
-  docker run --rm docker.io/chrislusf/seaweedfs:4.23-large_disk_full weed scaffold -config=security > security.toml
+  docker run --rm docker.io/chrislusf/seaweedfs:4.32_large_disk_full weed scaffold -config=security > security.toml
   ```
 
 - [ ] **Set JWT signing key for volume writes** — prevents unauthorized writes to volume
@@ -427,14 +427,14 @@ Create `compose.yaml`:
 > **Port allocation**: 5 volume servers on ports 8081-8085 (leaving 8080 free if
 > needed).
 >
-> **Image tag choice**: `4.23-large_disk_full` is used for SeaweedFS because:
+> **Image tag choice**: `4.32_large_disk_full` is used for SeaweedFS because:
 >
 > - `large_disk` variant supports larger volume indexes without memory issues — critical
 >     for 22TB drives where default 30GB volumes are not performance-optimal and you may
 >     want fewer, larger volumes (e.g. 100GB+).
 > - `full` variant includes all optional backends (rclone, MySQL, Postgres, etc.),
 >     avoiding surprises if you later need cloud tiering or migrate the filer store.
-> - `4.23` (minimal) omits these — it would work but limits future options.
+> - `4.32` (minimal) omits these — it would work but limits future options.
 > - Pinning to a specific version instead of `latest` ensures reproducibility: `latest`
 >     can change on rebuild and break your deployment.
 
@@ -455,7 +455,7 @@ volumes:
 
 services:
   master:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-master
     restart: unless-stopped
     networks:
@@ -480,7 +480,7 @@ services:
 
   # 5 volume servers — one per XFS drive
   volume1:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-volume1
     restart: unless-stopped
     networks:
@@ -510,7 +510,7 @@ services:
       -minFreeSpacePercent=7
 
   volume2:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-volume2
     restart: unless-stopped
     networks:
@@ -540,7 +540,7 @@ services:
       -minFreeSpacePercent=7
 
   volume3:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-volume3
     restart: unless-stopped
     networks:
@@ -570,7 +570,7 @@ services:
       -minFreeSpacePercent=7
 
   volume4:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-volume4
     restart: unless-stopped
     networks:
@@ -600,7 +600,7 @@ services:
       -minFreeSpacePercent=7
 
   volume5:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-volume5
     restart: unless-stopped
     networks:
@@ -630,7 +630,7 @@ services:
       -minFreeSpacePercent=7
 
   filer:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-filer
     restart: unless-stopped
     depends_on:
@@ -658,7 +658,7 @@ services:
       -maxMB=32
 
   s3:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-s3
     restart: unless-stopped
     depends_on:
@@ -684,7 +684,7 @@ services:
 
   # Admin server + worker for Erasure Coding and cluster maintenance
   admin:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-admin
     restart: unless-stopped
     depends_on:
@@ -699,7 +699,7 @@ services:
       -master=master:9333
 
   worker:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-worker
     restart: unless-stopped
     depends_on:
@@ -753,7 +753,7 @@ services:
   scaffolded):
 
   ```bash
-  docker run --rm docker.io/chrislusf/seaweedfs:4.23-large_disk_full weed scaffold -config=filer > filer.toml
+  docker run --rm docker.io/chrislusf/seaweedfs:4.32_large_disk_full weed scaffold -config=filer > filer.toml
   ```
 
 - [ ] **Create `prometheus.yaml`** with pushgateway as a target (see section 5 for
@@ -797,35 +797,21 @@ defeating the purpose of EC.
 
 ### 4. S3 API Setup
 
-- [ ] **Create `s3-config.json`** with identities:
+- [ ] **Create `s3-config.json`** with an empty identities array — no hardcoded
+  credentials. Credentials are set exclusively at deploy time via `deploy.sh`:
 
   ```json
-  {
-    "identities": [
-      {
-        "name": "admin",
-        "credentials": [
-          {
-            "accessKey": "admin-access-key",
-            "secretKey": "admin-secret-key"
-          }
-        ],
-        "actions": ["Admin", "Read", "Write", "List", "Tagging"]
-      },
-      {
-        "name": "backup-user",
-        "credentials": [
-          {
-            "accessKey": "backup-access-key",
-            "secretKey": "backup-secret-key"
-          }
-        ],
-        "actions": ["Read", "List"]
-      }
-    ]
-  }
+  {"identities": []}
   ```
 
+- [ ] **S3 credentials** are configured at deploy time by `deploy.sh` using
+  `weed shell s3.configure`. Values are read from the `storage.env` file
+  (`PRIMARY_ACCESS_KEY_ID`, `PRIMARY_SECRET_ACCESS_KEY`, etc.). The
+  `validate_production_credentials()` function in `deploy.sh` prevents accidental
+  use of well-known or short keys in production by checking:
+    - Access key is not the well-known `admin-access-key` or `backup-access-key`
+    - Access key is at least 16 characters
+    - Secret key is at least 16 characters
 - [ ] **Admin actions** allow bucket creation/deletion. Avoid giving `Admin` to everyday
   users.
 - [ ] **Test S3 access**:
@@ -898,7 +884,7 @@ bridge.
 - [ ] **Generate `replication.toml`**:
 
   ```bash
-  docker run --rm docker.io/chrislusf/seaweedfs:4.23-large_disk_full weed scaffold -config=replication > replication.toml
+  docker run --rm docker.io/chrislusf/seaweedfs:4.32_large_disk_full weed scaffold -config=replication > replication.toml
   ```
 
 - [ ] **Edit `replication.toml`** to configure the S3 sink targeting your MinIO:
@@ -926,7 +912,7 @@ bridge.
   ```yaml
   # Add to compose.yaml
   filer-backup:
-    image: docker.io/chrislusf/seaweedfs:4.23-large_disk_full
+    image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
     container_name: seaweedfs-filer-backup
     restart: unless-stopped
     depends_on:
@@ -1005,7 +991,7 @@ This is useful for bootstrapping a second cluster but is not continuous.
 - [ ] **Run the SeaweedFS benchmark** from within the Docker network:
 
   ```bash
-  docker run --rm --network sds-gateway-prod-seaweedfs-net docker.io/chrislusf/seaweedfs:4.23-large_disk_full \
+  docker run --rm --network sds-gateway-prod-seaweedfs-net docker.io/chrislusf/seaweedfs:4.32_large_disk_full \
     weed benchmark -master=master:9333 -n 10000
   ```
 
@@ -1047,7 +1033,7 @@ If you need more write concurrency (more simultaneous write streams), pre-create
 additional volumes:
 
 ```bash
-docker run --rm docker.io/chrislusf/seaweedfs:4.23-large_disk_full weed scaffold -config=master > master.toml
+docker run --rm docker.io/chrislusf/seaweedfs:4.32_large_disk_full weed scaffold -config=master > master.toml
 ```
 
 Edit and mount to master:

@@ -55,7 +55,7 @@ importers:
         specifier: ^2.10.2
         version: 2.10.2(webpack@5.107.2)
       node:
-        specifier: runtime:^24.16.0
+        specifier: runtime:^24.0
         version: runtime:24.16.0
       node-sass-tilde-importer:
         specifier: ^1.0.2
