@@ -50,21 +50,25 @@ def _split_host_port(endpoint: str, *, default_port: int) -> tuple[str, int]:
 def get_default_service_definitions() -> list[ServiceDefinition]:
     services: list[ServiceDefinition] = []
 
-    sfs_endpoint = getattr(settings, "SFS_ENDPOINT_URL", None)
-    if sfs_endpoint is not None:
-        sfs_host, sfs_port = _split_host_port(sfs_endpoint, default_port=8333)
+    primary_endpoint = getattr(settings, "PRIMARY_ENDPOINT_URL", None)
+    if primary_endpoint is not None:
+        primary_host, primary_port = _split_host_port(
+            primary_endpoint, default_port=9000
+        )
         services.append(
             ServiceDefinition(
-                name="seaweedfs", kind="tcp", host=sfs_host, port=sfs_port
+                name="primary-storage", kind="tcp", host=primary_host, port=primary_port
             )
         )
 
-    minio_endpoint = getattr(settings, "MINIO_ENDPOINT_URL", None)
-    if minio_endpoint is not None:
-        minio_host, minio_port = _split_host_port(minio_endpoint, default_port=9000)
+    secondary_endpoint = getattr(settings, "SECONDARY_ENDPOINT_URL", None)
+    if secondary_endpoint is not None:
+        secondary_host, secondary_port = _split_host_port(
+            secondary_endpoint, default_port=9000
+        )
         services.append(
             ServiceDefinition(
-                name="minio", kind="tcp", host=minio_host, port=minio_port
+                name="secondary", kind="tcp", host=secondary_host, port=secondary_port
             )
         )
 

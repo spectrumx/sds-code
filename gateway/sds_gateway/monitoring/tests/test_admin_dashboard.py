@@ -22,13 +22,23 @@ def test_monitoring_dashboard_changelist_is_available(client) -> None:
     admin_user = UserFactory(is_staff=True, is_superuser=True)
     client.force_login(admin_user)
 
+    checked_at = timezone.now()
     SystemHealthSnapshot.objects.create(
-        checked_at=timezone.now(),
+        checked_at=checked_at,
         overall_status=HealthStatus.DEGRADED,
         child_statuses={
-            "minio": HealthStatus.DOWN,
+            "primary-storage": HealthStatus.DOWN,
             "postgres": HealthStatus.HEALTHY,
         },
+    )
+    ServiceCheck.objects.create(
+        service_name="primary-storage",
+        host="localhost",
+        port=9000,
+        status=HealthStatus.HEALTHY,
+        checked_at=checked_at,
+        latency_ms=5,
+        detail="",
     )
 
     response = client.get(reverse("admin:monitoring_systemhealthsnapshot_changelist"))

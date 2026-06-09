@@ -13,7 +13,7 @@ volumes:
     sds-gateway-ci-uv-venv-worker: {}
     sds-gateway-ci-uv-venv-beat: {}
     sds-gateway-ci-uv-venv-flower: {}
-    sds-gateway-ci-minio-files: {}
+    sds-gateway-ci-rustfs-files: {}
     sds-gateway-ci-opensearch-data: {}
     sds-gateway-ci-postgres-data-backups: {}
     sds-gateway-ci-postgres-data: {}
@@ -21,15 +21,15 @@ volumes:
 
 networks:
     # for safety, all gateway CI networks start with "sds-gateway-ci-"
-    sds-gateway-ci-minio-net:
+    sds-gateway-ci-rustfs-net:
         driver: bridge
     sds-gateway-ci-opensearch-net:
         driver: bridge
-    sds-network-ci:
-        # external: true # make it external if running with traefik on this machine
-        # should match traefik's network name
-        name: sds-network-ci
+    sds-gateway-ci-postgres-net:
         driver: bridge
+    sds-network-ci:
+        external: true
+        name: sds-network-ci
 services:
     sds-gateway-ci-app:
         build:
@@ -44,8 +44,6 @@ services:
             postgres:
                 condition: service_healthy
             redis:
-                condition: service_healthy
-            minio:
                 condition: service_healthy
         volumes:
             - sds-gateway-ci-uv-cache:/opt/uv-cache/
@@ -74,7 +72,7 @@ services:
             # - ./staticfiles/:/app/staticfiles/:z  # used in prod only
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         # remember /entrypoint runs first
@@ -82,8 +80,9 @@ services:
         ports:
             - "8000:8000" # make sure this port matches traefik's config, if used
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
+            - sds-gateway-ci-postgres-net
             - sds-network-ci
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
@@ -124,34 +123,49 @@ services:
                   selinux: z
         networks:
             - sds-network-ci
-
-    minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
-        image: minio/minio:latest
-        container_name: sds-gateway-ci-minio
-        volumes:
-            - sds-gateway-ci-minio-files:/files
-        ports:
-            - "9000:9000"
-            - "9001:9001"
-        env_file:
-            - ./.envs/ci/minio.env
         healthcheck:
             test:
                 [
                     "CMD-SHELL",
-                    "curl -f http://localhost:9000/minio/health/live || exit 1",
+                    "wget -q -O /dev/null http://localhost/ || exit 1",
                 ]
             interval: 30s
             timeout: 5s
             retries: 5
             start_period: 10s
-        command: 'server /files --console-address ":9001"'
+
+    # Primary storage (RustFS) — S3-compatible, default for local/CI
+    rustfs:
+        image: rustfs/rustfs:latest
+        container_name: sds-gateway-ci-rustfs
+        volumes:
+            - sds-gateway-ci-rustfs-files:/data
+        ports:
+            - "19000:9000"
+            - "9001:9001"
+        env_file:
+            - ./.envs/ci/storage.env
+        environment:
+            - RUSTFS_ACCESS_KEY=${PRIMARY_ACCESS_KEY_ID}
+            - RUSTFS_ADDRESS=0.0.0.0:9000
+            - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+            - RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_CONSOLE_ENABLE=true
+            - RUSTFS_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_SECRET_KEY=${PRIMARY_SECRET_ACCESS_KEY}
+            - RUSTFS_VOLUMES=/data
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "curl -f http://localhost:9000/rustfs/console/health || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     opensearch:
         # used for indexing and searching documents
@@ -191,7 +205,7 @@ services:
         build:
             context: .
             dockerfile: ./compose/production/postgres/Dockerfile
-            # this dockerfile is used for both local/CI and prod
+            # this dockerfile is used for both local and prod
         image: sds-gateway-ci-postgres
         container_name: sds-gateway-ci-postgres
         volumes:
@@ -200,7 +214,7 @@ services:
         env_file:
             - ./.envs/ci/postgres.env
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-postgres-net
         healthcheck:
             test:
                 [
@@ -264,14 +278,25 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/worker-start"
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
+            - sds-gateway-ci-postgres-net
             - sds-network-ci
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'uv run celery -A config.celery_app inspect ping -d "celery@$$HOSTNAME" | grep -q "OK"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -309,14 +334,25 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/beat-start"
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
+            - sds-gateway-ci-postgres-net
             - sds-network-ci
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'grep -q "beat" /proc/*/cmdline 2>/dev/null || exit 1',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -354,16 +390,27 @@ services:
                   selinux: z
         env_file:
             - ./.envs/ci/django.env
-            - ./.envs/ci/minio.env
+            - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
         command: "/flower-start"
         ports:
             - "5555:5555" # Flower web interface
         networks:
-            - sds-gateway-ci-minio-net
+            - sds-gateway-ci-rustfs-net
             - sds-gateway-ci-opensearch-net
+            - sds-gateway-ci-postgres-net
             - sds-network-ci
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'curl -f --header "Authorization: Basic $(echo -n "$$CELERY_FLOWER_USER:$$CELERY_FLOWER_PASSWORD" | base64)" http://localhost:5555/api/workers || exit 1',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     # ==========================
     # local development services
@@ -395,6 +442,16 @@ services:
                 - action: sync
                   path: ./
                   target: /app/
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'node -e "const http=require(\"http\"); const req=http.get(\"http://127.0.0.1:3000\", res => process.exit(res.statusCode < 500 ? 0 : 1)); req.on(\"error\", () => process.exit(1)); req.setTimeout(5000, () => { req.destroy(); process.exit(1); });"',
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 45s
 
     mailhog:
         # email testing service for local development
@@ -405,3 +462,13 @@ services:
             - "8025:8025" # Web UI
         networks:
             - sds-network-ci
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://localhost:8025/api/v2/messages || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s

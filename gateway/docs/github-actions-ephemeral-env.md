@@ -101,8 +101,8 @@ The CI environment uses safe, deterministic values:
 | Service       | Variable                            | Value                           |
 | ------------- | ----------------------------------- | ------------------------------- |
 | Postgres      | `POSTGRES_PASSWORD`                 | `ci-postgres-pass`              |
-| MinIO         | `MINIO_ROOT_PASSWORD`               | `ci-minio-secret`               |
-| MinIO         | `AWS_SECRET_ACCESS_KEY`             | `ci-minio-secret`               |
+| Secondary | `SECONDARY_ROOT_PASSWORD`               | `ci-minio-secret`               |
+| Secondary | `AWS_SECRET_ACCESS_KEY`                 | `ci-minio-secret`               |
 | OpenSearch    | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` | `CiAdmin123!`                   |
 | OpenSearch    | `OPENSEARCH_PASSWORD`               | `CiDjango123!`                  |
 | Celery Flower | `CELERY_FLOWER_PASSWORD`            | `ci-flower-pass`                |
@@ -180,7 +180,7 @@ Check that all env files were generated:
 
 ```bash
 ls -la .envs/ci/
-# Should show: django.env, minio.env, opensearch.env, postgres.env
+# Should show: django.env, storage.env, opensearch.env, postgres.env
 ```
 
 ### Secrets not populated

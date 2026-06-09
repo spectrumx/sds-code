@@ -13,7 +13,6 @@ volumes:
     sds-gateway-prod-uv-venv-worker: {}
     sds-gateway-prod-uv-venv-beat: {}
     sds-gateway-prod-uv-venv-flower: {}
-    sds-gateway-prod-minio-files: {}
     sds-gateway-prod-opensearch-data: {}
     sds-gateway-prod-postgres-data-backups: {}
     sds-gateway-prod-postgres-data: {}
@@ -25,6 +24,8 @@ networks:
     sds-gateway-prod-minio-net:
         driver: bridge
     sds-gateway-prod-opensearch-net:
+        driver: bridge
+    sds-gateway-prod-postgres-net:
         driver: bridge
     sds-network-prod:
         external: true
@@ -43,8 +44,6 @@ services:
             postgres:
                 condition: service_started
             redis:
-                condition: service_started
-            minio:
                 condition: service_started
         volumes:
             - source: sds-gateway-prod-app-media
@@ -74,11 +73,13 @@ services:
               type: volume
               read_only: false
         post_start:
-            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+            - command:
+                  chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
+                  /opt/uv-venv/
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
+            - ./.envs/production/storage.prod.env
             - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
         ports:
@@ -88,8 +89,8 @@ services:
         command: "/start"
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-gateway-prod-postgres-net
+            - sds-network-prod # also carries SeaweedFS S3 traffic — see seaweedfs/compose.yaml
         healthcheck:
             test: ["CMD-SHELL", "curl -f http://localhost:18000/ || exit 1"]
             interval: 30s
@@ -116,25 +117,112 @@ services:
               read_only: true
         networks:
             - sds-network-prod
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "wget -q -O /dev/null http://localhost/healthz || exit 1",
+                ]
+            interval: 30s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
-    minio:
-        # main file storage for sds
-        # minio uses rolling upgrades that are non-disruptive, so we can target latest
-        # For more information on how to upgrade MinIO deployment, refer to the MinIO documentation:
-        # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
-        image: minio/minio:latest
-        container_name: sds-gateway-prod-minio
-        volumes:
-            - sds-gateway-prod-minio-files:/files
+    # prod-secondary-minio:
+    #     # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
+    #     image: docker.io/minio/minio:latest
+    #     container_name: sds-gateway-prod-secondary-minio
+    #     volumes:
+    #         - /disk1:/data/disk1
+    #         - /disk2:/data/disk2
+    #         - /disk3:/data/disk3
+    #         # - ./.envs/production/minio-config.json:/tmp/.mc/config.json
+    #     ports:
+    #         - "19100:9000" # deprecated minio S3 API is 19000
+    #         - "19101:9001" # deprecated minio console is 19001
+    #     env_file:
+    #         - ./.envs/production/storage.prod.env
+    #     restart: unless-stopped
+    #     healthcheck:
+    #         test: [ "CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1" ]
+    #         interval: 30s
+    #         timeout: 5s
+    #         retries: 5
+    #         start_period: 10s
+    #     command: "server --json /data/disk{1...3} --console-address \":9001\""
+    #     networks:
+    #         - sds-gateway-prod-minio-net
+    #     ulimits:
+    #         nofile:
+    #             soft: 131072
+    #             hard: 131072
+
+    # RustFS S3-compatible storage service, used as the secondary storage backend for
+    # the gateway in production. The primary S3 storage backend in production is
+    # SeaweedFS, defined in ../seaweedfs/compose.production.yaml .
+    # At the time of writing, RustFS is not yet ready for production use, so we keep it
+    # as our secondary backend, as redundancy.
+    rustfs:
+        image: docker.io/rustfs/rustfs:latest
+        container_name: sds-gateway-prod-secondary-rustfs
+        security_opt:
+            - "no-new-privileges:true"
         ports:
-            - "19000:9000"
-            - "19001:9001"
+            - "19400:9000" # S3 API port
+            - "19401:9001" # Console port
         env_file:
-            - ./.envs/production/minio.env
-        restart: unless-stopped
-        command: 'server /files --console-address ":9001"'
+            - ./.envs/production/storage.prod.env
+        environment:
+            - RUSTFS_ACCESS_KEY=${PRIMARY_ACCESS_KEY_ID}
+            - RUSTFS_ADDRESS=0.0.0.0:9000
+            - RUSTFS_CONSOLE_ADDRESS=0.0.0.0:9001
+            - RUSTFS_CONSOLE_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_CONSOLE_ENABLE=true
+            - RUSTFS_CORS_ALLOWED_ORIGINS=*
+            - RUSTFS_OBS_LOGGER_LEVEL=debug
+            - RUSTFS_SECRET_KEY=${PRIMARY_SECRET_ACCESS_KEY}
+            - RUSTFS_TLS_PATH=/opt/tls
+            - RUSTFS_VOLUMES=/data/rustfs{1...3}
+        volumes:
+            - /disk6:/data/rustfs1
+            - /disk7:/data/rustfs2
+            - /disk8:/data/rustfs3
+            - sds-gateway-prod-rustfs-logs:/app/logs
         networks:
-            - sds-gateway-prod-minio-net
+            - sds-network-prod
+        ulimits:
+            nofile:
+                soft: 131072
+                hard: 131072
+        restart: unless-stopped
+        healthcheck:
+            test: [
+                    "CMD",
+                    "sh",
+                    "-c",
+                    "curl -f http://127.0.0.1:9000/health && curl -f
+                    http://127.0.0.1:9001/rustfs/console/health",
+                ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 40s
+
+    # RustFS volume permissions fixer service
+    rustfs-volume-permission-helper:
+        image: alpine
+        volumes:
+            - /disk6:/data1
+            - /disk7:/data2
+            - /disk8:/data3
+            - sds-gateway-prod-rustfs-logs:/logs
+        command: >
+            sh -c "
+              chown -R 10001:10001 /data1 /data2 /data3 /logs &&
+              echo 'Volume Permissions fixed' &&
+              exit 0
+            "
+        restart: "no"
 
     opensearch:
         # used for indexing and searching documents
@@ -182,10 +270,11 @@ services:
         restart: unless-stopped
         tty: true
         healthcheck:
-            test:
-                [
+            test: [
                     "CMD-SHELL",
-                    'curl -k -u "$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWORD" https://localhost:9200/_cluster/health || exit 1',
+                    "curl -k -u
+                    \"$OPENSEARCH_ADMIN_USER:$OPENSEARCH_INITIAL_ADMIN_PASSWO\
+                    RD\" https://localhost:9200/_cluster/health || exit 1",
                 ]
             interval: 5s
             timeout: 5s
@@ -206,7 +295,18 @@ services:
         env_file:
             - ./.envs/production/postgres.env
         networks:
-            - sds-gateway-prod-minio-net
+            - sds-gateway-prod-postgres-net
+            - sds-gateway-prod-opensearch-net
+        healthcheck:
+            test: [
+                    "CMD-SHELL",
+                    'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -h
+                    localhost',
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 10s
 
     redis:
         # used as caching layer for the gateway app
@@ -217,6 +317,12 @@ services:
             - sds-gateway-prod-redis-data:/data
         networks:
             - sds-network-prod
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
 
     # ===================
     # Celery services for background tasks
@@ -254,19 +360,30 @@ services:
               type: volume
               read_only: false
         post_start:
-            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+            - command:
+                  chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
+                  /opt/uv-venv/
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
         command: "/worker-start"
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-gateway-prod-postgres-net
+            - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test: [
+                    "CMD-SHELL",
+                    'uv run celery -A config.celery_app inspect ping -d
+                    "celery@$$HOSTNAME" | grep -q "OK"',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
@@ -302,19 +419,30 @@ services:
               type: volume
               read_only: false
         post_start:
-            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+            - command:
+                  chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
+                  /opt/uv-venv/
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
         command: "/beat-start"
         restart: unless-stopped
         networks:
             - sds-gateway-prod-opensearch-net
-            - sds-gateway-prod-minio-net
-            - sds-network-prod
+            - sds-gateway-prod-postgres-net
+            - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    'grep -q "beat" /proc/*/cmdline 2>/dev/null || exit 1',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s
 
     celery-flower:
         # Celery monitoring and administration tool
@@ -345,18 +473,30 @@ services:
               type: volume
               read_only: false
         post_start:
-            - command: chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/ /opt/uv-venv/
+            - command:
+                  chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
+                  /opt/uv-venv/
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/minio.env
-            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
         command: "/flower-start"
         restart: unless-stopped
         ports:
             - "15555:5555" # Flower web interface
         networks:
-            - sds-gateway-prod-minio-net
             - sds-gateway-prod-opensearch-net
-            - sds-network-prod
+            - sds-gateway-prod-postgres-net
+            - sds-network-prod # also carries SeaweedFS S3 traffic
+        healthcheck:
+            test: [
+                    "CMD-SHELL",
+                    'curl -f --header "Authorization: Basic $(echo -n
+                    "$$CELERY_FLOWER_USER:$$CELERY_FLOWER_PASSWORD" |
+                    base64)" http://localhost:5555/api/workers || exit 1',
+                ]
+            interval: 30s
+            timeout: 30s
+            retries: 5
+            start_period: 30s

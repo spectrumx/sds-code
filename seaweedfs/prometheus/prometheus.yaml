@@ -1,0 +1,19 @@
+# PRODUCTION Prometheus config — pushgateway mode
+# SeaweedFS components push metrics to pushgateway (configured in master
+# via -master.metrics.address). Prometheus scrapes from pushgateway,
+# avoiding the need for dynamic target discovery.
+#
+# See checklist §5 — Monitoring
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "seaweedfs-pushgateway"
+    honor_labels: true
+    static_configs:
+      - targets: ["sds-gateway-prod-sfs-pushgateway:9091"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

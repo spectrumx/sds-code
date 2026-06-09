@@ -1,8 +1,9 @@
-.DS_Store
-
 .agents
-seaweedfs
-**/agents.md
+.config/agents/
 .coverage
 .coverage.*
+.DS_Store
+**/agents.md
+agents.md
 htmlcov/
+seaweedfs
