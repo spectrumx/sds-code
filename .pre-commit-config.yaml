@@ -88,7 +88,7 @@ repos:
 
     # linter for markdown files - see .rumdl.toml to configure rules
     - repo: https://github.com/rvben/rumdl-pre-commit
-      rev: v0.2.4
+      rev: v0.2.5
       hooks:
           - id: rumdl # Lint only (fails on issues)
           - id: rumdl-fmt # Auto-format and fail if issues remain
