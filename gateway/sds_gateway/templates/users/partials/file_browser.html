@@ -95,13 +95,30 @@
                             </div>
                         </div>
                     </div>
-                    <div id="select-all-container" class="mt-1 mb-1">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               role="switch"
-                               id="select-all-files-checkbox" />
-                        <label class="form-check-label" for="select-all-files-checkbox">Select All Files</label>
+                    <div id="file-tree-selection-controls"
+                         class="d-flex flex-wrap align-items-center gap-3 mt-1 mb-1">
+                        <div id="select-all-container" class="form-check form-switch mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   id="select-all-files-checkbox" />
+                            <label class="form-check-label" for="select-all-files-checkbox">Select All Files</label>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   id="folder-selection-mode-switch"
+                                   aria-describedby="folder-selection-mode-help" />
+                            <label class="form-check-label" for="folder-selection-mode-switch">Select folders</label>
+                        </div>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                id="clear-modal-file-selections">Clear selections</button>
                     </div>
+                    <p id="folder-selection-mode-help" class="form-text small text-muted mb-2">
+                        When enabled, click a folder row to select all files inside it. Use the arrow to expand subfolders.
+                    </p>
                     <!-- File tree (spectrumx_theme .file-browser) -->
                     <div class="file-tree-container">
                         <div class="file-browser file-browser-modal">

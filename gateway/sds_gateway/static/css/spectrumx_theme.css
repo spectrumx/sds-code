@@ -308,6 +308,34 @@ textarea:focus-visible {
     background-color: #e9ecef;
 }
 
+.file-browser-modal .folder-item.is-selected > .file-browser-row {
+    background-color: rgba(0, 90, 156, 0.16);
+    color: #003d6b;
+    font-weight: 500;
+}
+
+.file-browser-modal .folder-expand-toggle {
+    display: none;
+    flex-shrink: 0;
+    line-height: 1;
+    color: inherit;
+    text-decoration: none;
+}
+
+.file-browser-modal.folder-selection-mode-active .folder-expand-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.file-browser-modal .folder-expand-icon {
+    transition: transform 0.15s ease;
+}
+
+.file-browser-modal .folder-expand-icon.folder-expand-icon-open {
+    transform: rotate(90deg);
+}
+
 .file-browser-modal .file-item.readonly-row > .file-browser-row {
     cursor: not-allowed;
     opacity: 0.65;
