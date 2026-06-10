@@ -311,8 +311,12 @@ class AssetSearchHandler {
         }
 
         this._coreSearchListenersBound = false
+        this.folderSelectionMode = false
 
         this.initializeEventListeners()
+        if (this.type === "files") {
+            this.initializeFolderSelectionControls()
+        }
     }
 
     /**
@@ -418,6 +422,290 @@ class AssetSearchHandler {
                 }
             }
         })
+    }
+
+    /**
+     * Bind folder selection mode toggle and modal clear selections control.
+     */
+    initializeFolderSelectionControls() {
+        const modeSwitch = document.getElementById(
+            "folder-selection-mode-switch",
+        )
+        if (modeSwitch && modeSwitch.dataset?.folderModeBound !== "true") {
+            if (modeSwitch.dataset) {
+                modeSwitch.dataset.folderModeBound = "true"
+            }
+            modeSwitch.addEventListener("change", () => {
+                this.setFolderSelectionMode(modeSwitch.checked)
+            })
+        }
+
+        const clearButton = document.getElementById(
+            "clear-modal-file-selections",
+        )
+        if (clearButton && clearButton.dataset?.clearModalBound !== "true") {
+            if (clearButton.dataset) {
+                clearButton.dataset.clearModalBound = "true"
+            }
+            clearButton.addEventListener("click", (e) => {
+                e.preventDefault()
+                this.clearModalFileSelections()
+            })
+        }
+
+        const modal = document.getElementById("fileTreeModal")
+        if (modal && modal.dataset?.folderModeModalBound !== "true") {
+            if (modal.dataset) {
+                modal.dataset.folderModeModalBound = "true"
+            }
+            modal.addEventListener("hidden.bs.modal", () => {
+                this.setFolderSelectionMode(false)
+            })
+        }
+    }
+
+    /**
+     * @param {boolean} enabled
+     */
+    setFolderSelectionMode(enabled) {
+        this.folderSelectionMode = enabled
+        const modeSwitch = document.getElementById(
+            "folder-selection-mode-switch",
+        )
+        if (modeSwitch && modeSwitch.checked !== enabled) {
+            modeSwitch.checked = enabled
+        }
+        this.updateFolderSelectionModeUI()
+    }
+
+    updateFolderSelectionModeUI() {
+        const browser = document.querySelector(".file-browser-modal")
+        const info = browser?.querySelector(".selection-info")
+        if (browser) {
+            browser.classList.toggle(
+                "folder-selection-mode-active",
+                this.folderSelectionMode,
+            )
+        }
+        if (info) {
+            info.textContent = this.folderSelectionMode
+                ? "Click a folder to select all files inside it (use ▶ to expand)"
+                : "Browse and select files"
+        }
+    }
+
+    /**
+     * @param {string} fileId
+     * @returns {boolean}
+     */
+    isFileExistingOnDataset(fileId) {
+        return (
+            this.isEditMode &&
+            Boolean(this.formHandler?.currentFiles?.has(fileId))
+        )
+    }
+
+    /**
+     * @param {Object} node - Directory tree node
+     * @param {string} currentPath
+     * @returns {{ file: Object, relative_path: string }[]}
+     */
+    getSelectableFilesInDirectoryNode(node, currentPath) {
+        const collected = []
+        for (const file of node.files || []) {
+            if (this.isFileExistingOnDataset(file.id)) {
+                continue
+            }
+            collected.push({
+                file,
+                relative_path: this.getRelativePath(file, currentPath),
+            })
+        }
+        for (const child of Object.values(node.children || {})) {
+            if (child?.type !== "directory") {
+                continue
+            }
+            const childPath = currentPath
+                ? `${currentPath}/${child.name}`
+                : child.name
+            collected.push(
+                ...this.getSelectableFilesInDirectoryNode(child, childPath),
+            )
+        }
+        return collected
+    }
+
+    /**
+     * @param {string} fileId
+     * @param {boolean} checked
+     */
+    syncFileCheckboxVisual(fileId, checked) {
+        const checkbox = document.querySelector(
+            `#file-tree-root input[name="files"][value="${fileId}"]`,
+        )
+        if (!checkbox || checkbox.disabled) {
+            return
+        }
+        checkbox.checked = checked
+        const fileLi = checkbox.closest(".file-item")
+        const rowSpan = checkbox.closest(".file-browser-row")
+        fileLi?.classList.toggle("is-selected", checked)
+        if (rowSpan) {
+            rowSpan.setAttribute("aria-selected", checked ? "true" : "false")
+        }
+    }
+
+    /**
+     * @param {Object} content - Directory node
+     * @param {string} dirPath
+     * @param {HTMLElement} folderLi
+     */
+    toggleDirectorySelection(content, dirPath, folderLi) {
+        const entries = this.getSelectableFilesInDirectoryNode(content, dirPath)
+        if (entries.length === 0) {
+            return
+        }
+
+        const allSelected = entries.every(({ file }) =>
+            this.selectedFiles.has(file.id),
+        )
+
+        for (const { file, relative_path } of entries) {
+            if (allSelected) {
+                this.selectedFiles.delete(file.id)
+                this.syncFileCheckboxVisual(file.id, false)
+            } else {
+                this.selectedFiles.set(file.id, {
+                    ...file,
+                    relative_path,
+                })
+                this.syncFileCheckboxVisual(file.id, true)
+            }
+        }
+
+        this.syncFolderSelectionVisual(folderLi, content, dirPath)
+        this.updateSelectAllCheckboxState()
+        this.updateSelectedFilesList()
+    }
+
+    /**
+     * @param {HTMLElement} folderLi
+     * @param {Object} content
+     * @param {string} dirPath
+     */
+    syncFolderSelectionVisual(folderLi, content, dirPath) {
+        const entries = this.getSelectableFilesInDirectoryNode(content, dirPath)
+        if (entries.length === 0) {
+            folderLi.classList.remove("is-selected")
+            return
+        }
+        const allSelected = entries.every(({ file }) =>
+            this.selectedFiles.has(file.id),
+        )
+        folderLi.classList.toggle("is-selected", allSelected)
+    }
+
+    clearModalFileSelections() {
+        for (const fileId of [...this.selectedFiles.keys()]) {
+            if (this.isFileExistingOnDataset(fileId)) {
+                continue
+            }
+            this.selectedFiles.delete(fileId)
+        }
+
+        for (const checkbox of document.querySelectorAll(
+            AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
+        )) {
+            if (checkbox.disabled) {
+                continue
+            }
+            checkbox.checked = false
+            const fileLi = checkbox.closest(".file-item")
+            fileLi?.classList.remove("is-selected")
+            checkbox
+                .closest(".file-browser-row")
+                ?.setAttribute("aria-selected", "false")
+        }
+
+        for (const folderLi of document.querySelectorAll(
+            "#file-tree-root .folder-item",
+        )) {
+            folderLi.classList.remove("is-selected")
+        }
+
+        this.updateSelectAllCheckboxState()
+        this.updateSelectedFilesList()
+    }
+
+    /**
+     * @param {HTMLElement} rowSpan
+     * @param {HTMLElement} childUl
+     * @param {Object} content
+     * @param {string} dirPath
+     * @param {number} level
+     * @param {boolean} searchTermEntered
+     * @param {boolean} expanded
+     */
+    setFolderExpanded(
+        rowSpan,
+        childUl,
+        content,
+        dirPath,
+        level,
+        searchTermEntered,
+        expanded,
+    ) {
+        rowSpan.setAttribute("aria-expanded", expanded ? "true" : "false")
+
+        const folderIcon = rowSpan.querySelector(".item-content > .bi")
+        if (folderIcon) {
+            folderIcon.classList.remove("bi-folder-fill", "bi-folder2-open")
+            folderIcon.classList.add(
+                expanded ? "bi-folder2-open" : "bi-folder-fill",
+            )
+        }
+
+        const chevron = rowSpan.querySelector(".folder-expand-icon")
+        chevron?.classList.toggle("folder-expand-icon-open", expanded)
+
+        if (expanded && childUl.dataset.loaded !== "true") {
+            this.renderFileTree(
+                content,
+                childUl,
+                level + 1,
+                dirPath,
+                searchTermEntered,
+            )
+            childUl.dataset.loaded = "true"
+        }
+    }
+
+    /**
+     * @param {HTMLElement} rowSpan
+     * @param {HTMLElement} childUl
+     * @param {Object} content
+     * @param {string} dirPath
+     * @param {number} level
+     * @param {boolean} searchTermEntered
+     */
+    toggleFolderExpanded(
+        rowSpan,
+        childUl,
+        content,
+        dirPath,
+        level,
+        searchTermEntered,
+    ) {
+        const isExpanded = rowSpan.getAttribute("aria-expanded") === "true"
+        this.setFolderExpanded(
+            rowSpan,
+            childUl,
+            content,
+            dirPath,
+            level,
+            searchTermEntered,
+            !isExpanded,
+        )
     }
 
     /**
@@ -1253,6 +1541,12 @@ class AssetSearchHandler {
                 initiallyExpanded ? "true" : "false",
             )
             rowSpan.innerHTML = `
+				<button type="button"
+				        class="btn btn-link btn-sm p-0 folder-expand-toggle"
+				        aria-label="Expand or collapse folder"
+				        ${expandable ? "" : "hidden"}>
+					<i class="bi bi-chevron-right folder-expand-icon${initiallyExpanded ? " folder-expand-icon-open" : ""}"></i>
+				</button>
 				<span class="item-content">
 					<i class="bi ${folderIcon}"></i>
 					${content.name || name}
@@ -1277,39 +1571,71 @@ class AssetSearchHandler {
                 childUl.dataset.loaded = "true"
             }
 
-            rowSpan.addEventListener("click", (e) => {
+            this.syncFolderSelectionVisual(li, content, dirPath)
+
+            const expandToggle = rowSpan.querySelector(".folder-expand-toggle")
+            expandToggle?.addEventListener("click", (e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (!expandable) {
                     return
                 }
-
-                const isExpanded =
-                    rowSpan.getAttribute("aria-expanded") === "true"
-                const newExpanded = !isExpanded
-                rowSpan.setAttribute(
-                    "aria-expanded",
-                    newExpanded ? "true" : "false",
+                this.toggleFolderExpanded(
+                    rowSpan,
+                    childUl,
+                    content,
+                    dirPath,
+                    level,
+                    searchTermEntered,
                 )
+            })
 
-                const icon = rowSpan.querySelector(".bi")
-                if (icon) {
-                    icon.classList.remove("bi-folder-fill", "bi-folder2-open")
-                    icon.classList.add(
-                        newExpanded ? "bi-folder2-open" : "bi-folder-fill",
-                    )
+            rowSpan.addEventListener("click", (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (e.target.closest(".folder-expand-toggle")) {
+                    return
                 }
 
-                if (newExpanded && childUl.dataset.loaded !== "true") {
-                    this.renderFileTree(
-                        content,
-                        childUl,
-                        level + 1,
-                        dirPath,
-                        searchTermEntered,
-                    )
-                    childUl.dataset.loaded = "true"
+                if (this.folderSelectionMode) {
+                    this.toggleDirectorySelection(content, dirPath, li)
+                    return
                 }
+
+                if (!expandable) {
+                    return
+                }
+
+                this.toggleFolderExpanded(
+                    rowSpan,
+                    childUl,
+                    content,
+                    dirPath,
+                    level,
+                    searchTermEntered,
+                )
+            })
+
+            rowSpan.addEventListener("keydown", (e) => {
+                if (e.key !== "Enter" && e.key !== " ") {
+                    return
+                }
+                e.preventDefault()
+                if (this.folderSelectionMode) {
+                    this.toggleDirectorySelection(content, dirPath, li)
+                    return
+                }
+                if (!expandable) {
+                    return
+                }
+                this.toggleFolderExpanded(
+                    rowSpan,
+                    childUl,
+                    content,
+                    dirPath,
+                    level,
+                    searchTermEntered,
+                )
             })
         }
 
