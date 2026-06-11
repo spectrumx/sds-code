@@ -7,6 +7,7 @@
  *
  * Available methods:
  * - formatFileSize(bytes) - Format file size
+ * - toggleHidden(element, hidden) - Toggle Bootstrap d-none on an element
  * - show(element, displayClass) - Show element with CSS class
  * - hide(element, displayClass) - Hide element with CSS class
  * - showMessage(message, opts) - User-visible messages (toast / inline) via Django template
@@ -39,6 +40,30 @@ class DOMUtils {
             i++
         }
         return `${i === 0 ? v : v.toFixed(2)} ${units[i]}`
+    }
+
+    /**
+     * Show or hide an element via Bootstrap d-none.
+     * @param {Element|string|null} element
+     * @param {boolean} hidden
+     */
+    toggleHidden(element, hidden) {
+        const el =
+            typeof element === "string"
+                ? document.querySelector(element)
+                : element
+        if (!el) return
+        el.classList.toggle("d-none", Boolean(hidden))
+    }
+
+    /**
+     * Indeterminate progress bar via loading.html (format progress).
+     * @param {Element|string} container
+     * @param {string} [text]
+     * @returns {Promise<boolean>}
+     */
+    async renderProgress(container, text = "Working…") {
+        return this.renderLoading(container, text, { format: "progress" })
     }
 
     /**

@@ -23,6 +23,7 @@ from .captures import ListCapturesView
 from .captures import QuickAddCaptureToDatasetView
 from .captures import UserDatasetsForQuickAddView
 from .captures import _get_captures_for_template  # Exported for tests
+from .captures import capture_reindex_preview_view
 from .captures import keyword_autocomplete_api_view
 from .captures import quick_add_capture_to_dataset_view
 from .captures import user_capture_list_view
@@ -125,6 +126,7 @@ __all__ = [
     "UserRedirectView",
     "UserUpdateView",
     "_get_captures_for_template",
+    "capture_reindex_preview_view",
     "details_modal_fragment_view",
     "files_view",
     "generate_api_key_form_view",

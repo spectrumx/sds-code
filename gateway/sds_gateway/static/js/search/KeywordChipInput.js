@@ -115,17 +115,21 @@ class KeywordChipInput {
             const chip = document.createElement("span")
             chip.className =
                 "keyword-chip badge bg-secondary d-inline-flex align-items-center gap-1 me-1"
-            chip.innerHTML = `
-                <span>${this.escapeHtml(keyword)}</span>
-                <button type="button"
-                        class="btn-close btn-close-white"
-                        style="font-size: 0.65em;"
-                        aria-label="Remove ${this.escapeHtml(keyword)}"
-                        data-keyword="${this.escapeHtml(keyword)}"></button>
-            `
+
+            const labelSpan = document.createElement("span")
+            labelSpan.textContent = keyword
+
+            const removeBtn = document.createElement("button")
+            removeBtn.type = "button"
+            removeBtn.className = "btn-close btn-close-white"
+            removeBtn.style.fontSize = "0.65em"
+            removeBtn.setAttribute("aria-label", `Remove ${keyword}`)
+            removeBtn.dataset.keyword = keyword
+
+            chip.appendChild(labelSpan)
+            chip.appendChild(removeBtn)
 
             // Add remove handler - use keyword instead of index to avoid index issues
-            const removeBtn = chip.querySelector(".btn-close")
             removeBtn.addEventListener("click", (e) => {
                 e.stopPropagation()
                 const keywordToRemove = removeBtn.getAttribute("data-keyword")
@@ -139,12 +143,6 @@ class KeywordChipInput {
 
     updateHiddenInput() {
         this.hiddenInput.value = this.chips.join(",")
-    }
-
-    escapeHtml(text) {
-        const div = document.createElement("div")
-        div.textContent = text
-        return div.innerHTML
     }
 
     getKeywords() {

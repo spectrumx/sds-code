@@ -250,6 +250,8 @@
     </div>
     <!-- Quick Add to Dataset Modal (single or multiple captures) -->
     {% include "users/partials/quick_add_to_dataset_modal.html" %}
+    {% include "users/partials/reindex_capture_modal.html" %}
+    {% include "users/partials/delete_asset_modal.html" %}
     {% include "users/partials/asset_details_modal.html" %}
     <!-- Upload Capture Modal -->
     {% include "users/partials/upload_capture_modal.html" %}
@@ -271,6 +273,8 @@
     <script src="{% static 'js/actions/details/AssetDetailsModalLoader.js' %}"></script>
     <script src="{% static 'js/actions/quickAdd/quickAddApi.js' %}"></script>
     <script src="{% static 'js/actions/QuickAddToDatasetManager.js' %}"></script>
+    <script src="{% static 'js/actions/CaptureReindexingManager.js' %}"></script>
+    <script src="{% static 'js/actions/AssetDeletionManager.js' %}"></script>
     <script src="{% static 'js/actions/CaptureListSelectionManager.js' %}"></script>
     <script src="{% static 'js/constants/detailsModalConfig.js' %}"></script>
     <script src="{% static 'js/visualizations/visualizationModal.js' %}"></script>
@@ -426,6 +430,14 @@
                         window.quickAddToDatasetManager,
                     );
                 }
+            }
+
+            if (window.CaptureReindexingManager && document.getElementById("reindexCaptureModal")) {
+                window.captureReindexingManager = new window.CaptureReindexingManager();
+            }
+
+            if (window.AssetDeletionManager && document.getElementById("deleteAssetModal")) {
+                window.assetDeletionManager = new window.AssetDeletionManager();
             }
 
             const downloadAlert = sessionStorage.getItem('captureDownloadAlert');

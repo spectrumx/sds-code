@@ -9,6 +9,7 @@ from .views import FileH5InfoView
 from .views import FilesView
 from .views import ListCapturesView
 from .views import UploadCaptureView
+from .views import capture_reindex_preview_view
 from .views import details_modal_fragment_view
 from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view
@@ -83,6 +84,11 @@ urlpatterns = [
         "quick-add-capture-to-dataset/",
         quick_add_capture_to_dataset_view,
         name="quick_add_capture_to_dataset",
+    ),
+    path(
+        "captures/<uuid:uuid>/reindex-preview/",
+        capture_reindex_preview_view,
+        name="capture_reindex_preview",
     ),
     path("search-datasets/", user_search_datasets_view, name="search_datasets"),
     path("dataset-details/", user_dataset_details_view, name="dataset_details"),

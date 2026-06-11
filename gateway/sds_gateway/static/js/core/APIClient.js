@@ -222,6 +222,23 @@ class APIClient {
             loadingState,
         )
     }
+
+    /**
+     * Make DELETE request
+     * @param {string} url - Request URL
+     * @param {Object} data - Request data
+     * @param {Object} loadingState - Loading state management
+     * @returns {Promise<Object>} Response data
+     */
+    async delete(url, data = {}, loadingState = null) {
+        const formData = this._formDataFromObject(data)
+
+        return this.request(
+            url,
+            { method: "DELETE", body: formData },
+            loadingState,
+        )
+    }
 }
 
 /**

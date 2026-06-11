@@ -74,7 +74,59 @@ class ModalManager extends BaseManager {
         const element = document.getElementById(modalId)
         if (!element || !window.bootstrap?.Modal) return
         const inst = bootstrap.Modal.getInstance(element)
-        if (inst) inst.hide()
+        if (!inst) return
+        try {
+            inst.hide()
+        } catch (err) {
+            console.warn("Modal hide failed, forcing cleanup:", err)
+            element.classList.remove("show")
+            element.setAttribute("aria-hidden", "true")
+            element.removeAttribute("aria-modal")
+            element.style.display = "none"
+            document.body.classList.remove("modal-open")
+            document.body.style.removeProperty("overflow")
+            document.body.style.removeProperty("padding-right")
+            for (const backdrop of document.querySelectorAll(
+                ".modal-backdrop",
+            )) {
+                backdrop.remove()
+            }
+            try {
+                inst.dispose()
+            } catch (_) {
+                /* ignore */
+            }
+        }
+    }
+
+    /** Reload list table using current URL query params (capture/dataset list pages). */
+    static refreshListTableFromQueryString() {
+        if (!window.listRefreshManager?.loadTable) return
+        const params = Object.fromEntries(
+            new URLSearchParams(window.location.search),
+        )
+        void window.listRefreshManager.loadTable(params, {
+            showLoading: false,
+        })
+    }
+
+    closeModalWithToast(msg, alertType, onAfterClose) {
+        const modalEl = document.getElementById(this.modalId)
+        if (modalEl) {
+            this.modalEl = modalEl
+        }
+        const afterClose = () => {
+            this.showToast(msg, alertType)
+            onAfterClose?.()
+        }
+        if (modalEl) {
+            modalEl.addEventListener("hidden.bs.modal", afterClose, {
+                once: true,
+            })
+            this.closeModal(this.modalId)
+        } else {
+            afterClose()
+        }
     }
 
     /**

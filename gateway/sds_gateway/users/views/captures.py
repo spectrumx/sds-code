@@ -20,6 +20,9 @@ from django.views import View
 from loguru import logger as log
 from rest_framework import status
 
+from sds_gateway.api_methods.helpers.capture_reindex_preview import (
+    get_capture_reindex_candidates,
+)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
@@ -96,6 +99,41 @@ def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any
                 "data_attrs": {
                     "capture-uuid": uuid,
                     "capture-name": display_name[:200],
+                },
+            }
+        )
+        top_level = str(row.get("top_level_dir") or "").strip()
+        items.append(
+            {
+                "label": "Reindex",
+                "icon": "arrow-repeat",
+                "type": "button",
+                "extra_class": "reindex-capture-btn",
+                "data_attrs": {
+                    "capture-uuid": uuid,
+                    "capture-name": display_name[:200],
+                    "top-level-dir": top_level[:500],
+                },
+            }
+        )
+
+    if is_owner:
+        display_name = (
+            str(row.get("name") or "").strip()
+            or str(row.get("top_level_dir") or "").strip()
+            or "Capture"
+        )
+        items.append(
+            {
+                "label": "Delete",
+                "icon": "trash",
+                "type": "button",
+                "extra_class": "delete-asset-btn",
+                "data_attrs": {
+                    "asset-type": "capture",
+                    "asset-uuid": uuid,
+                    "asset-name": display_name[:200],
+                    **({"asset-shared": "true"} if row.get("is_shared") else {}),
                 },
             }
         )
@@ -908,6 +946,43 @@ class QuickAddCaptureToDatasetView(Auth0LoginRequiredMixin, View):
 
 
 quick_add_capture_to_dataset_view = QuickAddCaptureToDatasetView.as_view()
+
+
+class CaptureReindexPreviewView(Auth0LoginRequiredMixin, View):
+    """JSON list of new/updated files under a capture path (owner only)."""
+
+    def get(
+        self,
+        request: HttpRequest,
+        uuid: UUID,
+        *args: Any,
+        **kwargs: Any,
+    ) -> JsonResponse:
+        user: User = request.user  # type: ignore[assignment]
+        capture = Capture.objects.filter(
+            uuid=uuid,
+            is_deleted=False,
+        ).first()
+        if capture is None:
+            return JsonResponse({"error": "Capture not found"}, status=404)
+        if capture.owner_id != user.id:
+            return JsonResponse({"error": "Forbidden"}, status=403)
+
+        pending = get_capture_reindex_candidates(capture)
+        return JsonResponse(
+            {
+                "capture_uuid": str(capture.uuid),
+                "capture_name": capture.name or "",
+                "top_level_dir": capture.top_level_dir or "",
+                "capture_type": capture.capture_type,
+                "channel": capture.channel or "",
+                "pending_files": pending,
+                "pending_count": len(pending),
+            }
+        )
+
+
+capture_reindex_preview_view = CaptureReindexPreviewView.as_view()
 
 
 class UserDatasetsForQuickAddView(Auth0LoginRequiredMixin, View):

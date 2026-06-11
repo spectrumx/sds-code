@@ -432,15 +432,6 @@ describe("KeywordChipInput", () => {
             expect(mockInput.value).toBe("")
             expect(mockHiddenInput.value).toBe("")
         })
-
-        test("should escape HTML correctly", () => {
-            const escaped = chipInput.escapeHtml(
-                "<script>alert('xss')</script>",
-            )
-
-            expect(escaped).not.toContain("<script>")
-            expect(escaped).toContain("&lt;")
-        })
     })
 })
 
