@@ -23,6 +23,10 @@ class Command(BaseCommand):
         )
         self._ensure_bucket(primary_client, settings.PRIMARY_STORAGE_BUCKET_NAME)
 
+        if not settings.SECONDARY_ENDPOINT_URL:
+            log.info("Skipping Secondary storage setup: missing SECONDARY_ENDPOINT_URL")
+            return
+
         # Secondary store (optional — may be unreachable)
         # Skip entirely if access key is still the LEGACY fallback default;
         # that means no secondary was ever configured for this environment.

@@ -104,15 +104,14 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
     ```
 
 > [!NOTE]
-> In `storage.env`, set `AWS_SECRET_ACCESS_KEY == SECONDARY_ROOT_PASSWORD`;
-    >
-    > In `django.env`, to generate the `API_KEY` get it running first, then navigate to
-    > [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key).
-    > Copy the generated key to that file. The key is not stored in the database, so you
-    > will only see it at creation time.
-    >
-    > For CI/ephemeral environments, see
-    > [github-actions-ephemeral-env.md](github-actions-ephemeral-env.md)
+>
+> In `django.env`, to generate the `API_KEY` get it running first, then navigate to
+> [localhost:8000/users/generate-api-key](http://localhost:8000/users/generate-api-key).
+> Copy the generated key to that file. The key is not stored in the database, so you
+> will only see it at creation time.
+>
+> For CI/ephemeral environments, see
+> [github-actions-ephemeral-env.md](github-actions-ephemeral-env.md)
 
 2. Docker compose deploy:
 
@@ -267,8 +266,6 @@ rsync -aP ./.envs/example/ ./.envs/production
     echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 40)
     ```
 
-+ In `storage.env`, **`AWS_SECRET_ACCESS_KEY` must be equal to
-  `SECONDARY_ROOT_PASSWORD`**;
 + In `django.env`, the **`DJANGO_ADMIN_URL` must end with a slash `/`**.
 + In `django.env`, to generate the `API_KEY` get it running first, then navigate to
   [localhost:18000/users/generate-api-key-form](http://localhost:18000/users/generate-api-key-form/)

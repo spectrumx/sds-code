@@ -288,9 +288,9 @@ services:
                   selinux: z
         env_file:
             - ./.envs/local/django.env
-            - ./.envs/local/storage.env
-            - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
+            - ./.envs/local/postgres.env
+            - ./.envs/local/storage.env
         command: "/worker-start"
         networks:
             # additional networks are used for health checks

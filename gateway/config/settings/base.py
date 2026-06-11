@@ -82,32 +82,35 @@ STORAGES = {
     },
 }
 # env var names kept for backward compatibility with existing deployments
-LEGACY_AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="admin")
-LEGACY_AWS_SECRET_ACCESS_KEY: str = env.str("AWS_SECRET_ACCESS_KEY", default="admin")
-LEGACY_AWS_STORAGE_BUCKET_NAME: str = env.str(
+__LEGACY_AWS_ACCESS_KEY_ID: str = env.str("AWS_ACCESS_KEY_ID", default="")  # e.g. admin
+__LEGACY_AWS_SECRET_ACCESS_KEY: str = env.str(
+    "AWS_SECRET_ACCESS_KEY",
+    default="",  # e.g. admin
+)
+__LEGACY_AWS_STORAGE_BUCKET_NAME: str = env.str(
     "AWS_STORAGE_BUCKET_NAME", default="spectrumx"
 )
-LEGACY_AWS_S3_ENDPOINT_URL: str = env.str(
+__LEGACY_AWS_S3_ENDPOINT_URL: str = env.str(
     "AWS_S3_ENDPOINT_URL",
-    default="http://sds-gateway-local-sfs-s3:8333",
+    default="",  # e.g. http://sds-gateway-local-sfs-s3:8333
 )
 
 # Primary (SeaweedFS)
 PRIMARY_ACCESS_KEY_ID: str = env.str(
     "PRIMARY_ACCESS_KEY_ID",
-    default=LEGACY_AWS_ACCESS_KEY_ID,
+    default=__LEGACY_AWS_ACCESS_KEY_ID,
 )
 PRIMARY_SECRET_ACCESS_KEY: str = env.str(
     "PRIMARY_SECRET_ACCESS_KEY",
-    default=LEGACY_AWS_SECRET_ACCESS_KEY,
+    default=__LEGACY_AWS_SECRET_ACCESS_KEY,
 )
 PRIMARY_STORAGE_BUCKET_NAME: str = env.str(
     "PRIMARY_STORAGE_BUCKET_NAME",
-    default=LEGACY_AWS_STORAGE_BUCKET_NAME,
+    default=__LEGACY_AWS_STORAGE_BUCKET_NAME,
 )
 PRIMARY_S3_ENDPOINT_URL: str = env.str(
     "PRIMARY_S3_ENDPOINT_URL",
-    default=LEGACY_AWS_S3_ENDPOINT_URL,
+    default=__LEGACY_AWS_S3_ENDPOINT_URL,
 )
 PRIMARY_STORAGE_USE_HTTPS: bool = env.bool(
     "PRIMARY_STORAGE_USE_HTTPS",
@@ -118,32 +121,39 @@ PRIMARY_ENDPOINT_URL: str = env.str(
     default=_strip_endpoint_scheme(PRIMARY_S3_ENDPOINT_URL),
 )
 
+assert PRIMARY_ACCESS_KEY_ID, "Set PRIMARY_ACCESS_KEY_ID in storage.env"
+assert PRIMARY_SECRET_ACCESS_KEY, "Set PRIMARY_SECRET_ACCESS_KEY in storage.env"
+assert PRIMARY_STORAGE_BUCKET_NAME, "Set PRIMARY_STORAGE_BUCKET_NAME in storage.env"
+assert PRIMARY_S3_ENDPOINT_URL, "Set PRIMARY_S3_ENDPOINT_URL in storage.env"
+
 # Secondary (minio/rustfs)
 SECONDARY_STORAGE_USE_HTTPS: bool = env.bool(
     "SECONDARY_STORAGE_USE_HTTPS", default=False
 )
-SECONDARY_ENDPOINT_URL: str = env.str(
+SECONDARY_ENDPOINT_URL: str | None = env.str(
     "SECONDARY_ENDPOINT_URL",
-    default="sds-gateway-local-sfs-s3:8333",
+    default=None,
 )
-SECONDARY_S3_ENDPOINT_URL: str = env.str(
+SECONDARY_S3_ENDPOINT_URL: str | None = env.str(
     "SECONDARY_S3_ENDPOINT_URL",
     default=_build_endpoint_url(
         SECONDARY_ENDPOINT_URL,
         secure=SECONDARY_STORAGE_USE_HTTPS,
-    ),
+    )
+    if SECONDARY_ENDPOINT_URL
+    else None,
 )
 SECONDARY_ACCESS_KEY_ID: str = env.str(
     "SECONDARY_ACCESS_KEY_ID",
-    default=LEGACY_AWS_ACCESS_KEY_ID,
+    default=__LEGACY_AWS_ACCESS_KEY_ID,
 )
 SECONDARY_SECRET_ACCESS_KEY: str = env.str(
     "SECONDARY_SECRET_ACCESS_KEY",
-    default=LEGACY_AWS_SECRET_ACCESS_KEY,
+    default=__LEGACY_AWS_SECRET_ACCESS_KEY,
 )
 SECONDARY_STORAGE_BUCKET_NAME: str = env.str(
     "SECONDARY_STORAGE_BUCKET_NAME",
-    default=LEGACY_AWS_STORAGE_BUCKET_NAME,
+    default=__LEGACY_AWS_STORAGE_BUCKET_NAME,
 )
 
 # transition controls

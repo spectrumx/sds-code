@@ -101,7 +101,6 @@ The CI environment uses safe, deterministic values:
 | Service       | Variable                            | Value                           |
 | ------------- | ----------------------------------- | ------------------------------- |
 | Postgres      | `POSTGRES_PASSWORD`                 | `ci-postgres-pass`              |
-| Secondary | `SECONDARY_ROOT_PASSWORD`               | `ci-minio-secret`               |
 | Secondary | `AWS_SECRET_ACCESS_KEY`                 | `ci-minio-secret`               |
 | OpenSearch    | `OPENSEARCH_INITIAL_ADMIN_PASSWORD` | `CiAdmin123!`                   |
 | OpenSearch    | `OPENSEARCH_PASSWORD`               | `CiDjango123!`                  |

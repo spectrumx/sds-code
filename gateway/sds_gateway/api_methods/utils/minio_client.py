@@ -255,9 +255,19 @@ class ObjectStoreFacade:
 
 def _is_secondary_configured() -> bool:
     """Return True when a secondary object store is explicitly configured."""
-    return getattr(settings, "SECONDARY_ACCESS_KEY_ID", None) != getattr(
-        settings, "LEGACY_AWS_ACCESS_KEY_ID", None
+    is_url_set = bool(getattr(settings, "SECONDARY_ENDPOINT_URL", None))
+    is_access_id_set = bool(getattr(settings, "SECONDARY_ACCESS_KEY_ID", None))
+    is_secret_access_key_set = bool(
+        getattr(settings, "SECONDARY_SECRET_ACCESS_KEY", None)
     )
+    required_conditions = [is_url_set, is_access_id_set, is_secret_access_key_set]
+    if any(required_conditions) and not all(required_conditions):
+        log.warning(
+            "Secondary storage is partially configured. Make sure it has all of "
+            "SECONDARY_ENDPOINT_URL, SECONDARY_ACCESS_KEY_ID, "
+            "and SECONDARY_SECRET_ACCESS_KEY set."
+        )
+    return all(required_conditions)
 
 
 def get_minio_client() -> ObjectStoreFacade:

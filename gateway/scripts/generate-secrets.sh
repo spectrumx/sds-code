@@ -15,8 +15,6 @@ PRIMARY_S3_ENDPOINT_URL=""
 # SECONDARY (RustFS or SeaweedFS) — only for production
 SECONDARY_ACCESS_KEY_ID=""
 SECONDARY_SECRET_ACCESS_KEY=""
-SECONDARY_ROOT_USER="minioadmin"
-SECONDARY_ROOT_PASSWORD=""
 
 function usage() {
 	cat <<EOF
@@ -70,6 +68,10 @@ function configure_object_store_defaults() {
 		;;
 	production)
 		PRIMARY_ENDPOINT_URL="sds-gateway-prod-sfs-s3:8333"
+		PRIMARY_ACCESS_KEY_ID="sfsadmin"
+		PRIMARY_SECRET_ACCESS_KEY=$(generate_secret 32)
+		SECONDARY_ACCESS_KEY_ID=$(generate_secret 32)
+		SECONDARY_SECRET_ACCESS_KEY=$(generate_secret 32)
 		;;
 	*)
 		echo "ERROR: Unsupported environment type: ${env_type}" >&2
@@ -91,11 +93,6 @@ function configure_object_store_defaults() {
 		return 0
 	fi
 
-	if [[ "${env_type}" == "production" ]]; then
-		SECONDARY_ACCESS_KEY_ID="rustfs-secondary-access-key"
-		SECONDARY_SECRET_ACCESS_KEY="rustfs-secondary-secret-key"
-		SECONDARY_ROOT_USER="minioadmin"
-	fi
 }
 
 function generate_secret() {
@@ -198,22 +195,32 @@ function process_env_file() {
 		content="${content//PRIMARY_ENDPOINT_URL=sds-gateway-prod-sfs-s3:8333/PRIMARY_ENDPOINT_URL=${PRIMARY_ENDPOINT_URL}}"
 		# SECONDARY (RustFS) vars
 		content="${content//SECONDARY_ACCESS_KEY_ID=minioadmin/SECONDARY_ACCESS_KEY_ID=${SECONDARY_ACCESS_KEY_ID}}"
-		content="${content//SECONDARY_ROOT_USER=minioadmin/SECONDARY_ROOT_USER=${SECONDARY_ROOT_USER}}"
-		if [[ -n "${SECONDARY_ROOT_PASSWORD}" ]]; then
+		content="${content//SECONDARY_SECRET_ACCESS_KEY=/SECONDARY_SECRET_ACCESS_KEY=${SECONDARY_SECRET_ACCESS_KEY}}"
+		if [[ -n "${SECONDARY_ROOT_PASSWORD:-}" ]]; then
 			content="${content//SECONDARY_ROOT_PASSWORD=<GENERATED SECONDARY ROOT PASSWORD>/SECONDARY_ROOT_PASSWORD=${SECONDARY_ROOT_PASSWORD}}"
-			content="${content//SECONDARY_SECRET_ACCESS_KEY=<SAME AS SECONDARY_ROOT_PASSWORD>/SECONDARY_SECRET_ACCESS_KEY=${SECONDARY_SECRET_ACCESS_KEY}}"
 		fi
 
-		# deprecated / unused env vars safe to rename in your .env files:
+		# Generally, _ACCESS_KEY_ID refers to a username and _SECRET_ACCESS_KEY to a
+		# secret Thus, to simplify things, we're deprecating fields with _PASSWORD
+		# suffix, or prefixes MINIO_, RUSTFS_, and AWS_; keeping variable names
+		# technology-agnostic
+
+		# Table with deprecated / unused env vars safe to rename or remove in your .env
+		# files:
+
+		# PRIMARY_ROOT_PASSWORD		-> PRIMARY_SECRET_ACCESS_KEY
+		# PRIMARY_ROOT_USER			-> PRIMARY_ACCESS_KEY_ID
+		# SECONDARY_ROOT_PASSWORD	-> SECONDARY_SECRET_ACCESS_KEY
+		# SECONDARY_ROOT_USER		-> SECONDARY_ACCESS_KEY_ID
 
 		# AWS_ACCESS_KEY_ID 		-> PRIMARY_ACCESS_KEY_ID and SECONDARY_ACCESS_KEY_ID
 		# AWS_SECRET_ACCESS_KEY 	-> PRIMARY_SECRET_ACCESS_KEY and SECONDARY_SECRET_ACCESS_KEY
-		# MINIO_ROOT_PASSWORD 		-> removed: MinIO is not used anymore
-		# MINIO_SECRET_ACCESS_KEY 	-> removed: MinIO is not used anymore
-		# RUSTFS_ACCESS_KEY_ID 		-> PRIMARY_ACCESS_KEY_ID or SECONDARY_ACCESS_KEY_ID depending on your setup
-		# RUSTFS_ROOT_PASSWORD 		-> PRIMARY_SECRET_ACCESS_KEY or SECONDARY_ROOT_PASSWORD depending on your setup
-		# RUSTFS_ROOT_USER 			-> PRIMARY_ROOT_USER or SECONDARY_ROOT_USER depending on your setup
-		# RUSTFS_SECRET_ACCESS_KEY 	-> PRIMARY_SECRET_ACCESS_KEY or SECONDARY_SECRET_ACCESS_KEY depending on your setup
+		# MINIO_ROOT_PASSWORD 		-> removed: MinIO is not used anymore; otherwise should be PRIMARY/SECONDARY_SECRET_ACCESS_KEY
+		# MINIO_SECRET_ACCESS_KEY 	-> removed: MinIO is not used anymore; otherwise should be PRIMARY/SECONDARY_SECRET_ACCESS_KEY
+		# RUSTFS_ACCESS_KEY_ID 		-> PRIMARY/SECONDARY_ACCESS_KEY_ID depending on your setup
+		# RUSTFS_ROOT_PASSWORD 		-> PRIMARY/SECONDARY_SECRET_ACCESS_KEY
+		# RUSTFS_ROOT_USER 			-> PRIMARY/SECONDARY_ACCESS_ID depending on your setup
+		# RUSTFS_SECRET_ACCESS_KEY 	-> PRIMARY/SECONDARY_SECRET_ACCESS_KEY depending on your setup
 
 		# content="${content//AWS_ACCESS_KEY_ID=admin/AWS_ACCESS_KEY_ID=${PRIMARY_ACCESS_KEY_ID}}"
 		# content="${content//AWS_SECRET_ACCESS_KEY=admin/AWS_SECRET_ACCESS_KEY=${PRIMARY_SECRET_ACCESS_KEY}}"
@@ -296,6 +303,17 @@ function main() {
 
 		# skip regular django.env for production (we use prod-example instead)
 		if [[ "${env_type}" == "production" && "${filename}" == "django.env" ]]; then
+			continue
+		fi
+
+		# production: use storage.prod.env as template but output as storage.env
+		if [[ "${env_type}" == "production" && "${filename}" == "storage.prod.env" ]]; then
+			process_env_file "${template}" "${target_dir_gwy}/storage.env" "${env_type}" "${force}"
+			continue
+		fi
+
+		# skip regular storage.env for production (we use storage.prod.env instead)
+		if [[ "${env_type}" == "production" && "${filename}" == "storage.env" ]]; then
 			continue
 		fi
 

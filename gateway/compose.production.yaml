@@ -6,18 +6,25 @@
 
 volumes:
     # for safety, all gateway production volumes start with "sds-gateway-prod-"
+
+    # permament data:
     sds-gateway-prod-app-media: {}
-    sds-gateway-prod-temp-zips: {} # for temporary zip files
-    sds-gateway-prod-uv-cache: {} # Python virtual environment
-    sds-gateway-prod-uv-venv-app: {}
-    sds-gateway-prod-uv-venv-worker: {}
-    sds-gateway-prod-uv-venv-beat: {}
-    sds-gateway-prod-uv-venv-flower: {}
     sds-gateway-prod-opensearch-data: {}
     sds-gateway-prod-postgres-data-backups: {}
     sds-gateway-prod-postgres-data: {}
     sds-gateway-prod-redis-data: {}
+
+    # good to keep around:
+    sds-gateway-prod-rustfs-logs: {}
+    sds-gateway-prod-temp-zips: {}
+
+    # data that can be reconstructed:
     sds-gateway-prod-static: {}
+    sds-gateway-prod-uv-cache: {}
+    sds-gateway-prod-uv-venv-app: {}
+    sds-gateway-prod-uv-venv-beat: {}
+    sds-gateway-prod-uv-venv-flower: {}
+    sds-gateway-prod-uv-venv-worker: {}
 
 networks:
     # for safety, all gateway production networks start with "sds-gateway-prod-"
@@ -79,9 +86,9 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/storage.prod.env
-            - ./.envs/production/postgres.env
             - ./.envs/production/opensearch.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.env
         ports:
             - "18000:18000" # make sure this port matches traefik's config, if used
         # remember /entrypoint runs first
@@ -128,7 +135,7 @@ services:
             retries: 5
             start_period: 10s
 
-    # prod-secondary-minio:
+    # minio:
     #     # https://min.io/docs/minio/container/operations/install-deploy-manage/upgrade-minio-deployment.html
     #     image: docker.io/minio/minio:latest
     #     container_name: sds-gateway-prod-secondary-minio
@@ -141,7 +148,7 @@ services:
     #         - "19100:9000" # deprecated minio S3 API is 19000
     #         - "19101:9001" # deprecated minio console is 19001
     #     env_file:
-    #         - ./.envs/production/storage.prod.env
+    #         - ./.envs/production/storage.env
     #     restart: unless-stopped
     #     healthcheck:
     #         test: [ "CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1" ]
@@ -171,7 +178,7 @@ services:
             - "19400:9000" # S3 API port
             - "19401:9001" # Console port
         env_file:
-            - ./.envs/production/storage.prod.env
+            - ./.envs/production/storage.env
         environment:
             - RUSTFS_ACCESS_KEY=${PRIMARY_ACCESS_KEY_ID}
             - RUSTFS_ADDRESS=0.0.0.0:9000
@@ -181,12 +188,10 @@ services:
             - RUSTFS_CORS_ALLOWED_ORIGINS=*
             - RUSTFS_OBS_LOGGER_LEVEL=debug
             - RUSTFS_SECRET_KEY=${PRIMARY_SECRET_ACCESS_KEY}
-            - RUSTFS_TLS_PATH=/opt/tls
-            - RUSTFS_VOLUMES=/data/rustfs{1...3}
+            # - RUSTFS_TLS_PATH=/opt/tls
+            - RUSTFS_VOLUMES=/data/rustfs1
         volumes:
-            - /disk6:/data/rustfs1
-            - /disk7:/data/rustfs2
-            - /disk8:/data/rustfs3
+            - ./data/rustfs/d1:/data/rustfs1
             - sds-gateway-prod-rustfs-logs:/app/logs
         networks:
             - sds-network-prod
@@ -194,6 +199,8 @@ services:
             nofile:
                 soft: 131072
                 hard: 131072
+        # entrypoint: "sleep"
+        # command: "600"
         restart: unless-stopped
         healthcheck:
             test: [
@@ -209,8 +216,10 @@ services:
             start_period: 40s
 
     # RustFS volume permissions fixer service
-    rustfs-volume-permission-helper:
+    # Run this service if rustfs is logging permission issues
+    rustfs-perm:
         image: alpine
+        container_name: sds-gateway-prod-rustfs-permissions
         volumes:
             - /disk6:/data1
             - /disk7:/data2
@@ -366,8 +375,9 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.env
         command: "/worker-start"
         restart: unless-stopped
         networks:
@@ -425,8 +435,9 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.env
         command: "/beat-start"
         restart: unless-stopped
         networks:
@@ -479,8 +490,9 @@ services:
               user: root
         env_file:
             - ./.envs/production/django.env
-            - ./.envs/production/storage.prod.env
             - ./.envs/production/opensearch.env
+            - ./.envs/production/postgres.env
+            - ./.envs/production/storage.env
         command: "/flower-start"
         restart: unless-stopped
         ports:
