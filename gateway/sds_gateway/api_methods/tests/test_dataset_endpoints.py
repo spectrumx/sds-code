@@ -629,11 +629,10 @@ class DatasetEndpointsTestCase(TestCase):
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
     def test_get_dataset_files_unauthenticated_access(self):
-        """Test access without authentication."""
-        self.client.force_authenticate(user=None)
-
+        """Test access without API key (no forced user on test client)."""
         url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
-        response = self.client.get(url)
+        unauthenticated_client = APIClient()
+        response = unauthenticated_client.get(url)
 
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
