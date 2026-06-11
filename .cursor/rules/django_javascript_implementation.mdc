@@ -31,3 +31,4 @@ alwaysApply: true
 - HTML fragments that may change throughout the page lifecycle should be created as django template files under `components/`
 - Any variables within those components should be handled in the Javascript handlers/managers and passed as context objects to the Django view `RenderHTMLFragmentView` which renders the Django template files in `components/`using a context object passed into a Javascript `APIClient` call.
 - Never try to render HTML fragments in Javascript.
+- Where appropriate, use programmatic DOM construction through the JS DOM APIs instead of HTML template literals in Javascript. All user defined inputs should be passed to the DOM as text strings (e.g. using `textContent`, `document.createTextNode()`, `String()` when setting user defined values/attributes/text).
