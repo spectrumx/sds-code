@@ -17,6 +17,27 @@ function getConfiguredSearchElements(config) {
 }
 
 class AssetSearchHandler {
+    static FILE_TREE_ROOT_ID = "file-tree-root"
+    static FILE_TREE_FILE_CHECKBOX_SELECTOR =
+        '#file-tree-root input[name="files"]'
+
+    /**
+     * @returns {HTMLElement|null}
+     */
+    getFileTreeRoot() {
+        return document.getElementById(AssetSearchHandler.FILE_TREE_ROOT_ID)
+    }
+
+    /**
+     * @returns {HTMLInputElement[]}
+     */
+    getVisibleFileCheckboxes() {
+        return Array.from(
+            document.querySelectorAll(
+                `${AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR}:not(:disabled)`,
+            ),
+        ).filter((checkbox) => checkbox.offsetParent !== null)
+    }
     /**
      * @param {object} target
      * @param {object} config
@@ -289,7 +310,13 @@ class AssetSearchHandler {
             config.formHandler.setSearchHandler(this, config.type)
         }
 
+        this._coreSearchListenersBound = false
+        this.folderSelectionMode = false
+
         this.initializeEventListeners()
+        if (this.type === "files") {
+            this.initializeFolderSelectionControls()
+        }
     }
 
     /**
@@ -311,6 +338,11 @@ class AssetSearchHandler {
      * Initialize event listeners
      */
     initializeEventListeners() {
+        if (this._coreSearchListenersBound) {
+            return
+        }
+        this._coreSearchListenersBound = true
+
         // Search form handlers
         if (this.searchButton) {
             this.searchButton.addEventListener("click", () =>
@@ -358,6 +390,8 @@ class AssetSearchHandler {
         for (const input of searchInputs) {
             input.addEventListener("keypress", (e) => {
                 if (e.key === "Enter") {
+                    e.preventDefault()
+                    e.stopPropagation()
                     this.handleSearch()
                 }
             })
@@ -372,12 +406,14 @@ class AssetSearchHandler {
             "select-all-files-checkbox",
         )
         if (!selectAllCheckbox) return
+        if (selectAllCheckbox.dataset?.selectAllBound === "true") return
+        if (selectAllCheckbox.dataset) {
+            selectAllCheckbox.dataset.selectAllBound = "true"
+        }
 
         selectAllCheckbox.addEventListener("change", () => {
             const isChecked = selectAllCheckbox.checked
-            const fileCheckboxes = document.querySelectorAll(
-                '#file-tree-table tbody input[type="checkbox"]',
-            )
+            const fileCheckboxes = this.getVisibleFileCheckboxes()
 
             for (const checkbox of fileCheckboxes) {
                 if (checkbox.checked !== isChecked) {
@@ -389,6 +425,286 @@ class AssetSearchHandler {
     }
 
     /**
+     * Bind folder selection mode toggle and modal clear selections control.
+     */
+    initializeFolderSelectionControls() {
+        const modeSwitch = document.getElementById(
+            "folder-selection-mode-switch",
+        )
+        if (modeSwitch && modeSwitch.dataset?.folderModeBound !== "true") {
+            if (modeSwitch.dataset) {
+                modeSwitch.dataset.folderModeBound = "true"
+            }
+            modeSwitch.addEventListener("change", () => {
+                this.setFolderSelectionMode(modeSwitch.checked)
+            })
+        }
+
+        const clearButton = document.getElementById(
+            "clear-modal-file-selections",
+        )
+        if (clearButton && clearButton.dataset?.clearModalBound !== "true") {
+            if (clearButton.dataset) {
+                clearButton.dataset.clearModalBound = "true"
+            }
+            clearButton.addEventListener("click", (e) => {
+                e.preventDefault()
+                this.clearModalFileSelections()
+            })
+        }
+
+        const modal = document.getElementById("fileTreeModal")
+        if (modal && modal.dataset?.folderModeModalBound !== "true") {
+            if (modal.dataset) {
+                modal.dataset.folderModeModalBound = "true"
+            }
+            modal.addEventListener("hidden.bs.modal", () => {
+                this.setFolderSelectionMode(false)
+            })
+        }
+    }
+
+    /**
+     * @param {boolean} enabled
+     */
+    setFolderSelectionMode(enabled) {
+        this.folderSelectionMode = enabled
+        const modeSwitch = document.getElementById(
+            "folder-selection-mode-switch",
+        )
+        if (modeSwitch && modeSwitch.checked !== enabled) {
+            modeSwitch.checked = enabled
+        }
+        this.updateFolderSelectionModeUI()
+    }
+
+    updateFolderSelectionModeUI() {
+        const browser = document.querySelector(".file-browser-modal")
+        const info = browser?.querySelector(".selection-info")
+        if (browser) {
+            browser.classList.toggle(
+                "folder-selection-mode-active",
+                this.folderSelectionMode,
+            )
+        }
+        if (info) {
+            info.textContent = this.folderSelectionMode
+                ? "Click a folder to select all files inside it (use ▶ to expand)"
+                : "Browse and select files"
+        }
+    }
+
+    /**
+     * @param {string} fileId
+     * @returns {boolean}
+     */
+    isFileExistingOnDataset(fileId) {
+        return (
+            this.isEditMode &&
+            Boolean(this.formHandler?.currentFiles?.has(fileId))
+        )
+    }
+
+    /**
+     * @param {Object} node - Directory tree node
+     * @param {string} currentPath
+     * @returns {{ file: Object, relative_path: string }[]}
+     */
+    getSelectableFilesInDirectoryNode(node, currentPath) {
+        const collected = []
+        for (const file of node.files || []) {
+            if (this.isFileExistingOnDataset(file.id)) {
+                continue
+            }
+            collected.push({
+                file,
+                relative_path: this.getRelativePath(file, currentPath),
+            })
+        }
+        for (const child of Object.values(node.children || {})) {
+            if (child?.type !== "directory") {
+                continue
+            }
+            const childPath = currentPath
+                ? `${currentPath}/${child.name}`
+                : child.name
+            collected.push(
+                ...this.getSelectableFilesInDirectoryNode(child, childPath),
+            )
+        }
+        return collected
+    }
+
+    /**
+     * @param {string} fileId
+     * @param {boolean} checked
+     */
+    syncFileCheckboxVisual(fileId, checked) {
+        const checkbox = document.querySelector(
+            `#file-tree-root input[name="files"][value="${fileId}"]`,
+        )
+        if (!checkbox || checkbox.disabled) {
+            return
+        }
+        checkbox.checked = checked
+        const fileLi = checkbox.closest(".file-item")
+        fileLi?.classList.toggle("is-selected", checked)
+        fileLi?.setAttribute("aria-selected", checked ? "true" : "false")
+    }
+
+    /**
+     * @param {Object} content - Directory node
+     * @param {string} dirPath
+     * @param {HTMLElement} folderLi
+     */
+    toggleDirectorySelection(content, dirPath, folderLi) {
+        const entries = this.getSelectableFilesInDirectoryNode(content, dirPath)
+        if (entries.length === 0) {
+            return
+        }
+
+        const allSelected = entries.every(({ file }) =>
+            this.selectedFiles.has(file.id),
+        )
+
+        for (const { file, relative_path } of entries) {
+            if (allSelected) {
+                this.selectedFiles.delete(file.id)
+                this.syncFileCheckboxVisual(file.id, false)
+            } else {
+                this.selectedFiles.set(file.id, {
+                    ...file,
+                    relative_path,
+                })
+                this.syncFileCheckboxVisual(file.id, true)
+            }
+        }
+
+        this.syncFolderSelectionVisual(folderLi, content, dirPath)
+        this.updateSelectAllCheckboxState()
+        this.updateSelectedFilesList()
+    }
+
+    /**
+     * @param {HTMLElement} folderLi
+     * @param {Object} content
+     * @param {string} dirPath
+     */
+    syncFolderSelectionVisual(folderLi, content, dirPath) {
+        const entries = this.getSelectableFilesInDirectoryNode(content, dirPath)
+        if (entries.length === 0) {
+            folderLi.classList.remove("is-selected")
+            return
+        }
+        const allSelected = entries.every(({ file }) =>
+            this.selectedFiles.has(file.id),
+        )
+        folderLi.classList.toggle("is-selected", allSelected)
+    }
+
+    clearModalFileSelections() {
+        for (const fileId of [...this.selectedFiles.keys()]) {
+            if (this.isFileExistingOnDataset(fileId)) {
+                continue
+            }
+            this.selectedFiles.delete(fileId)
+        }
+
+        for (const checkbox of document.querySelectorAll(
+            AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
+        )) {
+            if (checkbox.disabled) {
+                continue
+            }
+            checkbox.checked = false
+            const fileLi = checkbox.closest(".file-item")
+            fileLi?.classList.remove("is-selected")
+            fileLi?.setAttribute("aria-selected", "false")
+        }
+
+        for (const folderLi of document.querySelectorAll(
+            "#file-tree-root .folder-item",
+        )) {
+            folderLi.classList.remove("is-selected")
+        }
+
+        this.updateSelectAllCheckboxState()
+        this.updateSelectedFilesList()
+    }
+
+    /**
+     * @param {HTMLElement} folderLi
+     * @param {HTMLElement} childUl
+     * @param {Object} content
+     * @param {string} dirPath
+     * @param {number} level
+     * @param {boolean} searchTermEntered
+     * @param {boolean} expanded
+     */
+    setFolderExpanded(
+        folderLi,
+        childUl,
+        content,
+        dirPath,
+        level,
+        searchTermEntered,
+        expanded,
+    ) {
+        folderLi.setAttribute("aria-expanded", expanded ? "true" : "false")
+
+        const rowSpan = folderLi.querySelector(".file-browser-row")
+        const folderIcon = rowSpan?.querySelector(".item-content > .bi")
+        if (folderIcon) {
+            folderIcon.classList.remove("bi-folder-fill", "bi-folder2-open")
+            folderIcon.classList.add(
+                expanded ? "bi-folder2-open" : "bi-folder-fill",
+            )
+        }
+
+        const chevron = rowSpan?.querySelector(".folder-expand-icon")
+        chevron?.classList.toggle("folder-expand-icon-open", expanded)
+
+        if (expanded && childUl.dataset.loaded !== "true") {
+            this.renderFileTree(
+                content,
+                childUl,
+                level + 1,
+                dirPath,
+                searchTermEntered,
+            )
+            childUl.dataset.loaded = "true"
+        }
+    }
+
+    /**
+     * @param {HTMLElement} folderLi
+     * @param {HTMLElement} childUl
+     * @param {Object} content
+     * @param {string} dirPath
+     * @param {number} level
+     * @param {boolean} searchTermEntered
+     */
+    toggleFolderExpanded(
+        folderLi,
+        childUl,
+        content,
+        dirPath,
+        level,
+        searchTermEntered,
+    ) {
+        const isExpanded = folderLi.getAttribute("aria-expanded") === "true"
+        this.setFolderExpanded(
+            folderLi,
+            childUl,
+            content,
+            dirPath,
+            level,
+            searchTermEntered,
+            !isExpanded,
+        )
+    }
+
+    /**
      * Initialize remove all button
      */
     initializeRemoveAllButton() {
@@ -396,6 +712,10 @@ class AssetSearchHandler {
             "remove-all-selected-files-button",
         )
         if (!removeAllButton) return
+        if (removeAllButton.dataset?.removeAllBound === "true") return
+        if (removeAllButton.dataset) {
+            removeAllButton.dataset.removeAllBound = "true"
+        }
 
         removeAllButton.addEventListener("click", () => {
             // Check if formHandler has a custom removal handler for edit mode
@@ -405,7 +725,7 @@ class AssetSearchHandler {
                 // Default behavior for create mode
                 // Deselect all files
                 const fileCheckboxes = document.querySelectorAll(
-                    '#file-tree-table tbody input[type="checkbox"]',
+                    AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
                 )
                 for (const checkbox of fileCheckboxes) {
                     checkbox.checked = false
@@ -1105,9 +1425,6 @@ class AssetSearchHandler {
 
             this.renderFileTree(data.tree, null, 0, "", searchTermEntered)
 
-            // Initialize search handler after tree is loaded
-            this.initializeEventListeners()
-
             // Initialize select all checkbox handler for the current file tree
             this.initializeSelectAllCheckbox()
 
@@ -1147,10 +1464,9 @@ class AssetSearchHandler {
         searchTermEntered = false,
     ) {
         this.currentTree = tree
-        const targetElement =
-            parentElement || document.querySelector("#file-tree-table tbody")
+        const targetElement = parentElement || this.getFileTreeRoot()
         if (!targetElement) {
-            console.error("File tree table body not found")
+            console.error("File tree root not found")
             return
         }
 
@@ -1158,18 +1474,16 @@ class AssetSearchHandler {
             targetElement.innerHTML = ""
         }
 
-        // Early return if no tree or if tree is empty
         if (
             !tree ||
             ((!tree.files || tree.files.length === 0) &&
                 (!tree.children || Object.keys(tree.children).length === 0))
         ) {
             targetElement.innerHTML =
-                '<tr><td colspan="5" class="text-center">No files or directories found</td></tr>'
+                '<li class="text-center text-muted py-4">No files or directories found</li>'
             return
         }
 
-        // Show/hide select all checkbox based on search term
         const selectAllContainer = document.getElementById(
             "select-all-container",
         )
@@ -1182,7 +1496,6 @@ class AssetSearchHandler {
             }
         }
 
-        // Render directories
         const directories = tree.children || {}
 
         for (const [name, content] of Object.entries(directories)) {
@@ -1196,182 +1509,239 @@ class AssetSearchHandler {
                 continue
             }
 
-            const row = document.createElement("tr")
-            row.className = "folder-row"
-
-            // Set initial toggle state based on search term only (don't expand by default)
             const initiallyExpanded = searchTermEntered
-            const toggleSymbol = initiallyExpanded ? "▼" : "▶"
-
-            // Construct the path for this directory
+            const folderIcon = initiallyExpanded
+                ? "bi-folder2-open"
+                : "bi-folder-fill"
             const dirPath = currentPath
                 ? `${currentPath}/${content.name || name}`
                 : content.name || name
+            const hasChildDirs =
+                Object.keys(content.children || {}).filter(
+                    (key) =>
+                        key !== "files" &&
+                        content.children[key]?.type === "directory",
+                ).length > 0
+            const hasFilesInDir = content.files && content.files.length > 0
+            const expandable = hasChildDirs || hasFilesInDir
 
-            row.innerHTML = `
-				<td>
-					<span class="folder-toggle">${toggleSymbol}</span>
-				</td>
-				<td class="${level > 0 ? `ps-${level * 3}` : ""}">
-					<i class="bi bi-folder me-2"></i>
-					${content.name || name}
-				</td>
-				<td>Directory</td>
-				<td>${window.DOMUtils.formatFileSize(content.size || 0)}</td>
-				<td>${content.created_at ? new Date(content.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" }) : "-"}</td>
-			`
-            targetElement.appendChild(row)
+            const li = document.createElement("li")
+            li.className = "folder-item"
+            li.setAttribute("role", "treeitem")
+            li.setAttribute("tabindex", "0")
+            li.setAttribute(
+                "aria-expanded",
+                initiallyExpanded ? "true" : "false",
+            )
 
-            // Create container for nested content
-            const nestedContainer = document.createElement("tr")
-            nestedContainer.className = "nested-row"
-            if (!initiallyExpanded) {
-                window.DOMUtils.hide(nestedContainer)
-            } else {
-                window.DOMUtils.show(nestedContainer, "display-table-row")
+            const rowSpan = document.createElement("span")
+            rowSpan.className = "file-browser-row"
+
+            const expandToggle = document.createElement("button")
+            expandToggle.type = "button"
+            expandToggle.className =
+                "btn btn-link btn-sm p-0 folder-expand-toggle"
+            expandToggle.setAttribute("aria-label", "Expand or collapse folder")
+            if (!expandable) {
+                expandToggle.hidden = true
             }
-            nestedContainer.innerHTML = `
-				<td colspan="5">
-					<div class="nested-content">
-						<table class="table table-striped">
-							<tbody></tbody>
-						</table>
-					</div>
-				</td>
-			`
-            targetElement.appendChild(nestedContainer)
+            const chevronIcon = document.createElement("i")
+            chevronIcon.className = `bi bi-chevron-right folder-expand-icon${initiallyExpanded ? " folder-expand-icon-open" : ""}`
+            expandToggle.appendChild(chevronIcon)
 
-            // Add click handler for folder
-            row.addEventListener("click", (e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                const hasChildren =
-                    Object.keys(content.children || {}).length > 0
-                const hasFiles = content.files && content.files.length > 0
-                const expandable = hasChildren || hasFiles
+            const itemContent = document.createElement("span")
+            itemContent.className = "item-content"
+            const folderIconEl = document.createElement("i")
+            folderIconEl.className = `bi ${folderIcon}`
+            itemContent.appendChild(folderIconEl)
+            itemContent.appendChild(
+                document.createTextNode(String(content.name || name)),
+            )
 
-                const toggle = row.querySelector(".folder-toggle")
-                const isExpanded = toggle.textContent === "▼"
+            rowSpan.appendChild(expandToggle)
+            rowSpan.appendChild(itemContent)
 
-                if (expandable) {
-                    toggle.textContent = isExpanded ? "▶" : "▼"
+            const childUl = document.createElement("ul")
+            childUl.setAttribute("role", "group")
 
-                    if (isExpanded) {
-                        window.DOMUtils.hide(
-                            nestedContainer,
-                            "display-table-row",
-                        )
-                    } else {
-                        window.DOMUtils.show(
-                            nestedContainer,
-                            "display-table-row",
-                        )
-                    }
-                } else {
-                    toggle.textContent = "▶"
-                    window.DOMUtils.hide(nestedContainer, "display-table-row")
-                }
+            li.appendChild(rowSpan)
+            li.appendChild(childUl)
+            targetElement.appendChild(li)
 
-                // Load nested content if not already loaded
-                if (
-                    expandable &&
-                    !isExpanded &&
-                    !nestedContainer.dataset.loaded
-                ) {
-                    this.renderFileTree(
-                        content,
-                        nestedContainer.querySelector("tbody"),
-                        level + 1,
-                        dirPath,
-                        searchTermEntered,
-                    )
-                    nestedContainer.dataset.loaded = "true"
-                }
-            })
-
-            // If there's a search term or initially expanded, automatically load and expand the content
-            if (initiallyExpanded && !nestedContainer.dataset.loaded) {
+            if (initiallyExpanded && expandable) {
                 this.renderFileTree(
                     content,
-                    nestedContainer.querySelector("tbody"),
+                    childUl,
                     level + 1,
                     dirPath,
                     searchTermEntered,
                 )
-                nestedContainer.dataset.loaded = "true"
+                childUl.dataset.loaded = "true"
             }
+
+            this.syncFolderSelectionVisual(li, content, dirPath)
+
+            expandToggle.addEventListener("click", (e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                if (!expandable) {
+                    return
+                }
+                this.toggleFolderExpanded(
+                    li,
+                    childUl,
+                    content,
+                    dirPath,
+                    level,
+                    searchTermEntered,
+                )
+            })
+
+            const handleFolderRowActivate = (e) => {
+                if (e.type === "keydown") {
+                    if (e.key !== "Enter" && e.key !== " ") {
+                        return
+                    }
+                    e.preventDefault()
+                } else {
+                    e.preventDefault()
+                    e.stopPropagation()
+                }
+                if (e.target.closest(".folder-expand-toggle")) {
+                    return
+                }
+
+                if (this.folderSelectionMode) {
+                    this.toggleDirectorySelection(content, dirPath, li)
+                    return
+                }
+
+                if (!expandable) {
+                    return
+                }
+
+                this.toggleFolderExpanded(
+                    li,
+                    childUl,
+                    content,
+                    dirPath,
+                    level,
+                    searchTermEntered,
+                )
+            }
+
+            li.addEventListener("click", handleFolderRowActivate)
+            li.addEventListener("keydown", handleFolderRowActivate)
         }
 
-        // Render files
         if (tree.files && tree.files.length > 0) {
             for (const file of tree.files) {
-                const row = document.createElement("tr")
                 const filePath = this.getRelativePath(file, currentPath)
                 const isSelected = this.selectedFiles.has(file.id)
-
-                // Check if file is already in the dataset (edit mode only)
                 const isExistingFile =
                     this.isEditMode &&
                     this.formHandler?.currentFiles?.has(file.id)
-                row.innerHTML = `
-					<td>
-						<input type="checkbox" class="form-check-input" name="files" value="${file.id}"
-							${isSelected ? "checked" : ""}
-							${isExistingFile ? "disabled" : ""}>
-					</td>
-					<td class="${level > 0 ? `ps-${level * 3}` : ""}">
-						<i class="bi bi-file-earmark me-2"></i>
-						${file.name}
-					</td>
-					<td>${file.media_type || "Unknown"}</td>
-					<td>${window.DOMUtils.formatFileSize(file.size)}</td>
-					<td>${new Date(file.created_at).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" })}</td>
-				`
 
-                const checkbox = row.querySelector('input[type="checkbox"]')
+                const li = document.createElement("li")
+                li.className = "file-item"
+                li.setAttribute("role", "treeitem")
+                li.setAttribute("aria-selected", isSelected ? "true" : "false")
+                li.dataset.fileId = String(file.id)
 
-                // Only add event handlers if checkbox is not disabled (not an existing file)
+                const rowSpan = document.createElement("span")
+                rowSpan.className = "file-browser-row"
+
+                const itemContent = document.createElement("span")
+                itemContent.className = "item-content"
+
+                const checkbox = document.createElement("input")
+                checkbox.type = "checkbox"
+                checkbox.className = "form-check-input file-checkbox"
+                checkbox.name = "files"
+                checkbox.value = String(file.id)
+                checkbox.checked = isSelected
+                checkbox.setAttribute("aria-hidden", "true")
+                checkbox.tabIndex = -1
+                if (isExistingFile) {
+                    checkbox.disabled = true
+                }
+
+                const fileIcon = document.createElement("i")
+                fileIcon.className = "bi bi-file-earmark"
+                fileIcon.setAttribute("aria-hidden", "true")
+
+                const nameSpan = document.createElement("span")
+                nameSpan.className = "file-browser-name"
+                nameSpan.textContent =
+                    file.name != null ? String(file.name) : ""
+
+                itemContent.appendChild(checkbox)
+                itemContent.appendChild(fileIcon)
+                itemContent.appendChild(nameSpan)
+                rowSpan.appendChild(itemContent)
+                li.appendChild(rowSpan)
+
                 if (!isExistingFile) {
-                    // Add click handler for the checkbox
+                    li.setAttribute("tabindex", "0")
+
+                    const syncRowSelectionVisual = () => {
+                        li.classList.toggle("is-selected", checkbox.checked)
+                        li.setAttribute(
+                            "aria-selected",
+                            checkbox.checked ? "true" : "false",
+                        )
+                    }
+
+                    if (isSelected) {
+                        li.classList.add("is-selected")
+                    }
+
                     checkbox.addEventListener("change", (e) => {
-                        e.stopPropagation() // Prevent row click from firing
+                        e.stopPropagation()
                         if (checkbox.checked) {
-                            // Add to intermediate selection (both edit and create mode)
                             this.selectedFiles.set(file.id, {
                                 ...file,
                                 relative_path: filePath,
                             })
                         } else {
-                            // Remove from intermediate selection (both edit and create mode)
                             this.selectedFiles.delete(file.id)
                         }
+                        syncRowSelectionVisual()
                         this.updateSelectAllCheckboxState()
                         this.updateSelectedFilesList()
                     })
 
-                    // Add click handler for the row
-                    row.addEventListener("click", (e) => {
-                        // Don't toggle if clicking the checkbox directly
-                        if (e.target.type === "checkbox") return
-
+                    const toggleRowSelection = () => {
                         checkbox.checked = !checkbox.checked
-                        // Trigger the change event to ensure the selectedFiles is updated
                         checkbox.dispatchEvent(new Event("change"))
-                    })
+                    }
 
-                    // Add hover effect class
-                    row.classList.add("clickable-row")
+                    const handleFileRowActivate = (e) => {
+                        if (e.type === "keydown") {
+                            if (e.key !== "Enter" && e.key !== " ") {
+                                return
+                            }
+                            e.preventDefault()
+                        } else if (e.target.type === "checkbox") {
+                            return
+                        }
+                        toggleRowSelection()
+                    }
+
+                    li.addEventListener("click", handleFileRowActivate)
+                    li.addEventListener("keydown", handleFileRowActivate)
+
+                    li.classList.add("clickable-row")
                 } else {
-                    // For existing files, add a visual indicator
-                    row.classList.add("readonly-row")
-                    row.title = "This file is already in the dataset"
+                    li.setAttribute("tabindex", "-1")
+                    li.classList.add("readonly-row")
+                    li.title = "This file is already in the dataset"
                 }
 
-                targetElement.appendChild(row)
+                targetElement.appendChild(li)
             }
         }
 
-        // Update select all checkbox state when rendering new tree
         this.updateSelectAllCheckboxState()
     }
 
@@ -1380,15 +1750,15 @@ class AssetSearchHandler {
      * @param {Object} data - Files data
      */
     updateFilesTable(data) {
-        const tbody = document.querySelector("#file-tree-table tbody")
-        if (!tbody) {
-            console.error("File tree table body not found")
+        const root = this.getFileTreeRoot()
+        if (!root) {
+            console.error("File tree root not found")
             return
         }
-        tbody.innerHTML = ""
+        root.innerHTML = ""
 
         if (!data.tree) {
-            this.renderEmptyFilesTable(tbody)
+            this.renderEmptyFileTree(root)
             return
         }
 
@@ -1396,32 +1766,12 @@ class AssetSearchHandler {
     }
 
     /**
-     * Render empty files table asynchronously
+     * Render empty file tree placeholder
+     * @param {HTMLElement} root - File tree root element
      */
-    async renderEmptyFilesTable(tbody) {
-        try {
-            const response = await window.APIClient.post(
-                "/users/render-html/",
-                {
-                    template: "users/components/empty_table_row.html",
-                    context: {
-                        colspan: 5,
-                        message: "No files or directories found",
-                    },
-                },
-                null,
-                true,
-            ) // true = send as JSON
-
-            if (response.html) {
-                tbody.innerHTML = response.html
-            }
-        } catch (error) {
-            console.error("Error rendering empty files table:", error)
-            // Fallback
-            tbody.innerHTML =
-                '<tr><td colspan="5" class="text-center">No files or directories found</td></tr>'
-        }
+    renderEmptyFileTree(root) {
+        root.innerHTML =
+            '<li class="text-center text-muted py-4">No files or directories found</li>'
     }
 
     /**
@@ -1561,15 +1911,15 @@ class AssetSearchHandler {
         )
         if (!selectAllCheckbox) return
 
-        // Only count visible file checkboxes (not in hidden rows)
-        const fileCheckboxes = document.querySelectorAll(
-            '#file-tree-table tbody tr:not(.nested-row):not([style*="display: none"]) input[type="checkbox"]',
-        )
-        const checkedBoxes = document.querySelectorAll(
-            '#file-tree-table tbody tr:not(.nested-row):not([style*="display: none"]) input[type="checkbox"]:checked',
+        const fileCheckboxes = this.getVisibleFileCheckboxes()
+        const checkedBoxes = fileCheckboxes.filter(
+            (checkbox) => checkbox.checked,
         )
 
-        if (checkedBoxes.length === fileCheckboxes.length) {
+        if (
+            checkedBoxes.length === fileCheckboxes.length &&
+            fileCheckboxes.length > 0
+        ) {
             selectAllCheckbox.checked = true
         } else {
             selectAllCheckbox.checked = false

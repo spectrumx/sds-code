@@ -1127,19 +1127,8 @@ body {
     border-radius: 0.375rem;
 }
 
-#file-tree-table {
+#file-tree-root {
     margin-bottom: 0;
-}
-
-#file-tree-table thead.sticky-top {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    background-color: var(--bs-white);
-}
-
-#file-tree-table tbody tr:hover {
-    cursor: pointer;
 }
 
 .action-buttons {

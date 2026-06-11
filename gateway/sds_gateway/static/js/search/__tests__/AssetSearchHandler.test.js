@@ -279,8 +279,8 @@ describe("AssetSearchHandler", () => {
             createModeHandler = new AssetSearchHandler(createConfig)
 
             // Mock target element for rendering
-            mockTargetElement = document.createElement("tbody")
-            mockTargetElement.id = "file-tree-table-body"
+            mockTargetElement = document.createElement("ul")
+            mockTargetElement.id = "file-tree-root"
 
             // Mock DOMUtils.formatFileSize
             global.window.DOMUtils.formatFileSize = jest.fn(
@@ -303,7 +303,7 @@ describe("AssetSearchHandler", () => {
 
             editModeHandler.renderFileTree(tree, mockTargetElement)
 
-            const row = mockTargetElement.querySelector("tr")
+            const row = mockTargetElement.querySelector("li.file-item")
             const checkbox = row.querySelector('input[type="checkbox"]')
 
             // Check that checkbox is disabled
@@ -337,7 +337,7 @@ describe("AssetSearchHandler", () => {
 
             editModeHandler.renderFileTree(tree, mockTargetElement)
 
-            const row = mockTargetElement.querySelector("tr")
+            const row = mockTargetElement.querySelector("li.file-item")
             const checkbox = row.querySelector('input[type="checkbox"]')
 
             // Check that checkbox is NOT disabled
@@ -374,7 +374,7 @@ describe("AssetSearchHandler", () => {
 
             createModeHandler.renderFileTree(tree, mockTargetElement)
 
-            const row = mockTargetElement.querySelector("tr")
+            const row = mockTargetElement.querySelector("li.file-item")
             const checkbox = row.querySelector('input[type="checkbox"]')
 
             // In create mode, all checkboxes should be enabled

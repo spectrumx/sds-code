@@ -63,7 +63,7 @@ class DatasetEditingHandler extends BaseManager {
                 searchFormId: "files-search-form",
                 searchButtonId: "search-files",
                 clearButtonId: "clear-files-search",
-                tableBodyId: "file-tree-table",
+                tableBodyId: "file-tree-root",
                 paginationContainerId: "files-pagination",
                 confirmFileSelectionId: "confirm-file-selection",
                 type: "files",
@@ -86,6 +86,19 @@ class DatasetEditingHandler extends BaseManager {
                 this.initialCaptures,
                 this.initialFiles,
             )
+        }
+
+        const datasetForm = document.getElementById("datasetForm")
+        if (datasetForm && !datasetForm.dataset.enterSubmitGuardBound) {
+            datasetForm.dataset.enterSubmitGuardBound = "true"
+            datasetForm.addEventListener("submit", (e) => {
+                e.preventDefault()
+            })
+            datasetForm.addEventListener("keypress", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault()
+                }
+            })
         }
     }
 
@@ -562,7 +575,7 @@ class DatasetEditingHandler extends BaseManager {
 
         // Also mark in the search results table if visible
         const searchRow = document.querySelector(
-            `#file-tree-table tr[data-file-id="${fileId}"]`,
+            `#file-tree-root li[data-file-id="${fileId}"]`,
         )
         if (searchRow) {
             searchRow.classList.add("marked-for-removal")

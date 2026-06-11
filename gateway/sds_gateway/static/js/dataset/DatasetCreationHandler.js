@@ -77,7 +77,7 @@ class DatasetCreationHandler extends BaseManager {
                 searchFormId: "files-search-form",
                 searchButtonId: "search-files",
                 clearButtonId: "clear-files-search",
-                tableBodyId: "file-tree-table",
+                tableBodyId: "file-tree-root",
                 paginationContainerId: "files-pagination",
                 confirmFileSelectionId: "confirm-file-selection",
                 type: "files",
@@ -220,7 +220,7 @@ class DatasetCreationHandler extends BaseManager {
     initializeFileBrowserModal() {
         // Modal file selection handlers
         document.addEventListener("change", (e) => {
-            if (e.target.matches('#file-tree-table input[name="files"]')) {
+            if (e.target.matches('#file-tree-root input[name="files"]')) {
                 this.handleModalFileSelection(e.target)
             }
         })
@@ -344,7 +344,7 @@ class DatasetCreationHandler extends BaseManager {
      */
     handleSelectAllFiles(checked) {
         const checkboxes = document.querySelectorAll(
-            '#file-tree-table input[name="files"]',
+            '#file-tree-root input[name="files"]',
         )
         for (const checkbox of checkboxes) {
             checkbox.checked = checked
@@ -360,7 +360,7 @@ class DatasetCreationHandler extends BaseManager {
             "select-all-files-checkbox",
         )
         const allCheckboxes = document.querySelectorAll(
-            '#file-tree-table input[name="files"]',
+            '#file-tree-root input[name="files"]',
         )
 
         if (selectAllCheckbox && allCheckboxes.length > 0) {
@@ -432,7 +432,7 @@ class DatasetCreationHandler extends BaseManager {
 
         // Uncheck all checkboxes in modal if it's open
         const checkboxes = document.querySelectorAll(
-            '#file-tree-table input[name="files"]',
+            '#file-tree-root input[name="files"]',
         )
         for (const checkbox of checkboxes) {
             checkbox.checked = false

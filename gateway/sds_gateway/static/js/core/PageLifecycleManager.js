@@ -241,7 +241,7 @@ class PageLifecycleManager {
                 searchFormId: "files-search-form",
                 searchButtonId: "search-files",
                 clearButtonId: "clear-files-search",
-                tableBodyId: "file-tree-table",
+                tableBodyId: "file-tree-root",
                 paginationContainerId: "files-pagination",
                 type: "files",
                 formHandler: this.datasetModeManager?.getHandler(),
