@@ -548,11 +548,8 @@ class AssetSearchHandler {
         }
         checkbox.checked = checked
         const fileLi = checkbox.closest(".file-item")
-        const rowSpan = checkbox.closest(".file-browser-row")
         fileLi?.classList.toggle("is-selected", checked)
-        if (rowSpan) {
-            rowSpan.setAttribute("aria-selected", checked ? "true" : "false")
-        }
+        fileLi?.setAttribute("aria-selected", checked ? "true" : "false")
     }
 
     /**
@@ -622,9 +619,7 @@ class AssetSearchHandler {
             checkbox.checked = false
             const fileLi = checkbox.closest(".file-item")
             fileLi?.classList.remove("is-selected")
-            checkbox
-                .closest(".file-browser-row")
-                ?.setAttribute("aria-selected", "false")
+            fileLi?.setAttribute("aria-selected", "false")
         }
 
         for (const folderLi of document.querySelectorAll(
@@ -638,7 +633,7 @@ class AssetSearchHandler {
     }
 
     /**
-     * @param {HTMLElement} rowSpan
+     * @param {HTMLElement} folderLi
      * @param {HTMLElement} childUl
      * @param {Object} content
      * @param {string} dirPath
@@ -647,7 +642,7 @@ class AssetSearchHandler {
      * @param {boolean} expanded
      */
     setFolderExpanded(
-        rowSpan,
+        folderLi,
         childUl,
         content,
         dirPath,
@@ -655,9 +650,10 @@ class AssetSearchHandler {
         searchTermEntered,
         expanded,
     ) {
-        rowSpan.setAttribute("aria-expanded", expanded ? "true" : "false")
+        folderLi.setAttribute("aria-expanded", expanded ? "true" : "false")
 
-        const folderIcon = rowSpan.querySelector(".item-content > .bi")
+        const rowSpan = folderLi.querySelector(".file-browser-row")
+        const folderIcon = rowSpan?.querySelector(".item-content > .bi")
         if (folderIcon) {
             folderIcon.classList.remove("bi-folder-fill", "bi-folder2-open")
             folderIcon.classList.add(
@@ -665,7 +661,7 @@ class AssetSearchHandler {
             )
         }
 
-        const chevron = rowSpan.querySelector(".folder-expand-icon")
+        const chevron = rowSpan?.querySelector(".folder-expand-icon")
         chevron?.classList.toggle("folder-expand-icon-open", expanded)
 
         if (expanded && childUl.dataset.loaded !== "true") {
@@ -681,7 +677,7 @@ class AssetSearchHandler {
     }
 
     /**
-     * @param {HTMLElement} rowSpan
+     * @param {HTMLElement} folderLi
      * @param {HTMLElement} childUl
      * @param {Object} content
      * @param {string} dirPath
@@ -689,16 +685,16 @@ class AssetSearchHandler {
      * @param {boolean} searchTermEntered
      */
     toggleFolderExpanded(
-        rowSpan,
+        folderLi,
         childUl,
         content,
         dirPath,
         level,
         searchTermEntered,
     ) {
-        const isExpanded = rowSpan.getAttribute("aria-expanded") === "true"
+        const isExpanded = folderLi.getAttribute("aria-expanded") === "true"
         this.setFolderExpanded(
-            rowSpan,
+            folderLi,
             childUl,
             content,
             dirPath,
@@ -1531,27 +1527,39 @@ class AssetSearchHandler {
 
             const li = document.createElement("li")
             li.className = "folder-item"
-
-            const rowSpan = document.createElement("span")
-            rowSpan.className = "file-browser-row"
-            rowSpan.setAttribute("role", "button")
-            rowSpan.setAttribute("tabindex", "0")
-            rowSpan.setAttribute(
+            li.setAttribute("role", "treeitem")
+            li.setAttribute("tabindex", "0")
+            li.setAttribute(
                 "aria-expanded",
                 initiallyExpanded ? "true" : "false",
             )
-            rowSpan.innerHTML = `
-				<button type="button"
-				        class="btn btn-link btn-sm p-0 folder-expand-toggle"
-				        aria-label="Expand or collapse folder"
-				        ${expandable ? "" : "hidden"}>
-					<i class="bi bi-chevron-right folder-expand-icon${initiallyExpanded ? " folder-expand-icon-open" : ""}"></i>
-				</button>
-				<span class="item-content">
-					<i class="bi ${folderIcon}"></i>
-					${content.name || name}
-				</span>
-			`
+
+            const rowSpan = document.createElement("span")
+            rowSpan.className = "file-browser-row"
+
+            const expandToggle = document.createElement("button")
+            expandToggle.type = "button"
+            expandToggle.className =
+                "btn btn-link btn-sm p-0 folder-expand-toggle"
+            expandToggle.setAttribute("aria-label", "Expand or collapse folder")
+            if (!expandable) {
+                expandToggle.hidden = true
+            }
+            const chevronIcon = document.createElement("i")
+            chevronIcon.className = `bi bi-chevron-right folder-expand-icon${initiallyExpanded ? " folder-expand-icon-open" : ""}`
+            expandToggle.appendChild(chevronIcon)
+
+            const itemContent = document.createElement("span")
+            itemContent.className = "item-content"
+            const folderIconEl = document.createElement("i")
+            folderIconEl.className = `bi ${folderIcon}`
+            itemContent.appendChild(folderIconEl)
+            itemContent.appendChild(
+                document.createTextNode(String(content.name || name)),
+            )
+
+            rowSpan.appendChild(expandToggle)
+            rowSpan.appendChild(itemContent)
 
             const childUl = document.createElement("ul")
             childUl.setAttribute("role", "group")
@@ -1573,15 +1581,14 @@ class AssetSearchHandler {
 
             this.syncFolderSelectionVisual(li, content, dirPath)
 
-            const expandToggle = rowSpan.querySelector(".folder-expand-toggle")
-            expandToggle?.addEventListener("click", (e) => {
+            expandToggle.addEventListener("click", (e) => {
                 e.preventDefault()
                 e.stopPropagation()
                 if (!expandable) {
                     return
                 }
                 this.toggleFolderExpanded(
-                    rowSpan,
+                    li,
                     childUl,
                     content,
                     dirPath,
@@ -1590,9 +1597,16 @@ class AssetSearchHandler {
                 )
             })
 
-            rowSpan.addEventListener("click", (e) => {
-                e.preventDefault()
-                e.stopPropagation()
+            const handleFolderRowActivate = (e) => {
+                if (e.type === "keydown") {
+                    if (e.key !== "Enter" && e.key !== " ") {
+                        return
+                    }
+                    e.preventDefault()
+                } else {
+                    e.preventDefault()
+                    e.stopPropagation()
+                }
                 if (e.target.closest(".folder-expand-toggle")) {
                     return
                 }
@@ -1607,36 +1621,17 @@ class AssetSearchHandler {
                 }
 
                 this.toggleFolderExpanded(
-                    rowSpan,
+                    li,
                     childUl,
                     content,
                     dirPath,
                     level,
                     searchTermEntered,
                 )
-            })
+            }
 
-            rowSpan.addEventListener("keydown", (e) => {
-                if (e.key !== "Enter" && e.key !== " ") {
-                    return
-                }
-                e.preventDefault()
-                if (this.folderSelectionMode) {
-                    this.toggleDirectorySelection(content, dirPath, li)
-                    return
-                }
-                if (!expandable) {
-                    return
-                }
-                this.toggleFolderExpanded(
-                    rowSpan,
-                    childUl,
-                    content,
-                    dirPath,
-                    level,
-                    searchTermEntered,
-                )
-            })
+            li.addEventListener("click", handleFolderRowActivate)
+            li.addEventListener("keydown", handleFolderRowActivate)
         }
 
         if (tree.files && tree.files.length > 0) {
@@ -1649,35 +1644,49 @@ class AssetSearchHandler {
 
                 const li = document.createElement("li")
                 li.className = "file-item"
-                li.dataset.fileId = file.id
+                li.setAttribute("role", "treeitem")
+                li.setAttribute("aria-selected", isSelected ? "true" : "false")
+                li.dataset.fileId = String(file.id)
 
                 const rowSpan = document.createElement("span")
                 rowSpan.className = "file-browser-row"
-                rowSpan.setAttribute("role", "option")
-                rowSpan.setAttribute(
-                    "aria-selected",
-                    isSelected ? "true" : "false",
-                )
-                rowSpan.setAttribute("tabindex", "0")
-                rowSpan.innerHTML = `
-					<span class="item-content">
-						<input type="checkbox" class="form-check-input file-checkbox" name="files" value="${file.id}"
-							${isSelected ? "checked" : ""}
-							${isExistingFile ? "disabled" : ""}
-							aria-hidden="true"
-							tabindex="-1">
-						<i class="bi bi-file-earmark" aria-hidden="true"></i>
-						<span class="file-browser-name">${file.name}</span>
-					</span>
-				`
 
+                const itemContent = document.createElement("span")
+                itemContent.className = "item-content"
+
+                const checkbox = document.createElement("input")
+                checkbox.type = "checkbox"
+                checkbox.className = "form-check-input file-checkbox"
+                checkbox.name = "files"
+                checkbox.value = String(file.id)
+                checkbox.checked = isSelected
+                checkbox.setAttribute("aria-hidden", "true")
+                checkbox.tabIndex = -1
+                if (isExistingFile) {
+                    checkbox.disabled = true
+                }
+
+                const fileIcon = document.createElement("i")
+                fileIcon.className = "bi bi-file-earmark"
+                fileIcon.setAttribute("aria-hidden", "true")
+
+                const nameSpan = document.createElement("span")
+                nameSpan.className = "file-browser-name"
+                nameSpan.textContent =
+                    file.name != null ? String(file.name) : ""
+
+                itemContent.appendChild(checkbox)
+                itemContent.appendChild(fileIcon)
+                itemContent.appendChild(nameSpan)
+                rowSpan.appendChild(itemContent)
                 li.appendChild(rowSpan)
-                const checkbox = rowSpan.querySelector('input[type="checkbox"]')
 
                 if (!isExistingFile) {
+                    li.setAttribute("tabindex", "0")
+
                     const syncRowSelectionVisual = () => {
                         li.classList.toggle("is-selected", checkbox.checked)
-                        rowSpan.setAttribute(
+                        li.setAttribute(
                             "aria-selected",
                             checkbox.checked ? "true" : "false",
                         )
@@ -1707,22 +1716,24 @@ class AssetSearchHandler {
                         checkbox.dispatchEvent(new Event("change"))
                     }
 
-                    rowSpan.addEventListener("click", (e) => {
-                        if (e.target.type === "checkbox") {
+                    const handleFileRowActivate = (e) => {
+                        if (e.type === "keydown") {
+                            if (e.key !== "Enter" && e.key !== " ") {
+                                return
+                            }
+                            e.preventDefault()
+                        } else if (e.target.type === "checkbox") {
                             return
                         }
                         toggleRowSelection()
-                    })
+                    }
 
-                    rowSpan.addEventListener("keydown", (e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault()
-                            toggleRowSelection()
-                        }
-                    })
+                    li.addEventListener("click", handleFileRowActivate)
+                    li.addEventListener("keydown", handleFileRowActivate)
 
                     li.classList.add("clickable-row")
                 } else {
+                    li.setAttribute("tabindex", "-1")
                     li.classList.add("readonly-row")
                     li.title = "This file is already in the dataset"
                 }
