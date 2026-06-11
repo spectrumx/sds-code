@@ -16,6 +16,7 @@ from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.api_methods.tests.factories import MockMinIOContext
 from sds_gateway.api_methods.tests.factories import UserFactory
 from sds_gateway.api_methods.tests.factories import create_file_with_minio_mock
+from sds_gateway.users.models import UserAPIKey
 
 
 class DatasetEndpointsTestCase(TestCase):
@@ -52,6 +53,16 @@ class DatasetEndpointsTestCase(TestCase):
         self.mock_retrieve = self.opensearch_patcher.start()
         # Return empty dict for any capture input
         self.mock_retrieve.return_value = {}
+
+    def _attach_artifact_to_dataset(self) -> None:
+        """Add one artifact file so GET .../files/ can return 200."""
+        with MockMinIOContext(b"auth-path-test"):
+            artifact = create_file_with_minio_mock(
+                file_content=b"auth-path-test",
+                owner=self.user,
+                dataset=self.dataset,
+            )
+            self.created_files.append(artifact)
 
     def tearDown(self):
         """Clean up after tests."""
@@ -610,6 +621,28 @@ class DatasetEndpointsTestCase(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_get_dataset_files_via_api_key(self):
+        """Dataset files manifest accepts Api-Key authentication."""
+        self.user.is_approved = True
+        self.user.save(update_fields=["is_approved"])
+        self._attach_artifact_to_dataset()
+        _, key = UserAPIKey.objects.create_key(
+            name="dataset-files-test",
+            user=self.user,
+        )
+        client = APIClient()
+        client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        assert client.get(url).status_code == status.HTTP_200_OK
+
+    def test_get_dataset_files_via_session(self):
+        """Dataset files manifest accepts session authentication."""
+        self._attach_artifact_to_dataset()
+        client = APIClient()
+        client.force_login(self.user)
+        url = reverse("api:datasets-files", kwargs={"pk": self.dataset.uuid})
+        assert client.get(url).status_code == status.HTTP_200_OK
 
     def test_get_dataset_files_no_files(self):
         """Test dataset files manifest with no associated files."""
