@@ -77,6 +77,12 @@ dc +args:
 deptry:
     uv run --extra local deptry .
 
+# audits .env files against example templates
+[group('qa')]
+doctor:
+    @echo "Auditing .env files..."
+    ./scripts/env-checker.sh
+
 # sets up the development environment
 [group('development')]
 dev-setup:
