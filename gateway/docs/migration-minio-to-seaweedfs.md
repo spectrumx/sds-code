@@ -59,8 +59,8 @@ curl -s http://localhost:8333/healthz   # SFS S3 endpoint: expected empty 200
 
 ```bash
 # read credentials from env files
-SECONDARY_USER=$(grep SECONDARY_ROOT_USER .envs/local/storage.env | cut -d= -f2)
-SECONDARY_PASS=$(grep SECONDARY_ROOT_PASSWORD .envs/local/storage.env | cut -d= -f2)
+SECONDARY_USER=$(grep SECONDARY_ACCESS_KEY_ID .envs/local/storage.env | cut -d= -f2)
+SECONDARY_PASS=$(grep SECONDARY_SECRET_ACCESS_KEY .envs/local/storage.env | cut -d= -f2)
 PRIMARY_KEY=$(grep PRIMARY_ACCESS_KEY_ID .envs/local/storage.env | cut -d= -f2)
 PRIMARY_SECRET=$(grep PRIMARY_SECRET_ACCESS_KEY .envs/local/storage.env | cut -d= -f2)
 

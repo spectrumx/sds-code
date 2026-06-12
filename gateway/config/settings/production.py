@@ -1,13 +1,16 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
-# ruff: noqa: F405, ERA001
+# ruff: noqa: F405, ERA001, E402
 
 import os
 
+import django_stubs_ext
 import sentry_sdk
 from django.utils.log import DEFAULT_LOGGING
 from loguru import logger as log
 
 from config.settings.logs import ColoredFormatter
+
+django_stubs_ext.monkeypatch()
 
 from .base import *  # noqa: F403 pylint: disable=wildcard-import,unused-wildcard-import
 from .base import DATABASES

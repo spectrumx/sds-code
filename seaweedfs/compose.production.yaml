@@ -46,7 +46,7 @@ services:
     # ─────────────────────────────────────────────────────────
     # MASTER — cluster coordinator, assigns volumes, signs JWTs
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-master:
+    sfs-master:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-master
         restart: unless-stopped
@@ -83,19 +83,19 @@ services:
         command: |
             master
             -mdir=/data
-            -ip=sds-gateway-prod-sfs-master
+             -ip=sfs-master
             -ip.bind=0.0.0.0
             -port=9333
             -volumePreallocate
             -volumeSizeLimitMB=30000
-            -master.metrics.address=http://sds-gateway-prod-sfs-pushgateway:9091
+             -master.metrics.address=http://sfs-pushgateway:9091
 
     # ─────────────────────────────────────────────────────────
     # 5 VOLUME SERVERS — one per 22TB XFS drive
     # Each has dedicated data + idx paths, leveldb index,
     # and per-drive healthcheck.
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-volume1:
+    sfs-volume1:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-volume1
         restart: unless-stopped
@@ -128,8 +128,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-volume1
+            -master=sfs-master:9333
+             -ip=sfs-volume1
             -ip.bind=0.0.0.0
             -port=8081
             -max=0
@@ -141,7 +141,7 @@ services:
             -compactionMBps=40
             -minFreeSpacePercent=7
 
-    sds-gateway-prod-sfs-volume2:
+    sfs-volume2:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-volume2
         restart: unless-stopped
@@ -174,8 +174,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-volume2
+            -master=sfs-master:9333
+             -ip=sfs-volume2
             -ip.bind=0.0.0.0
             -port=8082
             -max=0
@@ -187,7 +187,7 @@ services:
             -compactionMBps=40
             -minFreeSpacePercent=7
 
-    sds-gateway-prod-sfs-volume3:
+    sfs-volume3:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-volume3
         restart: unless-stopped
@@ -220,8 +220,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-volume3
+            -master=sfs-master:9333
+             -ip=sfs-volume3
             -ip.bind=0.0.0.0
             -port=8083
             -max=0
@@ -233,7 +233,7 @@ services:
             -compactionMBps=40
             -minFreeSpacePercent=7
 
-    sds-gateway-prod-sfs-volume4:
+    sfs-volume4:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-volume4
         restart: unless-stopped
@@ -266,8 +266,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-volume4
+            -master=sfs-master:9333
+             -ip=sfs-volume4
             -ip.bind=0.0.0.0
             -port=8084
             -max=0
@@ -279,7 +279,7 @@ services:
             -compactionMBps=40
             -minFreeSpacePercent=7
 
-    sds-gateway-prod-sfs-volume5:
+    sfs-volume5:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-volume5
         restart: unless-stopped
@@ -312,8 +312,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-volume5
+            -master=sfs-master:9333
+             -ip=sfs-volume5
             -ip.bind=0.0.0.0
             -port=8085
             -max=0
@@ -328,12 +328,12 @@ services:
     # ─────────────────────────────────────────────────────────
     # FILER — metadata store, file namespace, HTTP file browser
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-filer:
+    sfs-filer:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-filer
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-master
+            - sfs-master
         networks:
             - sds-gateway-prod-seaweed-net
         ports:
@@ -360,8 +360,8 @@ services:
             timeout: 5s
         command: |
             filer
-            -master=sds-gateway-prod-sfs-master:9333
-            -ip=sds-gateway-prod-sfs-filer
+            -master=sfs-master:9333
+             -ip=sfs-filer
             -ip.bind=0.0.0.0
             -port=8888
             -encryptVolumeData=false
@@ -370,12 +370,12 @@ services:
     # ─────────────────────────────────────────────────────────
     # S3 GATEWAY — S3-compatible API, connects to filer
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-s3:
+    sfs-s3:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-s3
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-filer
+            - sfs-filer
         networks:
             # Internal: connects to filer/volume
             - sds-gateway-prod-seaweed-net
@@ -404,7 +404,7 @@ services:
             timeout: 5s
         command: |
             s3
-            -filer=sds-gateway-prod-sfs-filer:8888
+            -filer=sfs-filer:8888
             -port=8333
             -config=/etc/seaweedfs/s3.json
             -domain=.s3.example.com
@@ -412,29 +412,29 @@ services:
     # ─────────────────────────────────────────────────────────
     # WEBDAV — WebDAV access to filer namespace
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-webdav:
+    sfs-webdav:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-webdav
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-master
-            - sds-gateway-prod-sfs-filer
+            - sfs-master
+            - sfs-filer
         networks:
             - sds-gateway-prod-seaweed-net
         logging: *default-logging
         command: |
             webdav
-            -filer=sds-gateway-prod-sfs-filer:8888
+            -filer=sfs-filer:8888
 
     # ─────────────────────────────────────────────────────────
     # ADMIN — cluster admin server (EC management, maintenance)
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-admin:
+    sfs-admin:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-admin
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-master
+            - sfs-master
         networks:
             - sds-gateway-prod-seaweed-net
         environment:
@@ -449,24 +449,24 @@ services:
             timeout: 5s
         command: |
             admin
-            -master=sds-gateway-prod-sfs-master:9333
+            -master=sfs-master:9333
 
     # ─────────────────────────────────────────────────────────
     # WORKER — runs erasure_coding plugin and maintenance scripts
     # Continuously converts full/quiet volumes to EC shards.
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-worker:
+    sfs-worker:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-worker
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-admin
+             - sfs-admin
         networks:
             - sds-gateway-prod-seaweed-net
         logging: *default-logging
         command: |
             worker
-            -admin=sds-gateway-prod-sfs-admin:23646
+             -admin=sfs-admin:23646
 
     # ─────────────────────────────────────────────────────────
     # PROMETHEUS + PUSHGATEWAY — push-based metrics collection
@@ -474,7 +474,7 @@ services:
     # Prometheus scrapes from pushgateway (simpler than
     # dynamic target discovery for volume servers).
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-prometheus:
+    sfs-prometheus:
         image: docker.io/prom/prometheus:v2.53.0
         container_name: sds-gateway-prod-sfs-prometheus
         restart: unless-stopped
@@ -505,7 +505,7 @@ services:
             - "--storage.tsdb.path=/prometheus"
             - "--web.enable-lifecycle"
 
-    sds-gateway-prod-sfs-pushgateway:
+    sfs-pushgateway:
         image: docker.io/prom/pushgateway:v1.9.0
         container_name: sds-gateway-prod-sfs-pushgateway
         restart: unless-stopped
@@ -532,7 +532,7 @@ services:
     # ─────────────────────────────────────────────────────────
     # GRAFANA — dashboards + alerting
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-grafana:
+    sfs-grafana:
         image: docker.io/grafana/grafana:11.1.0
         container_name: sds-gateway-prod-sfs-grafana
         restart: unless-stopped
@@ -567,17 +567,17 @@ services:
     # replicates file content to the configured S3-compatible
     # storage (MinIO). Checkpointed for safe restarts.
     # ─────────────────────────────────────────────────────────
-    sds-gateway-prod-sfs-filer-backup:
+    sfs-filer-backup:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-prod-sfs-filer-backup
         restart: unless-stopped
         depends_on:
-            - sds-gateway-prod-sfs-filer
+            - sfs-filer
         networks:
             - sds-gateway-prod-seaweed-net
         volumes:
             - ./config/replication.toml:/etc/seaweedfs/replication.toml:ro
         command: |
             filer.backup
-            -filer=sds-gateway-prod-sfs-filer:8888
+            -filer=sfs-filer:8888
             -config=/etc/seaweedfs/replication.toml

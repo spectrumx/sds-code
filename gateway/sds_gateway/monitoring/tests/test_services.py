@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import pytest
+from django.test import override_settings
 from django.utils import timezone
 
 from sds_gateway.monitoring.models import HealthStatus
@@ -27,6 +28,10 @@ def test_compute_overall_status_is_down_if_any_service_is_down() -> None:
     assert result == HealthStatus.DOWN
 
 
+@override_settings(
+    PRIMARY_ENDPOINT_URL="primary.example.com:9000",
+    SECONDARY_ENDPOINT_URL="secondary.example.com:9000",
+)
 def test_default_services_include_core_dependencies() -> None:
     service_names = {
         service_definition.name

@@ -10,6 +10,8 @@ Sec is optional, unless any of these are True:
     - OBJECT_STORE_DUAL_WRITE_STRICT
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 from typing import Any

@@ -363,3 +363,63 @@ def test_storage_size_delegates_to_primary(
     assert result == EXPECTED_SIZE
     primary_storage.size.assert_called_once_with("path/to/object")
     secondary_storage.size.assert_not_called()
+
+
+def test_dual_store_storage_module_imports_without_type_error() -> None:
+    """Verify a fresh import of the module does not raise ``TypeError``.
+
+    Regression guard against eager annotation evaluation of non-subscriptable
+    types such as ``File[Any]`` and ``ContentFile[Any]`` (Django's ``File`` and
+    ``ContentFile`` classes are not generic). Without ``from __future__
+    import annotations``, Python 3.13+ raises::
+
+        TypeError: type 'File' is not subscriptable
+
+    at class-definition time.
+
+    We run the import in a **subprocess** so it happens in a cold interpreter
+    where ``django_stubs_ext.monkeypatch()`` has not been called.  During
+    normal Django test setup ``config.settings.local`` calls
+    ``django_stubs_ext.monkeypatch()``, which adds ``__class_getitem__`` to
+    ``FileProxyMixin`` (parent of ``File``) making ``File[Any]`` valid
+    regardless of ``from __future__ import annotations``.  A subprocess using
+    ``config.settings.base`` (which does not call the monkeypatch) exercises
+    the true cold-import path.
+    """
+    import subprocess  # noqa: PLC0415
+    import sys  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    project_root = Path(__file__).resolve().parent.parent.parent.parent
+    settings_module = (
+        "config.settings.base"  # does NOT call django_stubs_ext.monkeypatch()
+    )
+
+    code = (
+        "import sys, os\n"
+        f"sys.path.insert(0, {str(project_root)!r})\n"
+        f'os.environ["DJANGO_SETTINGS_MODULE"] = {settings_module!r}\n'
+        "import importlib\n"
+        'module_path = "sds_gateway.api_methods.utils.dual_object_store_storage"\n'
+        "try:\n"
+        "    importlib.import_module(module_path)\n"
+        '    print("SUCCESS")\n'
+        "except TypeError as e:\n"
+        '    print(f"TYPEERROR: {e}")\n'
+        "except Exception as e:\n"
+        '    print(f"ERROR: {type(e).__name__}: {e}")\n'
+    )
+
+    result = subprocess.run(  # noqa: S603
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert "SUCCESS" in result.stdout, (
+        f"Module import in a cold interpreter raised an error — "
+        f"``from __future__ import annotations`` may be missing.\n"
+        f"stdout: {result.stdout}\n"
+        f"stderr: {result.stderr}"
+    )

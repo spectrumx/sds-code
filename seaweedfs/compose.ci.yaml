@@ -18,10 +18,10 @@ services:
     # ─────────────────────────────────────────────────────────
     # MASTER
     # ─────────────────────────────────────────────────────────
-    sds-gateway-ci-sfs-master:
+    sfs-master:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-ci-sfs-master
-        user: "${UID:-1000}:${GID:-1000}"
+        user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
         restart: unless-stopped
         networks:
             - sds-gateway-ci-seaweed-net
@@ -49,7 +49,7 @@ services:
         command: |
             master
             -mdir=/data
-            -ip=sds-gateway-ci-sfs-master
+             -ip=sfs-master
             -ip.bind=0.0.0.0
             -port=${SFS_MASTER_PORT:-9333}
             -metricsPort=${SFS_MASTER_METRICS_PORT:-9324}
@@ -57,13 +57,13 @@ services:
     # ─────────────────────────────────────────────────────────
     # VOLUME
     # ─────────────────────────────────────────────────────────
-    sds-gateway-ci-sfs-volume:
+    sfs-volume:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-ci-sfs-volume
-        user: "${UID:-1000}:${GID:-1000}"
+        user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
         restart: unless-stopped
         depends_on:
-            - sds-gateway-ci-sfs-master
+            - sfs-master
         networks:
             - sds-gateway-ci-seaweed-net
         ports:
@@ -88,8 +88,8 @@ services:
             timeout: 5s
         command: |
             volume
-            -master=sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}
-            -ip=sds-gateway-ci-sfs-volume
+             -master=sfs-master:${SFS_MASTER_PORT:-9333}
+             -ip=sfs-volume
             -ip.bind=0.0.0.0
             -port=${SFS_VOLUME_PORT:-8080}
             -max=0
@@ -100,14 +100,14 @@ services:
     # ─────────────────────────────────────────────────────────
     # FILER
     # ─────────────────────────────────────────────────────────
-    sds-gateway-ci-sfs-filer:
+    sfs-filer:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-ci-sfs-filer
-        user: "${UID:-1000}:${GID:-1000}"
+        user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
         restart: unless-stopped
         depends_on:
-            - sds-gateway-ci-sfs-master
-            - sds-gateway-ci-sfs-volume
+            - sfs-master
+             - sfs-volume
         networks:
             - sds-gateway-ci-seaweed-net
         ports:
@@ -134,8 +134,8 @@ services:
             timeout: 5s
         command: |
             filer
-            -master=sds-gateway-ci-sfs-master:${SFS_MASTER_PORT:-9333}
-            -ip=sds-gateway-ci-sfs-filer
+             -master=sfs-master:${SFS_MASTER_PORT:-9333}
+             -ip=sfs-filer
             -ip.bind=0.0.0.0
             -port=${SFS_FILER_PORT:-8888}
             -metricsPort=${SFS_FILER_METRICS_PORT:-9326}
@@ -143,15 +143,15 @@ services:
     # ─────────────────────────────────────────────────────────
     # S3 GATEWAY
     # ─────────────────────────────────────────────────────────
-    sds-gateway-ci-sfs-s3:
+    sfs-s3:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
         container_name: sds-gateway-ci-sfs-s3
-        user: "${UID:-1000}:${GID:-1000}"
+        user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
         restart: unless-stopped
         depends_on:
-            - sds-gateway-ci-sfs-master
-            - sds-gateway-ci-sfs-volume
-            - sds-gateway-ci-sfs-filer
+            - sfs-master
+             - sfs-volume
+             - sfs-filer
         networks:
             - sds-gateway-ci-seaweed-net
             - sds-network-ci
@@ -176,7 +176,7 @@ services:
             timeout: 5s
         command: |
             s3
-            -filer=sds-gateway-ci-sfs-filer:${SFS_FILER_PORT:-8888}
+             -filer=sfs-filer:${SFS_FILER_PORT:-8888}
             -ip.bind=0.0.0.0
             -port=${SFS_S3_PORT:-8333}
             -config=/etc/seaweedfs/s3.json

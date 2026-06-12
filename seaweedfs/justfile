@@ -32,7 +32,7 @@ build *args:
 [group('utilities')]
 dc +args:
     @echo "Running docker compose command: {{ args }}"
-    {{ docker_compose }} {{ args }}
+    HOST_UID=${UID:-1000} HOST_GID=${GID:-1000} {{ docker_compose }} {{ args }}
 
 # sets up the data directories with correct ownership (local only)
 [group('setup')]
@@ -111,8 +111,13 @@ env:
         exit 1
     fi
     if ! [ -f "{{ env_file }}" ]; then
-        echo -e "\n\e[31mError:\e[0m Env file '{{ env_file }}' does not exist." \
-            "Generate secrets for this environment to create it."
+        if [[ "{{ env_file }}" == *sfs.env ]]; then
+            echo -e "\n\e[31mError:\e[0m Env file '{{ env_file }}' does not exist." \
+                "Run \`just deploy <env>\` to create it."
+        else
+            echo -e "\n\e[31mError:\e[0m Env file '{{ env_file }}' does not exist." \
+                "Generate secrets for this environment to create it."
+        fi
         exit 1
     fi
 
@@ -153,6 +158,8 @@ shell:
 [group('service')]
 up *args:
     #!/usr/bin/env bash
+    export HOST_UID=${UID:-1000}
+    export HOST_GID=${GID:-1000}
     echo "Starting SeaweedFS in detached mode"
     echo "Environment: '{{ env }}'"
     echo "Compose file: '{{ compose_file }}'"
