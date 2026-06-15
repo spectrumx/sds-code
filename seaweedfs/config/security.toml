@@ -16,8 +16,35 @@
 # the jwt defaults to expire after 10 seconds.
 # PRODUCTION: Set via WEED_JWT_SIGNING_KEY env var in compose (overrides this empty value).
 [jwt.signing]
-    expires_after_seconds = 10 # seconds
+    expires_after_seconds = 10  # seconds
     key                   = ""
+
+    # this jwt signing key is read by master and volume server, and it is used for read operations:
+    # - the Master server generates the JWT, which can be used to read a certain file on a volume server
+    # - the Volume server validates the JWT on reading
+    # NOTE: jwt for read is only supported with master+volume setup. Filer does not support this mode.
+    # Not set for production read auth — gRPC traffic stays within Docker network.
+    [jwt.signing.read]
+        expires_after_seconds = 10  # seconds
+        key                   = ""
+
+# If this JWT key is configured, Filer only accepts writes over HTTP if they are signed with this JWT:
+# - f.e. the S3 API Shim generates the JWT
+# - the Filer server validates the JWT on writing
+# NOTE: This key is ALSO used as a fallback signing key for S3 STS if s3.iam.config does not specify a signingKey.
+# the jwt defaults to expire after 10 seconds.
+# PRODUCTION: Set via WEED_JWT_FILER_SIGNING_KEY env var in compose (overrides this empty value).
+[jwt.filer_signing]
+    expires_after_seconds = 10  # seconds
+    key                   = ""
+
+    # If this JWT key is configured, Filer only accepts reads over HTTP if they are signed with this JWT:
+    # - f.e. the S3 API Shim generates the JWT
+    # - the Filer server validates the JWT on reading
+    # the jwt defaults to expire after 10 seconds.
+    [jwt.filer_signing.read]
+        expires_after_seconds = 10  # seconds
+        key                   = ""
 
 # by default, if the signing key above is set, the Volume UI over HTTP is disabled.
 # by setting ui.access to true, you can re-enable the Volume UI. Despite
@@ -33,93 +60,65 @@
 [filer.expose_directory_metadata]
     enabled = true
 
-    # this jwt signing key is read by master and volume server, and it is used for read operations:
-    # - the Master server generates the JWT, which can be used to read a certain file on a volume server
-    # - the Volume server validates the JWT on reading
-    # NOTE: jwt for read is only supported with master+volume setup. Filer does not support this mode.
-    # Not set for production read auth — gRPC traffic stays within Docker network.
-    [jwt.signing.read]
-        expires_after_seconds = 10 # seconds
-        key                   = ""
-
-
-# If this JWT key is configured, Filer only accepts writes over HTTP if they are signed with this JWT:
-# - f.e. the S3 API Shim generates the JWT
-# - the Filer server validates the JWT on writing
-# NOTE: This key is ALSO used as a fallback signing key for S3 STS if s3.iam.config does not specify a signingKey.
-# the jwt defaults to expire after 10 seconds.
-# PRODUCTION: Set via WEED_JWT_FILER_SIGNING_KEY env var in compose (overrides this empty value).
-[jwt.filer_signing]
-    expires_after_seconds = 10 # seconds
-    key                   = ""
-
-    # If this JWT key is configured, Filer only accepts reads over HTTP if they are signed with this JWT:
-    # - f.e. the S3 API Shim generates the JWT
-    # - the Filer server validates the JWT on reading
-    # the jwt defaults to expire after 10 seconds.
-    [jwt.filer_signing.read]
-        expires_after_seconds = 10 # seconds
-        key                   = ""
-
 # gRPC mTLS configuration
 # All gRPC TLS authentications are mutual (mTLS)
 # The values for ca, cert, and key are paths to the certificate/key files
 # The host name is not checked, so the certificate files can be shared
 [grpc]
-    ca = ""
+    ca                      = ""
     # Set wildcard domain for enable TLS authentication by common names
-    allowed_wildcard_domain = "" # .mycompany.com
+    allowed_wildcard_domain = ""  # .mycompany.com
 
     # Volume server gRPC options (server-side)
     # Enables mTLS for incoming gRPC connections to volume server
     [grpc.volume]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     # Master server gRPC options (server-side)
     # Enables mTLS for incoming gRPC connections to master server
     [grpc.master]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     # Filer server gRPC options (server-side)
     # Enables mTLS for incoming gRPC connections to filer server
     [grpc.filer]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     # S3 server gRPC options (server-side)
     # Enables mTLS for incoming gRPC connections to S3 server
     [grpc.s3]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     [grpc.msg_broker]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     [grpc.msg_agent]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     [grpc.admin]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     [grpc.worker]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
     [grpc.mq]
-        allowed_commonNames = "" # comma-separated SSL certificate common names
+        allowed_commonNames = ""  # comma-separated SSL certificate common names
         cert                = ""
         key                 = ""
 
@@ -135,10 +134,10 @@
 # Set enabled=true to use HTTPS instead of HTTP for data operations (separate from gRPC)
 # If [https.filer] or [https.volume] are enabled on servers, clients must have [https.client] enabled=true
 [https.client]
-    ca      = ""    # CA certificate to verify server certificates (required when enabled=true)
-    cert    = ""    # Client certificate for mTLS (optional if server doesn't require client cert)
-    enabled = false # Set to true to enable HTTPS for all outgoing HTTP client connections
-    key     = ""    # Client key for mTLS (optional if server doesn't require client cert)
+    ca      = ""     # CA certificate to verify server certificates (required when enabled=true)
+    cert    = ""     # Client certificate for mTLS (optional if server doesn't require client cert)
+    enabled = false  # Set to true to enable HTTPS for all outgoing HTTP client connections
+    key     = ""     # Client key for mTLS (optional if server doesn't require client cert)
 
 # Volume server HTTPS options (server-side)
 # Enables HTTPS for incoming HTTP connections to volume server

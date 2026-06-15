@@ -1,19 +1,47 @@
-# PRODUCTION Prometheus config — pushgateway mode
-# SeaweedFS components push metrics to pushgateway (configured in master
-# via -master.metrics.address). Prometheus scrapes from pushgateway,
-# avoiding the need for dynamic target discovery.
+# PRODUCTION Prometheus config — pull-based metrics
+# Each SeaweedFS component exposes a /metrics endpoint via -metricsPort.
+# Prometheus scrapes these endpoints directly (pushgateway kept for
+# batch/cron job metrics like EC operations).
 #
 # See checklist §5 — Monitoring
 
 global:
-  scrape_interval: 15s
+    scrape_interval: 15s
 
 scrape_configs:
-  - job_name: "seaweedfs-pushgateway"
-    honor_labels: true
-    static_configs:
-      - targets: ["sds-gateway-prod-sfs-pushgateway:9091"]
+    - job_name: "seaweedfs-master"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-master:9324"]
 
-  - job_name: prometheus
-    static_configs:
-      - targets: ["localhost:9090"]
+    - job_name: "seaweedfs-filer"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-filer:9326"]
+
+    - job_name: "seaweedfs-s3"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-s3:9327"]
+
+    - job_name: "seaweedfs-volume1"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-volume1:9501"]
+    - job_name: "seaweedfs-volume2"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-volume2:9502"]
+    - job_name: "seaweedfs-volume3"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-volume3:9503"]
+    - job_name: "seaweedfs-volume4"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-volume4:9504"]
+    - job_name: "seaweedfs-volume5"
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-volume5:9505"]
+
+    - job_name: "seaweedfs-pushgateway"
+      honor_labels: true
+      static_configs:
+          - targets: ["sds-gateway-prod-sfs-pushgateway:9091"]
+
+    - job_name: prometheus
+      static_configs:
+          - targets: ["localhost:9090"]

@@ -31,9 +31,9 @@ x-logging: &default-logging
         max-file: "3"
 
 networks:
-    # Internal SeaweedFS network (created before deploy)
+    # Internal SeaweedFS network
     sds-gateway-prod-seaweed-net:
-        external: true
+        external: false
     # Shared network with gateway services
     sds-network-prod:
         external: true
@@ -53,7 +53,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '0.5'
+                    cpus: "0.5"
                     memory: 1G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -86,9 +86,9 @@ services:
              -ip=sfs-master
             -ip.bind=0.0.0.0
             -port=9333
-            -volumePreallocate
+             -volumePreallocate
             -volumeSizeLimitMB=30000
-             -master.metrics.address=http://sfs-pushgateway:9091
+             -metricsPort=9324
 
     # ─────────────────────────────────────────────────────────
     # 5 VOLUME SERVERS — one per 22TB XFS drive
@@ -102,7 +102,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -140,6 +140,7 @@ services:
             -rack=rack1
             -compactionMBps=40
             -minFreeSpacePercent=7
+            -metricsPort=9501
 
     sfs-volume2:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
@@ -148,7 +149,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -186,6 +187,7 @@ services:
             -rack=rack1
             -compactionMBps=40
             -minFreeSpacePercent=7
+            -metricsPort=9502
 
     sfs-volume3:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
@@ -194,7 +196,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -232,6 +234,7 @@ services:
             -rack=rack1
             -compactionMBps=40
             -minFreeSpacePercent=7
+            -metricsPort=9503
 
     sfs-volume4:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
@@ -240,7 +243,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -278,6 +281,7 @@ services:
             -rack=rack1
             -compactionMBps=40
             -minFreeSpacePercent=7
+            -metricsPort=9504
 
     sfs-volume5:
         image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
@@ -286,7 +290,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -324,6 +328,7 @@ services:
             -rack=rack1
             -compactionMBps=40
             -minFreeSpacePercent=7
+            -metricsPort=9505
 
     # ─────────────────────────────────────────────────────────
     # FILER — metadata store, file namespace, HTTP file browser
@@ -364,6 +369,7 @@ services:
              -ip=sfs-filer
             -ip.bind=0.0.0.0
             -port=8888
+            -metricsPort=9326
             -encryptVolumeData=false
             -maxMB=32
 
@@ -407,7 +413,7 @@ services:
             -filer=sfs-filer:8888
             -port=8333
             -config=/etc/seaweedfs/s3.json
-            -domain=.s3.example.com
+            -metricsPort=9327
 
     # ─────────────────────────────────────────────────────────
     # WEBDAV — WebDAV access to filer namespace
@@ -460,7 +466,7 @@ services:
         container_name: sds-gateway-prod-sfs-worker
         restart: unless-stopped
         depends_on:
-             - sfs-admin
+            - sfs-admin
         networks:
             - sds-gateway-prod-seaweed-net
         logging: *default-logging
@@ -481,7 +487,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -512,7 +518,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -539,7 +545,7 @@ services:
         deploy:
             resources:
                 limits:
-                    cpus: '1.0'
+                    cpus: "1.0"
                     memory: 2G
         networks:
             - sds-gateway-prod-seaweed-net
@@ -580,4 +586,3 @@ services:
         command: |
             filer.backup
             -filer=sfs-filer:8888
-            -config=/etc/seaweedfs/replication.toml
