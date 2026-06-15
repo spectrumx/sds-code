@@ -10,6 +10,7 @@ ENVIRONMENT=${1:-"production"}
 # ==== locations
 DIR_SCRIPT="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 DIR_GATEWAY="$(dirname "${DIR_SCRIPT}")"
+DIR_SEAWEEDFS="$(realpath "${DIR_GATEWAY}/../seaweedfs")"
 DIR_BACKUP="${DIR_GATEWAY}/data/backups/${BACKUP_DATE}/"
 DIR_POSTGRES_BACKUP="${DIR_BACKUP}/postgres"
 DIR_OPENSEARCH_BACKUP="${DIR_BACKUP}/opensearch"
@@ -47,6 +48,24 @@ if [[ ! -f "${COMMON_VARS}" ]]; then
 fi
 # shellcheck disable=SC1090
 source "${COMMON_VARS}"
+
+# ==== path validation
+function validate_startup_paths() {
+    local required_paths=(
+        "${DIR_GATEWAY}"
+        "${DIR_SEAWEEDFS}"
+        "${DIR_SCRIPT}"
+    )
+
+    for path in "${required_paths[@]}"; do
+        if [[ ! -d "${path}" ]]; then
+            log_error "Required directory missing: ${path}"
+            exit 1
+        fi
+    done
+}
+
+validate_startup_paths
 
 # ==== functions
 
@@ -210,6 +229,7 @@ function snapshot_secrets() {
         "${DIR_GATEWAY}/.envs"
         "${DIR_GATEWAY}/.envs/local"
         "${DIR_GATEWAY}/.envs/production"
+        "${DIR_SEAWEEDFS}/.envs/production/sfs.env"
         "${DIR_SCRIPT}/.env.sh"
         "${DIR_GATEWAY}/scripts/prod-hostnames.env"
         "${DIR_GATEWAY}/scripts/prod-hostnames.example.env"
@@ -218,7 +238,10 @@ function snapshot_secrets() {
 
     for path in "${candidates[@]}"; do
         # expand globs
-        for match in $(shopt -s nullglob; echo "${path}"); do
+        for match in $(
+            shopt -s nullglob
+            echo "${path}"
+        ); do
             if [[ -e "${match}" ]]; then
                 tmp_items+=("${match}")
             fi
@@ -236,12 +259,12 @@ function snapshot_secrets() {
     for abs in "${tmp_items[@]}"; do
         # if path is under DIR_GATEWAY, make relative, otherwise copy absolute
         case "${abs}" in
-            "${DIR_GATEWAY}"/*)
-                rel_items+=("${abs#"${DIR_GATEWAY}"/}")
-                ;;
-            *)
-                rel_items+=("${abs}")
-                ;;
+        "${DIR_GATEWAY}"/*)
+            rel_items+=("${abs#"${DIR_GATEWAY}"/}")
+            ;;
+        *)
+            rel_items+=("${abs}")
+            ;;
         esac
     done
 

@@ -40,6 +40,7 @@ function show_usage() {
 	echo "  6. Superuser creation (interactive)"
 	echo ""
 	echo -e "\e[34mOPTIONS:\e[0m"
+	echo "    --auto-gen-prod-env    Auto-generate production environment secrets"
 	echo "    -f, --force         Overwrite existing env files when generating secrets"
 	echo "    -s, --skip-secrets  Skip secret generation (use existing secrets)"
 	echo "    -n, --skip-network  Skip network creation"
@@ -357,6 +358,10 @@ function parse_arguments() {
 	# parse command-line arguments (these override env vars)
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
+		--auto-gen-prod-env)
+			_args_ref[auto_gen_prod_env]="true"
+			shift
+			;;
 		-f | --force)
 			_args_ref[force_secrets]="true"
 			shift
@@ -399,6 +404,10 @@ function parse_arguments() {
 	# auto-detach for production unless explicitly overridden
 	if [[ "${_args_ref[env_type]}" == "production" && "${SDS_DETACH:-}" != "false" ]]; then
 		_args_ref[detach]="true"
+	fi
+
+	if [[ -z "${_args_ref[auto_gen_prod_env]+x}" ]]; then
+		_args_ref[auto_gen_prod_env]="false"
 	fi
 }
 
@@ -469,6 +478,7 @@ function create_storage_buckets() {
 
 function deploy_sfs_stack() {
 	local env_type="$1"
+	local auto_gen_prod_env="$2"
 	local sfs_env_file="${PROJECT_ROOT}/.envs/${env_type}/storage.env"
 
 	log_header "SeaweedFS Stack Deployment"
@@ -488,7 +498,14 @@ function deploy_sfs_stack() {
 	create_docker_network "${env_type}"
 
 	log_msg "Deploying SeaweedFS stack (env: ${env_type})..."
+
+	sfs_flags=""
+	if [[ "${auto_gen_prod_env}" == "true" ]]; then
+		sfs_flags="--auto-gen-prod-env"
+	fi
+
 	"${SFS_ROOT}/scripts/deploy.sh" \
+		${sfs_flags} \
 		--sfs-env "${sfs_env_file}" \
 		"${env_type}"
 
@@ -511,6 +528,7 @@ function main() {
 		[skip_network]="false"
 		[skip_sfs]="false"
 		[detach]="false"
+		[auto_gen_prod_env]="false"
 		[env_type]=""
 	)
 
@@ -531,7 +549,7 @@ function main() {
 	setup_prod_hostnames "${SCRIPT_DIR}" "${args[env_type]}"
 
 	if [[ "${args[skip_sfs]}" == "false" ]]; then
-		deploy_sfs_stack "${args[env_type]}"
+		deploy_sfs_stack "${args[env_type]}" "${args[auto_gen_prod_env]}"
 	else
 		log_msg "Skipping SeaweedFS stack deployment (--skip-sfs)"
 	fi

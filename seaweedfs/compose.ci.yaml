@@ -107,7 +107,7 @@ services:
         restart: unless-stopped
         depends_on:
             - sfs-master
-             - sfs-volume
+            - sfs-volume
         networks:
             - sds-gateway-ci-seaweed-net
         ports:
@@ -150,8 +150,8 @@ services:
         restart: unless-stopped
         depends_on:
             - sfs-master
-             - sfs-volume
-             - sfs-filer
+            - sfs-volume
+            - sfs-filer
         networks:
             - sds-gateway-ci-seaweed-net
             - sds-network-ci

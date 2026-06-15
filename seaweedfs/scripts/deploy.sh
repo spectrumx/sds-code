@@ -30,6 +30,8 @@ function show_usage() {
 	echo "Deploy the SeaweedFS stack: start services, configure S3 credentials, create bucket."
 	echo ""
 	echo -e "\e[34mOPTIONS:\e[0m"
+	echo "    --auto-gen-prod-env Auto-generate production environment secrets"
+	echo "                        Skips generation if file already exists."
 	echo "    --sfs-env <file>    Path to env file with S3 credentials"
 	echo "                        (defaults to .envs/<env>/storage.env)"
 	echo "    --skip-setup        Skip credential and bucket setup"
@@ -283,6 +285,10 @@ function parse_arguments() {
 
 	while [[ $# -gt 0 ]]; do
 		case "$1" in
+		--auto-gen-prod-env)
+			_args_ref["auto_gen_prod_env"]="true"
+			shift
+			;;
 		--sfs-env)
 			if [[ -z "${2:-}" ]]; then
 				log_error "Missing value for --sfs-env"
@@ -313,6 +319,7 @@ function parse_arguments() {
 		log_error "Environment type required (local, production, or ci)"
 		show_usage
 	fi
+
 }
 
 function assert_selected_env() {
@@ -508,11 +515,45 @@ function validate_required_secrets() {
 	log_success "All required JWT secrets are set in ${env_file}"
 }
 
+function generate_production_env() {
+	local env_type="$1"
+	local auto_gen_prod_env="$2"
+
+	if [[ "${env_type}" == "production" && "${auto_gen_prod_env}" == "true" ]]; then
+		log_header "Production Environment Generation"
+		echo -e "\n\e[31mWARNING: This should only be done for a new empty deployment. Generating a new environment may result in loss of access to existing data.\e[0m"
+		printf "Are you sure you want to proceed? [y/N] "
+		read -r response
+		if [[ "${response}" != "y" ]]; then
+			log_fatal_and_exit "Auto-generation aborted by user."
+		fi
+
+		local prod_env_file="${SFS_ROOT}/.envs/production/sfs.env"
+		if [ -f "${prod_env_file}" ]; then
+			log_error_and_skip "env file already exists; not overwriting it: '${prod_env_file}'"
+			return 0
+		fi
+		mkdir -p "$(dirname "${prod_env_file}")"
+		log_msg "Generating ${prod_env_file}..."
+		cat >"${prod_env_file}" <<EOF
+JWT_SIGNING_KEY=$(openssl rand -hex 16)
+JWT_FILER_SIGNING_KEY=$(openssl rand -hex 16)
+S3_SSE_KEK=$(openssl rand -hex 16)
+EOF
+		chmod 600 "${prod_env_file}"
+		log_success "Production environment file generated."
+
+		log_msg "Creating immediate snapshot of new secrets..."
+		bash "${SFS_ROOT}/../gateway/scripts/create-snapshot.sh" production
+	fi
+}
+
 function main() {
 	declare -A args=(
 		[env_type]=""
 		[skip_setup]="false"
 		[sfs_env]=""
+		[auto_gen_prod_env]="false"
 	)
 
 	parse_arguments args "$@"
@@ -520,6 +561,7 @@ function main() {
 	cd "${SFS_ROOT}"
 	log_header "SeaweedFS Deployment - ${args[env_type]} environment"
 
+	generate_production_env "${args[env_type]}" "${args[auto_gen_prod_env]}"
 	assert_selected_env "${args[env_type]}"
 	ensure_ci_sfs_env
 	ensure_local_sfs_env "${args[env_type]}"
