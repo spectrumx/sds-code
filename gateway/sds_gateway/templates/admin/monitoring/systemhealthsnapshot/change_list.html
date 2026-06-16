@@ -7,7 +7,9 @@
     {% if monitoring_dashboard.latest_snapshot %}
         <div class="monitoring-panel">
             <strong>Overall status:</strong>
-            {{ monitoring_dashboard.latest_snapshot.overall_status|upper }}
+            <span class="admin-monitoring-pill admin-monitoring-pill--{{ monitoring_dashboard.latest_snapshot.overall_status }}">
+                {{ monitoring_dashboard.latest_snapshot.overall_status|upper }}
+            </span>
             <span class="monitoring-muted">({{ monitoring_dashboard.latest_snapshot.checked_at }})</span>
         </div>
     {% endif %}
@@ -21,6 +23,7 @@
                         <th>Service Host</th>
                         <th>Service Port</th>
                         <th>Latest status</th>
+                        <th>Last checked</th>
                         <th>Uptime % (3h)</th>
                         <th>Samples</th>
                     </tr>
@@ -31,7 +34,12 @@
                             <td>{{ service.service_name }}</td>
                             <td>{{ service.host }}</td>
                             <td>{{ service.port }}</td>
-                            <td>{{ service.latest_status|upper }}</td>
+                            <td>
+                                <span class="admin-monitoring-pill admin-monitoring-pill--{{ service.latest_status }}">
+                                    {{ service.latest_status|upper }}
+                                </span>
+                            </td>
+                            <td>{{ service.latest_checked_at }}</td>
                             <td>{{ service.uptime_percent_3h }}</td>
                             <td>{{ service.samples }}</td>
                         </tr>

@@ -66,3 +66,30 @@ body.admin-env-local #header a:visited {
 .monitoring-panel h2 {
     margin-top: 0;
 }
+
+.monitoring-panel table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.monitoring-panel th,
+.monitoring-panel td {
+    padding: 0.5rem 0.75rem;
+    text-align: left;
+    border-bottom: 1px solid rgba(15, 45, 71, 0.12);
+}
+
+.monitoring-panel th {
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.75;
+}
+
+.monitoring-panel .admin-monitoring-pill {
+    margin-left: 0;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.72rem;
+    letter-spacing: 0.05em;
+}

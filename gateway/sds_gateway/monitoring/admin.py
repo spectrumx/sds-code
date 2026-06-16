@@ -54,9 +54,12 @@ class SystemHealthSnapshotAdmin(admin.ModelAdmin):  # pyright: ignore[reportMiss
     def _dashboard_context(self) -> dict[str, object]:
         latest_snapshot = SystemHealthSnapshot.objects.first()
         num_hours_uptime_window: int = 3
-        window_start = timezone.now() - timedelta(hours=num_hours_uptime_window)
+        num_hours_recent_check_window: int = 1
+        now = timezone.now()
+        uptime_window_start = now - timedelta(hours=num_hours_uptime_window)
+        recent_check_cutoff = now - timedelta(hours=num_hours_recent_check_window)
         checks: QuerySet[ServiceCheck] = ServiceCheck.objects.filter(
-            checked_at__gte=window_start
+            checked_at__gte=uptime_window_start
         ).order_by("service_name", "host", "port", "-checked_at")
 
         grouped_checks: dict[tuple[str, str, int | None], list[ServiceCheck]] = {}
@@ -67,11 +70,13 @@ class SystemHealthSnapshotAdmin(admin.ModelAdmin):  # pyright: ignore[reportMiss
         trend_services: list[dict[str, object]] = []
         for service_name, host, port in sorted(grouped_checks):
             recent_checks = grouped_checks[(service_name, host, port)]
+            latest_check = recent_checks[0]
+            if latest_check.checked_at < recent_check_cutoff:
+                continue
             up_count = sum(
                 1 for check in recent_checks if check.status == HealthStatus.HEALTHY
             )
             uptime_percent_3h = round((up_count / len(recent_checks)) * 100, 1)
-            latest_check = recent_checks[0]
             trend_services.append(
                 {
                     "service_name": service_name,
@@ -83,6 +88,11 @@ class SystemHealthSnapshotAdmin(admin.ModelAdmin):  # pyright: ignore[reportMiss
                     "samples": len(recent_checks),
                 }
             )
+
+        trend_services.sort(
+            key=lambda row: row["latest_checked_at"],
+            reverse=True,
+        )
 
         return {
             "latest_snapshot": latest_snapshot,

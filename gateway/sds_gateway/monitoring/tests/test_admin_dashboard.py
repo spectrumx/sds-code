@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import cast
 
 import pytest
@@ -45,8 +46,9 @@ def test_monitoring_dashboard_changelist_is_available(client) -> None:
 
     assert response.status_code == HTTP_200_OK
     assert b"Monitoring dashboard" in response.content
-    # TODO: restore after dependent branch merge
-    # assert b"Service trend" in response.content
+    assert b"Service trend" in response.content
+    assert b"Last checked" in response.content
+    assert b"admin-monitoring-pill--healthy" in response.content
 
 
 def test_admin_base_template_shows_global_status(rf) -> None:
@@ -136,3 +138,82 @@ def test_dashboard_context_splits_trends_by_service_host_and_port() -> None:
         ("seaweedfs", "sfs-a.local", 8333, HealthStatus.HEALTHY),
         ("seaweedfs", "sfs-b.local", 8333, HealthStatus.DOWN),
     }
+
+
+def test_dashboard_context_omits_services_with_stale_latest_check() -> None:
+    now = timezone.now()
+    ServiceCheck.objects.bulk_create(
+        [
+            ServiceCheck(
+                service_name="postgres",
+                host="db.local",
+                port=5432,
+                status=HealthStatus.HEALTHY,
+                checked_at=now - timedelta(minutes=30),
+                latency_ms=5,
+                detail="",
+            ),
+            ServiceCheck(
+                service_name="primary-storage",
+                host="sfs.local",
+                port=8333,
+                status=HealthStatus.DOWN,
+                checked_at=now - timedelta(hours=2),
+                latency_ms=None,
+                detail="timeout",
+            ),
+        ]
+    )
+
+    model_admin = SystemHealthSnapshotAdmin(SystemHealthSnapshot, AdminSite())
+    dashboard = model_admin._dashboard_context()  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
+    trend_services = cast("list[dict[str, object]]", dashboard["trend_services"])
+
+    assert len(trend_services) == 1
+    assert trend_services[0]["service_name"] == "postgres"
+    assert trend_services[0]["latest_checked_at"] == now - timedelta(minutes=30)
+
+
+def test_dashboard_context_orders_trend_services_by_latest_check() -> None:
+    now = timezone.now()
+    ServiceCheck.objects.bulk_create(
+        [
+            ServiceCheck(
+                service_name="postgres",
+                host="db.local",
+                port=5432,
+                status=HealthStatus.HEALTHY,
+                checked_at=now - timedelta(minutes=10),
+                latency_ms=5,
+                detail="",
+            ),
+            ServiceCheck(
+                service_name="primary-storage",
+                host="sfs.local",
+                port=8333,
+                status=HealthStatus.HEALTHY,
+                checked_at=now - timedelta(minutes=1),
+                latency_ms=5,
+                detail="",
+            ),
+            ServiceCheck(
+                service_name="opensearch",
+                host="search.local",
+                port=9200,
+                status=HealthStatus.DOWN,
+                checked_at=now - timedelta(minutes=5),
+                latency_ms=None,
+                detail="timeout",
+            ),
+        ]
+    )
+
+    model_admin = SystemHealthSnapshotAdmin(SystemHealthSnapshot, AdminSite())
+    dashboard = model_admin._dashboard_context()  # pyright: ignore[reportPrivateUsage] # noqa: SLF001
+    trend_services = cast("list[dict[str, object]]", dashboard["trend_services"])
+
+    assert [row["service_name"] for row in trend_services] == [
+        "primary-storage",
+        "opensearch",
+        "postgres",
+    ]
