@@ -31,7 +31,7 @@
 - Image: `4.23-large_disk_full` (supports large volumes, includes all backends)
 - x-logging defaults for all services
 - External network `sds-gateway-prod-seaweed-net` (created before deploy)
-- Master: JWT env var, volumePreallocate, volumeSizeLimitMB=30000, push metrics
+- Master: JWT env var, volumeSizeLimitMB=30000, push metrics
 - 5 volume services (volume1-5): bind mounts, leveldb index, compactionMBps=40, minFreeSpacePercent=7, per-drive healthchecks
 - Filer: JWT filer signing, leveldb2, encryptVolumeData=false, maxMB=32
 - S3: JWT filer signing, SSE KEK, s3-config.json, healthcheck, dual-network

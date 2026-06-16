@@ -86,7 +86,6 @@ services:
              -ip=sfs-master
             -ip.bind=0.0.0.0
             -port=9333
-             -volumePreallocate
             -volumeSizeLimitMB=30000
              -metricsPort=9324
 

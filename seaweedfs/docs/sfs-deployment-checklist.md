@@ -338,10 +338,10 @@ Mount options — `noatime`, `allocsize=1m` — can be changed at any time by up
 | `noatime`            | Eliminates metadata writes on reads                                                                         |
 | `allocsize=1m`       | Hints XFS to allocate 1MB extents — matches SeaweedFS volume chunk patterns                                 |
 | `agcount=4`          | (mkfs option) More allocation groups = better parallel allocation under concurrent writes                   |
-| Volume Preallocation | Master flag `-volumePreallocate` on XFS gives contiguous block allocation, reduces fragmentation            |
+| Volume preallocation | Optional master flag `-volumePreallocate` — not enabled in our compose; volumes grow on write instead       |
 
 See the [Optimization wiki
-page](https://github.com/seaweedfs/seaweedfs/wiki/Optimization#preallocate-volume-file-disk-spaces).
+page](https://github.com/seaweedfs/seaweedfs/wiki/Optimization#preallocate-volume-file-disk-spaces) if you want to enable preallocation later.
 
 ---
 
