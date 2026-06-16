@@ -4,6 +4,9 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 from loguru import logger as log
 
+from sds_gateway.api_methods.utils.dual_object_store_storage import (
+    _is_secondary_configured,
+)
 from sds_gateway.api_methods.utils.minio_client import _build_minio_client
 
 
@@ -28,9 +31,8 @@ class Command(BaseCommand):
             return
 
         # Secondary store (optional — may be unreachable)
-        # Skip entirely if access key is still the LEGACY fallback default;
-        # that means no secondary was ever configured for this environment.
-        if settings.SECONDARY_ACCESS_KEY_ID == settings.LEGACY_AWS_ACCESS_KEY_ID:
+        # Skip when no secondary was explicitly configured for this environment.
+        if not _is_secondary_configured():
             log.info(
                 "Secondary object store not configured (LEGACY fallback creds), "
                 "skipping"

@@ -79,24 +79,14 @@ function show_usage() {
 function setup_prod_hostnames() {
 	local script_dir="$1"
 	local env_type="$2"
-	local example_file="${script_dir}/prod-hostnames.example.env"
 	local target_file="${script_dir}/prod-hostnames.env"
 
-	if [[ -f "${example_file}" && ! -f "${target_file}" ]]; then
-		log_msg "Creating prod-hostnames.env from example..."
-		cp "${example_file}" "${target_file}"
-		log_success "Created: ${target_file}"
+	if [[ "${env_type}" == "ci" ]]; then
+		return 0
+	fi
 
-		if [[ "${env_type}" == "production" ]]; then
-			local current_hostname
-			current_hostname=$(hostname)
-			if [[ -n "${current_hostname}" ]]; then
-				echo "${current_hostname}" >>"${target_file}"
-				log_success "Appended hostname to ${target_file}: ${current_hostname}"
-			else
-				log_warning "Could not determine current hostname; skipping append"
-			fi
-		fi
+	if [[ ! -f "${target_file}" ]]; then
+		"${script_dir}/setup-prod-hostnames.sh"
 	fi
 
 	# if we're running a production deploy, check the hostname is

@@ -55,6 +55,20 @@ deploy *args:
     @echo "Deploying SeaweedFS stack for '{{ env }}' environment"
     ./scripts/deploy.sh {{ args }}
 
+# re-applies S3 credentials from gateway storage.env and refreshes the host mc alias
+[group('setup')]
+configure-s3-credentials path="" port="":
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    args=()
+    if [[ -n "{{ path }}" ]]; then
+        args+=(--sfs-env "{{ path }}")
+    fi
+    if [[ -n "{{ port }}" ]]; then
+        args+=(--port "{{ port }}")
+    fi
+    ./scripts/configure-s3-credentials.sh "${args[@]}" "{{ env }}"
+
 # stops and removes compose services
 [group('service')]
 down *args:
@@ -93,6 +107,34 @@ load_credentials path="":
     fi
 
     printf '%s\n%s\n%s' "${access_key}" "${secret_key}" "${bucket_name}"
+
+[group('setup')]
+load_secondary_credentials path="":
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+
+    env="{{ env }}"
+    path_override="{{ path }}"
+    storage_env_file="${path_override:-../gateway/.envs/${env}/storage.env}"
+
+    if [[ ! -f "${storage_env_file}" ]]; then
+        exit 1
+    fi
+
+    env_file_gateway=$(realpath "${storage_env_file}")
+
+    access_key=$(grep -E '^SECONDARY_ACCESS_KEY_ID=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+    secret_key=$(grep -E '^SECONDARY_SECRET_ACCESS_KEY=' "${env_file_gateway}" | cut -d'=' -f2- || true)
+
+    if [[ -z "${access_key}" || -z "${secret_key}" ]]; then
+        exit 1
+    fi
+
+    if [[ "${access_key}" == "admin" && "${secret_key}" == "admin" ]]; then
+        exit 1
+    fi
+
+    printf '%s\n%s' "${access_key}" "${secret_key}"
 
 # prints currently selected environment
 [group('utilities')]

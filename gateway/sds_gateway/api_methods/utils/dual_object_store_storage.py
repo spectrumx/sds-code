@@ -57,7 +57,7 @@ def _build_storage_options(store_prefix: str) -> dict[str, Any]:
 def _is_secondary_configured() -> bool:
     """Return True when a secondary object store is explicitly configured."""
     return getattr(settings, "SECONDARY_ACCESS_KEY_ID", None) != getattr(
-        settings, "LEGACY_AWS_ACCESS_KEY_ID", None
+        settings, "__LEGACY_AWS_ACCESS_KEY_ID", None
     )
 
 

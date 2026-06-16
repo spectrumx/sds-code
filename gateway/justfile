@@ -198,6 +198,48 @@ generate-secrets env_type *args:
     @echo "Generating secrets for '{{ env_type }}' environment..."
     {{ secrets_generator }} {{ args }} {{ env_type }}
 
+# runs a full deploy (secrets, network, SeaweedFS, gateway stack, migrations, setup)
+[group('setup')]
+deploy *args:
+    #!/usr/bin/env bash
+    set -Eeuo pipefail
+    args=( {{ args }} )
+    for arg in "${args[@]}"; do
+        case "${arg}" in
+            -h | --help)
+                ./scripts/deploy-just-help.sh
+                exit 0
+                ;;
+        esac
+    done
+    env_type="{{ env }}"
+    has_env=false
+    for arg in "${args[@]}"; do
+        case "${arg}" in
+            local | production | ci)
+                has_env=true
+                ;;
+        esac
+    done
+    if [[ "${has_env}" == "false" ]]; then
+        args+=("${env_type}")
+    fi
+    target_env="${env_type}"
+    for arg in "${args[@]}"; do
+        case "${arg}" in
+            local | production | ci)
+                target_env="${arg}"
+                ;;
+        esac
+    done
+    if [[ "${target_env}" == "ci" ]]; then
+        ./scripts/setup-prod-hostnames.sh --skip
+    else
+        ./scripts/setup-prod-hostnames.sh
+    fi
+    echo "Deploying SDS Gateway for '${target_env}' environment"
+    ./scripts/deploy.sh "${args[@]}"
+
 # streams logs until interrupted (tails 10k lines); args are passed to compose logs
 [group('monitoring')]
 logs *args:

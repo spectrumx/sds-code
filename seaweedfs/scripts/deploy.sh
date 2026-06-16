@@ -21,6 +21,8 @@ SFS_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 
 # shellcheck disable=SC1091
 source "${SCRIPT_DIR}/common.sh"
+# shellcheck disable=SC1091
+source "${SCRIPT_DIR}/s3-credentials.sh"
 
 readonly DEFAULT_MAX_WAIT=60
 
@@ -131,22 +133,7 @@ function wait_for_s3_health() {
 }
 
 function configure_s3_credentials() {
-	local env_type="$1"
-	local access_key="$2"
-	local secret_key="$3"
-	local prefix
-	prefix=$(env_prefix "${env_type}")
-	local filer_container="sds-gateway-${prefix}-sfs-filer"
-	local master_container="sds-gateway-${prefix}-sfs-master"
-
-	log_header "Configuring S3 Credentials"
-	log_msg "Configuring S3 identity '${access_key}' on cluster..."
-
-	printf '%s\n' "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *" |
-		docker exec -i "${filer_container}" weed shell \
-			-master="${master_container}:9333"
-
-	log_success "S3 credentials configured"
+	s3_configure_identity "$@"
 }
 
 function create_bucket() {
