@@ -3,15 +3,6 @@ import os
 import sys
 from pathlib import Path
 
-from loguru import logger as log
-
-try:
-    from rich import traceback
-
-    traceback.install()
-except ImportError:
-    log.warning("Install rich to get nice stacktraces.")
-
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 
@@ -34,6 +25,18 @@ if __name__ == "__main__":
             # proceed raising the first import error
 
         raise
+
+    if os.environ.get("DJANGO_ENABLE_RICH_TRACEBACKS", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        try:
+            from rich import traceback
+
+            traceback.install()
+        except ImportError:
+            pass
 
     # This allows easy placement of apps within the interior
     # sds_gateway directory.

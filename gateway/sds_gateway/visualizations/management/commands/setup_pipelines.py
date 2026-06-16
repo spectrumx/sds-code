@@ -14,6 +14,13 @@ from django_cog.models import Task
 from sds_gateway.visualizations.cog_pipelines import PIPELINE_CONFIGS
 from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
 
+PIPELINE_STRATEGIES = (
+    "abort-if-exists",
+    "skip-if-exists",
+    "force",
+    "smart-recreate",
+)
+
 
 class Command(BaseCommand):
     """Set up django-cog pipelines for visualization processing."""
@@ -32,7 +39,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--strategy",
             type=str,
-            choices=["abort-if-exists", "skip-if-exists", "force", "smart-recreate"],
+            choices=PIPELINE_STRATEGIES,
             default="abort-if-exists",
             help=(
                 "Strategy for handling existing pipelines: abort-if-exists (warn and "

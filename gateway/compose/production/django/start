@@ -23,29 +23,11 @@ function main() {
         echo_wait_and_quit "Failed to change directory to ${APP_DIR}."
     }
 
-    echo -e "\033[0;34mCollecting static files...\033[0m"
-    uv run manage.py collectstatic --noinput || {
-        echo_wait_and_quit "Failed to collect static files."
-    }
-
-    echo -e "\033[0;34mApplying database migrations...\033[0m"
-    uv run manage.py migrate --noinput || {
-        echo_wait_and_quit "Failed to apply database migrations."
-    }
-
-    echo -e "\033[0;34mInitializing OpenSearch indices...\033[0m"
-    uv run manage.py init_indices || {
-        echo_wait_and_quit "Failed to initialize OpenSearch indices."
-    }
-
-    echo -e "\033[0;34mInitializing SVI server token...\033[0m"
-    uv run manage.py init_svi_token || {
-        echo_wait_and_quit "Failed to initialize SVI server token."
-    }
-
-    echo -e "\033[0;34mSetting up django-cog pipelines...\033[0m"
-    uv run manage.py setup_pipelines --strategy=skip-if-exists || {
-        echo_wait_and_quit "Failed to set up django-cog pipelines."
+    echo -e "\033[0;34mPreparing gateway...\033[0m"
+    uv run manage.py prepare_gateway \
+        --collectstatic \
+        --pipeline-strategy=skip-if-exists || {
+        echo_wait_and_quit "Failed to prepare gateway for startup."
     }
 
     echo -e "\033[0;34mStarting Gunicorn server...\033[0m"

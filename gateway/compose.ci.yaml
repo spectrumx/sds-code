@@ -75,6 +75,8 @@ services:
             - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         # remember /entrypoint runs first
         command: "/start"
         ports:
@@ -286,6 +288,8 @@ services:
             - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         command: "/worker-start"
         networks:
             - sds-gateway-ci-rustfs-net
@@ -342,6 +346,8 @@ services:
             - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         command: "/beat-start"
         networks:
             - sds-gateway-ci-rustfs-net
@@ -398,6 +404,8 @@ services:
             - ./.envs/ci/storage.env # PRIMARY (RustFS) — local/CI: primary only, no secondary
             - ./.envs/ci/postgres.env
             - ./.envs/ci/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         command: "/flower-start"
         ports:
             - "5555:5555" # Flower web interface

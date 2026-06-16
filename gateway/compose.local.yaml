@@ -83,6 +83,8 @@ services:
             - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         # remember /entrypoint runs first
         command: "/start"
         ports:
@@ -297,6 +299,8 @@ services:
             - ./.envs/local/opensearch.env
             - ./.envs/local/postgres.env
             - ./.envs/local/storage.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         command: "/worker-start"
         networks:
             # additional networks are used for health checks
@@ -356,6 +360,8 @@ services:
             - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
+        environment:
+            - SKIP_POSTGRES_WAIT=1
         command: "/beat-start"
         networks:
             - sds-gateway-local-rustfs-net

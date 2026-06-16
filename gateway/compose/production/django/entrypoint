@@ -15,6 +15,10 @@ if [ -z "${POSTGRES_USER:-}" ]; then
 fi
 export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}"
 
+VENV_DIR="${UV_PROJECT_ENVIRONMENT:-/opt/uv-venv/}"
+VENV_SEED_DIR="${UV_PROJECT_SEED:-/opt/uv-venv-seed/}"
+SYNC_STAMP_FILE="${VENV_DIR}/.dependency-sync-stamp"
+
 # Mounted managed volumes are not writeable immediately after container start.
 # We need to wait for the post_start script to complete, which is not guaranteed
 # to run before this entrypoint script. So we test writeability on that location
@@ -47,8 +51,38 @@ function test_uv_cache_writeable() {
     done
 }
 
+function dependency_fingerprint() {
+    local build_env="${BUILD_ENV:-production}"
+    sha256sum pyproject.toml uv.lock | sha256sum | awk -v env="${build_env}" '{print $1 ":" env}'
+}
+
+function seed_venv_if_needed() {
+    if [ -f "${VENV_DIR}/pyvenv.cfg" ]; then
+        return 0
+    fi
+
+    if [ ! -f "${VENV_SEED_DIR}/pyvenv.cfg" ]; then
+        return 0
+    fi
+
+    echo "$(date) | Seeding runtime virtualenv from image-built environment..."
+    mkdir -p "${VENV_DIR}"
+    cp -a "${VENV_SEED_DIR}/." "${VENV_DIR}/"
+}
+
 function install_project() {
+    seed_venv_if_needed
+
+    local fingerprint
+    fingerprint="$(dependency_fingerprint)"
+
+    if [ -f "${SYNC_STAMP_FILE}" ] && [ "$(cat "${SYNC_STAMP_FILE}")" = "${fingerprint}" ]; then
+        echo "$(date) | Dependencies already synced, skipping uv sync"
+        return 0
+    fi
+
     uv sync --frozen --extra "${BUILD_ENV:-production}"
+    echo "${fingerprint}" > "${SYNC_STAMP_FILE}"
 }
 
 function validate_postgres_vars() {
@@ -71,9 +105,13 @@ function validate_postgres_vars() {
 }
 
 function wait_for_postgres() {
+    if [ "${SKIP_POSTGRES_WAIT:-0}" = "1" ]; then
+        echo "$(date) | Skipping PostgreSQL wait (SKIP_POSTGRES_WAIT=1)"
+        return 0
+    fi
 
     echo "Waiting for PostgreSQL to become available..."
-    uv run python <<END
+    uv run --no-sync python <<END
 import sys
 import time
 
@@ -99,11 +137,10 @@ while True:
         if time.time() - start > suggest_unrecoverable_after:
             sys.stderr.write("  This is taking longer than expected. The following exception may be indicative of an unrecoverable error: '{}'\n".format(error))
         sys.stderr.flush()
-        time.sleep(2)
+        time.sleep(1)
 END
 
     echo >&2 "$(date) | PostgreSQL is available"
-
 }
 
 function main() {
@@ -115,6 +152,7 @@ function main() {
         echo >&2 "$(date) | Project installation failed, exiting."
         exit 1
     }
+    export UV_NO_SYNC=1
     validate_postgres_vars || {
         echo >&2 "$(date) | PostgreSQL validation failed, exiting."
         exit 1

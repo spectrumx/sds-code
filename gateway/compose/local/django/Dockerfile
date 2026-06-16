@@ -52,7 +52,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
     . $HOME/.cargo/env && \
     echo 'export PATH=$HOME/.cargo/bin:$PATH' >> $HOME/.bashrc
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN mkdir -p /opt/{uv-cache,uv-venv}/
 
 WORKDIR ${APP_HOME}
 
@@ -60,13 +59,14 @@ WORKDIR ${APP_HOME}
 ENV UV_COMPILE_BYTECODE=1
 ENV UV_LINK_MODE=copy
 ENV UV_CACHE_DIR=/opt/uv-cache/
+ENV UV_PROJECT_SEED=/opt/uv-venv-seed/
 ENV UV_PROJECT_ENVIRONMENT=/opt/uv-venv/
 
-# we can delay the project dependencies installation to reduce
-# the image size: it'll be cached at the compose level. If you
-# wish to include them in the image, uncomment the following lines:
-# COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
-# RUN uv sync --frozen --extra ${BUILD_ENVIRONMENT}
+RUN mkdir -p /opt/uv-cache/ /opt/uv-venv/ /opt/uv-venv-seed/
+
+# Bake third-party dependencies, then the project, into a seed virtualenv.
+COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
+RUN UV_PROJECT_ENVIRONMENT=${UV_PROJECT_SEED} uv sync --frozen --no-install-project --extra ${BUILD_ENVIRONMENT}
 
 # "entrypoint" only has a production version
 COPY ./compose/production/django/entrypoint         /entrypoint
@@ -80,6 +80,7 @@ RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
 # copy application code to WORKDIR
 COPY . ${APP_HOME}
+RUN UV_PROJECT_ENVIRONMENT=${UV_PROJECT_SEED} uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
 # Generate version.json with baked-in commit hash (passed as build ARG)
 RUN echo "{\"commit\":\"${GIT_COMMIT}\",\"version\":\"${GIT_COMMIT}\",\"build_date\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > ${APP_HOME}/version.json
