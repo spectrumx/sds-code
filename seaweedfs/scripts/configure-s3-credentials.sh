@@ -72,8 +72,8 @@ function validate_production_credentials() {
 		log_fatal_and_exit "Access key '${access_key}' is a well-known default. Set strong credentials in the env file."
 	fi
 
-	if [[ ${#access_key} -lt 16 ]]; then
-		log_fatal_and_exit "Access key is too short (${#access_key} chars). Minimum 16 characters required for production."
+	if [[ ${#access_key} -lt 4 ]]; then
+		log_fatal_and_exit "Access key ID is too short (${#access_key} chars). Minimum 4 characters required for production."
 	fi
 
 	if [[ ${#secret_key} -lt 16 ]]; then
