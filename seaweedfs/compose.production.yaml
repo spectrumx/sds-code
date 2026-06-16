@@ -111,8 +111,8 @@ services:
         environment:
             WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
-            - /disk1/data:/data
-            - /disk1/idx:/idx
+            - ./data/d1/data:/data
+            - ./data/d1/idx:/idx
         logging: *default-logging
         healthcheck:
             test:
@@ -158,8 +158,8 @@ services:
         environment:
             WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
-            - /disk2/data:/data
-            - /disk2/idx:/idx
+            - ./data/d2/data:/data
+            - ./data/d2/idx:/idx
         logging: *default-logging
         healthcheck:
             test:
@@ -205,8 +205,8 @@ services:
         environment:
             WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
-            - /disk3/data:/data
-            - /disk3/idx:/idx
+            - ./data/d3/data:/data
+            - ./data/d3/idx:/idx
         logging: *default-logging
         healthcheck:
             test:
@@ -252,8 +252,8 @@ services:
         environment:
             WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
-            - /disk4/data:/data
-            - /disk4/idx:/idx
+            - ./data/d4/data:/data
+            - ./data/d4/idx:/idx
         logging: *default-logging
         healthcheck:
             test:
@@ -299,8 +299,8 @@ services:
         environment:
             WEED_JWT_SIGNING_KEY: "${JWT_SIGNING_KEY:?required}"
         volumes:
-            - /disk5/data:/data
-            - /disk5/idx:/idx
+            - ./data/d5/data:/data
+            - ./data/d5/idx:/idx
         logging: *default-logging
         healthcheck:
             test:
@@ -572,16 +572,16 @@ services:
     # replicates file content to the configured S3-compatible
     # storage (MinIO). Checkpointed for safe restarts.
     # ─────────────────────────────────────────────────────────
-    sfs-filer-backup:
-        image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
-        container_name: sds-gateway-prod-sfs-filer-backup
-        restart: unless-stopped
-        depends_on:
-            - sfs-filer
-        networks:
-            - sds-gateway-prod-seaweed-net
-        volumes:
-            - ./config/replication.toml:/etc/seaweedfs/replication.toml:ro
-        command: |
-            filer.backup
-            -filer=sfs-filer:8888
+    # sfs-filer-backup:
+    #     image: docker.io/chrislusf/seaweedfs:4.32_large_disk_full
+    #     container_name: sds-gateway-prod-sfs-filer-backup
+    #     restart: unless-stopped
+    #     depends_on:
+    #         - sfs-filer
+    #     networks:
+    #         - sds-gateway-prod-seaweed-net
+    #     volumes:
+    #         - ./config/replication.toml:/etc/seaweedfs/replication.toml:ro
+    #     command: |
+    #         filer.backup
+    #         -filer=sfs-filer:8888

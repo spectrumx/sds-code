@@ -68,7 +68,10 @@ def get_default_service_definitions() -> list[ServiceDefinition]:
         )
         services.append(
             ServiceDefinition(
-                name="secondary", kind="tcp", host=secondary_host, port=secondary_port
+                name="secondary-storage",
+                kind="tcp",
+                host=secondary_host,
+                port=secondary_port,
             )
         )
 
