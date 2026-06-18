@@ -38,7 +38,7 @@ class Command(BaseCommand):
 
         pipeline_strategy = options["pipeline_strategy"]
         steps: list[tuple[str, str, dict[str, object]]] = [
-            ("Applying database migrations...", "migrate", {"noinput": True}),
+            ("Applying database migrations...", "migrate", {"no_input": True}),
             ("Initializing OpenSearch indices...", "init_indices", {}),
             ("Initializing SVI server token...", "init_svi_token", {}),
             (
