@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederationEventType
-from sds_federation.services.fed_index import FED_DATASETS_INDEX
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import doc_id
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
@@ -43,7 +42,7 @@ def test_indexer_writes_dataset_document(
 
     assert len(recording_opensearch.index_calls) == 1
     call = recording_opensearch.index_calls[0]
-    assert call["index"] == FED_DATASETS_INDEX
+    assert call["index"] == AssetTypeEnum.DATASET.index_name
     assert call["id"] == doc_id("testsite", TEST_DATASET_UUID)
     assert call["body"]["is_federated_deleted"] is False
     assert call["body"]["federation_event_at"] == event_at.isoformat()
