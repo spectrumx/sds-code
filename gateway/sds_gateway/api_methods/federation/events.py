@@ -5,15 +5,19 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from datetime import datetime
+from typing import TYPE_CHECKING
 from typing import Any
-from uuid import UUID
 
 from django.conf import settings
 from loguru import logger as log
 
 from sds_gateway.api_methods.federation.availability import is_federation_operational
-from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.tasks import get_redis_client
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from sds_gateway.api_methods.models import ItemType
 
 FederationEventType = str  # created | updated | deleted
 

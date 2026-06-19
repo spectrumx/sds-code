@@ -12,7 +12,6 @@ from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
-from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData

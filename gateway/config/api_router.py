@@ -5,9 +5,9 @@ from rest_framework.routers import SimpleRouter
 from sds_gateway.api_methods.views.auth_endpoints import ValidateAuthViewSet
 from sds_gateway.api_methods.views.capture_endpoints import CaptureViewSet
 from sds_gateway.api_methods.views.dataset_endpoints import DatasetViewSet
+from sds_gateway.api_methods.views.federation_endpoints import FederationViewSet
 from sds_gateway.api_methods.views.file_endpoints import FileViewSet
 from sds_gateway.api_methods.views.file_endpoints import check_contents_exist
-from sds_gateway.api_methods.views.federation_endpoints import FederationViewSet
 from sds_gateway.users.api.views import UserViewSet
 from sds_gateway.visualizations.api_views import VisualizationViewSet
 

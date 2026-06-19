@@ -11,6 +11,8 @@ from django.contrib.auth import get_user_model
 from sds_gateway.api_methods.federation.export_contract import assert_field_names_match
 from sds_gateway.api_methods.helpers.compile_federated_data import (
     compile_federated_capture_doc,
+)
+from sds_gateway.api_methods.helpers.compile_federated_data import (
     compile_federated_dataset_doc,
 )
 from sds_gateway.api_methods.models import DatasetStatus
@@ -30,10 +32,8 @@ if _federation_root.is_dir():
 
 pytest.importorskip("sds_federation")
 
-from sds_federation.schemas.webhooks import (  # noqa: E402
-    FederatedCaptureDoc,
-    FederatedDatasetDoc,
-)
+from sds_federation.schemas.webhooks import FederatedCaptureDoc  # noqa: E402
+from sds_federation.schemas.webhooks import FederatedDatasetDoc  # noqa: E402
 
 User = get_user_model()
 

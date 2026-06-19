@@ -26,6 +26,6 @@ class DisallowFederationSyncKey(BasePermission):
 
     def has_permission(self, request, view) -> bool:
         key = request.auth
-        if isinstance(key, UserAPIKey) and key.source == KeySources.FederationSync:
-            return False
-        return True
+        return not (
+            isinstance(key, UserAPIKey) and key.source == KeySources.FederationSync
+        )

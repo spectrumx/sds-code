@@ -147,6 +147,10 @@
 
     # https://deptry.com/usage/#per-rule-ignores
     [tool.deptry.per_rule_ignores]
+        DEP001 = [
+            # optional monorepo sibling; contract tests add federation/ to sys.path
+            "sds_federation",
+        ]
         DEP002 = [
             # packages that are installed but not imported
             "argon2-cffi",                # used by django for argon2 password hashing
