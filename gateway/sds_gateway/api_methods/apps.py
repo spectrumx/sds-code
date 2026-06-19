@@ -12,6 +12,7 @@ class ApiMethodsConfig(AppConfig):
     #   pattern to import application modules here in ready()
     # ruff: noqa: PLC0415
     def ready(self) -> None:
+        import sds_gateway.api_methods.federation.signals  # noqa: F401
         import sds_gateway.api_methods.schema  # noqa: F401
 
         silence_unwanted_logs()

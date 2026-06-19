@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class APIKeyAuthentication(BaseAuthentication):
     keyword = "Api-Key"
 
-    def authenticate(self, request) -> tuple[User, bool]:
+    def authenticate(self, request) -> tuple[User, UserAPIKey]:
         """Authenticates the user with their API key.
         Args:
             request:    Contains the API key in the Authorization header.
@@ -47,7 +47,7 @@ class APIKeyAuthentication(BaseAuthentication):
             raise AuthenticationFailed(msg) from err
 
         user = api_key_obj.user
-        return (user, True)
+        return (user, api_key_obj)
 
     def authenticate_header(self, request) -> str:
         return self.keyword

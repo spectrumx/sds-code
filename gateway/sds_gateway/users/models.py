@@ -64,6 +64,7 @@ class UserAPIKey(AbstractAPIKey):
         (KeySources.SDSWebUI, "SDS Web UI"),
         (KeySources.SVIBackend, "SVI Backend"),
         (KeySources.SVIWebUI, "SVI Web UI"),
+        (KeySources.FederationSync, "Federation Sync"),
     ]
     user = cast(
         "User",

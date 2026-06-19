@@ -34,7 +34,7 @@ class APIKeyAuthenticationTest(APITestCase):
         user, auth = self.auth.authenticate(request)
 
         # Verify that the user is authenticated
-        assert auth is True
+        assert isinstance(auth, UserAPIKey)
         assert user is not None
         assert user.email == "test@example.com"
 
