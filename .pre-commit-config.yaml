@@ -54,6 +54,7 @@ repos:
       hooks:
           - id: django-upgrade
             args: ["--target-version", "4.2"]
+            exclude: ^federation/
 
     # runs the ruff linter and formatter
     - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -61,25 +62,36 @@ repos:
       hooks:
           # linter
           - id: ruff-check # runs ruff check --force-exclude
+            exclude: ^federation/
             args:
-                # we have to pick one ruff config between gateway and sdk...
-                #   the SDK has additional constraints for having to support multiple
-                #   python versions, so it's a safer choice for a project-wide config;
-                #   though be aware that this might omit PyUpgrade improvements that
-                #   could be applied to the gateway side.
                 [
-                    # --verbose, # for debugging
-                    # --show-files, # for debugging
-                    # --show-fixes, # for debugging
                     --no-cache,
                     --fix,
                     --exit-non-zero-on-fix,
                     --config,
                     "sdk/pyproject.toml",
-                ] # --show-settings, # for debugging
+                ]
+          - id: ruff-check
+            alias: ruff-check-federation
+            name: ruff-check (federation)
+            files: ^federation/.*\.py$
+            args:
+                [
+                    --no-cache,
+                    --fix,
+                    --exit-non-zero-on-fix,
+                    --config,
+                    "federation/pyproject.toml",
+                ]
           # formatter
           - id: ruff-format # runs ruff format --force-exclude
+            exclude: ^federation/
             args: [--config, "sdk/pyproject.toml"]
+          - id: ruff-format
+            alias: ruff-format-federation
+            name: ruff-format (federation)
+            files: ^federation/.*\.py$
+            args: [--config, "federation/pyproject.toml"]
 
     # linter for django templates
     - repo: https://github.com/Riverside-Healthcare/djLint
@@ -114,7 +126,7 @@ repos:
       hooks:
           - id: deptry
             name: deptry
-            entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry ."
+            entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry .; cd ../federation && uv run deptry ."
             language: system
             pass_filenames: false # run once per commit, not per file
             types: [python]

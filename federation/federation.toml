@@ -1,0 +1,12 @@
+[site]
+name = "crc"
+fqdn = "sds.crc.nd.edu"
+display_name = "Notre Dame CRC"
+
+[[peers]]
+name = "haystack"
+fqdn = "merrimack.haystack.mit.edu"
+display_name = "MIT Haystack"
+gateway_api_base = "https://merrimack.haystack.mit.edu/api/v1"
+sync_service_url = "https://merrimack.haystack.mit.edu/sync/"
+ca_cert_path = "/etc/sds/certs/haystack-ca.pem"
