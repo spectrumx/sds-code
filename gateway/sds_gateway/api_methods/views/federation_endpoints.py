@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework.decorators import action
-from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
+if TYPE_CHECKING:
+    from rest_framework.request import Request
+
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.federation.permissions import (
+    IsFederationInternalExportClient,
+)
+from sds_gateway.api_methods.federation.permissions import IsFederationOperational
 from sds_gateway.api_methods.helpers.compile_federated_data import (
     compile_federated_capture_doc,
 )
@@ -30,8 +38,6 @@ from sds_gateway.api_methods.helpers.compile_federated_data import (
 )
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
-from sds_gateway.api_methods.federation.permissions import IsFederationInternalExportClient
-from sds_gateway.api_methods.federation.permissions import IsFederationOperational
 from sds_gateway.api_methods.permissions import IsFederationSyncKey
 
 
@@ -59,7 +65,9 @@ class FederationViewSet(ViewSet):
         methods=["get"],
         url_path=r"export/datasets/(?P<pk>[^/.]+)",
     )
-    def export_dataset_detail(self, request: Request, pk: str | None = None) -> Response:
+    def export_dataset_detail(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Return one public dataset for sync after a local Redis event."""
         dataset = get_object_or_404(Dataset, pk=pk, is_deleted=False)
         if not is_federation_exportable_dataset(dataset):
@@ -82,7 +90,9 @@ class FederationViewSet(ViewSet):
         methods=["get"],
         url_path=r"export/captures/(?P<pk>[^/.]+)",
     )
-    def export_capture_detail(self, request: Request, pk: str | None = None) -> Response:
+    def export_capture_detail(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
         """Return one public capture for sync after a local Redis event."""
         capture = get_object_or_404(Capture, pk=pk, is_deleted=False)
         if not is_federation_exportable_capture(capture):

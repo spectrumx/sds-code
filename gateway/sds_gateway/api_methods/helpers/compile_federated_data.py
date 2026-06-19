@@ -10,14 +10,11 @@ from django.conf import settings
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
-from sds_gateway.api_methods.serializers.dataset_serializers import (
-    get_dataset_serializer,
+from sds_gateway.api_methods.serializers.capture_serializers import (
+    CaptureFederationSerializer,
 )
 from sds_gateway.api_methods.serializers.dataset_serializers import (
     DatasetFederationSerializer,
-)
-from sds_gateway.api_methods.serializers.capture_serializers import (
-    CaptureFederationSerializer,
 )
 
 if TYPE_CHECKING:
@@ -25,7 +22,9 @@ if TYPE_CHECKING:
 
 
 def federation_site_name() -> str:
-    return getattr(settings, "FEDERATION_SITE_NAME", settings.SDS_PROGRAMMATIC_SITE_NAME)
+    return getattr(
+        settings, "FEDERATION_SITE_NAME", settings.SDS_PROGRAMMATIC_SITE_NAME
+    )
 
 
 def public_datasets_queryset() -> QuerySet[Dataset]:

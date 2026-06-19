@@ -6,24 +6,32 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from sds_gateway.api_methods.federation.availability import evaluate_federation_operational
+from sds_gateway.api_methods.federation.availability import (
+    evaluate_federation_operational,
+)
 from sds_gateway.api_methods.federation.availability import (
     is_client_ip_allowed_for_federation_export,
 )
 from sds_gateway.api_methods.federation.availability import (
     is_federation_internal_header_valid,
 )
-from sds_gateway.api_methods.federation.availability import refresh_federation_operational_state
+from sds_gateway.api_methods.federation.availability import (
+    refresh_federation_operational_state,
+)
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.users.models import UserAPIKey
+
+User = get_user_model()
 
 pytestmark = pytest.mark.django_db
 
@@ -42,7 +50,7 @@ class TestFederationAvailability:
         FEDERATION_SKIP_REDIS_PROBE=True,
     )
     def test_operational_when_probes_skipped(self) -> None:
-        ok, reason = evaluate_federation_operational()
+        ok, _reason = evaluate_federation_operational()
         assert ok is True
 
     @override_settings(
@@ -84,7 +92,7 @@ class TestFederationAvailability:
         assert is_client_ip_allowed_for_federation_export(denied) is False
 
     @override_settings(
-        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="top-secret",
+        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="top-secret",  # noqa: S106
         FEDERATION_EXPORT_INTERNAL_HEADER_NAME="X-SDS-Federation-Internal",
     )
     def test_internal_header_when_configured(self) -> None:
@@ -109,7 +117,6 @@ class TestFederationAvailability:
     )
     def test_refresh_sets_settings_flags(self) -> None:
         operational, reason = refresh_federation_operational_state(force=True)
-        from django.conf import settings
 
         assert operational is True
         assert settings.FEDERATION_OPERATIONAL is True
@@ -126,9 +133,6 @@ class FederationExportAccessControlTest(APITestCase):
     """Export API with operational + network permissions enabled for tests."""
 
     def setUp(self) -> None:
-        from django.contrib.auth import get_user_model
-
-        User = get_user_model()
         self.sync_user = User.objects.create(
             email="sync@internal.local",
             is_approved=True,
@@ -184,7 +188,7 @@ class FederationExportAccessControlTest(APITestCase):
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
     @override_settings(
-        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="edge-secret",
+        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="edge-secret",  # noqa: S106
         FEDERATION_OPERATIONAL_OVERRIDE=True,
         FEDERATION_EXPORT_ALLOWED_CIDRS=["127.0.0.1/32"],
     )

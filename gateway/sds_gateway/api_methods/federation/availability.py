@@ -14,30 +14,32 @@ from django.conf import settings
 from loguru import logger as log
 
 from sds_gateway.api_methods.models import KeySources
+from sds_gateway.api_methods.tasks import get_redis_client
 from sds_gateway.users.models import UserAPIKey
 
+_HTTP_OK = 200
 _RECHECK_INTERVAL_SECONDS = 60.0
 _last_evaluated_at: float = 0.0
 _cached_operational: bool = False
 _cached_reason: str = "not evaluated"
 
 
-def _setting(name: str, default: Any = None) -> Any:
+def _setting(name: str, *, default: Any = None) -> Any:
     return getattr(settings, name, default)
 
 
 def _parse_cidrs(raw: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
-    for item in raw:
-        networks.append(ipaddress.ip_network(item.strip(), strict=False))
-    return networks
+    return [ipaddress.ip_network(item.strip(), strict=False) for item in raw]
 
 
 def federation_client_ip(request) -> str | None:
     """Resolve client IP for federation export access control."""
-    trust_forwarded = _setting("FEDERATION_EXPORT_TRUST_X_FORWARDED_FOR", False)
+    trust_forwarded = _setting(
+        "FEDERATION_EXPORT_TRUST_X_FORWARDED_FOR",
+        default=False,
+    )
     if trust_forwarded:
-        forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+        forwarded = request.headers.get("x-forwarded-for", "")
         if forwarded:
             return forwarded.split(",")[0].strip()
     remote = request.META.get("REMOTE_ADDR")
@@ -47,7 +49,7 @@ def federation_client_ip(request) -> str | None:
 
 
 def is_client_ip_allowed_for_federation_export(request) -> bool:
-    cidrs = _parse_cidrs(_setting("FEDERATION_EXPORT_ALLOWED_CIDRS", []))
+    cidrs = _parse_cidrs(_setting("FEDERATION_EXPORT_ALLOWED_CIDRS", default=[]))
     if not cidrs:
         return False
     client_ip = federation_client_ip(request)
@@ -61,7 +63,7 @@ def is_client_ip_allowed_for_federation_export(request) -> bool:
 
 
 def is_federation_internal_header_valid(request) -> bool:
-    secret = _setting("FEDERATION_EXPORT_INTERNAL_HEADER_SECRET", "")
+    secret = _setting("FEDERATION_EXPORT_INTERNAL_HEADER_SECRET", default="")
     if not secret:
         return True
     header_name = _setting(
@@ -75,17 +77,21 @@ def is_federation_internal_header_valid(request) -> bool:
     return secrets.compare_digest(str(provided), str(secret))
 
 
-def _sync_health_ok() -> tuple[bool, str]:
-    if _setting("FEDERATION_SKIP_SYNC_HEALTH_PROBE", False):
+def _sync_health_ok() -> tuple[bool, str]:  # noqa: PLR0911
+    if _setting("FEDERATION_SKIP_SYNC_HEALTH_PROBE", default=False):
         return True, "health probe skipped"
     url = (_setting("FEDERATION_SYNC_HEALTH_URL") or "").strip()
     if not url:
         return False, "FEDERATION_SYNC_HEALTH_URL is not set"
-    timeout = float(_setting("FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT", 2.0))
-    request = urllib.request.Request(url, method="GET")
+    if not url.startswith(("http://", "https://")):
+        return False, "FEDERATION_SYNC_HEALTH_URL must be http(s)"
+    timeout = float(
+        _setting("FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT", default=2.0),
+    )
+    request = urllib.request.Request(url, method="GET")  # noqa: S310
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
-            if response.status != 200:
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310
+            if response.status != _HTTP_OK:
                 return False, f"sync health returned HTTP {response.status}"
             body = response.read().decode("utf-8", errors="replace")
     except urllib.error.URLError as exc:
@@ -104,7 +110,7 @@ def _sync_health_ok() -> tuple[bool, str]:
 
 
 def _sync_api_key_present() -> tuple[bool, str]:
-    if _setting("FEDERATION_SKIP_SYNC_API_KEY_CHECK", False):
+    if _setting("FEDERATION_SKIP_SYNC_API_KEY_CHECK", default=False):
         return True, "sync API key check skipped"
     exists = UserAPIKey.objects.filter(source=KeySources.FederationSync).exists()
     if not exists:
@@ -113,11 +119,10 @@ def _sync_api_key_present() -> tuple[bool, str]:
 
 
 def _redis_ok() -> tuple[bool, str]:
-    if not _setting("FEDERATION_EVENTS_ENABLED", False):
+    if not _setting("FEDERATION_EVENTS_ENABLED", default=False):
         return True, "redis not required (events disabled)"
-    if _setting("FEDERATION_SKIP_REDIS_PROBE", False):
+    if _setting("FEDERATION_SKIP_REDIS_PROBE", default=False):
         return True, "redis probe skipped"
-    from sds_gateway.api_methods.tasks import get_redis_client
 
     try:
         client = get_redis_client()
@@ -128,7 +133,7 @@ def _redis_ok() -> tuple[bool, str]:
 
 
 def evaluate_federation_operational() -> tuple[bool, str]:
-    if not _setting("FEDERATION_ENABLED", False):
+    if not _setting("FEDERATION_ENABLED", default=False):
         return False, "FEDERATION_ENABLED is False"
 
     for check in (_sync_api_key_present, _sync_health_ok, _redis_ok):
@@ -139,7 +144,7 @@ def evaluate_federation_operational() -> tuple[bool, str]:
 
 
 def refresh_federation_operational_state(*, force: bool = False) -> tuple[bool, str]:
-    global _cached_operational, _cached_reason, _last_evaluated_at
+    global _cached_operational, _cached_reason, _last_evaluated_at  # noqa: PLW0603
 
     now = time.monotonic()
     if (
@@ -167,9 +172,9 @@ def initialize_federation_operational_state() -> None:
 
 
 def is_federation_operational() -> bool:
-    if _setting("FEDERATION_OPERATIONAL_OVERRIDE", None) is not None:
+    if _setting("FEDERATION_OPERATIONAL_OVERRIDE", default=None) is not None:
         return bool(_setting("FEDERATION_OPERATIONAL_OVERRIDE"))
-    if not _setting("FEDERATION_ENABLED", False):
+    if not _setting("FEDERATION_ENABLED", default=False):
         return False
     operational, _reason = refresh_federation_operational_state()
     return operational

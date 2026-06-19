@@ -25,25 +25,26 @@ def _event_type(*, created: bool, exportable: bool) -> str:
         return "deleted"
     return "created" if created else "updated"
 
+
 def _skip_signal() -> bool:
     if not getattr(settings, "FEDERATION_EVENTS_ENABLED", False):
         log.debug(
-            "FEDERATION_EVENTS_ENABLED is False, "
-            "skipping federation signal",
+            "FEDERATION_EVENTS_ENABLED is False, skipping federation signal",
         )
         return True
-    
+
     if not is_federation_operational():
         log.debug("Federation not operational, skipping signal")
         return True
 
     return False
 
+
 @receiver(post_save, sender=Dataset)
 def federation_dataset_changed(
     sender: type[Dataset],
     instance: Dataset,
-    created: bool,
+    created: bool,  # noqa: FBT001
     **kwargs,
 ) -> None:
     if _skip_signal():
@@ -62,7 +63,7 @@ def federation_dataset_changed(
 def federation_capture_changed(
     sender: type[Capture],
     instance: Capture,
-    created: bool,
+    created: bool,  # noqa: FBT001
     **kwargs,
 ) -> None:
     if _skip_signal():
