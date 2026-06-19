@@ -11,6 +11,7 @@ from uuid import UUID
 from django.conf import settings
 from loguru import logger as log
 
+from sds_gateway.api_methods.federation.availability import is_federation_operational
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.tasks import get_redis_client
 
@@ -25,6 +26,9 @@ def publish_federation_event(
     timestamp: datetime | None = None,
 ) -> None:
     """Notify the local federation sync service via Redis pub/sub."""
+    if not is_federation_operational():
+        log.debug("Federation not operational, skipping Redis publish")
+        return
     channel = getattr(settings, "FEDERATION_EVENTS_CHANNEL", "federation:events")
     payload: dict[str, Any] = {
         "event_type": event_type,

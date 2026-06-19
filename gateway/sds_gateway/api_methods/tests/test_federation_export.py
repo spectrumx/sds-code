@@ -1,6 +1,7 @@
 """Tests for federation export endpoints and API key scoping."""
 
 from django.contrib.auth import get_user_model
+from django.test import override_settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
@@ -14,6 +15,12 @@ from sds_gateway.users.models import UserAPIKey
 User = get_user_model()
 
 
+@override_settings(
+    FEDERATION_ENABLED=True,
+    FEDERATION_OPERATIONAL_OVERRIDE=True,
+    FEDERATION_EXPORT_ALLOWED_CIDRS=["0.0.0.0/0", "::/0"],
+    FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="",
+)
 class FederationExportAPITest(APITestCase):
     def setUp(self) -> None:
         self.owner = User.objects.create(email="owner@example.com", is_approved=True)
@@ -59,7 +66,11 @@ class FederationExportAPITest(APITestCase):
         return {"HTTP_AUTHORIZATION": f"Api-Key: {key}"}
 
     def test_sync_key_can_list_public_datasets(self) -> None:
-        response = self.client.get(self.list_datasets_url, **self._auth(self.sync_key))
+        response = self.client.get(
+            self.list_datasets_url,
+            REMOTE_ADDR="127.0.0.1",
+            **self._auth(self.sync_key),
+        )
         assert response.status_code == status.HTTP_200_OK
         uuids = {row["uuid"] for row in response.json()}
         assert str(self.public_dataset.uuid) in uuids
@@ -68,6 +79,7 @@ class FederationExportAPITest(APITestCase):
     def test_sync_key_can_retrieve_public_dataset(self) -> None:
         response = self.client.get(
             self.detail_dataset_url,
+            REMOTE_ADDR="127.0.0.1",
             **self._auth(self.sync_key),
         )
         assert response.status_code == status.HTTP_200_OK
@@ -75,7 +87,11 @@ class FederationExportAPITest(APITestCase):
         assert response.json()["site_name"]
 
     def test_regular_key_denied_on_export(self) -> None:
-        response = self.client.get(self.list_datasets_url, **self._auth(self.user_key))
+        response = self.client.get(
+            self.list_datasets_url,
+            REMOTE_ADDR="127.0.0.1",
+            **self._auth(self.user_key),
+        )
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_sync_key_denied_on_dataset_assets_api(self) -> None:
@@ -92,7 +108,11 @@ class FederationExportAPITest(APITestCase):
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
     def test_export_captures_list(self) -> None:
-        response = self.client.get(self.list_captures_url, **self._auth(self.sync_key))
+        response = self.client.get(
+            self.list_captures_url,
+            REMOTE_ADDR="127.0.0.1",
+            **self._auth(self.sync_key),
+        )
         assert response.status_code == status.HTTP_200_OK
         uuids = {row["uuid"] for row in response.json()}
         assert str(self.public_capture.uuid) in uuids

@@ -30,6 +30,8 @@ from sds_gateway.api_methods.helpers.compile_federated_data import (
 )
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.federation.permissions import IsFederationInternalExportClient
+from sds_gateway.api_methods.federation.permissions import IsFederationOperational
 from sds_gateway.api_methods.permissions import IsFederationSyncKey
 
 
@@ -38,7 +40,11 @@ class FederationViewSet(ViewSet):
     """Internal export endpoints for the federation sync service."""
 
     authentication_classes = [APIKeyAuthentication]
-    permission_classes = [IsFederationSyncKey]
+    permission_classes = [
+        IsFederationSyncKey,
+        IsFederationOperational,
+        IsFederationInternalExportClient,
+    ]
 
     @action(detail=False, methods=["get"], url_path="export/datasets")
     def export_datasets_list(self, request: Request) -> Response:
