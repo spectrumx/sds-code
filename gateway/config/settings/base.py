@@ -717,6 +717,8 @@ FEDERATION_SITE_NAME: str = env.str(
     "FEDERATION_SITE_NAME",
     default="",
 )
+# Master switch: when False, federation export and Redis events are inactive.
+FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
 FEDERATION_EVENTS_ENABLED: bool = env.bool("FEDERATION_EVENTS_ENABLED", default=False)
 FEDERATION_EVENTS_CHANNEL: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
@@ -725,6 +727,53 @@ FEDERATION_EVENTS_CHANNEL: str = env.str(
 FEDERATION_SYNC_USER_EMAIL: str = env.str(
     "FEDERATION_SYNC_USER_EMAIL",
     default="federation-sync@internal.local",
+)
+# Sync service health (e.g. http://federation-sync:8000/sync/health).
+FEDERATION_SYNC_HEALTH_URL: str = env.str("FEDERATION_SYNC_HEALTH_URL", default="")
+FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT: float = env.float(
+    "FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT",
+    default=2.0,
+)
+FEDERATION_SKIP_SYNC_HEALTH_PROBE: bool = env.bool(
+    "FEDERATION_SKIP_SYNC_HEALTH_PROBE",
+    default=False,
+)
+FEDERATION_SKIP_SYNC_API_KEY_CHECK: bool = env.bool(
+    "FEDERATION_SKIP_SYNC_API_KEY_CHECK",
+    default=False,
+)
+FEDERATION_SKIP_REDIS_PROBE: bool = env.bool(
+    "FEDERATION_SKIP_REDIS_PROBE",
+    default=False,
+)
+# Set at startup / periodic recheck by federation.availability.
+FEDERATION_OPERATIONAL: bool = False
+FEDERATION_OPERATIONAL_REASON: str = ""
+# Tests may set via override_settings without running probes.
+FEDERATION_OPERATIONAL_OVERRIDE: bool | None = None
+# Export API: allow only these source CIDRs (sync container / internal mesh).
+FEDERATION_EXPORT_ALLOWED_CIDRS: list[str] = env.list(
+    "FEDERATION_EXPORT_ALLOWED_CIDRS",
+    default=[
+        "127.0.0.1/32",
+        "::1/128",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+    ],
+)
+FEDERATION_EXPORT_TRUST_X_FORWARDED_FOR: bool = env.bool(
+    "FEDERATION_EXPORT_TRUST_X_FORWARDED_FOR",
+    default=False,
+)
+# Optional: Traefik injects this on internal routes only (empty = IP check only).
+FEDERATION_EXPORT_INTERNAL_HEADER_NAME: str = env.str(
+    "FEDERATION_EXPORT_INTERNAL_HEADER_NAME",
+    default="X-SDS-Federation-Internal",
+)
+FEDERATION_EXPORT_INTERNAL_HEADER_SECRET: str = env.str(
+    "FEDERATION_EXPORT_INTERNAL_HEADER_SECRET",
+    default="",
 )
 
 # ADMIN_CONSOLE_ENV is used to visually distinguish between different environments

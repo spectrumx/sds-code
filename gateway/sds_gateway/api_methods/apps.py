@@ -14,6 +14,11 @@ class ApiMethodsConfig(AppConfig):
     def ready(self) -> None:
         import sds_gateway.api_methods.federation.signals  # noqa: F401
         import sds_gateway.api_methods.schema  # noqa: F401
+        from sds_gateway.api_methods.federation.availability import (
+            initialize_federation_operational_state,
+        )
+
+        initialize_federation_operational_state()
 
         silence_unwanted_logs()
 
