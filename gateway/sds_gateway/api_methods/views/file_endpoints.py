@@ -24,7 +24,6 @@ from loguru import logger as log
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -65,7 +64,6 @@ class FilePagination(PageNumberPagination):
 
 class FileViewSet(ViewSet):
     authentication_classes = [APIKeyAuthentication]
-    permission_classes = [IsAuthenticated]
 
     @staticmethod
     def _paginated_list_response(
@@ -698,7 +696,6 @@ class FileViewSet(ViewSet):
 
 class CheckFileContentsExistView(APIView):
     authentication_classes = [APIKeyAuthentication]
-    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         request=FilePostSerializer,

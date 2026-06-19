@@ -610,7 +610,10 @@ REST_FRAMEWORK: dict[str, str | tuple[str, ...] | dict[str, str]] = {
         "rest_framework.authentication.SessionAuthentication",
         "sds_gateway.api_methods.authentication.APIKeyAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+        "sds_gateway.api_methods.permissions.DisallowFederationSyncKey",
+    ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {
         "vis_stream": VIS_STREAM_THROTTLE_RATE,
@@ -708,6 +711,20 @@ SDS_FULL_INSTITUTION_NAME: str = env.str(
 SDS_SHORT_INSTITUTION_NAME: str = env.str("SDS_SHORT_INSTITUTION_NAME", default="SDS")
 SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default="sds")
 SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
+
+FEDERATION_SITE_NAME: str = env.str(
+    "FEDERATION_SITE_NAME",
+    default="",
+)
+FEDERATION_EVENTS_ENABLED: bool = env.bool("FEDERATION_EVENTS_ENABLED", default=False)
+FEDERATION_EVENTS_CHANNEL: str = env.str(
+    "FEDERATION_EVENTS_CHANNEL",
+    default="federation:events",
+)
+FEDERATION_SYNC_USER_EMAIL: str = env.str(
+    "FEDERATION_SYNC_USER_EMAIL",
+    default="federation-sync@internal.local",
+)
 
 # ADMIN_CONSOLE_ENV is used to visually distinguish between different environments
 # (production, staging, local) in the admin console and error emails. It does not affect

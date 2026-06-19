@@ -12,6 +12,7 @@ from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
@@ -883,3 +884,55 @@ def serialize_capture_or_composite(
     # Serialize as single capture
     serializer = CaptureGetSerializer(capture_data["capture"], context=context)
     return serializer.data
+
+
+class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
+    """Public-safe capture payload for federation export (sync / OpenSearch)."""
+
+    site_name = serializers.SerializerMethodField()
+    file_count = serializers.SerializerMethodField()
+    size = serializers.SerializerMethodField()
+    capture_props = serializers.SerializerMethodField()
+    dataset_ids = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(
+        format="%Y-%m-%d %H:%M:%S%z",
+        read_only=True,
+    )
+    updated_at = serializers.DateTimeField(
+        format="%Y-%m-%d %H:%M:%S%z",
+        read_only=True,
+    )
+
+    class Meta:
+        model = Capture
+        fields = [
+            "uuid",
+            "name",
+            "capture_type",
+            "channel",
+            "scan_group",
+            "top_level_dir",
+            "created_at",
+            "updated_at",
+            "site_name",
+            "file_count",
+            "size",
+            "capture_props",
+            "dataset_ids",
+        ]
+
+    def get_site_name(self, obj: Capture) -> str:
+        return str((self.context or {})["site_name"])
+
+    def get_file_count(self, obj: Capture) -> int:
+        return int(obj.get_files_summary()["total_count"])
+
+    def get_size(self, obj: Capture) -> int:
+        return int(obj.get_files_summary()["total_size"])
+
+    def get_capture_props(self, obj: Capture) -> dict[str, Any]:
+        return obj.get_opensearch_metadata() or {}
+
+    def get_dataset_ids(self, obj: Capture) -> list[str]:
+        qs = get_capture_datasets(obj, include_deleted=False)
+        return [str(dataset.uuid) for dataset in qs]

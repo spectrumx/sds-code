@@ -334,6 +334,46 @@ class DatasetPublicSerializer(serializers.ModelSerializer[Dataset]):
         ]
 
 
+class DatasetFederationSerializer(DatasetPublicSerializer):
+    """Serializer for dataset data for federation export."""
+
+    site_name = serializers.SerializerMethodField()
+    updated_at = serializers.DateTimeField(
+        format=READABLE_ISO_DATE_TIME,
+        read_only=True,
+    )
+    size = serializers.SerializerMethodField()
+    capture_count = serializers.SerializerMethodField()
+    capture_file_count = serializers.SerializerMethodField()
+    artifact_file_count = serializers.SerializerMethodField()
+
+    class Meta(DatasetPublicSerializer.Meta):
+        fields = [
+            *DatasetPublicSerializer.Meta.fields,
+            "updated_at",
+            "site_name",
+            "size",
+            "capture_count",
+            "capture_file_count",
+            "artifact_file_count",
+        ]
+
+    def get_site_name(self, obj: Dataset) -> str:
+        return str((self.context or {})["site_name"])
+
+    def get_size(self, obj: Dataset) -> int:
+        return int(obj.get_dataset_file_statistics()["total_size"])
+
+    def get_capture_count(self, obj: Dataset) -> int:
+        return obj.captures.filter(is_deleted=False).count()
+
+    def get_capture_file_count(self, obj: Dataset) -> int:
+        return int(obj.get_dataset_file_statistics()["captures"])
+
+    def get_artifact_file_count(self, obj: Dataset) -> int:
+        return int(obj.get_dataset_file_statistics()["artifacts"])
+
+
 def get_dataset_serializer(
     dataset: Dataset,
     *,

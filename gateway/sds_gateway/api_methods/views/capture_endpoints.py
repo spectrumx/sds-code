@@ -27,7 +27,6 @@ from rest_framework import viewsets
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
 
@@ -208,7 +207,6 @@ class CapturePagination(PageNumberPagination):
 
 class CaptureViewSet(viewsets.ViewSet):
     authentication_classes = [SessionAuthentication, APIKeyAuthentication]
-    permission_classes = [IsAuthenticated]
 
     def _validate_and_index_metadata(
         self,

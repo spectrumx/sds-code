@@ -11,7 +11,6 @@ from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.authentication import SessionAuthentication
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
@@ -56,8 +55,7 @@ def _truthy_query_param(raw: str | None) -> bool:
 
 
 class DatasetViewSet(ViewSet):
-    authentication_classes = [SessionAuthentication, APIKeyAuthentication]
-    permission_classes = [IsAuthenticated]
+    authentication_classes = [APIKeyAuthentication]
 
     def _get_file_objects(
         self,
