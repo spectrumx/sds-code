@@ -1,0 +1,31 @@
+services:
+  sds-federation-local-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sds-federation-local-sync
+    container_name: sds-federation-local-sync
+    env_file:
+      - .envs/local/sync.env
+    environment:
+      FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
+      GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-local-app:8000/api/v1
+      REDIS_URL: redis://sds-gateway-local-redis:6379/0
+      OPENSEARCH_HOST: sds-gateway-local-opensearch
+    volumes:
+      - ./federation.toml:/etc/sds/federation.toml:ro
+      - ./certs:/etc/sds/certs:ro
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sds-network-local
+
+networks:
+  sds-network-local:
+    external: true
+    name: sds-network-local
