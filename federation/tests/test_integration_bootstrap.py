@@ -74,6 +74,8 @@ async def test_push_site_hello_to_in_process_peer(
     from tests.conftest import PEER_SYNC_BASE
     from tests.conftest import build_webhook_app
 
+    peer_sync_url = f"{PEER_SYNC_BASE}/sync"
+
     peer_config = make_peer_config()
     app = build_webhook_app(peer_config, FederatedAssetIndexer(recording_opensearch))
     caller_config = FederationConfig(
@@ -90,7 +92,7 @@ async def test_push_site_hello_to_in_process_peer(
                 fqdn="peer.test",
                 display_name="Peer",
                 gateway_api_base="http://gateway.invalid/api/v1",
-                sync_service_url=PEER_SYNC_BASE,
+                sync_service_url=peer_sync_url,
             ),
         ],
     )
@@ -98,7 +100,7 @@ async def test_push_site_hello_to_in_process_peer(
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
-        base_url=PEER_SYNC_BASE,
+        base_url=peer_sync_url,
     ) as http:
         result = await push_site_hello_to_peer(http, peer, caller_config)
 
