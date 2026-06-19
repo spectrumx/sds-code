@@ -10,7 +10,6 @@ import httpx
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
-from sds_federation.services.fed_index import FED_DATASETS_INDEX
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import doc_id
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
@@ -56,7 +55,9 @@ async def test_dataset_webhook_indexes_via_http(
     assert response.status_code == 200
     assert response.json() == {"status": "accepted"}
     assert len(recording_opensearch.index_calls) == 1
-    assert recording_opensearch.index_calls[0]["index"] == FED_DATASETS_INDEX
+    assert (
+        recording_opensearch.index_calls[0]["index"] == AssetTypeEnum.DATASET.index_name
+    )
     assert recording_opensearch.index_calls[0]["id"] == doc_id(
         "testsite",
         TEST_DATASET_UUID,
