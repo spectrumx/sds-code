@@ -16,7 +16,7 @@ from sds_federation.services.fed_index import doc_id
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
-from tests.conftest import API_PREFIX
+from tests.conftest import SYNC_API_PREFIX
 from tests.conftest import build_webhook_app
 from tests.conftest import make_peer_config
 
@@ -49,7 +49,7 @@ async def test_dataset_webhook_indexes_via_http(
         base_url="http://test",
     ) as client:
         response = await client.post(
-            f"{API_PREFIX}/webhook/dataset-updated",
+            f"{SYNC_API_PREFIX}/webhook/dataset-updated",
             json=_dataset_webhook_payload(site_name="testsite"),
         )
 
@@ -76,7 +76,7 @@ async def test_webhook_rejects_unknown_origin_site(
         base_url="http://test",
     ) as client:
         response = await client.post(
-            f"{API_PREFIX}/webhook/dataset-updated",
+            f"{SYNC_API_PREFIX}/webhook/dataset-updated",
             json=_dataset_webhook_payload(site_name="unknown-site"),
         )
 
@@ -99,7 +99,7 @@ async def test_webhook_rejects_site_name_mismatch_on_asset(
         base_url="http://test",
     ) as client:
         response = await client.post(
-            f"{API_PREFIX}/webhook/dataset-updated",
+            f"{SYNC_API_PREFIX}/webhook/dataset-updated",
             json=body,
         )
 
@@ -125,7 +125,7 @@ async def test_site_hello_registers_known_peer(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.post(f"{API_PREFIX}/webhook/site-hello", json=body)
+        response = await client.post(f"{SYNC_API_PREFIX}/webhook/site-hello", json=body)
 
     assert response.status_code == 200
     assert response.json() == {"status": "registered", "site_name": "testsite"}
@@ -149,7 +149,7 @@ async def test_site_hello_rejects_unknown_site(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.post(f"{API_PREFIX}/webhook/site-hello", json=body)
+        response = await client.post(f"{SYNC_API_PREFIX}/webhook/site-hello", json=body)
 
     assert response.status_code == 403
 
@@ -171,6 +171,6 @@ async def test_site_hello_rejects_self_registration(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
     ) as client:
-        response = await client.post(f"{API_PREFIX}/webhook/site-hello", json=body)
+        response = await client.post(f"{SYNC_API_PREFIX}/webhook/site-hello", json=body)
 
     assert response.status_code == 422

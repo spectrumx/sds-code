@@ -4,8 +4,6 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from sds_federation.models import FederationConfig
-from sds_federation.models import PeerInfo
-from sds_federation.models import SiteInfo
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
@@ -15,44 +13,46 @@ from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
+from tests.support.federation_mesh import PEER_ONE_SYNC_ORIGIN
+from tests.support.federation_mesh import build_federation_mesh
+from tests.support.federation_mesh import close_mesh
+from tests.support.federation_mesh import peer_one_config
+from tests.support.federation_mesh import testsite_config
 from tests.support.mock_opensearch import RecordingOpenSearch
+from tests.support.mock_peer_registry import RecordingPeerRegistry
 
 API_PREFIX = "/api/v1"
-PEER_SYNC_BASE = "http://peer-sync.test"
+SYNC_API_PREFIX = f"/sync{API_PREFIX}"
+PEER_SYNC_BASE = PEER_ONE_SYNC_ORIGIN
 
 
 def make_peer_config(*, site_name: str = "peer-one") -> FederationConfig:
     """Receiver sync: allows webhooks whose site_name is listed in peers."""
-    return FederationConfig(
-        site=SiteInfo(
-            name=site_name,
-            fqdn="peer.test",
-            display_name="Peer Site",
-        ),
-        gateway_api_base="http://gateway.invalid/api/v1",
-        sync_service_url="http://peer-one.test/sync",
-        peers=[
-            PeerInfo(
-                name="testsite",
-                fqdn="localhost",
-                display_name="Originating test site",
-                gateway_api_base="http://gateway.invalid/api/v1",
-                sync_service_url="http://unused/",
-            ),
-        ],
-    )
+    config = peer_one_config()
+    if site_name != "peer-one":
+        return config.model_copy(
+            update={
+                "site": config.site.model_copy(update={"name": site_name}),
+            },
+        )
+    return config
 
 
 def build_webhook_app(
     config: FederationConfig,
     indexer: FederatedAssetIndexer,
+    registry: PeerRegistry | RecordingPeerRegistry | None = None,
 ) -> FastAPI:
-    app = FastAPI()
-    app.state.config = config
-    app.state.fed_indexer = indexer
-    app.state.peer_registry = PeerRegistry()
-    app.include_router(webhooks_router, prefix=API_PREFIX)
-    return app
+    reg = registry or PeerRegistry()
+    sync_app = FastAPI()
+    sync_app.state.config = config
+    sync_app.state.fed_indexer = indexer
+    sync_app.state.peer_registry = reg
+    sync_app.include_router(webhooks_router, prefix=API_PREFIX)
+    root = FastAPI()
+    root.mount("/sync", sync_app)
+    root.state.peer_registry = sync_app.state.peer_registry
+    return root
 
 
 @pytest.fixture
@@ -62,24 +62,7 @@ def recording_opensearch() -> RecordingOpenSearch:
 
 @pytest.fixture
 def test_site_config() -> FederationConfig:
-    return FederationConfig(
-        site=SiteInfo(
-            name="testsite",
-            fqdn="localhost",
-            display_name="Test Site",
-        ),
-        gateway_api_base="http://gateway.invalid/api/v1",
-        sync_service_url="http://testsite.test/sync",
-        peers=[
-            PeerInfo(
-                name="peer-one",
-                fqdn="peer.test",
-                display_name="Peer One",
-                gateway_api_base="http://peer-gateway.invalid/api/v1",
-                sync_service_url=PEER_SYNC_BASE,
-            ),
-        ],
-    )
+    return testsite_config()
 
 
 @pytest.fixture
@@ -108,6 +91,13 @@ def stub_dataset_resolver(test_site_config: FederationConfig) -> AssetResolver:
         return doc
 
     return resolve
+
+
+@pytest.fixture
+async def two_site_mesh():
+    mesh = build_federation_mesh()
+    yield mesh
+    await close_mesh(mesh)
 
 
 @pytest.fixture
