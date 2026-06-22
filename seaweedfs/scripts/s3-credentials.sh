@@ -56,6 +56,9 @@ function s3_configure_identity() {
 	log_header "Configuring S3 Credentials"
 	log_msg "Configuring S3 identity '${access_key}' on cluster..."
 
+	# if you have to run it manually:
+	# just shell
+	# s3.configure -apply -user sfsadmin -access_key sfsadmin -secret_key my_secret_key -actions Admin -buckets *
 	printf '%s\n' "s3.configure -apply -user ${access_key} -access_key ${access_key} -secret_key ${secret_key} -actions Admin -buckets *" |
 		docker exec -i "${filer_container}" weed shell \
 			-master="${master_container}:9333"

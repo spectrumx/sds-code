@@ -191,10 +191,16 @@ restart *args:
 
 # opens an interactive weed shell session
 [group('utilities')]
-shell:
-    @echo "Opening weed shell on '{{ filer_container }}' (master: {{ master_container }})"
-    docker exec -it {{ filer_container }} \
-        weed shell -master="{{ master_container }}:9333"
+shell *args:
+    #!/usr/bin/env bash
+    if [ -z "{{args}}" ]; then
+        echo "Opening weed shell on '{{ filer_container }}' (master: {{ master_container }})"
+        docker exec -it {{ filer_container }} \
+            weed shell -master="{{ master_container }}:9333"
+    else
+        echo "{{args}}" | docker exec -i {{ filer_container }} \
+            weed shell -master="{{ master_container }}:9333"
+    fi
 
 # starts services in detached mode
 [group('service')]

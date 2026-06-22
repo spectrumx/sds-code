@@ -416,6 +416,11 @@ separate hand-written `compose.yaml` — edit the checked-in file or add a
 
 - [ ] **Optional: override disk layout** — for non-5-drive hosts, use
   `compose.override.yaml` to adjust volume server `volumes:` and `command:` blocks.
+- [ ] **Optional: scaffold `admin.toml`** for declarative maintenance task configuration (EC settings, vacuum, balance):
+
+  ```bash
+  docker run --rm docker.io/chrislusf/seaweedfs:4.32_large_disk_full weed scaffold -config=admin > admin.toml
+  ```
 
 #### Production services (current)
 
@@ -504,6 +509,12 @@ maximizing failure tolerance.
 
 If S3 clients send `x-amz-server-side-encryption: AES256`, `S3_SSE_KEK` must be set in
 `sfs.env`. Without it, these requests fail with `400 Bad Request`.
+
+#### S3 Lifecycle Rules
+
+SeaweedFS supports S3-compatible lifecycle rules (expiration, transitions, abort incomplete multipart uploads). Lifecycle processing runs via the plugin worker system (same `sfs-worker` container in `compose.production.yaml`). See the S3 Lifecycle documentation for rule configuration and production deployment considerations.
+
+No additional services are needed — the existing `sfs-worker` container handles lifecycle rule processing automatically if the feature is enabled in the admin UI.
 
 ---
 
@@ -802,6 +813,13 @@ directory; RAM per volume server stays ~4 MB regardless of volume count.
 
 - [ ] **Review Grafana dashboards** for compaction rates, write amplification, disk growth
 - [ ] **Verify backup** — confirm remote bucket has recent objects
+- [ ] **Run periodic EC scrub for bitrot detection** — the `ec.scrub -mode checksum` command verifies EC shards against their `.ecsum` checksum sidecars:
+
+  ```bash
+  docker exec sds-gateway-prod-sfs-master weed shell -c "ec.scrub -mode checksum"
+  ```
+
+  This is read-only and exercises cold parity shards that are never read during normal serving.
 
 #### Erasure Coding (Always Active)
 
@@ -826,12 +844,19 @@ EC is the **primary durability mechanism**. The `sfs-worker` container runs the
 
 1. **Do NOT stop the volume container yet** unless the drive is fully dead.
 
-2. If partially readable, mark maintenance mode:
+2. If the drive is still partially readable, mark maintenance mode or evacuate:
 
    ```bash
+   # Option A: maintenance mode (keeps container running, stops writes)
    docker exec -it sds-gateway-prod-sfs-filer weed shell -master=sfs-master:9333 \
      -c "volumeServer.state --nodes sfs-volume1:8081 --maintenanceOn"
+
+   # Option B: evacuate (move all data off this volume server before maintenance)
+   docker exec -it sds-gateway-prod-sfs-filer weed shell -master=sfs-master:9333 \
+     -c "lock; volumeServer.evacuate --node sfs-volume1:8081; unlock"
    ```
+
+   Evacuation moves EC shards and volumes to other healthy servers and is preferred when the drive is still functional but you plan to replace it. Maintenance mode is lighter — it just marks the node to stop receiving new writes.
 
 3. Replace the drive, mkfs/mount, recreate dirs:
 
