@@ -51,30 +51,29 @@ toml-version = "v1.0.0"
         paths = [
             "tombi://www.schemastore.org/api/json/catalog.json",
             "https://www.schemastore.org/api/json/catalog.json",
-        ],
+        ]
     }
 
-# Root Schema
-[[schemas]]
-    toml-version = "v1.0.0"
-    path         = "https://example.com/schema.json"
-    include      = ["example.toml"]
+    # # Root Schema
+    # [[schemas]]
+    #     toml-version = "v1.0.0"
+    #     path         = "https://example.com/schema.json"
+    #     include      = ["example.toml"]
 
-    format.rules = {
-        array-values-order.enabled = true,
-        table-keys-order.enabled   = true,
-    }
-    lint.rules   = {
-        deprecated = "warn",
-    }
-    overrides    = [
-        {
-            targets                         = ["", "tool.*"],
-            format.rules.array-values-order = "ascending",
-            format.rules.table-keys-order   = "ascending",
-            lint.rules.deprecated           = "warn",
-        },
-    ]
+    # [schemas.format.rules]
+    #         array-values-order.enabled = true
+    #         table-keys-order.enabled   = true
+
+    # [schemas.lint.rules]
+    #         deprecated = "warn"
+    #     overrides = [
+    #         {
+    #             targets = ["", "tool.*"],
+    #             "format.rules.array-values-order" = "ascending",
+    #             "format.rules.table-keys-order" = "ascending",
+    #             "lint.rules.deprecated" = "warn",
+    #         },
+    #     ]
 
 # Sub Schema
 [[schemas]]
@@ -178,7 +177,6 @@ toml-version = "v1.0.0"
             goto-declaration = {
                 dependency.enabled = true,
                 member.enabled     = true,
-                path.enabled       = true,
             },
             goto-definition  = {
                 dependency.enabled = true,
