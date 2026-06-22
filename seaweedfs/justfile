@@ -247,7 +247,7 @@ wipe:
     fi
     echo "SeaweedFS data wiped"
 
-# health *args       # comprehensive cluster diagnostic (human-readable)
+# health *args       # comprehensive cluster diagnostic (human-readable, use --verbose for details)
 [group('monitoring')]
 health *args:
     @./scripts/health-check.sh {{ args }}

@@ -2,7 +2,7 @@
 # seaweedfs-health-check.sh — comprehensive cluster diagnostic
 # Human-readable colored output + machine-readable JSON summary
 #
-# Usage: ./scripts/health-check.sh [--json | --silent]
+# Usage: ./scripts/health-check.sh [--json | --silent | --verbose]
 #
 # Exit codes:
 #   0  — all OK
@@ -14,15 +14,22 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 source "${SCRIPT_DIR}/common.sh"
+SHOW_TIMESTAMP=false
 
 # ── args ────────────────────────────────────────────────────
 OUTPUT_MODE="human"
+VERBOSE=false
 for arg in "$@"; do
 	case "$arg" in
 	--json) OUTPUT_MODE="json" ;;
 	--silent) OUTPUT_MODE="silent" ;;
+	--verbose) VERBOSE=true ;;
 	esac
 done
+
+if [[ "$OUTPUT_MODE" == "human" ]]; then
+	echo -e "Health check at $(date +"%Y-%m-%d %H:%M:%S")\n"
+fi
 
 # ── environment detection ───────────────────────────────────
 ENV_TYPE=""
@@ -103,6 +110,7 @@ if [[ -f "$ENV_ABS" ]]; then
 	SFS_FILER_PORT=$(grep '^SFS_FILER_PORT=' "$ENV_ABS" | cut -d= -f2 || echo "8888")
 	SFS_WEBDAV_PORT=$(grep '^SFS_WEBDAV_PORT=' "$ENV_ABS" | cut -d= -f2 || echo "7333")
 	SFS_PROM_HOST_PORT=$(grep '^SFS_PROMETHEUS_HOST_PORT=' "$ENV_ABS" | cut -d= -f2 || echo "9090")
+	SFS_PROM_CONTAINER_PORT=$(grep '^SFS_PROMETHEUS_CONTAINER_PORT=' "$ENV_ABS" | cut -d= -f2 || echo "9090")
 fi
 
 # ── counters ────────────────────────────────────────────────
@@ -124,21 +132,58 @@ add_check() {
 		'. + [{"name": $n, "status": $s, "detail": $d}]')
 	if [[ "$OUTPUT_MODE" == "human" ]]; then
 		case "$status" in
-		ok) log_success "${name}" ;;
-		warn) log_msg "${name} [${YELLOW}⚠ ${status}${RESET}]" ;;
-		fail) log_error "${name}" ;;
+		ok)
+			if [[ "$VERBOSE" == "true" && -n "$detail" ]]; then
+				echo -e "  ├─ \033[0;32m✔ ${name} — ${detail}\033[0m"
+			else
+				echo -e "  ├─ \033[0;32m✔ ${name}\033[0m"
+			fi
+			;;
+		warn)
+			if [[ -n "$detail" ]]; then
+				echo -e "  ├─ \033[0;33m⚠ ${name} — ${detail}\033[0m"
+			else
+				echo -e "  ├─ \033[0;33m⚠ ${name}\033[0m"
+			fi
+			;;
+		fail)
+			if [[ -n "$detail" ]]; then
+				echo -e "  ├─ \033[0;31m✗ ${name} — ${detail}\033[0m"
+			else
+				echo -e "  ├─ \033[0;31m✗ ${name}\033[0m"
+			fi
+			;;
 		esac
 	fi
 }
 
-YELLOW='\033[0;33m'
-RESET='\033[0m'
-
-curl_ok() { curl -fsS --max-time 5 "$@" >/dev/null 2>&1; }
-curl_json() { curl -fsS --max-time 5 "$@" 2>/dev/null || echo '{}'; }
+# Run curl inside a container via docker compose exec (status only)
+dc_exec_ok() {
+	local svc="$1"
+	shift
+	${DOCKER_COMPOSE} exec -T "$svc" curl -fsS --max-time 5 "$@" >/dev/null 2>&1
+}
+# Run curl inside a container, capture JSON/stdout
+dc_exec_json() {
+	local svc="$1"
+	shift
+	${DOCKER_COMPOSE} exec -T "$svc" curl -fsS --max-time 5 "$@" 2>/dev/null || echo '{}'
+}
+# Run wget inside a container (for Prometheus/Pushgateway which lack curl)
+dc_exec_wget_ok() {
+	local svc="$1"
+	shift
+	${DOCKER_COMPOSE} exec -T "$svc" wget --spider -q "$@" >/dev/null 2>&1
+}
+dc_exec_wget_capture() {
+	local svc="$1"
+	shift
+	${DOCKER_COMPOSE} exec -T "$svc" wget -qO- "$@" 2>/dev/null || echo '{}'
+}
 
 output_header() {
 	if [[ "$OUTPUT_MODE" == "human" ]]; then
+		echo ""
 		log_header "$1"
 	fi
 }
@@ -190,19 +235,13 @@ fi
 # ─────────────────────────────────────────────────────────────
 output_header "2. MASTER"
 
-if curl_ok http://localhost:9333/cluster/status; then
+if dc_exec_ok sfs-master http://localhost:9333/cluster/status; then
 	add_check "Master HTTP (9333)" "ok" ""
 else
 	add_check "Master HTTP (9333)" "fail" "unreachable"
 fi
 
-if curl_ok http://localhost:19333/debug/vars; then
-	add_check "Master gRPC (19333)" "ok" ""
-else
-	add_check "Master gRPC (19333)" "warn" "unreachable (may be normal)"
-fi
-
-MASTER_JSON=$(curl_json http://localhost:9333/cluster/status)
+MASTER_JSON=$(dc_exec_json sfs-master http://localhost:9333/cluster/status)
 MASTER_LEADER=$(echo "$MASTER_JSON" | jq -r '.Leader // "unknown"' 2>/dev/null)
 MASTER_IS_LEADER=$(echo "$MASTER_JSON" | jq -r '.IsLeader // "unknown"' 2>/dev/null)
 MASTER_MAX_VOL=$(echo "$MASTER_JSON" | jq -r '.MaxVolumeId // "unknown"' 2>/dev/null)
@@ -215,19 +254,21 @@ for i in $(seq 1 $VOL_COUNT); do
 	port=$((VOL_BASE_PORT + i - 1))
 	grpc_port=$((VOL_BASE_GRPC + i - 1))
 
-	if [[ "$COMPOSE_PROFILE" == "local" ]]; then
+	if [[ "$COMPOSE_PROFILE" == "local" ]] || [[ "$COMPOSE_PROFILE" == "ci" ]]; then
 		svc_name="sds-gateway-${ENV_TYPE}-sfs-volume"
+		vol_svc="sfs-volume"
 	else
 		svc_name="sds-gateway-${ENV_TYPE}-sfs-volume${i}"
+		vol_svc="sfs-volume${i}"
 	fi
 
-	if curl_ok "http://localhost:${port}/healthz"; then
+	if dc_exec_ok "$vol_svc" "http://localhost:${port}/healthz"; then
 		add_check "${svc_name} HTTP (${port})" "ok" ""
 	else
 		add_check "${svc_name} HTTP (${port})" "fail" "healthz unreachable"
 	fi
 
-	if curl_ok "http://localhost:${grpc_port}/debug/vars"; then
+	if dc_exec_ok "$vol_svc" "http://localhost:${grpc_port}/debug/vars"; then
 		add_check "${svc_name} gRPC (${grpc_port})" "ok" ""
 	else
 		add_check "${svc_name} gRPC (${grpc_port})" "warn" "debug/vars unreachable"
@@ -267,13 +308,13 @@ fi
 # ─────────────────────────────────────────────────────────────
 output_header "5. FILER"
 
-if curl_ok "http://localhost:${SFS_FILER_PORT:-8888}/"; then
+if dc_exec_ok sfs-filer "http://localhost:${SFS_FILER_PORT:-8888}/"; then
 	add_check "Filer HTTP (${SFS_FILER_PORT:-8888})" "ok" ""
 else
 	add_check "Filer HTTP (${SFS_FILER_PORT:-8888})" "fail" "unreachable"
 fi
 
-if curl_ok http://localhost:18888/; then
+if dc_exec_ok sfs-filer http://localhost:18888/; then
 	add_check "Filer gRPC (18888)" "ok" ""
 else
 	add_check "Filer gRPC (18888)" "warn" "unreachable (may be normal)"
@@ -282,31 +323,30 @@ fi
 # ─────────────────────────────────────────────────────────────
 output_header "6. S3 GATEWAY"
 
-if curl_ok http://localhost:8333/healthz; then
+if dc_exec_ok sfs-s3 http://localhost:8333/healthz; then
 	add_check "S3 HTTP (8333)" "ok" ""
 else
 	add_check "S3 HTTP (8333)" "fail" "healthz unreachable"
 fi
 
-S3_LIST=$(curl -fsS --max-time 5 http://localhost:8333/ 2>/dev/null || echo "unavailable")
-if echo "$S3_LIST" | grep -q '<ListBucketResult' 2>/dev/null; then
-	BUCKET_COUNT=$(echo "$S3_LIST" | grep -c '<Name>' 2>/dev/null || echo "0")
+S3_BUCKETS=$(${DOCKER_COMPOSE} exec -T sfs-filer \
+	bash -c 'echo "s3.bucket.list" | weed shell -master="sfs-master:9333"' 2>/dev/null || echo "")
+if [[ -n "$S3_BUCKETS" ]]; then
+	BUCKET_COUNT=$(echo "$S3_BUCKETS" | grep -cP '^\s+\S+' 2>/dev/null || echo "0")
 	add_check "S3 list buckets" "ok" "${BUCKET_COUNT} bucket(s)"
-elif echo "$S3_LIST" | grep -q 'unavailable\|403\|401\|405' 2>/dev/null; then
-	add_check "S3 list buckets" "warn" "auth/no-buckets (may be normal)"
 else
-	add_check "S3 list buckets" "warn" "unexpected response: $(echo "$S3_LIST" | head -c 100)"
+	add_check "S3 list buckets" "warn" "unable to list buckets via weed shell"
 fi
 
 # ─────────────────────────────────────────────────────────────
 output_header "7. WEBDAV"
 
 if [[ "$HAS_WEBDAV" == "true" ]]; then
-	if curl_ok -o /dev/null "http://localhost:${SFS_WEBDAV_PORT:-7333}/"; then
+	if dc_exec_ok sfs-webdav "http://localhost:${SFS_WEBDAV_PORT:-7333}/"; then
 		add_check "WebDAV HTTP (${SFS_WEBDAV_PORT:-7333})" "ok" ""
 	else
 		# 405 may mean WebDAV is running but / is not the root endpoint
-		WEBDAV_CODE=$(curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' "http://localhost:${SFS_WEBDAV_PORT:-7333}/" 2>/dev/null || echo "000")
+		WEBDAV_CODE=$(${DOCKER_COMPOSE} exec -T sfs-webdav curl -fsS --max-time 5 -o /dev/null -w '%{http_code}' "http://localhost:${SFS_WEBDAV_PORT:-7333}/" 2>/dev/null || echo "000")
 		if [[ "$WEBDAV_CODE" == "405" ]]; then
 			add_check "WebDAV HTTP (${SFS_WEBDAV_PORT:-7333})" "ok" "responding (405 on / is normal)"
 		else
@@ -314,43 +354,43 @@ if [[ "$HAS_WEBDAV" == "true" ]]; then
 		fi
 	fi
 else
-	add_check "WebDAV" "warn" "not in ${COMPOSE_PROFILE} profile"
+	add_check "WebDAV" "warn" "not available in ${COMPOSE_PROFILE} profile"
 fi
 
 # ─────────────────────────────────────────────────────────────
 output_header "8. ADMIN & WORKER"
 
 if [[ "$HAS_ADMIN" == "true" ]]; then
-	if curl_ok http://localhost:23646/; then
+	if dc_exec_ok sfs-admin http://localhost:23646/; then
 		add_check "Admin HTTP (23646)" "ok" ""
 	else
 		add_check "Admin HTTP (23646)" "fail" "unreachable"
 	fi
 
-	WORKER_JSON=$(curl_json http://localhost:23646/admin/worker)
+	WORKER_JSON=$(dc_exec_json sfs-admin http://localhost:23646/admin/worker)
 	if echo "$WORKER_JSON" | jq -e 'keys | length > 0' >/dev/null 2>&1; then
 		add_check "Worker plugin" "ok" "$(echo "$WORKER_JSON" | jq -r 'keys | join(", ") // "active"' 2>/dev/null)"
 	else
 		add_check "Worker plugin" "warn" "status unknown"
 	fi
 else
-	add_check "Admin HTTP (23646)" "warn" "not in ${COMPOSE_PROFILE} profile"
-	add_check "Worker plugin" "warn" "not in ${COMPOSE_PROFILE} profile"
+	add_check "Admin HTTP (23646)" "warn" "requires HAS_ADMIN=true (production compose profile)"
+	add_check "Worker plugin" "warn" "requires HAS_WORKER=true (production compose profile)"
 fi
 
 # ─────────────────────────────────────────────────────────────
 output_header "9. METRICS"
 
-PROM_HTTP_PORT="${SFS_PROM_HOST_PORT:-9090}"
+PROM_CONTAINER_PORT="${SFS_PROM_CONTAINER_PORT:-9090}"
 
-if curl_ok "http://localhost:${PROM_HTTP_PORT}/-/healthy"; then
-	add_check "Prometheus HTTP (${PROM_HTTP_PORT})" "ok" ""
+if dc_exec_wget_ok sfs-prometheus "http://localhost:${PROM_CONTAINER_PORT}/-/healthy"; then
+	add_check "Prometheus HTTP (${PROM_CONTAINER_PORT})" "ok" ""
 else
-	add_check "Prometheus HTTP (${PROM_HTTP_PORT})" "warn" "unreachable (may be normal)"
+	add_check "Prometheus HTTP (${PROM_CONTAINER_PORT})" "warn" "unreachable (may be normal)"
 fi
 
 if [[ "$HAS_PROMETHEUS" == "true" && "$HAS_PUSHGATEWAY" == "true" ]]; then
-	if curl_ok http://localhost:9091/-/healthy; then
+	if dc_exec_wget_ok sfs-pushgateway http://localhost:9091/-/healthy; then
 		add_check "Pushgateway HTTP (9091)" "ok" ""
 	else
 		add_check "Pushgateway HTTP (9091)" "fail" "unreachable"
@@ -358,7 +398,7 @@ if [[ "$HAS_PROMETHEUS" == "true" && "$HAS_PUSHGATEWAY" == "true" ]]; then
 fi
 
 if [[ "$HAS_PROMETHEUS" == "true" ]]; then
-	PROM_TARGETS=$(curl_json "http://localhost:${PROM_HTTP_PORT}/api/v1/targets")
+	PROM_TARGETS=$(dc_exec_wget_capture sfs-prometheus "http://localhost:${PROM_CONTAINER_PORT}/api/v1/targets")
 	if echo "$PROM_TARGETS" | jq -e '.data.activeTargets | length > 0' >/dev/null 2>&1; then
 		PROM_OK=$(echo "$PROM_TARGETS" | jq '[.data.activeTargets[]? | select(.health == "up")] | length' 2>/dev/null || echo "0")
 		PROM_TOTAL=$(echo "$PROM_TARGETS" | jq '.data.activeTargets | length' 2>/dev/null || echo "0")
@@ -371,18 +411,18 @@ if [[ "$HAS_PROMETHEUS" == "true" ]]; then
 		add_check "Prometheus targets" "warn" "no active targets"
 	fi
 else
-	add_check "Prometheus targets" "warn" "not in ${COMPOSE_PROFILE} profile"
+	add_check "Prometheus targets" "warn" "requires HAS_PROMETHEUS=true"
 fi
 
 if [[ "$HAS_GRAFANA" == "true" ]]; then
-	if curl_ok http://localhost:3000/api/health; then
-		GRAFANA_HEALTH=$(curl_json http://localhost:3000/api/health)
+	if dc_exec_ok sfs-grafana http://localhost:3000/api/health; then
+		GRAFANA_HEALTH=$(dc_exec_json sfs-grafana http://localhost:3000/api/health)
 		add_check "Grafana HTTP (3000)" "ok" "$(echo "$GRAFANA_HEALTH" | jq -r '.version // "ok"' 2>/dev/null || echo "ok")"
 	else
 		add_check "Grafana HTTP (3000)" "fail" "unreachable"
 	fi
 else
-	add_check "Grafana" "warn" "not in ${COMPOSE_PROFILE} profile"
+	add_check "Grafana" "warn" "requires HAS_GRAFANA=true (production compose profile)"
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -431,7 +471,7 @@ if [[ "$MASTER_JSON" != "{}" ]]; then
 	if [[ "$VOL_SERVERS_CHECK" -ne -1 ]]; then
 		for i in $(seq 1 $VOL_COUNT); do
 			port=$((VOL_BASE_PORT + i - 1))
-			if [[ "$COMPOSE_PROFILE" == "local" ]]; then
+			if [[ "$COMPOSE_PROFILE" == "local" ]] || [[ "$COMPOSE_PROFILE" == "ci" ]]; then
 				svc_name="sds-gateway-${ENV_TYPE}-sfs-volume"
 			else
 				svc_name="sds-gateway-${ENV_TYPE}-sfs-volume${i}"
@@ -445,7 +485,7 @@ if [[ "$MASTER_JSON" != "{}" ]]; then
 	else
 		# Fallback: master HTTP is up, assume connectivity
 		for i in $(seq 1 $VOL_COUNT); do
-			if [[ "$COMPOSE_PROFILE" == "local" ]]; then
+			if [[ "$COMPOSE_PROFILE" == "local" ]] || [[ "$COMPOSE_PROFILE" == "ci" ]]; then
 				svc_name="sds-gateway-${ENV_TYPE}-sfs-volume"
 			else
 				svc_name="sds-gateway-${ENV_TYPE}-sfs-volume${i}"
@@ -456,19 +496,10 @@ if [[ "$MASTER_JSON" != "{}" ]]; then
 fi
 
 # Filer → master connectivity
-if curl_ok "http://localhost:${SFS_FILER_PORT:-8888}/"; then
+if dc_exec_ok sfs-filer "http://localhost:${SFS_FILER_PORT:-8888}/"; then
 	add_check "Filer → master" "ok" "filer responding"
 else
 	add_check "Filer → master" "fail" "filer unreachable"
-fi
-
-# S3 → filer connectivity
-S3_FILER=$(docker exec sds-gateway-${ENV_TYPE}-sfs-s3 \
-	weed s3.filer 2>/dev/null || echo "unknown")
-if [[ "$S3_FILER" != "unknown" ]]; then
-	add_check "S3 → filer" "ok" "connected to ${S3_FILER}"
-else
-	add_check "S3 → filer" "warn" "can't verify connection"
 fi
 
 # ─────────────────────────────────────────────────────────────
@@ -496,7 +527,7 @@ fi
 output_header "SUMMARY"
 
 if [[ "$OUTPUT_MODE" == "human" ]]; then
-	printf "  Checks: %d  |  ✓ %d OK  |  ⚠ %d WARN  |  ✗ %d FAIL\n" "$TOTAL" "$OK" "$WARN" "$FAIL"
+	printf "  Checks: %d  |  \033[0;32m✔ %d OK\033[0m  |  \033[0;33m⚠ %d WARN\033[0m  |  \033[0;31m✗ %d FAIL\033[0m\n" "$TOTAL" "$OK" "$WARN" "$FAIL"
 fi
 
 # ── JSON output ─────────────────────────────────────────────
@@ -525,12 +556,12 @@ fi
 
 # ── EXIT ────────────────────────────────────────────────────
 if [[ "$FAIL" -gt 0 ]]; then
-	[[ "$OUTPUT_MODE" == "human" ]] && log_error "HEALTH CHECK FAILED"
+	[[ "$OUTPUT_MODE" == "human" ]] && echo -e "\033[0;31m✗ HEALTH CHECK FAILED\033[0m" >&2
 	exit 1
 elif [[ "$WARN" -gt 0 ]]; then
-	log_msg "HEALTH CHECK PASSED WITH WARNINGS"
+	[[ "$OUTPUT_MODE" == "human" ]] && echo -e "\033[0;33m⚠ HEALTH CHECK PASSED WITH WARNINGS\033[0m"
 	exit 0
 else
-	log_success "ALL HEALTH CHECKS PASSED"
+	[[ "$OUTPUT_MODE" == "human" ]] && echo -e "\033[0;32m✔ ALL HEALTH CHECKS PASSED\033[0m"
 	exit 0
 fi
