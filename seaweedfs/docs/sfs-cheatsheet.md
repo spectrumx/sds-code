@@ -386,7 +386,7 @@ docker run --rm \
 
 ## See Also
 
-- [Weed Shell Reference](sfs-wiki/weed-shell.md) — full command list and examples
-- [Volume Management](sfs-wiki/Volume-Management.md) — maintenance workflows
-- [File Operations Quick Reference](sfs-wiki/File-Operations-Quick-Reference.md) — HTTP API
-- [SQL Quick Reference](sfs-wiki/SQL-Quick-Reference.md) — `weed sql` / `weed db`
+- [Weed Shell Reference](https://github.com/seaweedfs/seaweedfs/wiki/weed-shell) — full command list and examples
+- [Volume Management](https://github.com/seaweedfs/seaweedfs/wiki/Volume-Management) — maintenance workflows
+- [File Operations Quick Reference](https://github.com/seaweedfs/seaweedfs/wiki/File-Operations-Quick-Reference) — HTTP API
+- [SQL Quick Reference](https://github.com/seaweedfs/seaweedfs/wiki/SQL-Quick-Reference) — `weed sql` / `weed db`
