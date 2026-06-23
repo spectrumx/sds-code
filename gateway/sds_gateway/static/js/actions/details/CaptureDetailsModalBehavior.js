@@ -226,7 +226,7 @@ class CaptureDetailsModalBehavior {
             method: "PATCH",
             headers: {
                 "Content-Type": "application/json",
-                "X-CSRFToken": new window.APIClient().getCSRFToken(),
+                "X-CSRFToken": window.APIClient.getCSRFToken(),
             },
             body: JSON.stringify({ name: newName }),
         })

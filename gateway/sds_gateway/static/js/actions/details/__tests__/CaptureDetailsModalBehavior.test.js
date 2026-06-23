@@ -10,9 +10,7 @@ describe("CaptureDetailsModalBehavior", () => {
         jest.clearAllMocks()
         document.body.innerHTML = ""
         window.DOMUtils = createMockDOMUtils()
-        global.APIClient = jest.fn().mockImplementation(() => ({
-            getCSRFToken: () => "csrf-test",
-        }))
+        global.APIClient = { getCSRFToken: () => "csrf-test" }
         global.fetch = jest.fn()
     })
 

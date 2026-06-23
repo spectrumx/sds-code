@@ -250,7 +250,7 @@ global.bootstrap = {
 // Mock window.bootstrap (some code uses window.bootstrap)
 global.window.bootstrap = global.bootstrap
 
-// Mock APIClient as a real class (production uses `new window.APIClient()`; jest.fn is not a reliable constructor)
+// Mock APIClient as a real class (production assigns `window.APIClient = new APIClient()`; jest.fn is not a reliable constructor)
 global.window.APIClient = class MockAPIClient {
     get() {
         return Promise.resolve({ success: true })
