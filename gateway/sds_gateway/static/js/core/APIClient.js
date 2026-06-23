@@ -437,6 +437,11 @@ class ListRefreshManager {
 }
 
 // Create instances and make them available globally
+/**
+ * Singleton APIClient instance.
+ * @type {APIClient}
+ * NOTE: This is an instance, not a class. Use `window.APIClient.method()`, NOT `new window.APIClient()`.
+ */
 window.APIClient = new APIClient()
 window.APIError = APIError
 window.LoadingStateManager = LoadingStateManager

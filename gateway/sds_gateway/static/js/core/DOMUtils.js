@@ -737,6 +737,11 @@ class DOMUtils {
 }
 
 // Create global instance
+/**
+ * Singleton DOMUtils instance.
+ * @type {DOMUtils}
+ * NOTE: This is an instance, not a class. Use `window.DOMUtils.method()`, NOT `new window.DOMUtils()`.
+ */
 window.DOMUtils = new DOMUtils()
 
 window.showMessage = window.DOMUtils.showMessage.bind(window.DOMUtils)
