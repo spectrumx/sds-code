@@ -68,7 +68,7 @@ def is_federation_internal_header_valid(request) -> bool:
         return True
     header_name = _setting(
         "FEDERATION_EXPORT_INTERNAL_HEADER_NAME",
-        "X-SDS-Federation-Internal",
+        default="X-SDS-Federation-Internal",
     )
     meta_key = "HTTP_" + header_name.upper().replace("-", "_")
     provided = request.META.get(meta_key, "")
