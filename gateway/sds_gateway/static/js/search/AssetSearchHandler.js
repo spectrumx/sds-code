@@ -537,6 +537,29 @@ class AssetSearchHandler {
 
     /**
      * @param {string} fileId
+     * @returns {Object|null} File metadata plus relative_path for dataset selection
+     */
+    getFileSelectionDataById(fileId) {
+        if (!this.currentTree || fileId == null || fileId === "") {
+            return null
+        }
+        const id = String(fileId)
+        const entries = this.getSelectableFilesInDirectoryNode(
+            this.currentTree,
+            "",
+        )
+        const match = entries.find(({ file }) => String(file.id) === id)
+        if (!match) {
+            return null
+        }
+        return {
+            ...match.file,
+            relative_path: match.relative_path,
+        }
+    }
+
+    /**
+     * @param {string} fileId
      * @param {boolean} checked
      */
     syncFileCheckboxVisual(fileId, checked) {

@@ -304,17 +304,22 @@ class DatasetCreationHandler extends BaseManager {
      */
     handleModalFileSelection(checkbox) {
         const fileId = checkbox.value
-        const row = checkbox.closest("tr")
+        const fileData = this.getFileDataFromRow(checkbox)
 
-        // Get file data from the row
-        const fileData = this.getFileDataFromRow(row)
+        if (!fileData) {
+            return
+        }
 
         if (checkbox.checked) {
             // Add to modal intermediate selection
             this.modalSelectedFiles.add(fileData)
         } else {
-            // Remove from modal intermediate selection
-            this.modalSelectedFiles.delete(fileData)
+            const existing = Array.from(this.modalSelectedFiles).find(
+                (f) => String(f.id) === String(fileId),
+            )
+            if (existing) {
+                this.modalSelectedFiles.delete(existing)
+            }
         }
 
         // Update select all checkbox state
@@ -322,19 +327,33 @@ class DatasetCreationHandler extends BaseManager {
     }
 
     /**
-     * Get file data from table row
-     * @param {Element} row - Table row element
-     * @returns {Object} File data object
+     * Get file data from a file-tree list item checkbox
+     * @param {Element} checkbox - File checkbox in the file tree
+     * @returns {Object|null} File data object
      */
-    getFileDataFromRow(row) {
-        const cells = row.querySelectorAll("td")
+    getFileDataFromRow(checkbox) {
+        const fileId = checkbox.value
+        const fromTree =
+            this.filesSearchHandler?.getFileSelectionDataById?.(fileId)
+        if (fromTree) {
+            return fromTree
+        }
+
+        const listItem = checkbox.closest(".file-item")
+        if (!listItem) {
+            return null
+        }
+
         return {
-            id: row.querySelector('input[name="files"]').value,
-            name: cells[1]?.textContent?.trim() || "",
-            media_type: cells[2]?.textContent?.trim() || "",
-            relative_path: cells[3]?.textContent?.trim() || "",
-            size: cells[4]?.textContent?.trim() || "",
-            created_at: cells[5]?.textContent?.trim() || "",
+            id: fileId,
+            name:
+                listItem
+                    .querySelector(".file-browser-name")
+                    ?.textContent?.trim() || "",
+            media_type: "",
+            relative_path: "",
+            size: "",
+            created_at: "",
         }
     }
 
