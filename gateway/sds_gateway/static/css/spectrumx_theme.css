@@ -560,6 +560,7 @@ textarea:focus-visible {
 }
 
 /* CSS for folder expansion/collapse */
+.file-browser li[aria-expanded="true"] > ul,
 .file-browser [aria-expanded="true"] ~ ul {
     display: block;
 }

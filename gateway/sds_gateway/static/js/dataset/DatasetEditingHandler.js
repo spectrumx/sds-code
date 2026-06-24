@@ -95,9 +95,13 @@ class DatasetEditingHandler extends BaseManager {
                 e.preventDefault()
             })
             datasetForm.addEventListener("keypress", (e) => {
-                if (e.key === "Enter") {
-                    e.preventDefault()
+                if (e.key !== "Enter") {
+                    return
                 }
+                if (e.target instanceof HTMLTextAreaElement) {
+                    return
+                }
+                e.preventDefault()
             })
         }
     }
