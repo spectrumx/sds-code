@@ -261,16 +261,20 @@ class ReconstructRHFileTreeTest(APITestCase):
             ConnectionRefusedError("Connection refused")
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(StorageUnavailableError, match="Object storage is unavailable"):
-                reconstruct_tree(
-                    target_dir=Path(temp_dir),
-                    virtual_top_dir=self.top_level_dir,
-                    owner=self.user,
-                    capture_type=CaptureType.RadioHound,
-                    rh_scan_group=self.scan_group,
-                    verbose=True,
-                )
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            pytest.raises(
+                StorageUnavailableError, match="Object storage is unavailable"
+            ),
+        ):
+            reconstruct_tree(
+                target_dir=Path(temp_dir),
+                virtual_top_dir=self.top_level_dir,
+                owner=self.user,
+                capture_type=CaptureType.RadioHound,
+                rh_scan_group=self.scan_group,
+                verbose=True,
+            )
 
     @patch(
         "sds_gateway.api_methods.helpers.reconstruct_file_tree.check_disk_space_available"
@@ -294,16 +298,18 @@ class ReconstructRHFileTreeTest(APITestCase):
             "missing",
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with pytest.raises(ValueError, match="Failed to fetch file"):
-                reconstruct_tree(
-                    target_dir=Path(temp_dir),
-                    virtual_top_dir=self.top_level_dir,
-                    owner=self.user,
-                    capture_type=CaptureType.RadioHound,
-                    rh_scan_group=self.scan_group,
-                    verbose=True,
-                )
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            pytest.raises(ValueError, match="Failed to fetch file"),
+        ):
+            reconstruct_tree(
+                target_dir=Path(temp_dir),
+                virtual_top_dir=self.top_level_dir,
+                owner=self.user,
+                capture_type=CaptureType.RadioHound,
+                rh_scan_group=self.scan_group,
+                verbose=True,
+            )
 
 
 class ReconstructDRFFileTreeTest(APITestCase):

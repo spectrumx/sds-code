@@ -608,7 +608,12 @@ class CaptureViewSet(viewsets.ViewSet):
             get_serializer = CaptureGetSerializer(capture)
             return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
-        except (UnknownIndexError, ValueError, StorageUnavailableError, os_exceptions.ConnectionError) as e:
+        except (
+            UnknownIndexError,
+            ValueError,
+            StorageUnavailableError,
+            os_exceptions.ConnectionError,
+        ) as e:
             # Transaction will auto-rollback, no manual deletion needed
             if isinstance(capture, Capture):
                 return self._handle_capture_creation_errors(capture=capture, error=e)
@@ -932,12 +937,11 @@ class CaptureViewSet(viewsets.ViewSet):
         except ValueError as e:
             msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
-        except StorageUnavailableError as e:
-            log.error("Object storage unavailable during capture update: %s", e)
-            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
-        except os_exceptions.ConnectionError as e:
-            msg = f"Error connecting to OpenSearch: {e}"
-            log.error(msg)
+        except (StorageUnavailableError, os_exceptions.ConnectionError) as e:
+            if isinstance(e, StorageUnavailableError):
+                log.error("Object storage unavailable during capture update: %s", e)
+            else:
+                log.error("Error connecting to OpenSearch: %s", e)
             return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
         # Return updated capture

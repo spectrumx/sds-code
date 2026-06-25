@@ -1,8 +1,5 @@
 """Tests for object-store error classification helpers."""
 
-import urllib3
-import urllib3.exceptions as urllib3_exceptions
-
 import pytest
 
 from sds_gateway.api_methods.utils.storage_errors import StorageUnavailableError
@@ -35,16 +32,13 @@ def test_is_storage_unavailable_error_detects_timeout() -> None:
 
 
 def test_is_storage_unavailable_error_detects_urllib3_max_retry() -> None:
-    error = urllib3_exceptions.MaxRetryError(
-        urllib3.HTTPConnectionPool(host="localhost", port=9000),
-        "/bucket",
-        reason=urllib3_exceptions.NewConnectionError(
-            urllib3.HTTPConnectionPool(host="localhost", port=9000),
-            "Connection refused",
-        ),
-    )
+    max_retry_error = type(
+        "MaxRetryError",
+        (Exception,),
+        {"__module__": "urllib3.exceptions"},
+    )("retries exceeded")
 
-    assert is_storage_unavailable_error(error)
+    assert is_storage_unavailable_error(max_retry_error)
 
 
 def test_is_storage_unavailable_error_does_not_classify_missing_object() -> None:
