@@ -120,7 +120,7 @@ class DatasetEditingHandler extends BaseManager {
             })
         } else if (type === "files") {
             this.filesSearchHandler = searchHandler
-            this.filesSearchHandler.updateSelectedFilesList()
+            this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
         }
 
         // If we have initial data and both handlers are ready, populate the data
@@ -203,12 +203,7 @@ class DatasetEditingHandler extends BaseManager {
 
         // Use the existing SearchHandler to populate files for the file browser
         if (this.filesSearchHandler) {
-            if (initialFiles && initialFiles.length > 0) {
-                for (const file of initialFiles) {
-                    this.filesSearchHandler.selectedFiles.set(file.id, file)
-                }
-            }
-            this.filesSearchHandler.updateSelectedFilesList()
+            this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
         }
 
         // Add event listeners for remove buttons
@@ -229,17 +224,23 @@ class DatasetEditingHandler extends BaseManager {
      * Handle file modal show
      */
     onFileModalShow() {
-        // Trigger initial file tree loading if filesSearchHandler exists and tree hasn't been loaded
-        if (this.filesSearchHandler && !this.filesSearchHandler.currentTree) {
-            this.filesSearchHandler.handleSearch()
+        if (!this.filesSearchHandler) {
+            return
         }
+        if (!this.filesSearchHandler.currentTree) {
+            this.filesSearchHandler.handleSearch()
+            return
+        }
+        this.filesSearchHandler.updateFilesTable({
+            tree: this.filesSearchHandler.currentTree,
+        })
     }
 
     /**
      * Handle file modal hide
      */
     onFileModalHide() {
-        // Clear any intermediate state if needed
+        this.filesSearchHandler?.clearModalFileSelections()
     }
 
     /**
@@ -539,11 +540,30 @@ class DatasetEditingHandler extends BaseManager {
     }
 
     /**
+     * @param {string} fileId
+     * @returns {Object|undefined}
+     */
+    getCurrentFile(fileId) {
+        const id = String(fileId)
+        return this.currentFiles.get(fileId) ?? this.currentFiles.get(id)
+    }
+
+    /**
+     * @param {string} fileId
+     * @returns {{ action: string, data: Object }|undefined}
+     */
+    getPendingFileChange(fileId) {
+        const id = String(fileId)
+        return this.pendingFiles.get(fileId) ?? this.pendingFiles.get(id)
+    }
+
+    /**
      * Mark file for removal
      * @param {string} fileId - File ID to mark for removal
      */
     markFileForRemoval(fileId) {
-        const file = this.filesSearchHandler?.selectedFiles.get(fileId)
+        const id = String(fileId)
+        const file = this.getCurrentFile(id)
 
         if (!file) {
             console.warn(`File ${fileId} not found for removal`)
@@ -563,23 +583,15 @@ class DatasetEditingHandler extends BaseManager {
             return
         }
 
-        // Add to pending removals
-        this.pendingFiles.set(fileId, {
+        this.pendingFiles.set(id, {
             action: "remove",
             data: file,
         })
 
-        // Update visual state of current files list
         this.updateCurrentFilesList()
 
-        // Update review display
-        if (window.updateReviewDatasetDisplay) {
-            window.updateReviewDatasetDisplay()
-        }
-
-        // Also mark in the search results table if visible
         const searchRow = document.querySelector(
-            `#file-tree-root li[data-file-id="${fileId}"]`,
+            `#file-tree-root li[data-file-id="${id}"]`,
         )
         if (searchRow) {
             searchRow.classList.add("marked-for-removal")
@@ -589,7 +601,12 @@ class DatasetEditingHandler extends BaseManager {
             }
         }
 
-        this.updatePendingFilesList()
+        void this.updatePendingFilesList()
+        this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
+
+        if (window.updateReviewDatasetDisplay) {
+            window.updateReviewDatasetDisplay()
+        }
     }
 
     /**
@@ -632,30 +649,32 @@ class DatasetEditingHandler extends BaseManager {
      * Add file to pending additions
      * @param {string} fileId - File ID
      * @param {Object} fileData - File data
+     * @param {{ refreshUi?: boolean }} [options]
      */
-    addFileToPending(fileId, fileData) {
-        // Check if already in current files
-        if (this.currentFiles.has(fileId)) {
-            return // Already in dataset
+    addFileToPending(fileId, fileData, options = {}) {
+        const { refreshUi = true } = options
+        const id = String(fileId)
+        if (this.getCurrentFile(id)) {
+            return
         }
 
-        // Check if already in pending additions
-        if (
-            this.pendingFiles.has(fileId) &&
-            this.pendingFiles.get(fileId).action === "add"
-        ) {
-            return // Already marked for addition
+        const pending = this.getPendingFileChange(id)
+        if (pending?.action === "add") {
+            return
         }
 
-        // Add to pending additions
-        this.pendingFiles.set(fileId, {
+        this.pendingFiles.set(id, {
             action: "add",
             data: fileData,
         })
 
-        this.updatePendingFilesList()
+        if (!refreshUi) {
+            return
+        }
 
-        // Update review display
+        void this.updatePendingFilesList()
+        this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
+
         if (window.updateReviewDatasetDisplay) {
             window.updateReviewDatasetDisplay()
         }
@@ -751,24 +770,28 @@ class DatasetEditingHandler extends BaseManager {
      * @param {string} fileId - File ID
      */
     cancelFileChange(fileId) {
-        const change = this.pendingFiles.get(fileId)
+        const id = String(fileId)
+        const change = this.getPendingFileChange(id)
         if (!change) return
 
-        this.pendingFiles.delete(fileId)
+        this.pendingFiles.delete(id)
+        for (const key of [fileId, id]) {
+            if (key !== id) {
+                this.pendingFiles.delete(key)
+            }
+        }
 
         if (change.action === "remove") {
             // Update visual state of current files list
             this.updateCurrentFilesList()
         } else if (change.action === "add") {
-            // Remove from SearchHandler's selectedFiles if it exists
-            if (this.filesSearchHandler) {
-                this.filesSearchHandler.selectedFiles.delete(fileId)
-            }
+            this.filesSearchHandler?.selectedFiles?.delete(fileId)
+            this.filesSearchHandler?.syncFileCheckboxVisual?.(fileId, false)
         }
 
         this.updatePendingFilesList()
+        this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
 
-        // Update review display
         if (window.updateReviewDatasetDisplay) {
             window.updateReviewDatasetDisplay()
         }
@@ -812,32 +835,24 @@ class DatasetEditingHandler extends BaseManager {
     }
 
     /**
-     * Handle remove all files (override for edit mode)
+     * Remove all current dataset files the user may mark for removal (edit mode).
      */
-    handleRemoveAllFiles() {
-        // In edit mode: mark files for removal only if user has permission
-        if (this.filesSearchHandler?.selectedFiles) {
-            let removedCount = 0
-            for (const [
-                fileId,
-                file,
-            ] of this.filesSearchHandler.selectedFiles.entries()) {
-                // Only mark for removal if user has permission
-                if (this.permissions.canRemoveAsset(file)) {
-                    this.markFileForRemoval(fileId)
-                    removedCount++
-                }
+    removeAllFileSelections() {
+        let removedCount = 0
+        for (const [fileId, file] of this.currentFiles.entries()) {
+            if (this.permissions.canRemoveAsset(file)) {
+                this.markFileForRemoval(fileId)
+                removedCount++
             }
+        }
 
-            // Disable the remove all files button if any files were marked for removal
-            if (removedCount > 0) {
-                const removeAllFilesButton = document.querySelector(
-                    ".remove-all-selected-files-button",
-                )
-                if (removeAllFilesButton) {
-                    removeAllFilesButton.disabled = true
-                    removeAllFilesButton.classList.add("disabled-element")
-                }
+        if (removedCount > 0) {
+            const removeAllFilesButton = document.getElementById(
+                "remove-all-selected-files-button",
+            )
+            if (removeAllFilesButton) {
+                removeAllFilesButton.disabled = true
+                removeAllFilesButton.classList.add("disabled-element")
             }
         }
     }
@@ -858,7 +873,7 @@ class DatasetEditingHandler extends BaseManager {
         const rows = selectedFilesBody.querySelectorAll("tr[data-file-id]")
         for (const row of rows) {
             const fileId = row.dataset.fileId
-            const pendingChange = this.pendingFiles.get(fileId)
+            const pendingChange = this.getPendingFileChange(fileId)
 
             if (pendingChange && pendingChange.action === "remove") {
                 // Mark as pending removal

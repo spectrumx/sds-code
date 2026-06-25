@@ -250,7 +250,6 @@ describe("DatasetCreationHandler", () => {
             expect(creationHandler.selectedCaptures).toBeInstanceOf(Set)
             expect(creationHandler.selectedFiles).toBeInstanceOf(Set)
             expect(creationHandler.selectedCaptureDetails).toBeInstanceOf(Map)
-            expect(creationHandler.modalSelectedFiles).toBeInstanceOf(Set)
         })
 
         test("should setup event listeners", () => {
@@ -604,28 +603,20 @@ describe("DatasetCreationHandler", () => {
             // Test that the handler can be properly cleaned up
             expect(() => {
                 // Test that we can call methods without errors
-                creationHandler.removeAllSelectedFiles()
+                creationHandler.removeAllFileSelections()
                 creationHandler.updateHiddenFields()
                 creationHandler.clearErrors()
             }).not.toThrow()
         })
 
         test("should clear all selected files", () => {
-            // Add some files first
             creationHandler.selectedFiles.add({ id: "file1", name: "test.h5" })
-            creationHandler.modalSelectedFiles.add({
-                id: "file2",
-                name: "test2.h5",
-            })
 
             expect(creationHandler.selectedFiles.size).toBe(1)
-            expect(creationHandler.modalSelectedFiles.size).toBe(1)
 
-            // Clear them
-            creationHandler.removeAllSelectedFiles()
+            creationHandler.removeAllFileSelections()
 
             expect(creationHandler.selectedFiles.size).toBe(0)
-            expect(creationHandler.modalSelectedFiles.size).toBe(0)
         })
     })
 })

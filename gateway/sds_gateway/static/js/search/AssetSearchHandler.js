@@ -354,24 +354,7 @@ class AssetSearchHandler {
         }
         if (this.confirmFileSelection) {
             this.confirmFileSelection.addEventListener("click", () => {
-                if (this.isEditMode) {
-                    // In edit mode, add selected files to pending changes
-                    if (window.datasetEditingHandler) {
-                        for (const [
-                            fileId,
-                            fileData,
-                        ] of this.selectedFiles.entries()) {
-                            window.datasetEditingHandler.addFileToPending(
-                                fileId,
-                                fileData,
-                            )
-                        }
-                    }
-                } else {
-                    // In create mode, update the selected files list
-                    this.updateSelectedFilesList()
-                }
-                this.handleClear()
+                this.mergeModalSelectionsIntoFormHandler()
             })
         }
         this.initializeEnterKeyListener()
@@ -495,14 +478,39 @@ class AssetSearchHandler {
     }
 
     /**
+     * @param {Map} map
+     * @param {string} fileId
+     * @returns {*}
+     */
+    getMapEntry(map, fileId) {
+        if (!map) {
+            return undefined
+        }
+        return map.get(fileId) ?? map.get(String(fileId))
+    }
+
+    /**
      * @param {string} fileId
      * @returns {boolean}
      */
     isFileExistingOnDataset(fileId) {
-        return (
-            this.isEditMode &&
-            Boolean(this.formHandler?.currentFiles?.has(fileId))
-        )
+        const id = String(fileId)
+        if (this.isEditMode && this.formHandler) {
+            if (this.getMapEntry(this.formHandler.currentFiles, fileId)) {
+                return true
+            }
+            const pending = this.getMapEntry(
+                this.formHandler.pendingFiles,
+                fileId,
+            )
+            return pending?.action === "add"
+        }
+        if (!this.isEditMode && this.formHandler?.selectedFiles) {
+            return Array.from(this.formHandler.selectedFiles).some(
+                (file) => String(file.id) === id,
+            )
+        }
+        return false
     }
 
     /**
@@ -605,7 +613,6 @@ class AssetSearchHandler {
 
         this.syncFolderSelectionVisual(folderLi, content, dirPath)
         this.updateSelectAllCheckboxState()
-        this.updateSelectedFilesList()
     }
 
     /**
@@ -652,7 +659,146 @@ class AssetSearchHandler {
         }
 
         this.updateSelectAllCheckboxState()
-        this.updateSelectedFilesList()
+    }
+
+    /**
+     * Apply modal file picks to the form handler (create Set or edit pendingFiles).
+     */
+    mergeModalSelectionsIntoFormHandler() {
+        if (!this.formHandler) {
+            return
+        }
+
+        for (const [id, file] of this.selectedFiles.entries()) {
+            if (this.isFileExistingOnDataset(id)) {
+                continue
+            }
+
+            const fileObj = { ...file, id: String(id) }
+
+            if (this.isEditMode) {
+                this.formHandler.addFileToPending?.(fileObj.id, fileObj, {
+                    refreshUi: false,
+                })
+            } else {
+                const alreadyOnForm = Array.from(
+                    this.formHandler.selectedFiles,
+                ).some((existing) => String(existing.id) === String(id))
+                if (!alreadyOnForm) {
+                    this.formHandler.selectedFiles.add(fileObj)
+                }
+            }
+        }
+
+        this.selectedFiles.clear()
+
+        for (const checkbox of document.querySelectorAll(
+            AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
+        )) {
+            if (checkbox.disabled) {
+                continue
+            }
+            checkbox.checked = false
+            const fileLi = checkbox.closest(".file-item")
+            fileLi?.classList.remove("is-selected")
+            fileLi?.setAttribute("aria-selected", "false")
+        }
+
+        this.updateSelectAllCheckboxState()
+
+        this.syncCommittedFileSelectionUI()
+
+        if (this.isEditMode) {
+            void this.formHandler.updatePendingFilesList?.()
+        } else {
+            this.formHandler.updateHiddenFields?.()
+            void this.formHandler.updateSelectedFilesTable?.()
+        }
+    }
+
+    /**
+     * Pending file additions (edit mode).
+     * @returns {[string, Object][]}
+     */
+    getPendingFileAddEntries() {
+        if (!this.isEditMode || !this.formHandler?.pendingFiles) {
+            return []
+        }
+        return Array.from(this.formHandler.pendingFiles.entries()).filter(
+            ([, change]) => change?.action === "add",
+        )
+    }
+
+    /**
+     * Confirmed file selections for create mode card table.
+     * @returns {[string, Object][]}
+     */
+    getCommittedCreateModeFileEntries() {
+        if (!this.formHandler?.selectedFiles) {
+            return []
+        }
+        return Array.from(this.formHandler.selectedFiles).map((file) => [
+            String(file.id),
+            file,
+        ])
+    }
+
+    /**
+     * @param {number} count
+     * @returns {string}
+     */
+    formatFileSelectionSummaryLabel(count) {
+        if (this.isEditMode) {
+            return `${count} pending file selection(s)`
+        }
+        return `${count} file(s) selected`
+    }
+
+    /**
+     * Refresh browse-field summary and create-mode card table from committed state.
+     */
+    syncCommittedFileSelectionUI() {
+        const summaryCount = this.isEditMode
+            ? this.getPendingFileAddEntries().length
+            : this.getCommittedCreateModeFileEntries().length
+
+        const selectedFilesDisplay = document.getElementById(
+            "selected-files-display",
+        )
+        if (selectedFilesDisplay) {
+            selectedFilesDisplay.value =
+                this.formatFileSelectionSummaryLabel(summaryCount)
+        }
+
+        const removeAllButton = document.getElementById(
+            "remove-all-selected-files-button",
+        )
+        if (removeAllButton && !this.isEditMode) {
+            removeAllButton.disabled = summaryCount === 0
+        }
+
+        if (!this.isEditMode) {
+            const selectedFilesTable = document.getElementById(
+                "selected-files-table",
+            )
+            const selectedFilesBody = selectedFilesTable?.querySelector("tbody")
+            if (selectedFilesBody) {
+                this.renderSelectedFilesTable(
+                    selectedFilesBody,
+                    this.getCommittedCreateModeFileEntries(),
+                )
+            }
+        }
+
+        const countBadge = document.querySelector(".selected-files-count")
+        if (countBadge) {
+            countBadge.textContent = `${summaryCount} selected`
+        }
+    }
+
+    /** @deprecated Use syncCommittedFileSelectionUI */
+    updateSelectedFilesList() {
+        this.syncCommittedFileSelectionUI()
     }
 
     /**
@@ -741,22 +887,12 @@ class AssetSearchHandler {
         }
 
         removeAllButton.addEventListener("click", () => {
-            // Check if formHandler has a custom removal handler for edit mode
-            if (this.formHandler?.handleRemoveAllFiles) {
-                this.formHandler.handleRemoveAllFiles()
+            if (
+                typeof this.formHandler?.removeAllFileSelections === "function"
+            ) {
+                this.formHandler.removeAllFileSelections()
             } else {
-                // Default behavior for create mode
-                // Deselect all files
-                const fileCheckboxes = document.querySelectorAll(
-                    AssetSearchHandler.FILE_TREE_FILE_CHECKBOX_SELECTOR,
-                )
-                for (const checkbox of fileCheckboxes) {
-                    checkbox.checked = false
-                    checkbox.dispatchEvent(new Event("change"))
-                }
-
-                this.selectedFiles.clear()
-                this.updateSelectedFilesList()
+                this.clearModalFileSelections()
             }
         })
     }
@@ -1375,53 +1511,6 @@ class AssetSearchHandler {
     }
 
     /**
-     * Update selected files list
-     */
-    updateSelectedFilesList() {
-        // Update form handler's selectedFiles with current selection (create mode only)
-        if (this.formHandler && !this.isEditMode) {
-            // Convert Map entries to array of file objects with IDs
-            const fileList = Array.from(this.selectedFiles.entries()).map(
-                ([id, file]) => ({ ...file, id: id }),
-            )
-            this.formHandler.selectedFiles = new Set(fileList)
-        }
-
-        // Update selected files display input
-        const selectedFilesDisplay = document.getElementById(
-            "selected-files-display",
-        )
-        if (selectedFilesDisplay) {
-            selectedFilesDisplay.value = `${this.selectedFiles.size} file(s) selected`
-        }
-
-        // Update Remove All button state
-        const removeAllButton = document.getElementById(
-            "remove-all-selected-files-button",
-        )
-        if (removeAllButton) {
-            removeAllButton.disabled = this.selectedFiles.size === 0
-        }
-
-        // Update selected files table if it exists (only in create mode)
-        if (!this.isEditMode) {
-            const selectedFilesTable = document.getElementById(
-                "selected-files-table",
-            )
-            const selectedFilesBody = selectedFilesTable?.querySelector("tbody")
-            if (selectedFilesBody) {
-                this.renderSelectedFilesTable(selectedFilesBody)
-            }
-        }
-
-        // Update count badge
-        const countBadge = document.querySelector(".selected-files-count")
-        if (countBadge) {
-            countBadge.textContent = `${this.selectedFiles.size} selected`
-        }
-    }
-
-    /**
      * Load file tree
      */
     async loadFileTree() {
@@ -1660,10 +1749,9 @@ class AssetSearchHandler {
         if (tree.files && tree.files.length > 0) {
             for (const file of tree.files) {
                 const filePath = this.getRelativePath(file, currentPath)
-                const isSelected = this.selectedFiles.has(file.id)
-                const isExistingFile =
-                    this.isEditMode &&
-                    this.formHandler?.currentFiles?.has(file.id)
+                const isExistingFile = this.isFileExistingOnDataset(file.id)
+                const isSelected =
+                    !isExistingFile && this.selectedFiles.has(file.id)
 
                 const li = document.createElement("li")
                 li.className = "file-item"
@@ -1731,7 +1819,6 @@ class AssetSearchHandler {
                         }
                         syncRowSelectionVisual()
                         this.updateSelectAllCheckboxState()
-                        this.updateSelectedFilesList()
                     })
 
                     const toggleRowSelection = () => {
@@ -1823,51 +1910,47 @@ class AssetSearchHandler {
      * Render selected files table
      * @param {Element} tbody - Table body element
      */
-    async renderSelectedFilesTable(tbody) {
-        // Transform files data for table_rows.html template
-        const rows = Array.from(this.selectedFiles.entries()).map(
-            ([id, file]) => {
-                const isExistingFile = file.owner_id !== undefined
-                const canRemove =
-                    !isExistingFile ||
-                    (isExistingFile &&
-                        this.formHandler.permissions?.canRemoveAsset(file))
+    async renderSelectedFilesTable(tbody, fileEntries = null) {
+        const entries = fileEntries ?? Array.from(this.selectedFiles.entries())
+        const rows = entries.map(([id, file]) => {
+            const isExistingFile = file.owner_id !== undefined
+            const canRemove =
+                !isExistingFile ||
+                (isExistingFile &&
+                    this.formHandler.permissions?.canRemoveAsset(file))
 
-                return {
-                    id: id,
-                    css_class: !canRemove ? "readonly-row" : "",
-                    data_attrs: {
-                        "file-id": id,
+            return {
+                id: id,
+                css_class: !canRemove ? "readonly-row" : "",
+                data_attrs: {
+                    "file-id": id,
+                },
+                cells: [
+                    { kind: "text", value: file.name },
+                    { kind: "text", value: file.media_type },
+                    { kind: "text", value: file.relative_path },
+                    {
+                        kind: "text",
+                        value: window.DOMUtils.formatFileSize(file.size),
                     },
-                    cells: [
-                        { kind: "text", value: file.name },
-                        { kind: "text", value: file.media_type },
-                        { kind: "text", value: file.relative_path },
-                        {
-                            kind: "text",
-                            value: window.DOMUtils.formatFileSize(file.size),
-                        },
-                        {
-                            kind: "text",
-                            value:
-                                file.owner?.name ||
-                                file.owner?.email ||
-                                "Unknown",
-                        },
-                    ],
-                    actions: canRemove
-                        ? [
-                              {
-                                  label: "Remove",
-                                  css_class: "btn-danger",
-                                  extra_class: "remove-selected-file",
-                                  data_attrs: { id: id },
-                              },
-                          ]
-                        : [],
-                }
-            },
-        )
+                    {
+                        kind: "text",
+                        value:
+                            file.owner?.name || file.owner?.email || "Unknown",
+                    },
+                ],
+                actions: canRemove
+                    ? [
+                          {
+                              label: "Remove",
+                              css_class: "btn-danger",
+                              extra_class: "remove-selected-file",
+                              data_attrs: { id: id },
+                          },
+                      ]
+                    : [],
+            }
+        })
 
         // Render using DOMUtils
         const success = await window.DOMUtils.renderTable(tbody, rows, {
@@ -1904,22 +1987,21 @@ class AssetSearchHandler {
                 // Check if formHandler has a custom removal handler for edit mode
                 if (this.formHandler?.handleFileRemoval) {
                     this.formHandler.handleFileRemoval(fileId)
+                } else if (
+                    !this.isEditMode &&
+                    typeof this.formHandler?.removeFile === "function"
+                ) {
+                    this.formHandler.removeFile(fileId)
                 } else {
-                    // Default behavior for create mode
                     this.selectedFiles.delete(fileId)
-                    // Update checkbox in file tree if visible
                     const checkbox = document.querySelector(
                         `input[name="files"][value="${fileId}"]`,
                     )
                     if (checkbox) {
                         checkbox.checked = false
                     }
-                    // Update the selected files list
-                    this.updateSelectedFilesList()
-                    // Update form handler's hidden fields
-                    if (this.formHandler) {
-                        this.formHandler.updateHiddenFields()
-                    }
+                    this.syncCommittedFileSelectionUI()
+                    this.formHandler?.updateHiddenFields?.()
                 }
             })
         }
