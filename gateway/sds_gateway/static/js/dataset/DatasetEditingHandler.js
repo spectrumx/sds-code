@@ -211,17 +211,9 @@ class DatasetEditingHandler extends BaseManager {
      * Handle file modal show
      */
     onFileModalShow() {
-        if (!this.filesSearchHandler) {
-            return
+        if (window.AuthorsManager?.refreshFileTreeModal(this)) {
+            this.syncAllPendingFileRemovalStylesInTree()
         }
-        if (!this.filesSearchHandler.currentTree) {
-            this.filesSearchHandler.handleSearch()
-            return
-        }
-        this.filesSearchHandler.updateFilesTable({
-            tree: this.filesSearchHandler.currentTree,
-        })
-        this.syncAllPendingFileRemovalStylesInTree()
     }
 
     /**

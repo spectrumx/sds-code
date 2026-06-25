@@ -237,6 +237,23 @@ class AuthorsManager {
         })
     }
 
+    static refreshFileTreeModal(handler) {
+        const { filesSearchHandler } = handler
+        if (!filesSearchHandler) {
+            return false
+        }
+
+        if (!filesSearchHandler.currentTree) {
+            filesSearchHandler.handleSearch()
+            return false
+        }
+
+        filesSearchHandler.updateFilesTable({
+            tree: filesSearchHandler.currentTree,
+        })
+        return true
+    }
+
     static getCurrentAuthorsWithDOMIds() {
         const authorsList = document.querySelector(".authors-list")
         const currentAuthors = []
