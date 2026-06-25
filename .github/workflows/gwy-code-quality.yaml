@@ -68,6 +68,10 @@ jobs:
               working-directory: ./gateway
               run: pnpm install --frozen-lockfile
 
+            - name: Remove generated frontend dependencies before hooks
+              working-directory: ./gateway
+              run: git clean -fdX -- node_modules
+
             - name: Install hooks
               working-directory: ./gateway
               run: uv run --extra local prek install --install-hooks
