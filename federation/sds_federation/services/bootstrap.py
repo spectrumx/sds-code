@@ -17,6 +17,7 @@ from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.schemas.webhooks import SiteHelloWebhook
+from sds_federation.schemas.webhooks import asset_doc_class
 from sds_federation.services.peer_sync import peer_webhook_url
 
 if TYPE_CHECKING:
@@ -70,7 +71,7 @@ async def fetch_peer_export_list(
     if not isinstance(data, list):
         msg = f"expected list from {url}, got {type(data).__name__}"
         raise TypeError(msg)
-    doc_class = asset_type.doc_class
+    doc_class = asset_doc_class(asset_type)
     return [doc_class.model_validate(item) for item in data]
 
 
@@ -207,7 +208,7 @@ async def run_bootstrap(
 ) -> None:
     when = event_at or datetime.now(UTC)
     local_count = await bootstrap_local_site(http, config, indexer, event_at=when)
-    peer_count = await bootstrap_all_peers(http, config, indexer, event_at=when)
+    peer_count = await bootstrap_all_peers(config, http, indexer, event_at=when)
     logger.info(
         "Bootstrap indexed {} local + {} peer export documents",
         local_count,
