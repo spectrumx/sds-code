@@ -10,9 +10,9 @@ from django.db import IntegrityError
 from django.db import transaction
 from django.utils import timezone
 
-from sds_gateway.captures.models import Capture
-from sds_gateway.files.models import File
-from sds_gateway.minio_client import MinioClient
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.utils.minio_client import get_minio_client
 
 User = get_user_model()  # This is the only User import we need
 
@@ -69,7 +69,7 @@ class Command(BaseCommand):
             directory_path.mkdir(parents=True, exist_ok=True)
 
         # Create files
-        minio_client = MinioClient()
+        minio_client = get_minio_client()
         created_files = []
 
         try:

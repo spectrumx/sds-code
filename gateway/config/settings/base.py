@@ -715,7 +715,7 @@ SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 
 FEDERATION_SITE_NAME: str = env.str(
     "FEDERATION_SITE_NAME",
-    default="",
+    default="crc",
 )
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
