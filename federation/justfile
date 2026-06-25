@@ -29,11 +29,12 @@ test +args='':
 test-q:
     uv run pytest -q
 
-# Run federation ruff hooks from repo root (requires gateway dev deps / pre-commit install)
+# Run federation pre-commit hooks from repo root (requires gateway dev deps / pre-commit install)
 [group('qa')]
 pre-commit +args='':
     cd .. && uv run --directory gateway --extra local pre-commit run ruff-check-federation --all-files {{ args }}
     cd .. && uv run --directory gateway --extra local pre-commit run ruff-format-federation --all-files {{ args }}
+    cd .. && uv run --directory gateway --extra local pre-commit run pyrefly-federation --all-files {{ args }}
 
 # dev PKI for mTLS experiments (see docs/mtls-certificates.md)
 [group('setup')]
