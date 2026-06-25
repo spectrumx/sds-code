@@ -33,6 +33,7 @@ describe("DatasetEditingHandler", () => {
                 initializeCapturesSearch: jest.fn(),
                 initializeEventListeners: jest.fn(),
                 updateSelectedFilesList: jest.fn(),
+                syncCommittedFileSelectionUI: jest.fn(),
             })),
         })
     })

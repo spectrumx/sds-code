@@ -40,8 +40,7 @@ class DatasetCreationHandler extends BaseManager {
         this.selectedFiles = new Set() // Set of file objects for the main card
         this.selectedCaptureDetails = new Map() // Map of capture ID -> capture details
 
-        // File browser modal state (intermediate selections)
-        this.modalSelectedFiles = new Set() // Set of file objects for modal intermediate state
+        // File browser modal state lives on filesSearchHandler.selectedFiles until confirm
 
         // Search handlers
         this.capturesSearchHandler = null
@@ -218,42 +217,7 @@ class DatasetCreationHandler extends BaseManager {
      * Initialize file browser modal handlers
      */
     initializeFileBrowserModal() {
-        // Modal file selection handlers
-        document.addEventListener("change", (e) => {
-            if (e.target.matches('#file-tree-root input[name="files"]')) {
-                this.handleModalFileSelection(e.target)
-            }
-        })
-
-        // Select all files checkbox
-        const selectAllCheckbox = document.getElementById(
-            "select-all-files-checkbox",
-        )
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener("change", (e) => {
-                this.handleSelectAllFiles(e.target.checked)
-            })
-        }
-
-        // Confirm file selection button
-        const confirmButton = document.getElementById("confirm-file-selection")
-        if (confirmButton) {
-            confirmButton.addEventListener("click", () => {
-                this.confirmFileSelection()
-            })
-        }
-
         window.AuthorsManager?.bindFileTreeModalHandlers(this)
-
-        // Remove all files button
-        const removeAllButton = document.getElementById(
-            "remove-all-selected-files-button",
-        )
-        if (!removeAllButton) return
-
-        removeAllButton.addEventListener("click", () => {
-            this.removeAllSelectedFiles()
-        })
     }
 
     /**
@@ -299,180 +263,45 @@ class DatasetCreationHandler extends BaseManager {
     }
 
     /**
-     * Handle modal file selection (intermediate state)
-     * @param {Element} checkbox - Checkbox element
-     */
-    handleModalFileSelection(checkbox) {
-        const fileId = checkbox.value
-        const fileData = this.getFileDataFromRow(checkbox)
-
-        if (!fileData) {
-            return
-        }
-
-        if (checkbox.checked) {
-            // Add to modal intermediate selection
-            this.modalSelectedFiles.add(fileData)
-        } else {
-            const existing = Array.from(this.modalSelectedFiles).find(
-                (f) => String(f.id) === String(fileId),
-            )
-            if (existing) {
-                this.modalSelectedFiles.delete(existing)
-            }
-        }
-
-        // Update select all checkbox state
-        this.updateSelectAllCheckbox()
-    }
-
-    /**
-     * Get file data from a file-tree list item checkbox
-     * @param {Element} checkbox - File checkbox in the file tree
-     * @returns {Object|null} File data object
-     */
-    getFileDataFromRow(checkbox) {
-        const fileId = checkbox.value
-        const fromTree =
-            this.filesSearchHandler?.getFileSelectionDataById?.(fileId)
-        if (fromTree) {
-            return fromTree
-        }
-
-        const listItem = checkbox.closest(".file-item")
-        if (!listItem) {
-            return null
-        }
-
-        return {
-            id: fileId,
-            name:
-                listItem
-                    .querySelector(".file-browser-name")
-                    ?.textContent?.trim() || "",
-            media_type: "",
-            relative_path: "",
-            size: "",
-            created_at: "",
-        }
-    }
-
-    /**
-     * Handle select all files checkbox
-     * @param {boolean} checked - Whether select all is checked
-     */
-    handleSelectAllFiles(checked) {
-        const checkboxes = document.querySelectorAll(
-            '#file-tree-root input[name="files"]',
-        )
-        for (const checkbox of checkboxes) {
-            checkbox.checked = checked
-            this.handleModalFileSelection(checkbox)
-        }
-    }
-
-    /**
-     * Update select all checkbox state
-     */
-    updateSelectAllCheckbox() {
-        const selectAllCheckbox = document.getElementById(
-            "select-all-files-checkbox",
-        )
-        const allCheckboxes = document.querySelectorAll(
-            '#file-tree-root input[name="files"]',
-        )
-
-        if (selectAllCheckbox && allCheckboxes.length > 0) {
-            const checkedCount = Array.from(allCheckboxes).filter(
-                (cb) => cb.checked,
-            ).length
-            selectAllCheckbox.checked = checkedCount === allCheckboxes.length
-            selectAllCheckbox.indeterminate =
-                checkedCount > 0 && checkedCount < allCheckboxes.length
-        }
-    }
-
-    /**
-     * Confirm file selection (move from modal to main selection)
-     */
-    confirmFileSelection() {
-        // Add modal selections to main selection
-        for (const file of this.modalSelectedFiles) {
-            this.selectedFiles.add(file)
-        }
-
-        // Clear modal selections
-        this.modalSelectedFiles.clear()
-
-        // Update UI
-        this.updateSelectedFilesDisplay()
-        this.updateHiddenFields()
-
-        // Close modal
-        const modal = bootstrap.Modal.getInstance(
-            document.getElementById("fileTreeModal"),
-        )
-        if (modal) {
-            modal.hide()
-        }
-    }
-
-    /**
      * Handle file modal show
      */
     onFileModalShow() {
-        // Trigger initial file tree loading if filesSearchHandler exists and tree hasn't been loaded
-        if (this.filesSearchHandler && !this.filesSearchHandler.currentTree) {
-            this.filesSearchHandler.handleSearch()
+        if (!this.filesSearchHandler) {
+            return
         }
+        if (!this.filesSearchHandler.currentTree) {
+            this.filesSearchHandler.handleSearch()
+            return
+        }
+        this.filesSearchHandler.updateFilesTable({
+            tree: this.filesSearchHandler.currentTree,
+        })
     }
 
     /**
      * Handle file modal hide
      */
     onFileModalHide() {
-        // Clear any intermediate state if needed
-        this.modalSelectedFiles.clear()
+        this.filesSearchHandler?.clearModalFileSelections()
     }
 
     /**
      * Remove all selected files
      */
-    removeAllSelectedFiles() {
-        // Clear main selection
+    removeAllFileSelections() {
         this.selectedFiles.clear()
+        this.filesSearchHandler?.clearModalFileSelections()
 
-        // Clear modal intermediate selection
-        this.modalSelectedFiles.clear()
-
-        // Update UI
         this.updateSelectedFilesDisplay()
         this.updateHiddenFields()
-
-        // Uncheck all checkboxes in modal if it's open
-        const checkboxes = document.querySelectorAll(
-            '#file-tree-root input[name="files"]',
-        )
-        for (const checkbox of checkboxes) {
-            checkbox.checked = false
-        }
-
-        // Update select all checkbox
-        this.updateSelectAllCheckbox()
     }
 
     /**
      * Update selected files display
      */
     updateSelectedFilesDisplay() {
-        const displayInput = document.getElementById("selected-files-display")
-        if (!displayInput) return
-
-        const count = this.selectedFiles.size
-        displayInput.value = `${count} file(s) selected`
-
-        // Update selected files table
-        this.updateSelectedFilesTable()
+        this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
+        void this.updateSelectedFilesTable()
     }
 
     /**
@@ -1168,37 +997,31 @@ class DatasetCreationHandler extends BaseManager {
      * @param {string} fileId - File ID to remove
      */
     removeFile(fileId) {
-        // Remove from main selection
         const fileToRemove = Array.from(this.selectedFiles).find(
-            (f) => f.id === fileId,
+            (f) => String(f.id) === String(fileId),
         )
         if (fileToRemove) {
             this.selectedFiles.delete(fileToRemove)
         }
 
-        // Remove from modal intermediate selection
-        const modalFileToRemove = Array.from(this.modalSelectedFiles).find(
-            (f) => f.id === fileId,
-        )
-        if (modalFileToRemove) {
-            this.modalSelectedFiles.delete(modalFileToRemove)
-        }
+        this.filesSearchHandler?.selectedFiles?.delete(fileId)
 
-        // Update UI
         this.updateSelectedFilesDisplay()
         this.updateHiddenFields()
         this.updateSelectedItemsTable()
+        this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
 
-        // Update checkbox in file tree modal if visible
         const checkbox = document.querySelector(
             `input[name="files"][value="${fileId}"]`,
         )
         if (checkbox) {
             checkbox.checked = false
+            const fileLi = checkbox.closest(".file-item")
+            fileLi?.classList.remove("is-selected")
+            fileLi?.setAttribute("aria-selected", "false")
         }
 
-        // Update select all checkbox
-        this.updateSelectAllCheckbox()
+        this.filesSearchHandler?.updateSelectAllCheckboxState?.()
     }
 
     /**
