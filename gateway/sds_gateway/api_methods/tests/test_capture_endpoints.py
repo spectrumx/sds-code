@@ -46,6 +46,7 @@ from sds_gateway.api_methods.serializers.capture_serializers import (
 from sds_gateway.api_methods.tests.factories import UserSharePermissionFactory
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.storage_errors import StorageUnavailableError
 from sds_gateway.api_methods.views.capture_endpoints import _normalize_top_level_dir
 from sds_gateway.users.models import UserAPIKey
 from sds_gateway.visualizations.models import PostProcessedData
@@ -2379,6 +2380,73 @@ class CaptureTestCases(APITestCase):
         mock_reconstruct_drf_files.assert_called_once()
         mock_compute_slices_on_demand.assert_called_once()
         assert stream_file.capture_id == capture.pk
+
+
+class StorageUnavailableErrorTestCases(APITestCase):
+    """Test storage-unavailable handling in capture create/update endpoints."""
+
+    def setUp(self) -> None:
+        self.client = APIClient()
+        self.user = User.objects.create(
+            email="storage-error-user@example.com",
+            password="testpassword",  # noqa: S106
+            is_approved=True,
+        )
+        _api_key, key = UserAPIKey.objects.create_key(
+            name="storage-error-key",
+            user=self.user,
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Api-Key: {key}")
+        self.list_url = reverse("api:captures-list")
+        self.capture = Capture.objects.create(
+            owner=self.user,
+            capture_type=CaptureType.DigitalRF,
+            channel="ch0",
+            top_level_dir="/files/storage-error-user@example.com/test-dir",
+            index_name="captures-test-drf",
+        )
+        self.detail_url = reverse(
+            "api:captures-detail",
+            kwargs={"pk": self.capture.uuid},
+        )
+
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+    )
+    def test_create_capture_storage_unavailable_returns_503(
+        self,
+        mock_reconstruct_tree,
+    ) -> None:
+        mock_reconstruct_tree.side_effect = StorageUnavailableError(
+            "Object storage is unavailable",
+        )
+
+        response = self.client.post(
+            self.list_url,
+            data={
+                "capture_type": CaptureType.DigitalRF,
+                "channel": "ch0",
+                "top_level_dir": "test-dir",
+                "index_name": "captures-test-drf",
+            },
+        )
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+    @patch(
+        "sds_gateway.api_methods.views.capture_endpoints.reconstruct_tree",
+    )
+    def test_update_capture_storage_unavailable_returns_503(
+        self,
+        mock_reconstruct_tree,
+    ) -> None:
+        mock_reconstruct_tree.side_effect = StorageUnavailableError(
+            "Object storage is unavailable",
+        )
+
+        response = self.client.put(self.detail_url)
+
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
 
 
 class OpenSearchErrorTestCases(APITestCase):

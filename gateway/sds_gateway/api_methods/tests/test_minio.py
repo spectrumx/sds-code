@@ -17,6 +17,7 @@ from sds_gateway.api_methods.helpers.reconstruct_file_tree import reconstruct_tr
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.api_methods.utils.storage_errors import StorageUnavailableError
 
 if TYPE_CHECKING:
     from sds_gateway.users.models import User as UserModel
@@ -241,6 +242,68 @@ class ReconstructRHFileTreeTest(APITestCase):
             error_message = str(context.value)
             assert "Insufficient disk space" in error_message
             assert "Required: 1073741824 bytes" in error_message
+
+    @patch(
+        "sds_gateway.api_methods.helpers.reconstruct_file_tree.check_disk_space_available"
+    )
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.estimate_disk_size")
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.get_minio_client")
+    def test_reconstruct_tree_storage_unavailable(
+        self,
+        mock_get_minio_client,
+        mock_estimate_size,
+        mock_check_space,
+    ) -> None:
+        """Storage connection failures should not be converted to ValueError."""
+        mock_check_space.return_value = True
+        mock_estimate_size.return_value = 1024
+        mock_get_minio_client.return_value.fget_object.side_effect = (
+            ConnectionRefusedError("Connection refused")
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(StorageUnavailableError, match="Object storage is unavailable"):
+                reconstruct_tree(
+                    target_dir=Path(temp_dir),
+                    virtual_top_dir=self.top_level_dir,
+                    owner=self.user,
+                    capture_type=CaptureType.RadioHound,
+                    rh_scan_group=self.scan_group,
+                    verbose=True,
+                )
+
+    @patch(
+        "sds_gateway.api_methods.helpers.reconstruct_file_tree.check_disk_space_available"
+    )
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.estimate_disk_size")
+    @patch("sds_gateway.api_methods.helpers.reconstruct_file_tree.get_minio_client")
+    def test_reconstruct_tree_missing_object_raises_value_error(
+        self,
+        mock_get_minio_client,
+        mock_estimate_size,
+        mock_check_space,
+    ) -> None:
+        """Missing storage objects should remain user-actionable ValueErrors."""
+
+        class MissingObjectError(Exception):
+            code = "NoSuchKey"
+
+        mock_check_space.return_value = True
+        mock_estimate_size.return_value = 1024
+        mock_get_minio_client.return_value.fget_object.side_effect = MissingObjectError(
+            "missing",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with pytest.raises(ValueError, match="Failed to fetch file"):
+                reconstruct_tree(
+                    target_dir=Path(temp_dir),
+                    virtual_top_dir=self.top_level_dir,
+                    owner=self.user,
+                    capture_type=CaptureType.RadioHound,
+                    rh_scan_group=self.scan_group,
+                    verbose=True,
+                )
 
 
 class ReconstructDRFFileTreeTest(APITestCase):

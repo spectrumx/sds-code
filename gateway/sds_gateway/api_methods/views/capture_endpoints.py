@@ -68,6 +68,7 @@ from sds_gateway.api_methods.utils.relationship_utils import (
     detach_item_from_all_datasets,
 )
 from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
+from sds_gateway.api_methods.utils.storage_errors import StorageUnavailableError
 from sds_gateway.api_methods.views.file_endpoints import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 from sds_gateway.visualizations.models import PostProcessedData
@@ -529,6 +530,9 @@ class CaptureViewSet(viewsets.ViewSet):
         if isinstance(error, ValueError):
             user_msg = f"Error handling metadata for capture '{capture.uuid}': {error}"
             return Response({"detail": user_msg}, status=status.HTTP_400_BAD_REQUEST)
+        if isinstance(error, StorageUnavailableError):
+            log.error("Object storage unavailable during capture creation: %s", error)
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
         if isinstance(error, os_exceptions.ConnectionError):
             user_msg = f"Error connecting to OpenSearch: {error}"
             log.error(user_msg)
@@ -604,7 +608,7 @@ class CaptureViewSet(viewsets.ViewSet):
             get_serializer = CaptureGetSerializer(capture)
             return Response(get_serializer.data, status=status.HTTP_201_CREATED)
 
-        except (UnknownIndexError, ValueError, os_exceptions.ConnectionError) as e:
+        except (UnknownIndexError, ValueError, StorageUnavailableError, os_exceptions.ConnectionError) as e:
             # Transaction will auto-rollback, no manual deletion needed
             if isinstance(capture, Capture):
                 return self._handle_capture_creation_errors(capture=capture, error=e)
@@ -928,6 +932,9 @@ class CaptureViewSet(viewsets.ViewSet):
         except ValueError as e:
             msg = f"Error handling metadata for capture '{target_capture.uuid}': {e}"
             return Response({"detail": msg}, status=status.HTTP_400_BAD_REQUEST)
+        except StorageUnavailableError as e:
+            log.error("Object storage unavailable during capture update: %s", e)
+            return Response(status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except os_exceptions.ConnectionError as e:
             msg = f"Error connecting to OpenSearch: {e}"
             log.error(msg)

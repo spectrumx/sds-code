@@ -13,6 +13,8 @@ from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.utils.disk_utils import check_disk_space_available
 from sds_gateway.api_methods.utils.disk_utils import estimate_disk_size
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
+from sds_gateway.api_methods.utils.storage_errors import StorageUnavailableError
+from sds_gateway.api_methods.utils.storage_errors import is_storage_unavailable_error
 from sds_gateway.users.models import User
 
 RH_DEFAULT_EXTENSION = ".rh.json"
@@ -373,6 +375,13 @@ def reconstruct_tree(
                     file_path=str(local_file_path),
                 )
             except Exception as e:
+                if is_storage_unavailable_error(e):
+                    msg = (
+                        f"Object storage is unavailable while fetching "
+                        f"file '{file_obj.name}': {e}"
+                    )
+                    log.exception(msg)
+                    raise StorageUnavailableError(msg) from e
                 msg = (
                     f"Failed to fetch file '{file_obj.name}' "
                     f"from storage: {e}. "
