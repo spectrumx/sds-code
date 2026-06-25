@@ -266,16 +266,7 @@ class DatasetCreationHandler extends BaseManager {
      * Handle file modal show
      */
     onFileModalShow() {
-        if (!this.filesSearchHandler) {
-            return
-        }
-        if (!this.filesSearchHandler.currentTree) {
-            this.filesSearchHandler.handleSearch()
-            return
-        }
-        this.filesSearchHandler.updateFilesTable({
-            tree: this.filesSearchHandler.currentTree,
-        })
+        window.AuthorsManager?.refreshFileTreeModal(this)
     }
 
     /**
