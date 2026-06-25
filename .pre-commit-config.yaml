@@ -45,6 +45,8 @@ repos:
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.9.4"]
+            # pnpm install rewrites this manifest formatting in CI before hooks run.
+            exclude: ^gateway/package\.json$
 
     # automatically upgrades Django code to migrates patterns and avoid deprecation warnings
     - repo: https://github.com/adamchainz/django-upgrade
