@@ -38,6 +38,63 @@ class AssetSearchHandler {
             ),
         ).filter((checkbox) => checkbox.offsetParent !== null)
     }
+
+    /**
+     * @param {string|number} fileId
+     * @returns {string}
+     */
+    static normalizeFileId(fileId) {
+        return String(fileId)
+    }
+
+    /**
+     * @param {string|number} fileId
+     * @returns {string|null} Map key if present
+     */
+    findModalSelectedFileKey(fileId) {
+        const id = AssetSearchHandler.normalizeFileId(fileId)
+        if (this.selectedFiles.has(id)) {
+            return id
+        }
+        for (const key of this.selectedFiles.keys()) {
+            if (String(key) === id) {
+                return key
+            }
+        }
+        return null
+    }
+
+    /**
+     * @param {string|number} fileId
+     * @returns {boolean}
+     */
+    hasModalSelectedFile(fileId) {
+        return this.findModalSelectedFileKey(fileId) != null
+    }
+
+    /**
+     * @param {string|number} fileId
+     * @returns {boolean}
+     */
+    deleteModalSelectedFile(fileId) {
+        const key = this.findModalSelectedFileKey(fileId)
+        if (key == null) {
+            return false
+        }
+        this.selectedFiles.delete(key)
+        return true
+    }
+
+    /**
+     * @param {Object} file
+     * @param {Object} data
+     */
+    setModalSelectedFile(file, data) {
+        this.selectedFiles.set(AssetSearchHandler.normalizeFileId(file.id), {
+            ...data,
+        })
+    }
+
     /**
      * @param {object} target
      * @param {object} config
@@ -595,15 +652,15 @@ class AssetSearchHandler {
         }
 
         const allSelected = entries.every(({ file }) =>
-            this.selectedFiles.has(file.id),
+            this.hasModalSelectedFile(file.id),
         )
 
         for (const { file, relative_path } of entries) {
             if (allSelected) {
-                this.selectedFiles.delete(file.id)
+                this.deleteModalSelectedFile(file.id)
                 this.syncFileCheckboxVisual(file.id, false)
             } else {
-                this.selectedFiles.set(file.id, {
+                this.setModalSelectedFile(file, {
                     ...file,
                     relative_path,
                 })
@@ -627,7 +684,7 @@ class AssetSearchHandler {
             return
         }
         const allSelected = entries.every(({ file }) =>
-            this.selectedFiles.has(file.id),
+            this.hasModalSelectedFile(file.id),
         )
         folderLi.classList.toggle("is-selected", allSelected)
     }
@@ -1575,7 +1632,9 @@ class AssetSearchHandler {
         currentPath = "",
         searchTermEntered = false,
     ) {
-        this.currentTree = tree
+        if (!parentElement) {
+            this.currentTree = tree
+        }
         const targetElement = parentElement || this.getFileTreeRoot()
         if (!targetElement) {
             console.error("File tree root not found")
@@ -1751,7 +1810,7 @@ class AssetSearchHandler {
                 const filePath = this.getRelativePath(file, currentPath)
                 const isExistingFile = this.isFileExistingOnDataset(file.id)
                 const isSelected =
-                    !isExistingFile && this.selectedFiles.has(file.id)
+                    !isExistingFile && this.hasModalSelectedFile(file.id)
 
                 const li = document.createElement("li")
                 li.className = "file-item"
@@ -1810,12 +1869,12 @@ class AssetSearchHandler {
                     checkbox.addEventListener("change", (e) => {
                         e.stopPropagation()
                         if (checkbox.checked) {
-                            this.selectedFiles.set(file.id, {
+                            this.setModalSelectedFile(file, {
                                 ...file,
                                 relative_path: filePath,
                             })
                         } else {
-                            this.selectedFiles.delete(file.id)
+                            this.deleteModalSelectedFile(file.id)
                         }
                         syncRowSelectionVisual()
                         this.updateSelectAllCheckboxState()
@@ -1993,7 +2052,7 @@ class AssetSearchHandler {
                 ) {
                     this.formHandler.removeFile(fileId)
                 } else {
-                    this.selectedFiles.delete(fileId)
+                    this.deleteModalSelectedFile(fileId)
                     const checkbox = document.querySelector(
                         `input[name="files"][value="${fileId}"]`,
                     )
