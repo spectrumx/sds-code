@@ -136,6 +136,12 @@ repos:
             language: system
             pass_filenames: false
             files: ^gateway/sds_gateway/static/js/.*\.js$
+          - id: pyrefly-federation
+            name: pyrefly (federation)
+            entry: bash -c "cd federation && uv run pyrefly check -c pyproject.toml"
+            language: system
+            pass_filenames: false
+            files: ^federation/.*\.py$
 
 # sets up .pre-commit-ci.yaml to ensure pre-commit dependencies stay up to date
 ci:

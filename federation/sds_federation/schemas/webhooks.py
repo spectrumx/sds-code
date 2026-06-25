@@ -28,12 +28,6 @@ class AssetTypeEnum(StrEnum):
         return f"/webhook/{self.value}-updated"
 
     @property
-    def doc_class(self) -> type[BaseModel]:
-        if self == AssetTypeEnum.DATASET:
-            return FederatedDatasetDoc
-        return FederatedCaptureDoc
-
-    @property
     def index_name(self) -> str:
         return f"fed-{self.value}s"
 
@@ -90,6 +84,14 @@ class FederatedCaptureDoc(BaseModel):
     size: int = 0
     capture_props: dict[str, Any] = Field(default_factory=dict)
     dataset_ids: list[str] = Field(default_factory=list)
+
+
+def asset_doc_class(
+    asset_type: AssetTypeEnum,
+) -> type[FederatedDatasetDoc] | type[FederatedCaptureDoc]:
+    if asset_type is AssetTypeEnum.DATASET:
+        return FederatedDatasetDoc
+    return FederatedCaptureDoc
 
 
 class AssetUpdatedWebhook(BaseModel):
