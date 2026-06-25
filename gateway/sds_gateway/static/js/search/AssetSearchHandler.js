@@ -1905,6 +1905,14 @@ class AssetSearchHandler {
                     li.setAttribute("tabindex", "-1")
                     li.classList.add("readonly-row")
                     li.title = "This file is already in the dataset"
+                    const pendingRemove =
+                        this.isEditMode &&
+                        this.formHandler?.getPendingFileChange?.(file.id)
+                            ?.action === "remove"
+                    if (pendingRemove) {
+                        li.classList.add("marked-for-removal")
+                        checkbox.checked = true
+                    }
                 }
 
                 targetElement.appendChild(li)
@@ -1912,6 +1920,7 @@ class AssetSearchHandler {
         }
 
         this.updateSelectAllCheckboxState()
+        this.formHandler?.syncAllPendingFileRemovalStylesInTree?.()
     }
 
     /**

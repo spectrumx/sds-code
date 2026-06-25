@@ -225,6 +225,10 @@ class AuthorsManager {
     static bindFileTreeModalHandlers(handler) {
         const modal = document.getElementById("fileTreeModal")
         if (!modal) return
+        if (modal.dataset.fileTreeModalHandlersBound === "true") {
+            return
+        }
+        modal.dataset.fileTreeModalHandlersBound = "true"
         modal.addEventListener("show.bs.modal", () => {
             handler.onFileModalShow()
         })

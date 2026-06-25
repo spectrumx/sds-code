@@ -86,6 +86,8 @@ class DatasetEditingHandler extends BaseManager {
                 this.initialCaptures,
                 this.initialFiles,
             )
+
+            this.initializeFileBrowserModal()
         }
 
         const datasetForm = document.getElementById("datasetForm")
@@ -121,18 +123,6 @@ class DatasetEditingHandler extends BaseManager {
         } else if (type === "files") {
             this.filesSearchHandler = searchHandler
             this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
-        }
-
-        // If we have initial data and both handlers are ready, populate the data
-        if (
-            this.capturesSearchHandler &&
-            this.filesSearchHandler &&
-            (this.initialCaptures.length > 0 || this.initialFiles.length > 0)
-        ) {
-            this.populateFromInitialData(
-                this.initialCaptures,
-                this.initialFiles,
-            )
         }
     }
 
@@ -208,9 +198,6 @@ class DatasetEditingHandler extends BaseManager {
 
         // Add event listeners for remove buttons
         this.addRemoveButtonListeners()
-
-        // Initialize file browser modal handlers
-        this.initializeFileBrowserModal()
     }
 
     /**
@@ -234,6 +221,7 @@ class DatasetEditingHandler extends BaseManager {
         this.filesSearchHandler.updateFilesTable({
             tree: this.filesSearchHandler.currentTree,
         })
+        this.syncAllPendingFileRemovalStylesInTree()
     }
 
     /**
@@ -498,6 +486,47 @@ class DatasetEditingHandler extends BaseManager {
     }
 
     /**
+     * Sync strikethrough / checkbox on a file-tree row (modal browser).
+     * @param {string} fileId
+     * @param {boolean} markedForRemoval
+     */
+    syncFileSearchRowRemovalStyle(fileId, markedForRemoval) {
+        const id = String(fileId)
+        const searchRow = document.querySelector(
+            `#file-tree-root li[data-file-id="${id}"]`,
+        )
+        if (!searchRow) {
+            return
+        }
+
+        if (markedForRemoval) {
+            searchRow.classList.add("marked-for-removal")
+            const checkbox = searchRow.querySelector('input[type="checkbox"]')
+            if (checkbox) {
+                checkbox.checked = true
+            }
+            return
+        }
+
+        searchRow.classList.remove("marked-for-removal")
+        const checkbox = searchRow.querySelector('input[type="checkbox"]')
+        if (checkbox) {
+            checkbox.checked = false
+        }
+    }
+
+    /**
+     * Re-apply pending removal styling after the file tree is rebuilt.
+     */
+    syncAllPendingFileRemovalStylesInTree() {
+        for (const [fileId, change] of this.pendingFiles.entries()) {
+            if (change.action === "remove") {
+                this.syncFileSearchRowRemovalStyle(fileId, true)
+            }
+        }
+    }
+
+    /**
      * Mark capture for removal
      * @param {string} captureId - Capture ID to mark for removal
      */
@@ -590,16 +619,7 @@ class DatasetEditingHandler extends BaseManager {
 
         this.updateCurrentFilesList()
 
-        const searchRow = document.querySelector(
-            `#file-tree-root li[data-file-id="${id}"]`,
-        )
-        if (searchRow) {
-            searchRow.classList.add("marked-for-removal")
-            const checkbox = searchRow.querySelector('input[type="checkbox"]')
-            if (checkbox) {
-                checkbox.checked = true
-            }
-        }
+        this.syncFileSearchRowRemovalStyle(id, true)
 
         void this.updatePendingFilesList()
         this.filesSearchHandler?.syncCommittedFileSelectionUI?.()
@@ -782,8 +802,8 @@ class DatasetEditingHandler extends BaseManager {
         }
 
         if (change.action === "remove") {
-            // Update visual state of current files list
             this.updateCurrentFilesList()
+            this.syncFileSearchRowRemovalStyle(id, false)
         } else if (change.action === "add") {
             this.filesSearchHandler?.deleteModalSelectedFile?.(fileId)
             this.filesSearchHandler?.syncFileCheckboxVisual?.(fileId, false)
