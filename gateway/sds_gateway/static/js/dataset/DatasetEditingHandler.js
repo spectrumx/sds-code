@@ -785,7 +785,7 @@ class DatasetEditingHandler extends BaseManager {
             // Update visual state of current files list
             this.updateCurrentFilesList()
         } else if (change.action === "add") {
-            this.filesSearchHandler?.selectedFiles?.delete(fileId)
+            this.filesSearchHandler?.deleteModalSelectedFile?.(fileId)
             this.filesSearchHandler?.syncFileCheckboxVisual?.(fileId, false)
         }
 

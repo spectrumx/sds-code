@@ -1004,7 +1004,7 @@ class DatasetCreationHandler extends BaseManager {
             this.selectedFiles.delete(fileToRemove)
         }
 
-        this.filesSearchHandler?.selectedFiles?.delete(fileId)
+        this.filesSearchHandler?.deleteModalSelectedFile?.(fileId)
 
         this.updateSelectedFilesDisplay()
         this.updateHiddenFields()
