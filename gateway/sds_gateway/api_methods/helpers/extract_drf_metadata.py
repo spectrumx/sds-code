@@ -57,46 +57,67 @@ def read_metadata_by_channel(
     channel_name: str,
 ) -> dict[str, typing.Any]:
     """Reads Digital RF metadata."""
-
-    rf_reader = drf.DigitalRFReader(str(data_path))
-    bounds_raw = rf_reader.get_bounds(channel_name)
-    bounds_raw = typing.cast("tuple[int, int]", bounds_raw)
-    bounds = Bounds(start=bounds_raw[0], end=bounds_raw[1])
-
-    # get properties
-    drf_properties = typing.cast(
-        "dict[str, typing.Any]",
-        rf_reader.get_properties(channel_name=channel_name, sample=bounds.start),
-    )
-
-    # add bounds to properties, convert to unix timestamp
-    drf_properties["start_bound"] = bounds.start / drf_properties["samples_per_second"]
-    drf_properties["end_bound"] = bounds.end / drf_properties["samples_per_second"]
-
-    # initialize the digital metadata reader
-    dmd_properties = {}
     try:
-        md_reader = typing.cast(
-            "DigitalMetadataReader",
-            rf_reader.get_digital_metadata(channel_name),
-        )
-    except OSError as e:
-        msg = f"No digital metadata for channel '{channel_name}': {e}"
-        log.warning(msg)
-    else:
-        dmd_properties = md_reader.read_flatdict(
-            start_sample=bounds.start,
-            method="ffill",
-        )
-        if not isinstance(dmd_properties, dict):
-            msg = "Expected dmd_properties to be a dictionary"
-            raise TypeError(msg)
+        rf_reader = drf.DigitalRFReader(str(data_path))
+        bounds_raw = rf_reader.get_bounds(channel_name)
+        bounds_raw = typing.cast("tuple[int, int]", bounds_raw)
+        bounds = Bounds(start=bounds_raw[0], end=bounds_raw[1])
 
-    # Merge the flattened dictionaries
-    return {
-        **drf_properties,
-        **dmd_properties,
-    }
+        # get properties
+        drf_properties = typing.cast(
+            "dict[str, typing.Any]",
+            rf_reader.get_properties(channel_name=channel_name, sample=bounds.start),
+        )
+
+        # add bounds to properties, convert to unix timestamp
+        drf_properties["start_bound"] = (
+            bounds.start / drf_properties["samples_per_second"]
+        )
+        drf_properties["end_bound"] = bounds.end / drf_properties["samples_per_second"]
+
+        # initialize the digital metadata reader
+        dmd_properties = {}
+        try:
+            md_reader = typing.cast(
+                "DigitalMetadataReader",
+                rf_reader.get_digital_metadata(channel_name),
+            )
+        except OSError as e:
+            msg = f"No digital metadata for channel '{channel_name}': {e}"
+            log.warning(msg)
+        else:
+            try:
+                dmd_properties = md_reader.read_flatdict(
+                    start_sample=bounds.start,
+                    method="ffill",
+                )
+                if not isinstance(dmd_properties, dict):
+                    msg = "Expected dmd_properties to be a dictionary"
+                    raise TypeError(msg)
+            except OSError as e:
+                msg = (
+                    f"Digital metadata files for channel '{channel_name}' "
+                    f"are missing, corrupt, or unreadable: {e}. "
+                    f"Try re-uploading the metadata files for this channel, "
+                    f"or contact support with your capture UUID."
+                )
+                log.warning(msg)
+                raise ValueError(msg) from e
+    except OSError as e:
+        msg = (
+            f"Digital RF data or metadata for channel '{channel_name}' "
+            f"is missing, corrupt, or unreadable: {e}. "
+            f"Try re-uploading the channel files, "
+            f"or contact support with this capture UUID."
+        )
+        log.warning(msg)
+        raise ValueError(msg) from e
+    else:
+        # Merge the flattened dictionaries
+        return {
+            **drf_properties,
+            **dmd_properties,
+        }
 
 
 def validate_metadata_by_channel(

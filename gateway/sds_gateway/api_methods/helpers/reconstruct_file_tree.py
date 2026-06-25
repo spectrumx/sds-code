@@ -366,11 +366,21 @@ def reconstruct_tree(
             filenames_of_interest=filenames_of_interest,
         )
         if fetch_file_contents:
-            minio_client.fget_object(
-                bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
-                object_name=file_obj.file.name,
-                file_path=str(local_file_path),
-            )
+            try:
+                minio_client.fget_object(
+                    bucket_name=settings.AWS_STORAGE_BUCKET_NAME,
+                    object_name=file_obj.file.name,
+                    file_path=str(local_file_path),
+                )
+            except Exception as e:
+                msg = (
+                    f"Failed to fetch file '{file_obj.name}' "
+                    f"from storage: {e}. "
+                    f"Try re-uploading the file, "
+                    f"or contact support with this capture UUID."
+                )
+                log.warning(msg)
+                raise ValueError(msg) from e
         else:
             local_file_path.touch()
 

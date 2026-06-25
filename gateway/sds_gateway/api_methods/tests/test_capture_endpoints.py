@@ -14,6 +14,7 @@ from typing import cast
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
+import pytest
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.urls import reverse
@@ -22,6 +23,9 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.test import APITestCase
 
+from sds_gateway.api_methods.helpers.extract_drf_metadata import (
+    read_metadata_by_channel,
+)
 from sds_gateway.api_methods.helpers.index_handling import index_capture_metadata
 from sds_gateway.api_methods.helpers.reconstruct_file_tree import (
     _get_list_of_capture_files,
@@ -2948,3 +2952,30 @@ class CaptureListWithBulkMetadataTests(APITestCase):
         # Should not raise - cap2 gets empty cache
         response = self.client.get(self.list_url)
         assert response.status_code == status.HTTP_200_OK
+
+
+def test_read_metadata_by_channel_unreadable_metadata() -> None:
+    """read_metadata_by_channel raises ValueError when metadata@*.h5 files
+    are corrupt/unreadable.
+
+    The outer get_digital_metadata() call succeeds (dmd_properties.h5 exists)
+    but the inner read_flatdict() call fails because the underlying
+    metadata@*.h5 data files are corrupt. The fix converts this OSError
+    into a ValueError so create() returns HTTP 400 instead of 500.
+    """
+    mock_rf = MagicMock()
+    mock_rf.get_bounds.return_value = (0, 1000)
+    mock_rf.get_properties.return_value = {"samples_per_second": 1000}
+    mock_md = mock_rf.get_digital_metadata.return_value
+    mock_md.read_flatdict.side_effect = OSError(
+        "All attempts to read first sample failed",
+    )
+
+    with (
+        patch(
+            "sds_gateway.api_methods.helpers.extract_drf_metadata.drf.DigitalRFReader",
+            return_value=mock_rf,
+        ),
+        pytest.raises(ValueError, match="corrupt, or unreadable"),
+    ):
+        read_metadata_by_channel(Path("/fake"), "ch0")
