@@ -238,13 +238,14 @@ class TestCeleryTasks(TestCase):
         # Clear any existing emails
         mail.outbox.clear()
 
-        # Test the task
-        result = send_item_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
-        )
-
-        # Get the result
-        task_result = result.get()
+        with patch(
+            "sds_gateway.api_methods.tasks.check_disk_space_available",
+            return_value=True,
+        ):
+            result = send_item_files_email.delay(
+                str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
+            )
+            task_result = result.get()
 
         # Verify task completed successfully
         assert task_result["status"] == "success", (
@@ -398,13 +399,14 @@ class TestCeleryTasks(TestCase):
         # Clear any existing emails
         mail.outbox.clear()
 
-        # Test the task
-        result = send_item_files_email.delay(
-            str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
-        )
-
-        # Get the result
-        task_result = result.get()
+        with patch(
+            "sds_gateway.api_methods.tasks.check_disk_space_available",
+            return_value=True,
+        ):
+            result = send_item_files_email.delay(
+                str(self.dataset.uuid), str(self.user.id), ItemType.DATASET
+            )
+            task_result = result.get()
 
         # Verify task completed with error
         assert task_result["status"] == "error", (
@@ -822,6 +824,10 @@ class TestCeleryTasks(TestCase):
         # Test with insufficient space (500GB required, but only 495GB available)
         result = check_disk_space_available(500 * 1024 * 1024 * 1024)  # 500GB required
         assert result is False
+
+        # Small temp-dir operations can skip the safety buffer.
+        result = check_disk_space_available(1024, buffer_bytes=0)
+        assert result is True
 
         # Test with error handling
         mock_disk_usage.side_effect = OSError("Disk error")

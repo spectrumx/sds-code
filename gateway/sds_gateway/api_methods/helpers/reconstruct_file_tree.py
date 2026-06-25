@@ -265,7 +265,11 @@ def _check_disk_space_available_for_reconstruction(
     # Check disk space only for files that will be fetched
     if files_to_fetch:
         estimated_size = estimate_disk_size(files_to_fetch)
-        if not check_disk_space_available(estimated_size, target_dir):
+        if not check_disk_space_available(
+            estimated_size,
+            target_dir,
+            buffer_bytes=0,
+        ):
             msg = (
                 f"Insufficient disk space for reconstructing file tree. "
                 f"Required: {estimated_size} bytes, "

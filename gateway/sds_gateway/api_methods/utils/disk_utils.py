@@ -13,7 +13,10 @@ DISK_SPACE_BUFFER = 5 * 1024 * 1024 * 1024  # 5 GB buffer for safety
 
 
 def check_disk_space_available(
-    required_bytes: int, directory: Path | None = None
+    required_bytes: int,
+    directory: Path | None = None,
+    *,
+    buffer_bytes: int | None = None,
 ) -> bool:
     """
     Check if there's enough disk space available for the required bytes.
@@ -21,6 +24,8 @@ def check_disk_space_available(
     Args:
         required_bytes: Number of bytes needed
         directory: Directory to check space for (defaults to MEDIA_ROOT)
+        buffer_bytes: Safety margin to reserve; defaults to DISK_SPACE_BUFFER.
+            Pass 0 for small temp-dir operations where only the payload size matters.
 
     Returns:
         bool: True if enough space is available, False otherwise
@@ -28,9 +33,12 @@ def check_disk_space_available(
     if directory is None:
         directory = Path(settings.MEDIA_ROOT)
 
+    if buffer_bytes is None:
+        buffer_bytes = DISK_SPACE_BUFFER
+
     try:
         _total, _used, free = shutil.disk_usage(directory)
-        available_space = free - DISK_SPACE_BUFFER
+        available_space = free - buffer_bytes
     except (OSError, ValueError) as e:
         logger.error(f"Error checking disk space for {directory}: {e}")
         return False
