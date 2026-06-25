@@ -23,6 +23,7 @@ packages = ["sds_federation"]
 [project.optional-dependencies]
 dev = [
     "deptry>=0.24.0",
+    "pyrefly>=0.42.1",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
     "ruff>=0.15.0",
@@ -34,6 +35,7 @@ dev = [
     [tool.deptry.per_rule_ignores]
         DEP002 = [
             "deptry",
+            "pyrefly",
             "pytest",
             "pytest-asyncio",
             "ruff",
@@ -144,6 +146,16 @@ dev = [
         line-ending = "auto"
         quote-style = "double"
         skip-magic-trailing-comma = false
+
+[tool.pyrefly]
+    project-excludes = ["**/.[!/.]*", "**/tests", "tests/", "**/scripts"]
+    project-includes = ["sds_federation"]
+    search-path      = ["sds_federation"]
+
+    python-platform = "linux"
+    python-version  = "3.13"
+
+    ignore-errors-in-generated-code = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
