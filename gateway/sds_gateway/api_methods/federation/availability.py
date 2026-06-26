@@ -82,14 +82,20 @@ def _sync_health_ok() -> tuple[bool, str]:  # noqa: PLR0911
         return False, f"sync health probe failed: {exc.reason}"
     except TimeoutError:
         return False, "sync health probe timed out"
-    if body:
-        try:
-            payload = json.loads(body)
-            if isinstance(payload, dict) and payload.get("status") == "ok":
-                return True, "sync health ok"
-        except json.JSONDecodeError:
-            pass
+    if not body.strip():
         return True, "sync health returned 200"
+
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        return True, "sync health returned 200"
+
+    if isinstance(payload, dict):
+        if payload.get("status") == "ok":
+            return True, "sync health ok"
+        status_value = payload.get("status")
+        return False, f"sync health status is not ok: {status_value!r}"
+
     return True, "sync health returned 200"
 
 
