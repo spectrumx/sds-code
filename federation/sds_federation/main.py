@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI):
     os_client = OpenSearch(hosts=[{"host": os_host, "port": int(os_port)}])
     app.state.config = config
     app.state.http = http
+    app.state.opensearch_client = os_client
     app.state.fed_indexer = FederatedAssetIndexer(os_client)
     app.state.peer_registry = PeerRegistry()
 
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
     sub_task = asyncio.create_task(
         run_federation_subscriber(redis_url, http, config, stop),
     )
+    app.state.subscriber_task = sub_task
 
     yield
 
