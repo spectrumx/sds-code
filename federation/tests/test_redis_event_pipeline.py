@@ -6,6 +6,9 @@ import json
 
 import httpx
 import pytest
+from sds_federation.schemas.webhooks import FederationEventType
+from sds_federation.services.fed_index import FederatedAssetIndexer
+from sds_federation.services.fed_index import doc_id
 from sds_federation.services.local_events import dispatch_federation_redis_payload
 from sds_federation.services.local_events import parse_redis_event_payload
 from sds_federation.services.peer_sync import peer_webhook_url
@@ -19,7 +22,7 @@ async def test_parse_simulated_redis_payload() -> None:
     parsed = parse_redis_event_payload(data)
     assert parsed is not None
     asset_type, event_type, uuid, _ts = parsed
-    assert event_type == "updated"
+    assert event_type == FederationEventType.UPDATED
     assert uuid == TEST_DATASET_UUID
     assert asset_type.value == "dataset"
 
@@ -28,6 +31,15 @@ async def test_parse_simulated_redis_payload() -> None:
 async def test_invalid_redis_payload_ignored() -> None:
     assert parse_redis_event_payload({"item_type": "file"}) is None
     assert parse_redis_event_payload({"item_type": "dataset"}) is None
+    assert (
+        parse_redis_event_payload(
+            {
+                **simulated_dataset_redis_payload(),
+                "event_type": "not-a-real-event",
+            }
+        )
+        is None
+    )
 
 
 @pytest.mark.asyncio
@@ -35,19 +47,27 @@ async def test_dispatch_resolves_uuid_and_posts_webhook_to_peer(
     test_site_config,
     stub_dataset_resolver,
     peer_webhook_recorder,
+    recording_opensearch,
 ) -> None:
     recorded, transport = peer_webhook_recorder
+    indexer = FederatedAssetIndexer(recording_opensearch)
     payload = simulated_dataset_redis_payload()
 
     async with httpx.AsyncClient(transport=transport) as http:
         dispatched = await dispatch_federation_redis_payload(
             http,
             test_site_config,
+            indexer,
             payload,
             resolve_asset=stub_dataset_resolver,
         )
 
     assert dispatched is True
+    assert len(recording_opensearch.index_calls) == 1
+    assert recording_opensearch.index_calls[0]["id"] == doc_id(
+        "testsite",
+        TEST_DATASET_UUID,
+    )
     assert len(recorded) == 1
     req = recorded[0]
     expected_url = peer_webhook_url(
@@ -68,8 +88,10 @@ async def test_dispatch_deleted_skips_resolver_and_sends_tombstone(
     test_site_config,
     stub_dataset_resolver,
     peer_webhook_recorder,
+    recording_opensearch,
 ) -> None:
     recorded, transport = peer_webhook_recorder
+    indexer = FederatedAssetIndexer(recording_opensearch)
     payload = simulated_dataset_redis_payload(event_type="deleted")
 
     async def fail_if_called(*_args, **_kwargs):
@@ -79,9 +101,12 @@ async def test_dispatch_deleted_skips_resolver_and_sends_tombstone(
         await dispatch_federation_redis_payload(
             http,
             test_site_config,
+            indexer,
             payload,
             resolve_asset=fail_if_called,
         )
+
+    assert len(recording_opensearch.update_calls) == 1
 
     assert len(recorded) == 1
     body = json.loads(recorded[0].content.decode())
@@ -95,8 +120,10 @@ async def test_dispatch_unknown_uuid_resolver_raises(
     test_site_config,
     stub_dataset_resolver,
     peer_webhook_recorder,
+    recording_opensearch,
 ) -> None:
     _, transport = peer_webhook_recorder
+    indexer = FederatedAssetIndexer(recording_opensearch)
     payload = simulated_dataset_redis_payload(
         uuid="00000000-0000-0000-0000-000000000099",
     )
@@ -106,6 +133,7 @@ async def test_dispatch_unknown_uuid_resolver_raises(
             await dispatch_federation_redis_payload(
                 http,
                 test_site_config,
+                indexer,
                 payload,
                 resolve_asset=stub_dataset_resolver,
             )

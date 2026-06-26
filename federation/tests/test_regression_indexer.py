@@ -67,8 +67,13 @@ def test_indexer_delete_uses_update_with_tombstone(
 
     assert len(recording_opensearch.update_calls) == 1
     assert recording_opensearch.index_calls == []
-    doc = recording_opensearch.update_calls[0]["body"]["doc"]
-    assert doc["is_federated_deleted"] is True
+    body = recording_opensearch.update_calls[0]["body"]
+    assert body["doc"]["is_federated_deleted"] is True
+    upsert = body["upsert"]
+    assert upsert["is_federated_deleted"] is True
+    assert upsert["uuid"] == str(TEST_DATASET_UUID)
+    assert upsert["site_name"] == "testsite"
+    assert upsert["name"] == "Simulated public dataset"
 
 
 @pytest.mark.regression
