@@ -82,6 +82,29 @@ class TestFederationAvailability:
         assert ok is True
 
     @override_settings(
+        FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
+        FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
+        FEDERATION_SYNC_HEALTH_URL="http://sync.test/health",
+        FEDERATION_SKIP_REDIS_PROBE=True,
+    )
+    @patch("sds_gateway.api_methods.federation.availability.urllib.request.urlopen")
+    def test_health_probe_fails_when_json_status_not_ok(
+        self,
+        mock_urlopen: MagicMock,
+    ) -> None:
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{"status":"degraded"}'
+        response.__enter__.return_value = response
+        response.__exit__.return_value = None
+        mock_urlopen.return_value = response
+
+        ok, reason = evaluate_federation_operational()
+        assert ok is False
+        assert "not ok" in reason
+
+    @override_settings(
         FEDERATION_EXPORT_ALLOWED_CIDRS=["10.0.0.0/8"],
     )
     def test_client_ip_allowlist(self) -> None:
