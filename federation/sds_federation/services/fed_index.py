@@ -52,15 +52,18 @@ class FederatedAssetIndexer:
         _id = doc_id(site_name, asset.uuid)
 
         if event_type == FederationEventType.DELETED:
+            tombstone = {
+                "is_federated_deleted": True,
+                "federation_event_at": event_at.isoformat(),
+            }
+            upsert_body = asset.model_dump(mode="json")
+            upsert_body.update(tombstone)
             self._client.update(
                 index=asset_type.index_name,
                 id=_id,
                 body={
-                    "doc": {
-                        "is_federated_deleted": True,
-                        "federation_event_at": event_at.isoformat(),
-                    },
-                    "doc_as_upsert": True,
+                    "doc": tombstone,
+                    "upsert": upsert_body,
                 },
                 refresh="wait_for",
             )
