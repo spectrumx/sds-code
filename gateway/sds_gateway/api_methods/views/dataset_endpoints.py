@@ -55,7 +55,7 @@ def _truthy_query_param(raw: str | None) -> bool:
 
 
 class DatasetViewSet(ViewSet):
-    authentication_classes = [APIKeyAuthentication]
+    authentication_classes = [APIKeyAuthentication, SessionAuthentication]
 
     def _get_file_objects(
         self,

@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 if TYPE_CHECKING:
+    from pydantic import BaseModel
     from rest_framework.serializers import BaseSerializer
 
 
@@ -15,7 +16,7 @@ def serializer_output_field_names(serializer: BaseSerializer[Any]) -> set[str]:
 
 def assert_field_names_match(
     serializer: BaseSerializer[Any],
-    pydantic_model: type,
+    pydantic_model: BaseModel,
     *,
     label: str,
 ) -> None:

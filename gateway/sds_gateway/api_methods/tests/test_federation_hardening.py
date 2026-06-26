@@ -21,9 +21,6 @@ from sds_gateway.api_methods.federation.availability import (
     is_client_ip_allowed_for_federation_export,
 )
 from sds_gateway.api_methods.federation.availability import (
-    is_federation_internal_header_valid,
-)
-from sds_gateway.api_methods.federation.availability import (
     refresh_federation_operational_state,
 )
 from sds_gateway.api_methods.models import DatasetStatus
@@ -45,6 +42,7 @@ class TestFederationAvailability:
 
     @override_settings(
         FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
@@ -55,6 +53,7 @@ class TestFederationAvailability:
 
     @override_settings(
         FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
     )
@@ -65,6 +64,7 @@ class TestFederationAvailability:
 
     @override_settings(
         FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SYNC_HEALTH_URL="http://sync.test/health",
         FEDERATION_SKIP_REDIS_PROBE=True,
@@ -92,25 +92,20 @@ class TestFederationAvailability:
         assert is_client_ip_allowed_for_federation_export(denied) is False
 
     @override_settings(
-        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="top-secret",  # noqa: S106
-        FEDERATION_EXPORT_INTERNAL_HEADER_NAME="X-SDS-Federation-Internal",
+        FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="",
+        FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
+        FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
+        FEDERATION_SKIP_REDIS_PROBE=True,
     )
-    def test_internal_header_when_configured(self) -> None:
-        factory = RequestFactory()
-        missing = factory.get("/")
-        valid = factory.get("/", HTTP_X_SDS_FEDERATION_INTERNAL="top-secret")
-        invalid = factory.get("/", HTTP_X_SDS_FEDERATION_INTERNAL="wrong")
-        assert is_federation_internal_header_valid(missing) is False
-        assert is_federation_internal_header_valid(valid) is True
-        assert is_federation_internal_header_valid(invalid) is False
-
-    @override_settings(FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="")
-    def test_internal_header_optional_when_secret_empty(self) -> None:
-        request = RequestFactory().get("/")
-        assert is_federation_internal_header_valid(request) is True
+    def test_fails_without_site_name(self) -> None:
+        ok, reason = evaluate_federation_operational()
+        assert ok is False
+        assert "FEDERATION_SITE_NAME" in reason
 
     @override_settings(
         FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
@@ -125,9 +120,9 @@ class TestFederationAvailability:
 
 @override_settings(
     FEDERATION_ENABLED=True,
+    FEDERATION_SITE_NAME="crc",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
     FEDERATION_EXPORT_ALLOWED_CIDRS=["0.0.0.0/0", "::/0"],
-    FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="",
 )
 class FederationExportAccessControlTest(APITestCase):
     """Export API with operational + network permissions enabled for tests."""
@@ -186,24 +181,3 @@ class FederationExportAccessControlTest(APITestCase):
             **self._auth(self.sync_key),
         )
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-
-    @override_settings(
-        FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="edge-secret",  # noqa: S106
-        FEDERATION_OPERATIONAL_OVERRIDE=True,
-        FEDERATION_EXPORT_ALLOWED_CIDRS=["127.0.0.1/32"],
-    )
-    def test_internal_header_required_when_configured(self) -> None:
-        denied = self.client.get(
-            self.list_datasets_url,
-            REMOTE_ADDR="127.0.0.1",
-            **self._auth(self.sync_key),
-        )
-        assert denied.status_code == status.HTTP_403_FORBIDDEN
-
-        allowed = self.client.get(
-            self.list_datasets_url,
-            REMOTE_ADDR="127.0.0.1",
-            HTTP_X_SDS_FEDERATION_INTERNAL="edge-secret",
-            **self._auth(self.sync_key),
-        )
-        assert allowed.status_code == status.HTTP_200_OK

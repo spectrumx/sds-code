@@ -19,7 +19,13 @@ if TYPE_CHECKING:
 
     from sds_gateway.api_methods.models import ItemType
 
-FederationEventType = str  # created | updated | deleted
+class FederationEventType(StrEnum):
+    CREATED = "created"
+    UPDATED = "updated"
+    DELETED = "deleted"
+
+    def __str__(self) -> str:
+        return self.value
 
 
 def publish_federation_event(

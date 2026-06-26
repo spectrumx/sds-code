@@ -7,9 +7,6 @@ from rest_framework.permissions import BasePermission
 from sds_gateway.api_methods.federation.availability import (
     is_client_ip_allowed_for_federation_export,
 )
-from sds_gateway.api_methods.federation.availability import (
-    is_federation_internal_header_valid,
-)
 from sds_gateway.api_methods.federation.availability import is_federation_operational
 
 
@@ -34,11 +31,9 @@ class IsFederationOperational(BasePermission):
 
 
 class IsFederationInternalExportClient(BasePermission):
-    """Restrict export to internal networks (and optional edge-injected header)."""
+    """Restrict export to internal network clients (sync service on sds-network)."""
 
     message = "Federation export is only available to internal clients."
 
     def has_permission(self, request, view) -> bool:
-        if not is_client_ip_allowed_for_federation_export(request):
-            return False
-        return is_federation_internal_header_valid(request)
+        return is_client_ip_allowed_for_federation_export(request)

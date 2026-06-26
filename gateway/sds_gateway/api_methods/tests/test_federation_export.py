@@ -17,9 +17,9 @@ User = get_user_model()
 
 @override_settings(
     FEDERATION_ENABLED=True,
+    FEDERATION_SITE_NAME="crc",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
     FEDERATION_EXPORT_ALLOWED_CIDRS=["0.0.0.0/0", "::/0"],
-    FEDERATION_EXPORT_INTERNAL_HEADER_SECRET="",
 )
 class FederationExportAPITest(APITestCase):
     def setUp(self) -> None:
@@ -84,7 +84,7 @@ class FederationExportAPITest(APITestCase):
         )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["uuid"] == str(self.public_dataset.uuid)
-        assert response.json()["site_name"]
+        assert response.json()["site_name"] == "crc"
 
     def test_regular_key_denied_on_export(self) -> None:
         response = self.client.get(

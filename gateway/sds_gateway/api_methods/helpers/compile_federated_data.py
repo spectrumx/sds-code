@@ -22,9 +22,7 @@ if TYPE_CHECKING:
 
 
 def federation_site_name() -> str:
-    return getattr(
-        settings, "FEDERATION_SITE_NAME", settings.SDS_PROGRAMMATIC_SITE_NAME
-    )
+    return getattr(settings, "FEDERATION_SITE_NAME", "").strip()
 
 
 def public_datasets_queryset() -> QuerySet[Dataset]:
