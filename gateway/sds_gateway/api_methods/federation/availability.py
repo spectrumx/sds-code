@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import ipaddress
 import json
-import secrets
 import time
 import urllib.error
 import urllib.request
@@ -28,20 +27,20 @@ def _setting(name: str, *, default: Any = None) -> Any:
     return getattr(settings, name, default)
 
 
-def _parse_cidrs(raw: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    return [ipaddress.ip_network(item.strip(), strict=False) for item in raw]
+def _export_allowed_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Networks from settings (parsed at startup); tests may override with strings."""
+    raw = _setting("FEDERATION_EXPORT_ALLOWED_CIDRS", default=[])
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for item in raw:
+        if isinstance(item, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
+            networks.append(item)
+        else:
+            networks.append(ipaddress.ip_network(str(item).strip(), strict=False))
+    return networks
 
 
 def federation_client_ip(request) -> str | None:
-    """Resolve client IP for federation export access control."""
-    trust_forwarded = _setting(
-        "FEDERATION_EXPORT_TRUST_X_FORWARDED_FOR",
-        default=False,
-    )
-    if trust_forwarded:
-        forwarded = request.headers.get("x-forwarded-for", "")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+    """Client IP for export access control (direct internal connections only)."""
     remote = request.META.get("REMOTE_ADDR")
     if remote:
         return str(remote).strip()
@@ -49,7 +48,7 @@ def federation_client_ip(request) -> str | None:
 
 
 def is_client_ip_allowed_for_federation_export(request) -> bool:
-    cidrs = _parse_cidrs(_setting("FEDERATION_EXPORT_ALLOWED_CIDRS", default=[]))
+    cidrs = _export_allowed_networks()
     if not cidrs:
         return False
     client_ip = federation_client_ip(request)
@@ -60,21 +59,6 @@ def is_client_ip_allowed_for_federation_export(request) -> bool:
     except ValueError:
         return False
     return any(addr in network for network in cidrs)
-
-
-def is_federation_internal_header_valid(request) -> bool:
-    secret = _setting("FEDERATION_EXPORT_INTERNAL_HEADER_SECRET", default="")
-    if not secret:
-        return True
-    header_name = _setting(
-        "FEDERATION_EXPORT_INTERNAL_HEADER_NAME",
-        default="X-SDS-Federation-Internal",
-    )
-    meta_key = "HTTP_" + header_name.upper().replace("-", "_")
-    provided = request.META.get(meta_key, "")
-    if not provided:
-        return False
-    return secrets.compare_digest(str(provided), str(secret))
 
 
 def _sync_health_ok() -> tuple[bool, str]:  # noqa: PLR0911
@@ -119,8 +103,8 @@ def _sync_api_key_present() -> tuple[bool, str]:
 
 
 def _redis_ok() -> tuple[bool, str]:
-    if not _setting("FEDERATION_EVENTS_ENABLED", default=False):
-        return True, "redis not required (events disabled)"
+    if not _setting("FEDERATION_ENABLED", default=False):
+        return True, "redis not required (federation disabled)"
     if _setting("FEDERATION_SKIP_REDIS_PROBE", default=False):
         return True, "redis probe skipped"
 
@@ -135,6 +119,10 @@ def _redis_ok() -> tuple[bool, str]:
 def evaluate_federation_operational() -> tuple[bool, str]:
     if not _setting("FEDERATION_ENABLED", default=False):
         return False, "FEDERATION_ENABLED is False"
+
+    site_name = (_setting("FEDERATION_SITE_NAME", default="") or "").strip()
+    if not site_name:
+        return False, "FEDERATION_SITE_NAME must be set when federation is enabled"
 
     for check in (_sync_api_key_present, _sync_health_ok, _redis_ok):
         ok, reason = check()

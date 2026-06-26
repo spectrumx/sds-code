@@ -27,10 +27,8 @@ def _event_type(*, created: bool, exportable: bool) -> str:
 
 
 def _skip_signal() -> bool:
-    if not getattr(settings, "FEDERATION_EVENTS_ENABLED", False):
-        log.debug(
-            "FEDERATION_EVENTS_ENABLED is False, skipping federation signal",
-        )
+    if not getattr(settings, "FEDERATION_ENABLED", False):
+        log.debug("FEDERATION_ENABLED is False, skipping federation signal")
         return True
 
     if not is_federation_operational():
