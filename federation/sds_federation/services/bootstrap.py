@@ -67,7 +67,12 @@ async def fetch_peer_export_list(
 ) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
     url = _export_list_url(peer, asset_type)
     api_key = _resolve_gateway_api_key(peer)
-    data = await _get_json(http, url, api_key=api_key)
+    data = await _get_json(
+        http,
+        url,
+        api_key=api_key,
+        verify=peer.ca_cert_path or True,
+    )
     if not isinstance(data, list):
         msg = f"expected list from {url}, got {type(data).__name__}"
         raise TypeError(msg)
