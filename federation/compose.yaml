@@ -18,7 +18,15 @@ services:
     ports:
       - "8001:8000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test:
+        [
+          "CMD",
+          "uv",
+          "run",
+          "python",
+          "-c",
+          "import sys, httpx; r=httpx.get('http://127.0.0.1:8000/health', timeout=4); sys.exit(0 if r.status_code==200 else 1)",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3

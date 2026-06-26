@@ -60,7 +60,13 @@ async def lifespan(app: FastAPI):
     stop = asyncio.Event()
     redis_url = os.environ.get("REDIS_URL", "redis://redis:6379/0")
     sub_task = asyncio.create_task(
-        run_federation_subscriber(redis_url, http, config, stop),
+        run_federation_subscriber(
+            redis_url,
+            http,
+            config,
+            app.state.fed_indexer,
+            stop,
+        ),
     )
     app.state.subscriber_task = sub_task
 
