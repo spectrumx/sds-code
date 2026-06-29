@@ -193,6 +193,7 @@ class LogCategory(StrEnum):
     AUTH = "auth"
     NETWORK = "network"
     FILESYSTEM = "filesystem"
+    DOWNLOAD = "download"
     UPLOAD = "upload"
 
 

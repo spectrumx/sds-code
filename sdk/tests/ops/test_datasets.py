@@ -56,8 +56,8 @@ def test_get_files_artifacts_only_clears_capture_uuids_and_warns() -> None:
     ):
         paginator = api.get_files(ds, capture_uuids=(cap,), artifacts_only=True)
         assert len(paginator) == 0
-    log_mock.warning.assert_called_once()
-    assert "capture" in log_mock.warning.call_args[0][0].lower()
+    log_mock.bind.return_value.warning.assert_called_once()
+    assert "capture" in log_mock.bind.return_value.warning.call_args[0][0].lower()
     kw = mock_get.call_args.kwargs
     assert kw.get("capture_uuids") in (None, ())
     assert kw["artifacts_only"] is True
@@ -78,7 +78,7 @@ def test_get_files_artifacts_only_with_top_level_dirs_logs_info() -> None:
             artifacts_only=True,
         )
         assert len(paginator) == 0
-    log_mock.info.assert_called_once()
+    log_mock.bind.return_value.info.assert_called_once()
     kw = mock_get.call_args.kwargs
     assert kw["top_level_dirs"] == ("/pytest/root",)
     assert kw["artifacts_only"] is True

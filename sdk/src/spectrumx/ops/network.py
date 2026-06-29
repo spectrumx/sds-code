@@ -3,6 +3,7 @@
 import sys
 from http import HTTPStatus
 
+from spectrumx.utils import LogCategory
 from spectrumx.utils import is_test_env
 
 # python 3.11 backport
@@ -33,7 +34,7 @@ def success_or_raise(
     if status.is_success:
         return
 
-    log.info(response)
+    log.bind(cat=LogCategory.NETWORK).info(response)
     try:
         error_json = response.json()
         error_details = error_json.get("detail", error_json)
@@ -45,7 +46,7 @@ def success_or_raise(
         )
 
     error_details = str(error_details)
-    log.opt(depth=1).exception(error_details)
+    log.bind(cat=LogCategory.NETWORK).opt(depth=1).exception(error_details)
     if status in {HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN}:
         raise errors.AuthError(message=error_details)
     if status.is_client_error:
@@ -62,7 +63,9 @@ def extract_error_details_from_html(response: requests.Response) -> str:
             BeautifulSoup,  # pyright: ignore[reportMissingModuleSource]
         )
     except ImportError:
-        log.warning("Install 'BeautifulSoup' to have a more detailed error message.")
+        log.bind(cat=LogCategory.NETWORK).warning(
+            "Install 'BeautifulSoup' to have a more detailed error message."
+        )
         reason = response.reason
         if reason is None:
             reason = "Unknown reason"

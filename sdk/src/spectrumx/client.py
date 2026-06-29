@@ -338,7 +338,9 @@ class Client:
         """Prepare the download directory."""
         if not to_local_path.exists():
             if self.dry_run:
-                log_user(f"Dry run: would create the directory '{to_local_path}'")
+                log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                    f"Download dry-run: directory would be created at '{to_local_path}'"
+                )
             else:
                 to_local_path.mkdir(parents=True)
 
@@ -353,12 +355,13 @@ class Client:
     ) -> DownloadFileSource:
         """Get the list of files to download."""
         if self.dry_run:
-            log_user(
-                "Called download() in dry run mode: "
-                "files are fabricated and not written to disk."
+            log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                "Download dry-run: files are simulated (not written to disk)"
             )
             files_to_download = files.generate_random_files(num_files=10)
-            log_user(f"Dry run: discovered {len(files_to_download)} files (samples)")
+            log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                f"Download dry-run: discovered {len(files_to_download)} sample files"
+            )
         else:
             if from_sds_path is not None:
                 files_to_download = self.list_files(
@@ -373,7 +376,10 @@ class Client:
                 )
                 raise ValueError(error_msg)
             if verbose:
-                log_user(f"Discovered {len(files_to_download)} files")
+                log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                    f"Download: discovered {len(files_to_download)} files "
+                    f"in SDS path '{from_sds_path}'"
+                )
 
         return files_to_download
 
@@ -440,18 +446,26 @@ class Client:
 
         # skip file download when local exists and not overwriting
         if not skip_contents and local_file_path.exists() and not overwrite:
-            log_user(f"Skipping local file: '{local_file_path}'")
+            log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                f"Download skipped: local file exists "
+                f"(set overwrite=True to replace): '{local_file_path}'"
+            )
             return Result(value=file_info)
 
         # never re-download identical files
         if not skip_contents and local_file_path.exists() and overwrite:
             if file_info.sum_blake3 == file_info.compute_sum_blake3():
-                log_user(f"Skipping identical file: '{local_file_path}'")
+                log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+                    f"Download skipped: local copy is identical to SDS version "
+                    f"(BLAKE3 match): '{local_file_path}'"
+                )
                 return Result(value=file_info)
 
         # download the file
         try:
-            log.bind(cat=LogCategory.FILESYSTEM).debug(f"Dw: {local_file_path}")
+            log.bind(cat=LogCategory.DOWNLOAD).debug(
+                f"Downloading file contents to: {local_file_path}"
+            )
             downloaded_file = self.download_file(
                 file_uuid=file_info.uuid,
                 to_local_path=local_file_path,
@@ -477,8 +491,10 @@ class Client:
         """Check if the local file path is relative to the target directory."""
         local_file_path = local_file_path.resolve()
         to_local_path = to_local_path.resolve()
-        log.bind(cat=LogCategory.FILESYSTEM).debug(f"Resolved path: {local_file_path}")
-        log.bind(cat=LogCategory.FILESYSTEM).debug(f"Target path: {to_local_path}")
+        log.bind(cat=LogCategory.DOWNLOAD).debug(
+            f"Download path resolved: {local_file_path}"
+        )
+        log.bind(cat=LogCategory.DOWNLOAD).debug(f"Download target: {to_local_path}")
         return local_file_path.is_relative_to(to_local_path)
 
     def list_files(

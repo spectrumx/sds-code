@@ -102,13 +102,15 @@ class CaptureAPI:
 
         top_level_dir = PurePosixPath(top_level_dir)
         if self.verbose:
-            log.debug(
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
                 f"Creating capture with {top_level_dir=}, "
                 f"{channel=}, {capture_type=}, {index_name=}, {scan_group=}, {name=}"
             )
 
         if self.dry_run:
-            log.debug("Dry run enabled: simulating the capture creation")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: simulating the capture creation"
+            )
             return Capture(
                 capture_props={},
                 capture_type=capture_type,
@@ -141,7 +143,9 @@ class CaptureAPI:
         )
         capture = Capture.model_validate_json(capture_raw)
         if self.verbose:
-            log.debug(f"Capture created with UUID {capture.uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Capture created with UUID {capture.uuid}"
+            )
         return capture
 
     def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
@@ -156,9 +160,13 @@ class CaptureAPI:
             A list of the RF captures found owned by the requesting user.
         """
         if self.verbose:
-            log.debug(f"Listing captures of type {capture_type}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Listing captures of type {capture_type}"
+            )
         if self.dry_run:
-            log.debug("Dry run enabled: simulating capture listing")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: simulating capture listing"
+            )
             num_captures: int = 3
             rng = random.Random()  # noqa: S311
             return [
@@ -170,7 +178,9 @@ class CaptureAPI:
         captures_raw = self.gateway.list_captures(capture_type=capture_type)
         captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
         if has_more:
-            log.warning("Not all capture results may be listed. ")
+            log.bind(cat=LogCategory.FILESYSTEM).warning(
+                "Not all capture results may be listed. "
+            )
             # TODO: request more pages if needed
         captures: list[Capture] = []
         for captures_raw in captures_list_raw:
@@ -179,10 +189,12 @@ class CaptureAPI:
                 captures.append(capture)
             except ValidationError as err:
                 log_user_warning(f"Validation error loading capture: {captures_raw}")
-                log.exception(err)
+                log.bind(cat=LogCategory.FILESYSTEM).exception(err)
                 continue
         if self.verbose:
-            log.debug(f"Listing {len(captures)} captures")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Listing {len(captures)} captures"
+            )
         return captures
 
     def update(
@@ -199,10 +211,14 @@ class CaptureAPI:
             None
         """
         if self.verbose:
-            log.debug(f"Updating capture with UUID {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Updating capture with UUID {capture_uuid}"
+            )
 
         if self.dry_run:
-            log.debug(f"Dry run enabled: simulating capture update {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Dry run enabled: simulating capture update {capture_uuid}"
+            )
             return
 
         capture_raw = self.gateway.update_capture(
@@ -211,7 +227,9 @@ class CaptureAPI:
         )
         capture = Capture.model_validate_json(capture_raw)
         if self.verbose:
-            log.debug(f"Capture updated with UUID {capture.uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Capture updated with UUID {capture.uuid}"
+            )
 
     def read(
         self,
@@ -229,12 +247,16 @@ class CaptureAPI:
             The capture object.
         """
         if self.verbose:
-            log.debug(f"Reading capture with UUID {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Reading capture with UUID {capture_uuid}"
+            )
 
         capture_raw = self.gateway.read_capture(capture_uuid=capture_uuid)
         capture = Capture.model_validate_json(capture_raw)
         if self.verbose:
-            log.debug(f"Capture read with UUID {capture.uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Capture read with UUID {capture.uuid}"
+            )
         return capture
 
     def delete(
@@ -252,17 +274,23 @@ class CaptureAPI:
                 if it has already been deleted; if this user doesn't own it.
         """
         if self.verbose:
-            log.debug(f"Deleting capture with UUID {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Deleting capture with UUID {capture_uuid}"
+            )
 
         if self.dry_run:
-            log.debug(f"Dry run enabled: would delete capture {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Dry run enabled: would delete capture {capture_uuid}"
+            )
             return True
 
         self.gateway.delete_capture(
             capture_uuid=capture_uuid,
         )
         if self.verbose:
-            log.debug(f"Capture deleted with UUID {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Capture deleted with UUID {capture_uuid}"
+            )
         return True
 
     def revoke_share_permissions(self, capture_uuid: uuid.UUID) -> bool:
@@ -271,9 +299,13 @@ class CaptureAPI:
         Use this (or the web portal) before :meth:`delete` when the capture is shared.
         """
         if self.verbose:
-            log.debug(f"Revoking share permissions for capture {capture_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Revoking share permissions for capture {capture_uuid}"
+            )
         if self.dry_run:
-            log.debug("Dry run enabled: would revoke capture share permissions")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: would revoke capture share permissions"
+            )
             return True
         self.gateway.revoke_capture_share_permissions(capture_uuid=capture_uuid)
         return True
@@ -284,9 +316,13 @@ class CaptureAPI:
         Use before :meth:`delete` when the capture is still linked to datasets.
         """
         if self.verbose:
-            log.debug(f"Detaching capture {capture_uuid} from datasets")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Detaching capture {capture_uuid} from datasets"
+            )
         if self.dry_run:
-            log.debug("Dry run enabled: would detach capture from datasets")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: would detach capture from datasets"
+            )
             return True
         self.gateway.detach_capture_from_datasets(capture_uuid=capture_uuid)
         return True
@@ -325,7 +361,9 @@ class CaptureAPI:
         # TODO: adapt this function to return a Paginator[Capture] object
 
         if self.dry_run:
-            log.debug("Dry run enabled: simulating search results")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: simulating search results"
+            )
             rng = random.Random()  # noqa: S311
             return [
                 _generate_capture(capture_type=rng.choice(list(CaptureType)))
@@ -350,12 +388,14 @@ class CaptureAPI:
                 log_user_warning(
                     f"Validation error loading search result: {result_raw}"
                 )
-                log.exception(err)
+                log.bind(cat=LogCategory.FILESYSTEM).exception(err)
                 continue
             else:
                 captures.append(capture)
         if self.verbose:
-            log.debug(f"Search returned {len(captures)} captures")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Search returned {len(captures)} captures"
+            )
         return captures
 
 

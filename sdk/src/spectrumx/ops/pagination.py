@@ -18,6 +18,7 @@ from spectrumx.errors import Unset
 from spectrumx.gateway import GatewayClient
 from spectrumx.models import SDSModel
 from spectrumx.ops import files
+from spectrumx.utils import LogCategory
 from spectrumx.utils import log_user_warning
 
 if TYPE_CHECKING:
@@ -192,7 +193,7 @@ class Paginator(Generic[T]):
     def _debug(self, message: str, depth: int = 1) -> None:
         """Logs a debug message if verbose mode is enabled."""
         if self._verbose:  # pragma: no cover
-            log.opt(depth=depth).debug(message)
+            log.bind(cat=LogCategory.FILESYSTEM).opt(depth=depth).debug(message)
 
     @property
     def _has_next_page(self) -> bool:
@@ -204,7 +205,9 @@ class Paginator(Generic[T]):
     def _fetch_next_page(self) -> None:
         """Fetches the next page of results."""
         if self._is_fetching:  # pragma: no cover
-            log.warning("Already fetching the next page.")
+            log.bind(cat=LogCategory.FILESYSTEM).warning(
+                "Already fetching the next page."
+            )
             return
         self._is_fetching = True
         # try-finally to unset self._is_fetching when done
@@ -234,7 +237,7 @@ class Paginator(Generic[T]):
                     # log an unexpected FileError if it happens
                     if "invalid page" not in str(err).lower():
                         msg = "Unexpected error while fetching the next page:"
-                        log.exception(msg)
+                        log.bind(cat=LogCategory.FILESYSTEM).exception(msg)
                     msg = "No more pages available."
                     raise StopIteration(msg) from err
             self._next_page += 1
@@ -301,7 +304,7 @@ def _process_file_fake(my_file: files.File) -> None:  # pragma: no cover
 
 def main() -> None:  # pragma: no cover
     """Usage example for paginator."""
-    log.info("Running the main script.")
+    log.bind(cat=LogCategory.FILESYSTEM).info("Running the main script.")
     file_paginator = Paginator[files.File](
         Entry=files.File,
         gateway=GatewayClient(
@@ -318,23 +321,27 @@ def main() -> None:  # pragma: no cover
         dry_run=True,  # in dry-run this should always generate 2.5 pages
         verbose=True,
     )
-    log.info(f"Total files matched: {len(file_paginator)}")
+    log.bind(cat=LogCategory.FILESYSTEM).info(
+        f"Total files matched: {len(file_paginator)}"
+    )
     processed_count: int = 0
     for my_file in file_paginator:
-        log.info(f"Processing file: {my_file.name}")
+        log.bind(cat=LogCategory.FILESYSTEM).info(f"Processing file: {my_file.name}")
         _process_file_fake(my_file)
         processed_count += 1
         # new pages are fetched automatically
 
-    log.info(f"Processed {processed_count} / {len(file_paginator)} files.")
+    log.bind(cat=LogCategory.FILESYSTEM).info(
+        f"Processed {processed_count} / {len(file_paginator)} files."
+    )
 
-    log.info("Trying another loop:")
+    log.bind(cat=LogCategory.FILESYSTEM).info("Trying another loop:")
     for _my_file in file_paginator:
         msg = "This will not run, as the paginator was consumed."
         raise AssertionError(msg)
-    log.info("No more files to process.")
+    log.bind(cat=LogCategory.FILESYSTEM).info("No more files to process.")
 
-    log.info("Paginator demo finished.")
+    log.bind(cat=LogCategory.FILESYSTEM).info("Paginator demo finished.")
 
 
 if __name__ == "__main__":

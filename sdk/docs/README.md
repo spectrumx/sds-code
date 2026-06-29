@@ -338,3 +338,28 @@ If this is needed, SDK users have a few options:
 
 One writer (an SDK client that creates, updates, and/or deletes contents) and multiple
 readers are generally safe.
+
+## Structured Logging
+
+The SDK writes structured JSONL logs to `~/.local/state/spectrumx/logs/YYYY-MM-DD.jsonl`.
+Each line is a JSON object with fields for timestamp, severity, category, and message.
+Filter them with `jq`:
+
+```bash
+# Show only filesystem operations
+jq 'select(.cat == "filesystem")' ~/.local/state/spectrumx/logs/*.jsonl
+
+# Show only download operations
+jq 'select(.cat == "download")' ~/.local/state/spectrumx/logs/*.jsonl
+
+# Show warnings and errors
+jq 'select(.lvl == "WARNING" or .lvl == "ERROR")' ~/.local/state/spectrumx/logs/*.jsonl
+
+# Compact view per line
+jq -r '"\(.ts[11:19]) [\(.lvl)] [\(.cat)] \(.msg)"' ~/.local/state/spectrumx/logs/*.jsonl
+
+# Count messages per category
+jq -r '.cat' ~/.local/state/spectrumx/logs/*.jsonl | sort | uniq -c | sort -rn
+```
+
+See the [full structured logging docs](https://sds.crc.nd.edu/sdk/advanced/structured-logging/) for more examples.

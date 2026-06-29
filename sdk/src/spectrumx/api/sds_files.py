@@ -23,6 +23,7 @@ from spectrumx.errors import SDSError
 from spectrumx.models.files import File
 from spectrumx.ops import files
 from spectrumx.ops.pagination import Paginator
+from spectrumx.utils import LogCategory
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 
@@ -289,17 +290,15 @@ def __download_file_contents_if_applicable(
     skip_contents: bool = False,
 ) -> None:
     if skip_contents:
-        msg = (
-            "A file instance was provided and skip_contents "
-            "is True: nothing to download."
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=1).warning(
+            "Download skipped: skip_contents=True, no file contents to download"
         )
-        log_user_warning(msg)
         return
     if client.dry_run:
         file_instance.local_path = valid_local_path_or_none
-        log_user(
-            "Dry run enabled: file contents would be "
-            f"downloaded as {file_instance.local_path}"
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+            f"Download dry-run: file contents would be saved to "
+            f"{file_instance.local_path}"
         )
         return
     downloaded_path: Path = __download_file_contents(
@@ -345,7 +344,9 @@ def __download_file_contents(
     )
 
     if client.dry_run:
-        log_user(f"Dry run enabled: file would be saved as {target_path}")
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+            f"Download dry-run: file contents would be saved to {target_path}"
+        )
         return target_path
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -397,11 +398,9 @@ def __extract_download_info_from_file_instance(
     if to_local_path:
         file_instance.local_path = Path(to_local_path)
     if file_instance.local_path is None and warn_missing_path:
-        msg = (
-            "The file instance passed is missing a local path to "
-            "download to. A temporary file will be created on disk."
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=1).warning(
+            "Download: no local path set on file instance; using temporary file"
         )
-        log_user_warning(msg)
     valid_uuid = file_instance.uuid
     valid_local_path_or_none = file_instance.local_path
     return file_instance, valid_uuid, valid_local_path_or_none
@@ -465,8 +464,9 @@ def __pre_fetch_file_for_download(
         msg = "Expected a file instance or UUID to download."
         raise ValueError(msg)
     if to_local_path is None and warn_missing_path:
-        msg = "The file will be downloaded as temporary."
-        log_user_warning(msg)
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=1).warning(
+            "Download: file will be saved to a temporary location"
+        )
 
     valid_local_path_or_none: Path | None = (
         Path(to_local_path) if to_local_path else None
@@ -476,7 +476,9 @@ def __pre_fetch_file_for_download(
         uuid.UUID(file_uuid) if isinstance(file_uuid, str) else file_uuid
     )
     if client.dry_run:
-        log_user("Dry run enabled: a sample file is being returned instead")
+        log.bind(cat=LogCategory.DOWNLOAD).opt(depth=2).info(
+            "Download dry-run: returning a sample file instead of downloading"
+        )
         file_instance: File = files.generate_sample_file(valid_uuid)
     else:
         file_bytes: bytes = client._gateway.get_file_by_id(uuid=valid_uuid.hex)
@@ -511,7 +513,7 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:  # noqa: 
         case FileUploadMode.UPLOAD_METADATA_ONLY:
             if verbose:
                 log_user(f"Uploading only metadata for '{file_path}'")
-                log.debug(
+                log.bind(cat=LogCategory.UPLOAD).debug(
                     f"Uploading only metadata '{file_path}' with sibling '{asset_id}'"
                 )
             if asset_id is None:
@@ -523,7 +525,9 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:  # noqa: 
         case FileUploadMode.UPDATE_METADATA_ONLY:  # pragma: no cover
             if verbose:
                 log_user(f"Updating metadata for '{file_path}'")
-                log.debug(f"Updating metadata '{file_path}' with asset '{asset_id}'")
+                log.bind(cat=LogCategory.UPLOAD).debug(
+                    f"Updating metadata '{file_path}' with asset '{asset_id}'"
+                )
             assert asset_id is not None, "Expected an asset ID when updating metadata"
             return __update_existing_file_metadata_only(
                 client=client, file_instance=file_instance, asset_id=asset_id

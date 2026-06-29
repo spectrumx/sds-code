@@ -11,6 +11,7 @@ from loguru import logger as log
 from spectrumx.models.datasets import Dataset
 from spectrumx.models.files import File
 from spectrumx.ops.pagination import Paginator
+from spectrumx.utils import LogCategory
 from spectrumx.utils import log_user
 
 if TYPE_CHECKING:
@@ -118,11 +119,15 @@ class DatasetAPI:
             log_user("Dry run enabled: files will be simulated")
 
         if artifacts_only and capture_uuids:
-            log.warning("Capture UUIDs are not allowed when artifacts_only is True.")
+            log.bind(cat=LogCategory.FILESYSTEM).warning(
+                "Capture UUIDs are not allowed when artifacts_only is True."
+            )
             capture_uuids = None
 
         if artifacts_only and top_level_dirs:
-            log.info("Top level directories included will ONLY return artifact files.")
+            log.bind(cat=LogCategory.FILESYSTEM).info(
+                "Top level directories included will ONLY return artifact files."
+            )
 
         list_kwargs: dict[str, Any] = {"dataset_uuid": dataset_uuid}
         if capture_uuids is not None:
@@ -155,17 +160,23 @@ class DatasetAPI:
             True if the dataset was deleted successfully, or if in dry run mode.
         """
         if self.verbose:
-            log.debug(f"Deleting dataset with UUID {dataset_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Deleting dataset with UUID {dataset_uuid}"
+            )
 
         if self.dry_run:
-            log.debug(f"Dry run enabled: would delete dataset {dataset_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Dry run enabled: would delete dataset {dataset_uuid}"
+            )
             return True
 
         self.gateway.delete_dataset(
             dataset_uuid=dataset_uuid,
         )
         if self.verbose:
-            log.debug(f"Dataset deleted with UUID {dataset_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Dataset deleted with UUID {dataset_uuid}"
+            )
         return True
 
     def revoke_share_permissions(self, dataset_uuid: UUID) -> bool:
@@ -174,9 +185,13 @@ class DatasetAPI:
         Use this (or the web portal) before :meth:`delete` when the dataset is shared.
         """
         if self.verbose:
-            log.debug(f"Revoking share permissions for dataset {dataset_uuid}")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Revoking share permissions for dataset {dataset_uuid}"
+            )
         if self.dry_run:
-            log.debug("Dry run enabled: would revoke dataset share permissions")
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                "Dry run enabled: would revoke dataset share permissions"
+            )
             return True
         self.gateway.revoke_dataset_share_permissions(dataset_uuid=dataset_uuid)
         return True

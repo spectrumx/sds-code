@@ -25,6 +25,7 @@ nav:
     - "Changelog": "changelog.md"
     - "Advanced":
           - "Concurrent Access": "advanced/concurrent-access.md"
+          - "Structured Logging": "advanced/structured-logging.md"
     - "API Reference":
           - "Client": "api/client.md"
           - "Errors": "api/errors.md"

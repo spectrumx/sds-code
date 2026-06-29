@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 from loguru import logger as log
 
 from spectrumx.models.files import File
+from spectrumx.utils import LogCategory
 from spectrumx.utils import log_user
 from spectrumx.utils import log_user_warning
 
@@ -38,7 +39,7 @@ def _load_undesired_globs(ignore_file: Path | None = None) -> list[str]:
             ]
             undesired_basenames = sorted([line for line in undesired_basenames if line])
     else:
-        log.info("No .sds-ignore file found")
+        log.bind(cat=LogCategory.FILESYSTEM).info("No .sds-ignore file found")
     return undesired_basenames
 
 
