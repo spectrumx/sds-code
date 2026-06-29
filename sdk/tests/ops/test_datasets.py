@@ -154,3 +154,104 @@ def test_revoke_dataset_share_permissions(
     assert len(responses.calls) == 1
     assert responses.calls[0].request.method == "PUT"
     assert responses.calls[0].request.url == revoke_url
+
+
+def test_get_dry_run(client: Client) -> None:
+    """Dry run for get() returns a shell Dataset without HTTP calls."""
+    client.dry_run = True
+    dataset_uuid = uuidlib.uuid4()
+    result = client.datasets.get(dataset_uuid)
+    assert result.uuid == dataset_uuid
+
+
+@responses.activate
+def test_get_gateway(client: Client, responses: responses.RequestsMock) -> None:
+    """get() calls gateway and returns a parsed Dataset."""
+    client.dry_run = False
+    dataset_uuid = uuidlib.uuid4()
+    mock_data = {
+        "uuid": dataset_uuid.hex,
+        "name": "test-dataset-from-gateway",
+    }
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=dataset_uuid.hex),
+        json=mock_data,
+        status=200,
+    )
+    result = client.datasets.get(dataset_uuid)
+    assert result.uuid.hex == dataset_uuid.hex
+    assert result.name == "test-dataset-from-gateway"
+    assert len(responses.calls) == 1
+
+
+def test_list_captures_dry_run(client: Client) -> None:
+    """Dry run for list_captures() returns an empty list."""
+    client.dry_run = True
+    dataset_uuid = uuidlib.uuid4()
+    result = client.datasets.list_captures(dataset_uuid)
+    assert result == []
+
+
+@responses.activate
+def test_list_captures_gateway(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """list_captures() calls gateway and returns parsed capture payloads."""
+    client.dry_run = False
+    dataset_uuid = uuidlib.uuid4()
+    mock_data = {
+        "captures": [
+            {"uuid": str(uuidlib.uuid4()), "name": "capture-1"},
+        ],
+    }
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=dataset_uuid.hex),
+        json=mock_data,
+        status=200,
+    )
+    result = client.datasets.list_captures(dataset_uuid)
+    assert len(result) == 1
+    assert result[0]["name"] == "capture-1"
+    assert len(responses.calls) == 1
+
+
+def test_list_artifact_files_dry_run(client: Client) -> None:
+    """Dry run for list_artifact_files() returns an empty list."""
+    client.dry_run = True
+    dataset_uuid = uuidlib.uuid4()
+    result = client.datasets.list_artifact_files(dataset_uuid)
+    assert result == []
+
+
+@responses.activate
+def test_list_artifact_files_gateway(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """list_artifact_files() calls gateway and returns parsed file payloads."""
+    client.dry_run = False
+    dataset_uuid = uuidlib.uuid4()
+    mock_data = {
+        "files": [
+            {"uuid": str(uuidlib.uuid4()), "name": "file-1.txt"},
+        ],
+    }
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=dataset_uuid.hex),
+        json=mock_data,
+        status=200,
+    )
+    result = client.datasets.list_artifact_files(dataset_uuid)
+    assert len(result) == 1
+    assert result[0]["name"] == "file-1.txt"
+    assert len(responses.calls) == 1
+
+
+def test_revoke_share_permissions_dry_run(client: Client) -> None:
+    """Dry run for revoke_share_permissions() returns True."""
+    client.dry_run = True
+    dataset_uuid = uuidlib.uuid4()
+    result = client.datasets.revoke_share_permissions(dataset_uuid)
+    assert result is True

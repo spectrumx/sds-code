@@ -78,4 +78,11 @@ def extract_error_details_from_html(response: requests.Response) -> str:
 
     combined_text = "\n".join(texts)
     no_blanks = "\n".join(filter(None, combined_text.splitlines()))
-    return no_blanks.strip()
+    extracted = no_blanks.strip()
+    if extracted:
+        return extracted
+
+    reason = response.reason
+    if reason is None:
+        reason = "Unknown reason"
+    return reason

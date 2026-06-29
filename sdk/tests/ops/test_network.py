@@ -6,9 +6,12 @@ Use the integration_client fixture for these tests.
 # ruff: noqa: SLF001
 # pyright: ignore[reportPrivateUsage]
 
+from unittest.mock import patch
+
 import pytest
 import requests
 from spectrumx import errors
+from spectrumx.ops.network import extract_error_details_from_html
 from spectrumx.ops.network import success_or_raise
 
 
@@ -74,3 +77,64 @@ def test_success_or_raise_contextual_exception() -> None:
 
     with pytest.raises(CustomException, match="Bad Request"):
         success_or_raise(response, ContextException=CustomException)
+
+
+def test_success_or_raise_no_status_code() -> None:
+    """No status code should raise SDSError."""
+    response = requests.Response()
+    object.__setattr__(response, "status_code", None)
+    with pytest.raises(errors.SDSError, match="No status code"):
+        success_or_raise(response)
+
+
+def test_success_or_raise_json_decode_error_no_bs4() -> None:
+    """Non-JSON error body falls back to reason when not in test env."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b"Not JSON"
+    response.reason = "Internal Server Error"
+    with (
+        patch("spectrumx.ops.network.is_test_env", return_value=False),
+        pytest.raises(errors.ServiceError, match="Internal Server Error"),
+    ):
+        success_or_raise(response)
+
+
+def test_success_or_raise_json_decode_error_with_bs4() -> None:
+    """Non-JSON error body extracts error from HTML when in test env."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b'<li id="summary">Error details</li>'
+    with (
+        patch("spectrumx.ops.network.is_test_env", return_value=True),
+        pytest.raises(errors.ServiceError, match="Error details"),
+    ):
+        success_or_raise(response)
+
+
+def test_success_or_raise_catchall_fallback() -> None:
+    """3xx status falls through to generic SDSError."""
+    response = requests.Response()
+    response.status_code = 300
+    response._content = b'{"detail": "redirected"}'
+    with pytest.raises(errors.SDSError, match="redirected"):
+        success_or_raise(response)
+
+
+def test_extract_error_details_from_html_no_matching_element() -> None:
+    """When HTML lacks #summary/#pastebinTraceback, falls back to reason."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b"<html><body>No useful error element</body></html>"
+    response.reason = "Internal Server Error"
+    result = extract_error_details_from_html(response)
+    assert result == "Internal Server Error"
+
+
+def test_extract_error_details_from_html_with_bs4() -> None:
+    """Extracts text from HTML id=summary element."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b'<li id="summary">Extracted error</li>'
+    result = extract_error_details_from_html(response)
+    assert result == "Extracted error"

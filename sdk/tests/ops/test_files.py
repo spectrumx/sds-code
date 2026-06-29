@@ -17,10 +17,14 @@ import pytest
 import responses
 from spectrumx import Client
 from spectrumx.api.sds_files import delete_file
+from spectrumx.api.sds_files import download_file
 from spectrumx.api.sds_files import file_list_time_query_param
 from spectrumx.api.sds_files import list_files
+from spectrumx.api.uploads import UploadPersistenceManager
 from spectrumx.errors import FileError
+from spectrumx.errors import SDSError
 from spectrumx.gateway import API_TARGET_VERSION
+from spectrumx.models.files import File
 from spectrumx.ops.files import (
     _load_undesired_globs,  # pyright: ignore[reportPrivateUsage]
 )
@@ -870,3 +874,466 @@ class TestIsValidFile:
             f"Large valid file should pass validation. Reasons: {reasons}"
         )
         assert reasons == [], "No reasons should be given for valid files"
+
+
+# =============================================================================
+# sds_files.py coverage tests (phase 2)
+# =============================================================================
+
+
+def test_upload_file_invalid_type(client: Client) -> None:
+    """upload_file raises TypeError for non-File/Path/str input."""
+    with pytest.raises(TypeError, match="file_path must be a Path, str, or File"):
+        client.upload_file(local_file=123)  # type: ignore[arg-type]
+
+
+def test_upload_file_instance_directory_composition(
+    client: Client, tmp_path: Path
+) -> None:
+    """Uploading a File instance with directory set prepends sds_path."""
+    client.dry_run = True
+    sub_path = PurePosixPath("sub/dir")
+    file_path = tmp_path / "test_compose.txt"
+    file_path.write_text("content")
+
+    file_instance = File(
+        uuid=uuidlib.uuid4(),
+        name=file_path.name,
+        media_type="text/plain",
+        size=file_path.stat().st_size,
+        directory=sub_path,
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+        local_path=file_path,
+    )
+
+    result = client.upload_file(
+        local_file=file_instance,
+        sds_path=PurePosixPath("/base"),
+    )
+
+    assert result.directory == PurePosixPath("/base/sub/dir"), (
+        f"Expected '/base/sub/dir', got '{result.directory}'"
+    )
+
+
+def test_upload_file_skip_mode(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """When file already exists in tree, upload_file returns input without UUID."""
+    client.dry_run = False
+    asset_id = uuidlib.uuid4()
+
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": True,
+            "user_mutable_attributes_differ": False,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/skip"),
+    )
+
+    assert result.uuid is None, "SKIP mode should return the local file without UUID"
+    assert result.local_path == temp_file_with_text_contents
+    assert len(responses.calls) == 1, "Only content-check request expected"
+
+
+def test_upload_file_metadata_only_mode(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """When contents exist for user, upload metadata only."""
+    client.dry_run = False
+    asset_id = uuidlib.uuid4()
+    file_id = uuidlib.uuid4()
+    file_size = temp_file_with_text_contents.stat().st_size
+
+    # content-check response: contents exist for user but not in tree
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": True,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    # metadata-only upload response
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json={
+            "uuid": file_id.hex,
+            "name": temp_file_with_text_contents.name,
+            "media_type": "text/plain",
+            "size": file_size,
+            "directory": "/test/metadata-only",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/metadata-only"),
+    )
+
+    assert result.uuid == file_id, "Metadata-only upload should return a server File"
+    assert result.directory == PurePosixPath("/test/metadata-only")
+    assert len(responses.calls) == 2, (  # noqa: PLR2004
+        "Expected content-check + metadata-upload calls"
+    )
+
+
+def test_download_file_with_file_instance(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """download_file accepts a File instance directly."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    file_contents = "downloaded via file-instance"
+
+    now_ts = datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC)
+
+    file_instance = File(
+        uuid=file_id,
+        name="test.txt",
+        media_type="text/plain",
+        size=len(file_contents),
+        directory=PurePosixPath("/test/"),
+        permissions="rw-r--r--",
+        created_at=now_ts,
+        updated_at=now_ts,
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    # only the download endpoint is needed (file info is in the instance)
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=file_contents,
+    )
+
+    result = download_file(client=client, file_instance=file_instance)
+
+    assert result.uuid == file_id
+    assert result.local_path is not None
+    assert result.local_path.exists()
+    assert result.local_path.read_text() == file_contents
+
+    # cleanup
+    result.local_path.unlink(missing_ok=True)
+
+
+def test_download_file_skip_contents(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """skip_contents=True prevents downloading file contents."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    now_ts = datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC)
+
+    file_instance = File(
+        uuid=file_id,
+        name="test.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/test/"),
+        permissions="rw-r--r--",
+        created_at=now_ts,
+        updated_at=now_ts,
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    # Do NOT register a download endpoint — if skip_contents works,
+    # the download endpoint should NOT be called.
+    result = download_file(
+        client=client,
+        file_instance=file_instance,
+        skip_contents=True,
+    )
+
+    assert result.uuid == file_id
+    assert result.local_path is None, "No local path should be set when skipping"
+    assert len(responses.calls) == 0, "No HTTP calls should be made"
+
+
+def test_download_file_missing_uuid(client: Client) -> None:
+    """Downloading a File instance without a UUID raises ValueError."""
+    now_ts = datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC)
+
+    file_instance = File(
+        name="test.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/test/"),
+        permissions="rw-r--r--",
+        created_at=now_ts,
+        updated_at=now_ts,
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(ValueError, match="local reference"):
+        download_file(client=client, file_instance=file_instance)
+
+
+def test_download_file_contents_error_cleanup(
+    client: Client, tmp_path: Path, responses: responses.RequestsMock
+) -> None:
+    """When download fails, temp files are cleaned up and exception propagates."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    target_path = tmp_path / "should-not-exist.txt"
+    now_ts = datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC)
+
+    file_instance = File(
+        uuid=file_id,
+        name="test.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/test/"),
+        permissions="rw-r--r--",
+        created_at=now_ts,
+        updated_at=now_ts,
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=500,
+        json={"detail": "Simulated download failure"},
+    )
+
+    with pytest.raises(SDSError, match="Simulated download failure"):
+        download_file(
+            client=client,
+            file_instance=file_instance,
+            to_local_path=target_path,
+        )
+
+    assert not target_path.exists(), (
+        "Target path should not exist after failed download"
+    )
+    # verify no stray .downloading temp files remain
+    temp_files = list(tmp_path.glob("*.downloading"))
+    assert len(temp_files) == 0, f"Temp files not cleaned up: {temp_files}"
+
+
+def test_delete_file_get_file_fails(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """When get_file fails before deletion, a warning is logged but delete proceeds."""
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False
+
+    # GET request for file info will receive a response that causes parse failure
+    responses.add(
+        method=responses.GET,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        body=b"not-valid-json",
+    )
+
+    # DELETE request succeeds
+    responses.add(
+        method=responses.DELETE,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=204,
+    )
+
+    result = delete_file(client=client, file_uuid=test_uuid)
+
+    assert result is True, "Delete should succeed even if get_file fails"
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004
+
+
+def test_delete_file_cleanup_called(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """When sum_blake3 is set and delete succeeds, cleanup is triggered."""
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    test_checksum = "abc123def456"
+    client.dry_run = False
+
+    # GET returns file info WITH sum_blake3
+    responses.add(
+        method=responses.GET,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "sum_blake3": test_checksum,
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    # DELETE request succeeds
+    responses.add(
+        method=responses.DELETE,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=204,
+    )
+
+    with patch.object(
+        UploadPersistenceManager,
+        "remove_persisted_uploads_by_checksum",
+    ) as mock_cleanup:
+        result = delete_file(client=client, file_uuid=test_uuid)
+
+        assert result is True
+        mock_cleanup.assert_called_once_with(checksum=test_checksum)
+
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004
+
+
+def test_delete_file_gateway_returns_false(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """When the gateway rejects the DELETE, the error propagates as FileError."""
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False
+
+    # GET returns file info
+    responses.add(
+        method=responses.GET,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    responses.add(
+        method=responses.DELETE,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=400,
+        json={"detail": "Cannot delete"},
+    )
+
+    with pytest.raises(FileError, match="Cannot delete"):
+        delete_file(client=client, file_uuid=test_uuid)
+
+
+def test_list_files_empty_result(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """list_files returns no files when the gateway returns an empty page."""
+    client.dry_run = False
+
+    responses.add(
+        method=responses.GET,
+        url=get_files_endpoint(client),
+        status=200,
+        json={"count": 0, "results": []},
+    )
+
+    paginator = list_files(
+        client=client,
+        sds_path=PurePosixPath("/test/empty"),
+    )
+    results = list(paginator)
+
+    assert results == [], "Expected no files from empty listing"
+
+
+def test_list_files_dry_run(client: Client) -> None:
+    """list_files in dry run returns a paginator without network calls."""
+    client.dry_run = True
+
+    paginator = list_files(
+        client=client,
+        sds_path=PurePosixPath("/test/dry"),
+    )
+
+    # In dry run, the paginator yields sample files
+    results = list(paginator)
+    assert len(results) > 0, "Expected sample files in dry run"
+    for f in results:
+        assert f.uuid is not None
+        assert isinstance(f.name, str)
+        assert len(f.name) > 0
+
+
+def test_cleanup_persisted_uploads_error(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """When UploadPersistenceManager raises, the error is logged but not re-raised."""
+    test_uuid = uuidlib.uuid4()
+    test_uuid_hex = test_uuid.hex
+    client.dry_run = False
+
+    # GET returns file info WITH sum_blake3
+    responses.add(
+        method=responses.GET,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=200,
+        json={
+            "uuid": test_uuid_hex,
+            "name": "test.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/test/",
+            "permissions": "rw-r--r--",
+            "sum_blake3": "somechecksum",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    # DELETE succeeds
+    responses.add(
+        method=responses.DELETE,
+        url=f"{get_files_endpoint(client)}{test_uuid_hex}/",
+        status=204,
+    )
+
+    with patch.object(
+        UploadPersistenceManager,
+        "remove_persisted_uploads_by_checksum",
+        side_effect=OSError("Disk error"),
+    ):
+        # Should NOT raise — error is caught and logged
+        result = delete_file(client=client, file_uuid=test_uuid)
+
+    assert result is True, "Delete should still succeed even if cleanup fails"
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004

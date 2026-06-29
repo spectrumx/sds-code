@@ -7,15 +7,29 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 from unittest.mock import patch
+from uuid import UUID
 
 import pytest
+import responses
 from loguru import logger as log
 from spectrumx.client import Client
+from spectrumx.client import _normalize_top_level_dir_prefix
 from spectrumx.client import resolve_dataset_capture_filter_params
 from spectrumx.config import CFG_NAME_LOOKUP
 from spectrumx.config import SDSConfig
+from spectrumx.errors import CaptureError
+from spectrumx.errors import SDSError
+from spectrumx.gateway import API_TARGET_VERSION
+from spectrumx.models.captures import CaptureType
 from spectrumx.models.files import File
 from spectrumx.ops import files
+
+from tests.conftest import get_captures_endpoint
+from tests.conftest import get_content_check_endpoint
+from tests.conftest import get_datasets_endpoint
+from tests.conftest import get_files_endpoint
+
+_DRY_RUN_FILE_COUNT = 10
 
 
 class LogLevels(IntEnum):
@@ -445,3 +459,442 @@ def test_resolve_dataset_capture_filter_normalizes_top_level_dirs() -> None:
     assert active
     assert uuids is None
     assert dirs == ["/foo/bar", "/baz"]
+
+
+# ======================================================================
+# _normalize_top_level_dir_prefix
+# ======================================================================
+
+
+def test_normalize_top_level_dir_prefix() -> None:
+    """Covers _normalize_top_level_dir_prefix edge cases."""
+    assert _normalize_top_level_dir_prefix("foo/bar") == "/foo/bar"
+    assert _normalize_top_level_dir_prefix("/baz/") == "/baz"
+    assert _normalize_top_level_dir_prefix("/") == "/"
+    assert _normalize_top_level_dir_prefix("a\\b") == "/a/b"
+
+
+# ======================================================================
+# resolve_dataset_capture_filter_params edge cases
+# ======================================================================
+
+
+def test_resolve_dataset_capture_filter_none_params() -> None:
+    """When both captures and dirs are None, filter is not active (line 61)."""
+    active, uuids, dirs = resolve_dataset_capture_filter_params(
+        capture_uuids=None,
+        top_level_dirs=None,
+        dry_run=False,
+    )
+    assert not active
+    assert uuids is None
+    assert dirs is None
+
+
+def test_resolve_dataset_capture_filter_empty_collections() -> None:
+    """Empty collections produce active filter with empty sets (lines 71-75)."""
+    active, uuids, dirs = resolve_dataset_capture_filter_params(
+        capture_uuids=[],
+        top_level_dirs=[],
+        dry_run=False,
+    )
+    assert active
+    assert uuids is not None
+    assert len(uuids) == 0
+    assert dirs is not None
+    assert len(dirs) == 0
+
+
+def test_resolve_dataset_capture_filter_uuid_str_conversion() -> None:
+    """String UUIDs are properly converted to UUID objects (line 71)."""
+    uuid_str = "12345678-1234-5678-1234-567812345678"
+    active, uuids, _dirs = resolve_dataset_capture_filter_params(
+        capture_uuids=[uuid_str],
+        top_level_dirs=None,
+        dry_run=False,
+    )
+    assert active
+    assert uuids is not None
+    assert len(uuids) == 1
+    u = next(iter(uuids))
+    assert isinstance(u, UUID)
+    assert str(u) == uuid_str
+
+
+# ======================================================================
+# Client miscellaneous properties and methods
+# ======================================================================
+
+
+def test_client_str() -> None:
+    """Client.__str__ returns a descriptive string (line 159)."""
+    client = Client(host="sds-dev.crc.nd.edu")
+    assert "sds-dev.crc.nd.edu" in str(client)
+
+
+def test_verbose_enables_output(
+    client: Client, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Verbose mode produces log output during operations."""
+    caplog.set_level(LogLevels.DEBUG)
+    client.dry_run = True
+    client.verbose = True
+    client.get_file(file_uuid=uuid.uuid4())
+    assert len(caplog.records) > 0
+
+
+def test_non_verbose_suppresses_output(
+    client: Client, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Non-verbose mode suppresses verbose log output."""
+    caplog.set_level(LogLevels.DEBUG)
+    client.dry_run = True
+    client.verbose = False
+    client.get_file(file_uuid=uuid.uuid4())
+    verbose_messages = [r for r in caplog.records if "verbose" in r.message.lower()]
+    assert len(verbose_messages) == 0
+
+
+def test_client_base_url_properties(client: Client) -> None:
+    """base_url and base_url_no_port properties (lines 214, 219)."""
+    assert client.base_url.startswith("http")
+    assert isinstance(client.base_url_no_port, str)
+
+
+# ======================================================================
+# Download method tests
+# ======================================================================
+
+
+def test_download_mutual_exclusion(
+    tmp_path: Path,
+    client: Client,
+) -> None:
+    """from_sds_path and files_to_download are mutually exclusive (lines 308-314)."""
+    with pytest.raises(ValueError, match="Both a path in the SDS"):
+        client.download(
+            from_sds_path="/some/path",
+            to_local_path=tmp_path,
+            files_to_download=[],
+        )
+
+
+def _get_file_download_endpoint(client: Client, file_id: str) -> str:
+    """Returns the endpoint for downloading a file's contents."""
+    return (
+        client.base_url + f"/api/{API_TARGET_VERSION}/assets/files/{file_id}/download/"
+    )
+
+
+@responses.activate
+def test_download_single_file_sdserror(
+    tmp_path: Path,
+    client: Client,
+    caplog: pytest.LogCaptureFixture,
+    responses: responses.RequestsMock,
+) -> None:
+    """download_single_file catches SDSError (lines 461-463)."""
+    client.dry_run = False
+    caplog.set_level(LogLevels.ERROR)
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = PurePosixPath("remote/dir")
+    file_id_hex = file_info.uuid.hex
+
+    # File info GET succeeds
+    responses.add(
+        method=responses.GET,
+        url=get_files_endpoint(client) + f"{file_id_hex}/",
+        status=200,
+        json={
+            "uuid": file_id_hex,
+            "name": file_info.name,
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/remote/dir",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+    # Download GET fails with server error
+    responses.add(
+        method=responses.GET,
+        url=_get_file_download_endpoint(client, file_id_hex),
+        status=500,
+        json={"detail": "Internal Server Error"},
+    )
+
+    result = client.download_single_file(
+        file_info=file_info,
+        to_local_path=tmp_path,
+        skip_contents=False,
+        overwrite=False,
+    )
+    assert not result
+    exc = result.exception_or(None)
+    assert exc is not None
+    assert (
+        "500" in str(exc)
+        or "Server Error" in str(exc)
+        or "Internal Server Error" in str(exc)
+    )
+
+
+def test_download_no_path_no_files(
+    tmp_path: Path,
+    client: Client,
+) -> None:
+    """Missing both path and files raises ValueError (lines 369-374)."""
+    client.dry_run = False
+    with pytest.raises(ValueError, match="Either a path in the SDS"):
+        client.download(to_local_path=tmp_path)
+
+
+# ======================================================================
+# download_dataset endpoint tests
+# ======================================================================
+
+
+@pytest.mark.parametrize("uuid_arg", [uuid.uuid4(), str(uuid.uuid4())])
+def test_download_dataset_dry_run(
+    tmp_path: Path,
+    client: Client,
+    uuid_arg: uuid.UUID | str,
+) -> None:
+    """download_dataset works in dry run mode (lines 588-652)."""
+    results = client.download_dataset(
+        dataset_uuid=uuid_arg,
+        to_local_path=tmp_path,
+        verbose=False,
+    )
+    assert len(results) == _DRY_RUN_FILE_COUNT
+
+
+def test_download_dataset_empty_filters_active(
+    tmp_path: Path,
+    client: Client,
+) -> None:
+    """download_dataset with empty filters produces empty file list (lines 604-606).
+
+    When filter_active=True but both uuid_set and dir_prefixes_norm are empty,
+    files_to_download is set to an empty list directly.
+    """
+    client.dry_run = False
+    results = client.download_dataset(
+        dataset_uuid=uuid.uuid4(),
+        to_local_path=tmp_path,
+        capture_uuids=[],
+        top_level_dirs=[],
+        verbose=False,
+    )
+    assert len(results) == 0
+
+
+@responses.activate
+@pytest.mark.parametrize(
+    ("capture_uuids", "top_level_dirs"),
+    [
+        ([uuid.uuid4()], ["/some/path"]),
+        ([uuid.uuid4()], None),
+        (None, ["/some/path"]),
+    ],
+)
+def test_download_dataset_filter_branches(
+    tmp_path: Path,
+    client: Client,
+    responses: responses.RequestsMock,
+    capture_uuids,
+    top_level_dirs,
+) -> None:
+    """download_dataset filter_active paths with HTTP-level mocking.
+
+    Covers all three branches: both filters active, only uuids, and only dirs.
+    """
+    client.dry_run = False
+    dataset_uuid = uuid.uuid4()
+    # Mock the dataset files endpoint to return empty results
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=dataset_uuid.hex) + "files/",
+        status=200,
+        json={"count": 0, "results": []},
+    )
+    results = client.download_dataset(
+        dataset_uuid=dataset_uuid,
+        to_local_path=str(tmp_path),
+        capture_uuids=capture_uuids,
+        top_level_dirs=top_level_dirs,
+        verbose=False,
+    )
+    assert len(results) == 0
+
+
+# ======================================================================
+# Dataset read methods with string UUID (lines 662-678)
+# ======================================================================
+
+
+def test_get_dataset_string_uuid(client: Client) -> None:
+    """get_dataset accepts a string UUID (lines 662-664)."""
+    ds = client.get_dataset(dataset_uuid=str(uuid.uuid4()))
+    assert ds.uuid is not None
+
+
+def test_list_dataset_captures_string_uuid(client: Client) -> None:
+    """list_dataset_captures accepts a string UUID (lines 668-670)."""
+    result = client.list_dataset_captures(dataset_uuid=str(uuid.uuid4()))
+    assert result == []
+
+
+def test_list_dataset_artifact_files_string_uuid(client: Client) -> None:
+    """list_dataset_artifact_files accepts a string UUID (lines 676-678)."""
+    result = client.list_dataset_artifact_files(dataset_uuid=str(uuid.uuid4()))
+    assert result == []
+
+
+# ======================================================================
+# Upload method tests
+# ======================================================================
+
+
+@responses.activate
+def test_upload_capture_sdserror(
+    client: Client,
+    tmp_path: Path,
+    responses: responses.RequestsMock,
+) -> None:
+    """upload_capture: SDSError during capture creation returns None (lines 872-877)."""
+    client.dry_run = False
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    file_id = uuid.uuid4()
+
+    # The resumable upload discovers files in tmp_path (test file + log file).
+    # Each file triggers: content-check POST then file-upload POST.
+    for _ in range(2):
+        # Content check endpoint — file does not exist in tree
+        responses.add(
+            method=responses.POST,
+            url=get_content_check_endpoint(client),
+            status=200,
+            json={
+                "file_contents_exist_for_user": False,
+                "file_exists_in_tree": False,
+                "user_mutable_attributes_differ": True,
+            },
+        )
+        # File upload endpoint succeeds
+        responses.add(
+            method=responses.POST,
+            url=get_files_endpoint(client),
+            status=201,
+            json={
+                "uuid": file_id.hex,
+                "name": "test_upload.txt",
+                "media_type": "text/plain",
+                "size": local_file.stat().st_size,
+                "directory": "/",
+                "permissions": "rw-r--r--",
+                "created_at": "2024-12-01T12:00:00Z",
+                "updated_at": "2024-12-01T12:00:00Z",
+                "expiration_date": "2026-12-01T12:00:00Z",
+            },
+        )
+    # Capture creation endpoint fails
+    responses.add(
+        method=responses.POST,
+        url=get_captures_endpoint(client),
+        status=400,
+        json={"detail": "Capture failed"},
+    )
+
+    result = client.upload_capture(
+        local_path=tmp_path,
+        sds_path="/",
+        capture_type=CaptureType.DigitalRF,
+        verbose=False,
+        raise_on_error=False,
+    )
+    assert result is None
+
+
+def test_upload_multichannel_drf_capture_empty_channels(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel with empty channels returns [] (lines 954-956)."""
+    # Create a file so the resumable upload discovers something
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    client.dry_run = True
+    results = client.upload_multichannel_drf_capture(
+        local_path=tmp_path,
+        sds_path="/",
+        channels=[],
+        verbose=False,
+    )
+    assert results is not None
+    assert len(results) == 0
+
+
+def test_upload_multichannel_drf_capture_dry_run(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel works end-to-end in dry run mode (lines 937-987)."""
+    channels = ["chan1", "chan2"]
+    # Create a file so the resumable upload discovers something
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    client.dry_run = True
+    results = client.upload_multichannel_drf_capture(
+        local_path=tmp_path,
+        sds_path="/",
+        channels=channels,
+        verbose=False,
+    )
+    assert results is not None
+    assert len(results) == len(channels)
+    for capture in results:
+        assert capture.capture_type == CaptureType.DigitalRF
+
+
+# ======================================================================
+# _handle_existing_capture_error tests (lines 889-902)
+#
+# These test a private utility method directly because triggering the
+# specific error-handling branches through the public API would require
+# complex HTTP mocking with no additional behavioral coverage benefit.
+# ======================================================================
+
+
+def test_handle_existing_capture_error_non_capture_error(client: Client) -> None:
+    """Non-CaptureError returns (False, None) (lines 889-890)."""
+    err = SDSError("Some other error")
+    handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+    assert not handled
+    assert capture is None
+
+
+def test_handle_existing_capture_error_no_existing_uuid(client: Client) -> None:
+    """CaptureError without existing UUID returns (False, None) (lines 892-894)."""
+    err = CaptureError("Generic capture error without UUID info")
+    handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+    assert not handled
+    assert capture is None
+
+
+def test_handle_existing_capture_error_read_fails(client: Client) -> None:
+    """CaptureError with existing UUID, but read fails (lines 899-900)."""
+    err = CaptureError(
+        "drf_unique_channel_and_tld another capture: "
+        "12345678-1234-5678-1234-567812345678"
+    )
+    with patch.object(client.captures, "read", side_effect=SDSError("Read failed")):
+        handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+    assert not handled
+    assert capture is None
