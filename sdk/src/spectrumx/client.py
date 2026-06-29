@@ -160,11 +160,7 @@ class Client:
 
     def _issue_user_alerts(self) -> None:
         """Logs important messages on initialization."""
-        if __version__.startswith("0.1."):
-            log_user_warning(
-                "This version of the SDK is in early development. "
-                "Expect breaking changes in the future."
-            )
+        log_user(f"SDK version: {__version__}")
         if self.dry_run:
             log_user("Dry run enabled: no SDS requests will be made or files written")
 
