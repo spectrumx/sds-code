@@ -596,9 +596,10 @@ def test_download_single_file_sdserror(
     """download_single_file catches SDSError (lines 461-463)."""
     client.dry_run = False
     caplog.set_level(LogLevels.ERROR)
-    file_info = files.generate_sample_file(uuid.uuid4())
+    file_uuid = uuid.uuid4()
+    file_info = files.generate_sample_file(file_uuid)
     file_info.directory = PurePosixPath("remote/dir")
-    file_id_hex = file_info.uuid.hex
+    file_id_hex = file_uuid.hex
 
     # File info GET succeeds
     responses.add(

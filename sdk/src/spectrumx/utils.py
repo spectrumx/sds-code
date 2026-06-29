@@ -219,7 +219,10 @@ class LogContext:
     def __enter__(self) -> None:
         current = (_log_context.get() or {}).copy()
         current.update(self._kwargs)
-        self._token = _log_context.set(current)
+        self._token = cast(
+            contextvars.Token[dict[str, Any] | None],
+            _log_context.set(current),
+        )
 
     def __exit__(self, *args: object) -> None:
         if self._token is not None:
