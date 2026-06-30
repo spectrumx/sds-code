@@ -268,6 +268,7 @@ async def test_mark_completed_persists_file(
     file_path.write_text("uploaded content", encoding="utf-8")
 
     file_model = MagicMock(spec=File)
+    file_model.name = "uploaded_file.txt"
     file_model.local_path = file_path
     file_model.size = 100
     file_model.compute_sum_blake3.return_value = "persisted_checksum"

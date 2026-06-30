@@ -1,7 +1,9 @@
 """Client for the SpectrumX Data System."""
 
+import time
 from collections.abc import Collection
 from collections.abc import Mapping
+from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -394,6 +396,13 @@ class Client:
             files_to_download, desc="Downloading", disable=not verbose
         )
 
+        total = len(files_to_download)
+        period = self._config.progress_log_period_secs
+        _last_progress_log = 0.0
+        total_bytes_total = 0
+        bytes_downloaded = 0
+        _download_start = datetime.now(UTC)
+
         results: list[Result[File]] = []
         for file_info in prog_bar:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
@@ -404,6 +413,52 @@ class Client:
                 overwrite=overwrite,
             )
             results.append(result)
+
+            # Track bytes
+            total_bytes_total += file_info.size
+
+            # Per-file completion log
+            if result:
+                log.bind(cat=LogCategory.DOWNLOAD).info(
+                    f"Downloaded: {file_info.name}",
+                    file_name=file_info.name,
+                    file_size=file_info.size,
+                )
+                bytes_downloaded += file_info.size
+            else:
+                log.bind(cat=LogCategory.DOWNLOAD).warning(
+                    f"Download failed: {file_info.name}",
+                    file_name=file_info.name,
+                    error=str(result.exception_or(Exception("Unknown"))),
+                )
+
+            # Periodic progress log
+            now = time.monotonic()
+            if now - _last_progress_log >= period:
+                _last_progress_log = now
+                completed = sum(1 for r in results if r)
+                failed = len(results) - completed
+                log.bind(cat=LogCategory.DOWNLOAD).info(
+                    "Download progress",
+                    completed=completed,
+                    total=total,
+                    bytes_downloaded=bytes_downloaded,
+                    bytes_total=total_bytes_total,
+                    failures=failed,
+                )
+
+        # Completion summary
+        completed = sum(1 for r in results if r)
+        failed = len(results) - completed
+        elapsed = datetime.now(UTC) - _download_start
+        log.bind(cat=LogCategory.DOWNLOAD).info(
+            "Download complete",
+            total_files=total,
+            total_bytes=total_bytes_total,
+            downloaded=completed,
+            failed=failed,
+            elapsed_seconds=elapsed.total_seconds(),
+        )
 
         return results
 

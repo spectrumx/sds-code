@@ -44,6 +44,7 @@ CFG_NAME_LOOKUP: dict[str, Attr] = {
     "log_file": Attr(attr_name="log_file"),
     "sds_host": Attr(attr_name="sds_host"),
     "sds_secret_token": Attr(attr_name="api_key"),
+    "progress_log_period_secs": Attr(attr_name="progress_log_period_secs", cast_fn=int),
 }
 
 
@@ -77,6 +78,7 @@ class SDSConfig:
     dry_run: bool = True  # safer default
     timeout: int = DEFAULT_HTTP_TIMEOUT
     log_file: Path | None = None
+    progress_log_period_secs: int = 30
 
     _active_config: list[Attr]
     _env_file: Path | None = None

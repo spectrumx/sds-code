@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import json
 import sys
@@ -14,6 +15,7 @@ from typing import Annotated
 from typing import NoReturn
 
 from anyio import Path as AsyncPath
+from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
 from tqdm import tqdm
@@ -30,6 +32,7 @@ from spectrumx.models.files.file import (
     # pydantic complains if not defined out of type checking block
 )
 from spectrumx.ops import files as file_ops
+from spectrumx.utils import LogCategory
 from spectrumx.utils import get_prog_bar
 from spectrumx.utils import is_test_env
 from spectrumx.utils import log_context
@@ -276,6 +279,7 @@ class UploadWorkload(BaseModel):
     sds_path: PurePosixPath = Field(default_factory=lambda: PurePosixPath("/"))
     max_concurrent_uploads: int = 5
     persist_state: bool = True
+    progress_log_period_secs: int = 30
 
     # file buffers
     fq_discovered: list[File] = Field(default_factory=list)
@@ -296,6 +300,7 @@ class UploadWorkload(BaseModel):
         tqdm[NoReturn] | None  # pyrefly: ignore[bad-specialization]
     ) = None
     _persistence_manager: UploadPersistenceManager | None = None
+    _progress_log_task: asyncio.Task | None = None
 
     model_config = {
         "populate_by_name": True,
@@ -478,6 +483,11 @@ class UploadWorkload(BaseModel):
         assert self._persistence_manager is not None
         await self._persistence_manager.save_persisted_upload(uploaded_file)
         await self._update_prog_bars(num_bytes=uploaded_file.size)
+        log.bind(cat=LogCategory.UPLOAD).info(
+            f"Uploaded: {uploaded_file.name}",
+            file_name=uploaded_file.name,
+            file_size=uploaded_file.size,
+        )
 
     async def _update_prog_bars(self, num_bytes: int | None = None) -> None:
         """Update progress bars based on current upload state."""
@@ -604,12 +614,45 @@ class UploadWorkload(BaseModel):
         async with self._state_lock:
             return bool(self.fq_pending)
 
+    async def _periodic_progress_logger(self) -> None:
+        """Emit consolidated progress log every N seconds."""
+        while True:
+            await asyncio.sleep(self.progress_log_period_secs)
+            async with self._state_lock:
+                completed = len(self.fq_completed)
+                total = len(self.fq_discovered)
+                total_bytes = self.total_bytes
+                uploaded_bytes = sum(f.size for f in self.fq_completed)
+                failures = len(self.fq_failed)
+                in_progress = len(self.fq_in_progress)
+                skipped = len(self.fq_skipped)
+            log.bind(cat=LogCategory.UPLOAD).info(
+                "Upload progress",
+                completed=completed,
+                total=total,
+                bytes_uploaded=uploaded_bytes,
+                bytes_total=total_bytes,
+                failures=failures,
+                in_progress=in_progress,
+                skipped=skipped,
+            )
+
     async def _execute_uploads(self) -> None:
         """Execute uploads concurrently using worker coroutines."""
         await self._reset_progress()
 
+        # Start periodic progress logger
+        self._progress_log_task = asyncio.create_task(self._periodic_progress_logger())
+
         workers = [self._upload_worker(i) for i in range(self.max_concurrent_uploads)]
-        await asyncio.gather(*workers)
+        try:
+            await asyncio.gather(*workers)
+        finally:
+            # Cancel progress logger
+            if self._progress_log_task:
+                self._progress_log_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await self._progress_log_task
 
         # close progress bar
         if isinstance(self._prog_uploaded_bytes, tqdm):
@@ -656,6 +699,20 @@ class UploadWorkload(BaseModel):
         ):
             await self._discover_files()
             await self._execute_uploads()
+
+            # Completion summary
+            elapsed = datetime.now(UTC) - (
+                self.discovery_started_at or datetime.now(UTC)
+            )
+            log.bind(cat=LogCategory.UPLOAD).info(
+                "Upload complete",
+                total_files=len(self.fq_discovered),
+                total_bytes=self.total_bytes,
+                uploaded=len(self.fq_completed),
+                failed=len(self.fq_failed),
+                skipped=len(self.fq_skipped),
+                elapsed_seconds=elapsed.total_seconds(),
+            )
 
             results = [Result(value=file_obj) for file_obj in self.fq_completed]
             results.extend(
@@ -724,6 +781,7 @@ def upload_resumable(
         verbose=verbose,
         warn_skipped=warn_skipped,
         persist_state=persist_state,
+        progress_log_period_secs=client._config.progress_log_period_secs,  # noqa: SLF001
     )
 
     return asyncio.run(upload_workload.run(client=client))

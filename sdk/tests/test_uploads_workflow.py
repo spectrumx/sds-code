@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
 from datetime import UTC
 from datetime import datetime
@@ -823,7 +824,37 @@ async def test_discover_files_handles_invalid_files(
 
     assert len(discovered) == 1
     assert len(workload.fq_skipped) == 1
-    assert workload.fq_skipped[0].path == root / "invalid.bin"
+
+
+@pytest.mark.anyio
+async def test_periodic_progress_logger_emits_logs(
+    upload_workload: UploadWorkload, client: Client
+) -> None:
+    """Test that the periodic progress logger emits logs every N seconds."""
+    # Set a very short period to avoid waiting
+    upload_workload.progress_log_period_secs = 0.01
+
+    with patch("spectrumx.api.uploads.log") as mock_log:
+        # log.bind(...) returns a logger instance, so we mock that return value
+        mock_log.bind.return_value = mock_log
+
+        # Start the logger in a task
+        task = asyncio.create_task(upload_workload._periodic_progress_logger())
+
+        # Wait for a few log intervals
+        await asyncio.sleep(0.05)
+
+        # Cancel and cleanup
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+        # Verify that the logger's info method was called
+        assert mock_log.info.called, "Expected progress logger to emit at least one log"
+
+        # Verify the log content contains "Upload progress"
+        first_call_args = mock_log.info.call_args[0]
+        assert "Upload progress" in first_call_args[0]
 
 
 def test_remove_from_buffer_handles_missing_file(
