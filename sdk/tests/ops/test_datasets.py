@@ -180,6 +180,7 @@ def test_get_gateway(client: Client, responses: responses.RequestsMock) -> None:
         status=200,
     )
     result = client.datasets.get(dataset_uuid)
+    assert result.uuid is not None
     assert result.uuid.hex == dataset_uuid.hex
     assert result.name == "test-dataset-from-gateway"
     assert len(responses.calls) == 1
