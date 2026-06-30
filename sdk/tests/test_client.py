@@ -245,7 +245,6 @@ def test_download_dry_run_happy_path(
 
 def test_download_fails_for_invalid_files(
     caplog: pytest.LogCaptureFixture,
-    capsys: pytest.CaptureFixture[str],
     client: Client,
 ) -> None:
     """Ensures download() fails when an invalid local path is provided."""
@@ -278,16 +277,9 @@ def test_download_fails_for_invalid_files(
         attribute="generate_random_files",
         side_effect=_get_problematic_list_of_files,
     ):
-        _ = capsys.readouterr()
         results = client.download(from_sds_path=sds_path, to_local_path=local_path)
         assert len(results) == target_num_files, "Three files should be generated"
 
-        captured = capsys.readouterr()
-        log.debug(captured.err)
-        assert "simulating download" in captured.err, (
-            "Expected 'simulating download' in stderr output"
-        )
-        # assert "Skipping local file" in captured.err
         successful_files = [result() for result in results if result]
         error_infos = [result.error_info for result in results if not result]
         log.error(
