@@ -214,7 +214,7 @@ class LogContext:
 
     def __init__(self, **kwargs: Any) -> None:
         self._kwargs = kwargs
-        self._token: contextvars.Token[dict[str, Any]] | None = None
+        self._token: contextvars.Token[dict[str, Any] | None] | None = None
 
     def __enter__(self) -> None:
         current = (_log_context.get() or {}).copy()

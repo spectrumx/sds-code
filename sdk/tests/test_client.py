@@ -598,6 +598,7 @@ def test_download_single_file_sdserror(
     caplog.set_level(LogLevels.ERROR)
     file_info = files.generate_sample_file(uuid.uuid4())
     file_info.directory = PurePosixPath("remote/dir")
+    assert file_info.uuid is not None
     file_id_hex = file_info.uuid.hex
 
     # File info GET succeeds
