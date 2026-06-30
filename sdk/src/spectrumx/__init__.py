@@ -26,7 +26,13 @@ LIB_NAME: str = "spectrumx"
 try:
     from loguru import logger as log
 
-    log.disable(LIB_NAME)
+    # Remove the default stderr handler that Loguru adds on first import.
+    # Add a no-op null handler to prevent Loguru from re-adding the default
+    # handler on the first log call. Individual features
+    # (enable_logging, enable_structured_logging) add their own sinks
+    # as needed.
+    log.remove()
+    log.add(lambda msg: None, level="TRACE")
 except ImportError:
     pass
 
@@ -69,7 +75,6 @@ def enable_logging() -> None:
                 }
             ]
         )
-        log.enable(LIB_NAME)  # pyright: ignore[reportPossiblyUnboundVariable]
         from spectrumx.utils import LogCategory  # noqa: PLC0415
 
         log.bind(cat=LogCategory.CONFIG).info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
