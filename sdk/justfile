@@ -260,3 +260,8 @@ publish:
 update:
     uv sync --upgrade --dev
     uv run prek autoupdate
+
+# runs the progress bars demo with the given file count and rate
+[group('development')]
+demo-progress-bars count="9" rate="10":
+    uv run scripts/demo_progress_bars.py --file-count {{ count }} --rate {{ rate }}

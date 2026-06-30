@@ -419,6 +419,9 @@
             # Tests commonly use boolean fixtures as positional args — intentional
             "sdk/tests/**" = ["FBT001", "FBT002"]
 
+            # Demo scripts intentionally use print(), lazy imports, private member access for mocking
+            "sdk/scripts/**" = ["T201", "PLC0415", "SLF001", "S108", "RUF001"]
+
     [tool.ruff.format]
         indent-style              = "space"
         line-ending               = "auto"
