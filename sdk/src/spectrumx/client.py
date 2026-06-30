@@ -396,17 +396,13 @@ class Client:
 
         total_files = len(files_to_download)
 
-        # Only compute total bytes for lists; Paginator would be fully consumed
-        if isinstance(files_to_download, list):
-            total_bytes_total = sum(f.size for f in files_to_download)
-        else:
-            total_bytes_total = None
-
         # Mutable container so per-chunk closure can update byte count
         bytes_downloaded_shared: list[int] = [0]
         _download_start = datetime.now(UTC)
 
-        if total_bytes_total is not None:
+        # Only compute total bytes for lists; Paginator would be fully consumed.
+        if isinstance(files_to_download, list):
+            total_bytes_total = sum(f.size for f in files_to_download)
             results = self._download_files_with_byte_progress(
                 files_to_download=files_to_download,
                 total_bytes_total=total_bytes_total,
@@ -420,6 +416,7 @@ class Client:
                 bytes_downloaded_shared=bytes_downloaded_shared,
             )
         else:
+            total_bytes_total = None
             results = self._download_files_fallback(
                 files_to_download=files_to_download,
                 to_local_path=to_local_path,
