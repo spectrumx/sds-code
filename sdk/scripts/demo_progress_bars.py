@@ -42,11 +42,12 @@ rate_bps: float = RATE_MBPS * _BYTE_KB * _BYTE_KB
 
 
 def _human_bytes(n: int) -> str:
+    value = float(n)
     for unit in ("B", "KB", "MB", "GB"):
-        if abs(n) < _BYTE_KB:
-            return f"{n:.1f} {unit}"
-        n /= _BYTE_KB
-    return f"{n:.1f} PB"
+        if abs(value) < _BYTE_KB:
+            return f"{value:.1f} {unit}"
+        value /= _BYTE_KB
+    return f"{value:.1f} PB"
 
 
 def _human_rate(bps: float) -> str:
