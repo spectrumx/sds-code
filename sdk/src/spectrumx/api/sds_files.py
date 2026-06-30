@@ -3,6 +3,7 @@
 # ruff: noqa: SLF001
 # pyright: reportPrivateUsage=false
 
+import collections.abc
 import os
 import tempfile
 import uuid
@@ -79,6 +80,7 @@ def download_file(
     to_local_path: Path | str | None = None,
     skip_contents: bool = False,
     warn_missing_path: bool = True,
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
 ) -> File:
     """Downloads a file from SDS: metadata and contents (unless skip_contents=True).
 
@@ -110,6 +112,7 @@ def download_file(
         valid_uuid=valid_uuid,
         valid_local_path_or_none=valid_local_path_or_none,
         skip_contents=skip_contents,
+        progress_callback=progress_callback,
     )
     return file_instance
 
@@ -163,6 +166,7 @@ def upload_file(
     client: Client,
     local_file: File | Path | str,
     sds_path: PurePosixPath | Path | str = "/",
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
 ) -> File:
     """Uploads a file to SDS.
 
@@ -197,7 +201,9 @@ def upload_file(
         file_instance = files.construct_file(local_file, sds_path=sds_path)
     del local_file
 
-    return __upload_file_mux(client=client, file_instance=file_instance)
+    return __upload_file_mux(
+        client=client, file_instance=file_instance, progress_callback=progress_callback
+    )
 
 
 def detach_file_from_datasets(
@@ -288,6 +294,7 @@ def __download_file_contents_if_applicable(
     valid_uuid: UUID4,
     valid_local_path_or_none: Path | None,
     skip_contents: bool = False,
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
 ) -> None:
     if skip_contents:
         log.bind(cat=LogCategory.DOWNLOAD).opt(depth=1).warning(
@@ -306,6 +313,7 @@ def __download_file_contents_if_applicable(
         file_uuid=valid_uuid,
         target_path=valid_local_path_or_none,
         contents_lock=file_instance.contents_lock,  # pyright: ignore[reportPrivateUsage]
+        progress_callback=progress_callback,
     )
     file_instance.local_path = downloaded_path
 
@@ -316,6 +324,7 @@ def __download_file_contents(
     file_uuid: UUID4 | str,
     contents_lock: RLock,
     target_path: Path | None = None,
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
 ) -> Path:
     """Downloads the contents of a file from SDS to a location on disk.
 
@@ -326,8 +335,10 @@ def __download_file_contents(
     to ensure partial downloads don't leave incomplete files in place.
 
     Args:
-        file_uuid:      The UUID of the file to download from SDS.
-        target_path:    The local path to save the downloaded file to.
+        file_uuid:          The UUID of the file to download from SDS.
+        target_path:        The local path to save the downloaded file to.
+        progress_callback:  Optional callable invoked with byte count as
+            chunks are received from the stream (for progress tracking).
     Returns:
         The local path to the downloaded file.
     """
@@ -371,6 +382,8 @@ def __download_file_contents(
         with download_path.open(mode="wb") as file_ptr, contents_lock:
             for chunk in client._gateway.get_file_contents_by_id(uuid=uuid_to_set.hex):
                 file_ptr.write(chunk)
+                if progress_callback:
+                    progress_callback(len(chunk))
             file_ptr.flush()
             os.fsync(file_ptr.fileno())
 
@@ -486,7 +499,12 @@ def __pre_fetch_file_for_download(
     return file_instance, valid_uuid, valid_local_path_or_none
 
 
-def __upload_file_mux(*, client: Client, file_instance: File) -> File:  # noqa: C901
+def __upload_file_mux(  # noqa: C901
+    *,
+    client: Client,
+    file_instance: File,
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
+) -> File:
     """Uploads a file instance to SDS, choosing the right upload mode."""
     file_path = file_instance.local_path
     # check whether sds already has this file for this user
@@ -508,7 +526,9 @@ def __upload_file_mux(*, client: Client, file_instance: File) -> File:  # noqa: 
             if verbose:
                 log_user(f"Uploading contents and metadata for '{file_path}'")
             return __upload_contents_and_metadata(
-                client=client, file_instance=file_instance
+                client=client,
+                file_instance=file_instance,
+                progress_callback=progress_callback,
             )
         case FileUploadMode.UPLOAD_METADATA_ONLY:
             if verbose:
@@ -541,6 +561,7 @@ def __upload_contents_and_metadata(
     *,
     client: Client,
     file_instance: File,
+    progress_callback: collections.abc.Callable[[int], None] | None = None,
 ) -> File:
     """UPLOADS a new file instance to SDS with contents and metadata.
 
@@ -555,7 +576,9 @@ def __upload_contents_and_metadata(
         return file_instance
 
     assert not client.dry_run, "Internal error: expected dry run to be disabled."
-    file_response = client._gateway.upload_new_file(file_instance=file_instance)
+    file_response = client._gateway.upload_new_file(
+        file_instance=file_instance, progress_callback=progress_callback
+    )
     uploaded_file = File.model_validate_json(file_response)
     uploaded_file.local_path = file_instance.local_path
     return uploaded_file

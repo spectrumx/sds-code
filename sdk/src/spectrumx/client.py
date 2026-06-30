@@ -1,5 +1,6 @@
 """Client for the SpectrumX Data System."""
 
+import collections.abc
 import time
 from collections.abc import Collection
 from collections.abc import Mapping
@@ -392,30 +393,117 @@ class Client:
     ) -> list[Result[File]]:
         """Download the files and return results."""
         prefix = "Dry-run: simulating download:" if self.dry_run else "Downloading:"
-        prog_bar = get_prog_bar(
-            files_to_download, desc="Downloading", disable=not verbose
-        )
 
-        total = len(files_to_download)
-        period = self._config.progress_log_period_secs
-        _last_progress_log = 0.0
-        total_bytes_total = 0
-        bytes_downloaded = 0
+        total_files = len(files_to_download)
+
+        # Only compute total bytes for lists; Paginator would be fully consumed
+        if isinstance(files_to_download, list):
+            total_bytes_total = sum(f.size for f in files_to_download)
+        else:
+            total_bytes_total = None
+
+        # Mutable container so per-chunk closure can update byte count
+        bytes_downloaded_shared: list[int] = [0]
         _download_start = datetime.now(UTC)
 
+        if total_bytes_total is not None:
+            results = self._download_files_with_byte_progress(
+                files_to_download=files_to_download,
+                total_bytes_total=total_bytes_total,
+                to_local_path=to_local_path,
+                skip_contents=skip_contents,
+                overwrite=overwrite,
+                verbose=verbose,
+                prefix=prefix,
+                total_files=total_files,
+                period=self._config.progress_log_period_secs,
+                bytes_downloaded_shared=bytes_downloaded_shared,
+            )
+        else:
+            results = self._download_files_fallback(
+                files_to_download=files_to_download,
+                to_local_path=to_local_path,
+                skip_contents=skip_contents,
+                overwrite=overwrite,
+                verbose=verbose,
+                prefix=prefix,
+            )
+
+        # Completion summary (shared by both branches)
+        completed = sum(1 for r in results if r)
+        failed = len(results) - completed
+        elapsed = datetime.now(UTC) - _download_start
+        elapsed_sec = elapsed.total_seconds()
+        transferred_bytes = (
+            bytes_downloaded_shared[0] if total_bytes_total is not None else None
+        )
+        avg_speed_bps: float | None = (
+            transferred_bytes / elapsed_sec
+            if transferred_bytes is not None and elapsed_sec > 0
+            else None
+        )
+        status = "clean" if failed == 0 else "interrupted"
+        log.bind(cat=LogCategory.DOWNLOAD).info(
+            "Download complete",
+            total_files=total_files,
+            total_bytes=total_bytes_total,
+            downloaded=completed,
+            failed=failed,
+            elapsed_seconds=elapsed_sec,
+            avg_speed_bps=avg_speed_bps,
+            status=status,
+        )
+
+        return results
+
+    def _download_files_with_byte_progress(  # noqa: PLR0913
+        self,
+        *,
+        files_to_download: list[File],
+        total_bytes_total: int,
+        to_local_path: Path,
+        skip_contents: bool,
+        overwrite: bool,
+        verbose: bool,
+        prefix: str,
+        total_files: int,
+        period: float,
+        bytes_downloaded_shared: list[int],
+    ) -> list[Result[File]]:
+        """Byte-level progress bar with throttled per-chunk callback."""
+        prog_bar = get_prog_bar(
+            total=total_bytes_total,
+            desc="Downloading",
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            disable=not verbose or utils.is_test_env(),
+        )
+        # Throttle callback updates: ~100 KB between tqdm refreshes
+        _acc: list[int] = [0]
+        _throttle = 100_000
+
+        def _on_download_bytes(n: int) -> None:
+            """Per-chunk callback: accumulate bytes, update bar every ~100 KB."""
+            _acc[0] += n
+            bytes_downloaded_shared[0] += n
+            if _acc[0] >= _throttle:
+                prog_bar.update(_acc[0])
+                _acc[0] = 0
+
+        _last_progress_log = 0.0
+
         results: list[Result[File]] = []
-        for file_info in prog_bar:
+        for file_info in files_to_download:
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
             result = self.download_single_file(
                 file_info=file_info,
                 to_local_path=to_local_path,
                 skip_contents=skip_contents,
                 overwrite=overwrite,
+                progress_callback=_on_download_bytes,
             )
             results.append(result)
-
-            # Track bytes
-            total_bytes_total += file_info.size
 
             # Per-file completion log
             if result:
@@ -424,7 +512,6 @@ class Client:
                     file_name=file_info.name,
                     file_size=file_info.size,
                 )
-                bytes_downloaded += file_info.size
             else:
                 log.bind(cat=LogCategory.DOWNLOAD).warning(
                     f"Download failed: {file_info.name}",
@@ -441,24 +528,59 @@ class Client:
                 log.bind(cat=LogCategory.DOWNLOAD).info(
                     "Download progress",
                     completed=completed,
-                    total=total,
-                    bytes_downloaded=bytes_downloaded,
+                    total=total_files,
+                    bytes_downloaded=bytes_downloaded_shared[0],
                     bytes_total=total_bytes_total,
                     failures=failed,
                 )
 
-        # Completion summary
-        completed = sum(1 for r in results if r)
-        failed = len(results) - completed
-        elapsed = datetime.now(UTC) - _download_start
-        log.bind(cat=LogCategory.DOWNLOAD).info(
-            "Download complete",
-            total_files=total,
-            total_bytes=total_bytes_total,
-            downloaded=completed,
-            failed=failed,
-            elapsed_seconds=elapsed.total_seconds(),
+        # Flush any remaining accumulated bytes
+        if _acc[0] > 0:
+            prog_bar.update(_acc[0])
+        prog_bar.refresh()
+
+        return results
+
+    def _download_files_fallback(
+        self,
+        *,
+        files_to_download: DownloadFileSource,
+        to_local_path: Path,
+        skip_contents: bool,
+        overwrite: bool,
+        verbose: bool,
+        prefix: str,
+    ) -> list[Result[File]]:
+        """Fallback: file-level progress bar (total bytes unknown, e.g. Paginator)."""
+        prog_bar = get_prog_bar(
+            files_to_download,
+            desc="Downloading",
+            disable=not verbose or utils.is_test_env(),
         )
+        results: list[Result[File]] = []
+        for file_info in prog_bar:
+            prog_bar.set_description(f"{prefix} '{file_info.name}'")
+            result = self.download_single_file(
+                file_info=file_info,
+                to_local_path=to_local_path,
+                skip_contents=skip_contents,
+                overwrite=overwrite,
+            )
+            results.append(result)
+
+            # Per-file completion log
+            if result:
+                log.bind(cat=LogCategory.DOWNLOAD).info(
+                    f"Downloaded: {file_info.name}",
+                    file_name=file_info.name,
+                    file_size=file_info.size,
+                )
+            else:
+                log.bind(cat=LogCategory.DOWNLOAD).warning(
+                    f"Download failed: {file_info.name}",
+                    file_name=file_info.name,
+                    error=str(result.exception_or(Exception("Unknown"))),
+                )
 
         return results
 
@@ -469,6 +591,7 @@ class Client:
         to_local_path: Path,
         skip_contents: bool,
         overwrite: bool,
+        progress_callback: collections.abc.Callable[[int], None] | None = None,
     ) -> Result[File]:
         """Download a single file and return the result."""
         # Handle local files without UUID
@@ -521,6 +644,7 @@ class Client:
                 file_uuid=file_info.uuid,
                 to_local_path=local_file_path,
                 skip_contents=skip_contents,
+                progress_callback=progress_callback,
             )
             return Result(value=downloaded_file)
         except SDSError as err:
@@ -583,6 +707,7 @@ class Client:
         to_local_path: Path | str | None = None,
         skip_contents: bool = False,
         warn_missing_path: bool = True,
+        progress_callback: collections.abc.Callable[[int], None] | None = None,
     ) -> File:
         """Downloads a file from SDS: metadata and maybe contents.
 
@@ -593,12 +718,15 @@ class Client:
         otherwise the download will create a temporary file on disk.
 
         Args:
-            file_instance:      The file instance to download.
-            file_uuid:          The UUID of the file to download.
-            to_local_path:      The local path to save the downloaded file to.
-            skip_contents:      When True, only the metadata is downloaded
-                                    and no files are created on disk.
-            warn_missing_path:  Show a warning when the download location is undefined.
+            file_instance:          The file instance to download.
+            file_uuid:              The UUID of the file to download.
+            to_local_path:          The local path to save the downloaded file to.
+            skip_contents:          When True, only the metadata is downloaded
+                                        and no files are created on disk.
+            warn_missing_path:      Show a warning when the download location
+                                        is undefined.
+            progress_callback:      Optional callable invoked with byte count as
+                data is received from the stream (for progress tracking).
         Returns:
             The file instance with updated attributes, or a sample when in dry run.
         """
@@ -609,6 +737,7 @@ class Client:
             to_local_path=to_local_path,
             skip_contents=skip_contents,
             warn_missing_path=warn_missing_path,
+            progress_callback=progress_callback,
         )
 
     def download_dataset(

@@ -322,7 +322,6 @@ class UploadWorkload(BaseModel):
                 **upload_prog_bar_kwargs,  # pyrefly: ignore[bad-argument-type]
                 leave=True,
             )
-            self._prog_uploaded_bytes.disable = True
             self._prog_uploaded_bytes.clear()
         super().model_post_init(context)
 
@@ -482,7 +481,7 @@ class UploadWorkload(BaseModel):
                 self.fq_completed.append(uploaded_file)
         assert self._persistence_manager is not None
         await self._persistence_manager.save_persisted_upload(uploaded_file)
-        await self._update_prog_bars(num_bytes=uploaded_file.size)
+        await self._update_prog_bars()
         log.bind(cat=LogCategory.UPLOAD).info(
             f"Uploaded: {uploaded_file.name}",
             file_name=uploaded_file.name,
@@ -571,14 +570,33 @@ class UploadWorkload(BaseModel):
             return Result(exception=StopAsyncIteration("No more files to upload"))
 
         try:
+            # Throttled wrapper: accumulate bytes and only push to tqdm
+            # every ~100 KB, to avoid excessive refresh overhead (mirrors
+            # the same pattern used in _download_files).
+            _acc: list[int] = [0]
+            _throttle = 100_000
+            bar = self._prog_uploaded_bytes
+
+            def _throttled_update(n: int) -> None:
+                if bar is None:
+                    return
+                _acc[0] += n
+                if _acc[0] >= _throttle:
+                    bar.update(_acc[0])
+                    _acc[0] = 0
+
             result = Result(
                 value=await asyncio.to_thread(
                     self.client._sds_files.upload_file,  # noqa: SLF001  # pyright: ignore[reportPrivateUsage]
                     client=self.client,
                     local_file=next_file,
                     sds_path=self.sds_path,
+                    progress_callback=_throttled_update if bar is not None else None,
                 )
             )
+            # Flush any remaining bytes that didn't reach the threshold
+            if bar is not None and _acc[0] > 0:
+                bar.update(_acc[0])
             await self._mark_completed_result(successful_result=result)
         except SDSError as err:
             await self._mark_failed_file(sds_file=next_file, reason=str(err))
@@ -704,6 +722,12 @@ class UploadWorkload(BaseModel):
             elapsed = datetime.now(UTC) - (
                 self.discovery_started_at or datetime.now(UTC)
             )
+            elapsed_sec = elapsed.total_seconds()
+            uploaded_bytes = sum(f.size for f in self.fq_completed)
+            avg_speed_bps: float | None = (
+                uploaded_bytes / elapsed_sec if elapsed_sec > 0 else None
+            )
+            status = "clean" if len(self.fq_failed) == 0 else "interrupted"
             log.bind(cat=LogCategory.UPLOAD).info(
                 "Upload complete",
                 total_files=len(self.fq_discovered),
@@ -711,7 +735,9 @@ class UploadWorkload(BaseModel):
                 uploaded=len(self.fq_completed),
                 failed=len(self.fq_failed),
                 skipped=len(self.fq_skipped),
-                elapsed_seconds=elapsed.total_seconds(),
+                elapsed_seconds=elapsed_sec,
+                avg_speed_bps=avg_speed_bps,
+                status=status,
             )
 
             results = [Result(value=file_obj) for file_obj in self.fq_completed]
@@ -731,6 +757,12 @@ class UploadWorkload(BaseModel):
 
     @staticmethod
     def _remove_from_buffer(sds_file: File, buffer: list[File]) -> None:
+        """Remove from buffer, matching by local_path (persists through upload)."""
+        if sds_file.local_path:
+            for i, f in enumerate(buffer):
+                if f.local_path and f.local_path == sds_file.local_path:
+                    buffer.pop(i)
+                    return
         try:
             buffer.remove(sds_file)
         except ValueError:
