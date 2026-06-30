@@ -285,6 +285,7 @@ def _structured_log_sink(message: Any) -> None:
         "cat": rec.get("extra", {}).get("cat", LogCategory.LOG),
         "msg": msg_str,
     }
+    entry.update(rec.get("extra", {}))
 
     # Merge persistent context
     entry.update({k: v for k, v in _persistent_context.items() if v is not None})

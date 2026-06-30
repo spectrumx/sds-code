@@ -440,8 +440,8 @@ class Client:
             else None
         )
         status = "clean" if failed == 0 else "interrupted"
-        log.bind(cat=LogCategory.DOWNLOAD).info(
-            "Download complete",
+        log.bind(
+            cat=LogCategory.DOWNLOAD,
             total_files=total_files,
             total_bytes=total_bytes_total,
             downloaded=completed,
@@ -449,6 +449,8 @@ class Client:
             elapsed_seconds=elapsed_sec,
             avg_speed_bps=avg_speed_bps,
             status=status,
+        ).info(
+            "Download complete",
         )
 
         return results

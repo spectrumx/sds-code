@@ -728,8 +728,8 @@ class UploadWorkload(BaseModel):
                 uploaded_bytes / elapsed_sec if elapsed_sec > 0 else None
             )
             status = "clean" if len(self.fq_failed) == 0 else "interrupted"
-            log.bind(cat=LogCategory.UPLOAD).info(
-                "Upload complete",
+            log.bind(
+                cat=LogCategory.UPLOAD,
                 total_files=len(self.fq_discovered),
                 total_bytes=self.total_bytes,
                 uploaded=len(self.fq_completed),
@@ -738,6 +738,8 @@ class UploadWorkload(BaseModel):
                 elapsed_seconds=elapsed_sec,
                 avg_speed_bps=avg_speed_bps,
                 status=status,
+            ).info(
+                "Upload complete",
             )
 
             results = [Result(value=file_obj) for file_obj in self.fq_completed]
