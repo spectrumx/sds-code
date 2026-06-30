@@ -2,6 +2,7 @@
 
 import json
 import uuid
+from collections.abc import Callable
 from collections.abc import Collection
 from collections.abc import Iterator
 from enum import StrEnum
@@ -10,6 +11,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Annotated
 from typing import Any
+from typing import BinaryIO
 
 import requests
 from loguru import logger as log
@@ -72,6 +74,33 @@ class FileContentsCheck(BaseModel):
     file_exists_in_tree: bool
     user_mutable_attributes_differ: bool
     asset_id: Annotated[uuid.UUID | None, Field()] = None
+
+
+class _ProgressFileReader:
+    """Wraps a binary file to report bytes read via a callback."""
+
+    def __init__(
+        self,
+        file: BinaryIO,
+        callback: Callable[[int], None],
+    ) -> None:
+        self._file = file
+        self._callback = callback
+
+    def read(self, n: int = -1) -> bytes:
+        data = self._file.read(n)
+        if data:
+            self._callback(len(data))
+        return data
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._file, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        self._file.close()
 
 
 class GatewayClient:
@@ -340,13 +369,21 @@ class GatewayClient:
         content: bytes | Any = response.content
         return FileContentsCheck.model_validate_json(content)
 
-    def upload_new_file(self, file_instance: File, *, verbose: bool = False) -> bytes:
+    def upload_new_file(
+        self,
+        file_instance: File,
+        *,
+        verbose: bool = False,
+        progress_callback: Callable[[int], None] | None = None,
+    ) -> bytes:
         """Uploads a local file to the SDS API.
 
         Uploads file contents and metadata.
 
         Args:
-            file_instance: The file to upload, as a models.File instance.
+            file_instance:     The file to upload, as a models.File instance.
+            progress_callback: Optional callable invoked with byte count as
+                data is read from the source file (for progress tracking).
         """
         if file_instance.local_path is None:
             msg = "Attempting to upload a remote file. Download it first."
@@ -356,8 +393,13 @@ class GatewayClient:
             context={"mode": PermissionRepresentation.STRING}
         )
         all_chunks: bytes = b""
+
+        file_ptr: BinaryIO = file_instance.local_path.open("rb")
+        if progress_callback is not None:
+            file_ptr = _ProgressFileReader(file_ptr, progress_callback)
+
         with (
-            file_instance.local_path.open("rb") as file_ptr,
+            file_ptr,
             self._request(
                 method=HTTPMethods.POST,
                 endpoint=Endpoints.FILES,
