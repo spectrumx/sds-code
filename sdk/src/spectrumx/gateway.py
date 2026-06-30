@@ -394,7 +394,7 @@ class GatewayClient:
         )
         all_chunks: bytes = b""
 
-        file_ptr: BinaryIO = file_instance.local_path.open("rb")
+        file_ptr: BinaryIO | _ProgressFileReader = file_instance.local_path.open("rb")
         if progress_callback is not None:
             file_ptr = _ProgressFileReader(file_ptr, progress_callback)
 
