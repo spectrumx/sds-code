@@ -156,33 +156,37 @@ def test_into_bool_falsey() -> None:
 
 def test_credit_unstreamed_file_bytes_credits_remaining() -> None:
     """Unstreamed bytes should be credited to the progress bar and counter."""
+    file_size = 1000
+    bytes_streamed = 400
+    credited_bytes = file_size - bytes_streamed
     prog_bar = MagicMock()
-    bytes_accounted = [400]
+    bytes_accounted = [bytes_streamed]
 
     credited = utils.credit_unstreamed_file_bytes(
-        file_size=1000,
-        bytes_streamed=400,
+        file_size=file_size,
+        bytes_streamed=bytes_streamed,
         prog_bar=prog_bar,
         bytes_accounted=bytes_accounted,
     )
 
-    assert credited == 600
-    assert bytes_accounted[0] == 1000
-    prog_bar.update.assert_called_once_with(600)
+    assert credited == credited_bytes
+    assert bytes_accounted[0] == file_size
+    prog_bar.update.assert_called_once_with(credited_bytes)
 
 
 def test_credit_unstreamed_file_bytes_noop_when_fully_streamed() -> None:
     """No credit is applied when all bytes were already streamed."""
+    file_size = 1000
     prog_bar = MagicMock()
-    bytes_accounted = [1000]
+    bytes_accounted = [file_size]
 
     credited = utils.credit_unstreamed_file_bytes(
-        file_size=1000,
-        bytes_streamed=1000,
+        file_size=file_size,
+        bytes_streamed=file_size,
         prog_bar=prog_bar,
         bytes_accounted=bytes_accounted,
     )
 
     assert credited == 0
-    assert bytes_accounted[0] == 1000
+    assert bytes_accounted[0] == file_size
     prog_bar.update.assert_not_called()

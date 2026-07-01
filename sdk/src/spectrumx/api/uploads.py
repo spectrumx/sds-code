@@ -505,7 +505,9 @@ class UploadWorkload(BaseModel):
             async with self._state_lock:
                 with self._prog_bar_lock:
                     self._prog_uploaded_bytes.disable = False
-                    self._prog_uploaded_bytes.set_description(self._get_progress_string())
+                    self._prog_uploaded_bytes.set_description(
+                        self._get_progress_string()
+                    )
                     if num_bytes:
                         self._prog_uploaded_bytes.update(num_bytes)
 

@@ -33,8 +33,8 @@ from .models.files import File
 from .ops import files
 from .utils import LogCategory
 from .utils import clean_local_path
-from .utils import enable_structured_logging
 from .utils import credit_unstreamed_file_bytes
+from .utils import enable_structured_logging
 from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error

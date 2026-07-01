@@ -16,7 +16,6 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
-from tqdm import tqdm
 from spectrumx.api.uploads import SkippedUpload
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.api.uploads import create_file_instance
@@ -24,8 +23,11 @@ from spectrumx.errors import Result
 from spectrumx.errors import UploadError
 from spectrumx.models.files.file import File
 from spectrumx.ops import files as file_ops
+from tqdm import tqdm
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from spectrumx.client import Client
 
 # ruff: noqa: SLF001
@@ -937,7 +939,8 @@ async def test_concurrent_upload_progress_bar_byte_count(
     chunks_per_file = 4
     file_size = chunk_size * chunks_per_file
     files = [
-        _create_mock_file(name=f"file_{i}.bin", size=file_size) for i in range(num_files)
+        _create_mock_file(name=f"file_{i}.bin", size=file_size)
+        for i in range(num_files)
     ]
 
     workload = UploadWorkload(
@@ -955,7 +958,7 @@ async def test_concurrent_upload_progress_bar_byte_count(
         client: Client,
         local_file: File,
         sds_path: PurePosixPath,
-        progress_callback: object | None = None,
+        progress_callback: Callable[[int], None] | None = None,
     ) -> File:
         del client, sds_path
         if progress_callback is not None:

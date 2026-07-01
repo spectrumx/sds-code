@@ -186,7 +186,7 @@ def credit_unstreamed_file_bytes(
     *,
     file_size: int,
     bytes_streamed: int,
-    prog_bar: tqdm | None,
+    prog_bar: tqdm[NoReturn] | None,
     bytes_accounted: list[int] | None = None,
 ) -> int:
     """Credit progress for file bytes that were not transferred over the wire.
