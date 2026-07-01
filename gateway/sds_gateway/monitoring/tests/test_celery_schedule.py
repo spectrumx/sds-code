@@ -1,7 +1,7 @@
+import pytest
 from celery.schedules import crontab
 from django.conf import settings
 from django.utils import timezone
-import pytest
 
 
 @pytest.mark.skip(
