@@ -1,3 +1,11 @@
+networks:
+  sds-network-local:
+    external: true
+    name: sds-network-local
+  sds-network-local-opensearch:
+    driver: bridge
+    name: sds-network-local-opensearch
+
 services:
   sds-federation-local-sync:
     build:
@@ -32,8 +40,4 @@ services:
       retries: 3
     networks:
       - sds-network-local
-
-networks:
-  sds-network-local:
-    external: true
-    name: sds-network-local
+      - sds-network-local-opensearch
