@@ -966,12 +966,15 @@ async def test_concurrent_upload_progress_bar_byte_count(
                 progress_callback(chunk_size)
         return local_file
 
-    workload.client._sds_files.upload_file = mock_upload_file  # type: ignore[method-assign]
+    with patch.object(
+        workload.client._sds_files,
+        "upload_file",
+        side_effect=mock_upload_file,
+    ):
+        await workload._execute_uploads()
 
-    await workload._execute_uploads()
-
-    expected_bytes = file_size * num_files
-    assert isinstance(workload._prog_uploaded_bytes, tqdm)
-    assert workload._prog_uploaded_bytes.n == expected_bytes, (
-        "Expected progress bar byte count to match total uploaded bytes"
-    )
+        expected_bytes = file_size * num_files
+        assert isinstance(workload._prog_uploaded_bytes, tqdm)
+        assert workload._prog_uploaded_bytes.n == expected_bytes, (
+            "Expected progress bar byte count to match total uploaded bytes"
+        )
