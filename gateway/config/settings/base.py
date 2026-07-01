@@ -1,6 +1,7 @@
 """Base settings to build other settings files upon."""
 # ruff: noqa: ERA001
 
+import ipaddress
 import random
 import string
 from pathlib import Path
@@ -24,6 +25,8 @@ def __get_random_token(length: int) -> str:
         __rng.choice(string.ascii_letters + string.digits) for _ in range(length)
     )
 
+def _parse_cidrs(raw: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    return [ipaddress.ip_network(item.strip(), strict=False) for item in raw]
 
 env.read_env()
 
@@ -611,7 +614,10 @@ REST_FRAMEWORK: dict[str, str | tuple[str, ...] | dict[str, str]] = {
         "rest_framework.authentication.SessionAuthentication",
         "sds_gateway.api_methods.authentication.APIKeyAuthentication",
     ),
-    "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticated",
+        "sds_gateway.api_methods.permissions.DisallowFederationSyncKey",
+    ),
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_THROTTLE_RATES": {
         "vis_stream": VIS_STREAM_THROTTLE_RATE,
@@ -709,6 +715,59 @@ SDS_FULL_INSTITUTION_NAME: str = env.str(
 SDS_SHORT_INSTITUTION_NAME: str = env.str("SDS_SHORT_INSTITUTION_NAME", default="SDS")
 SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default="sds")
 SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
+
+# Federation peer short name (RFC [site].name, e.g. crc, haystack); not SDS_PROGRAMMATIC_SITE_NAME.
+FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
+# Master switch: when False, federation export and Redis events are inactive.
+FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
+FEDERATION_EVENTS_CHANNEL: str = env.str(
+    "FEDERATION_EVENTS_CHANNEL",
+    default="federation:events",
+)
+FEDERATION_SYNC_USER_EMAIL: str = env.str(
+    "FEDERATION_SYNC_USER_EMAIL",
+    default="federation-sync@internal.local",
+)
+FEDERATION_SYNC_HEALTH_URL: str = env.str(
+    "FEDERATION_SYNC_HEALTH_URL",
+    default="http://federation-sync:8000/sync/health",
+)
+FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT: float = env.float(
+    "FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT",
+    default=2.0,
+)
+FEDERATION_SKIP_SYNC_HEALTH_PROBE: bool = env.bool(
+    "FEDERATION_SKIP_SYNC_HEALTH_PROBE",
+    default=False,
+)
+FEDERATION_SKIP_SYNC_API_KEY_CHECK: bool = env.bool(
+    "FEDERATION_SKIP_SYNC_API_KEY_CHECK",
+    default=False,
+)
+FEDERATION_SKIP_REDIS_PROBE: bool = env.bool(
+    "FEDERATION_SKIP_REDIS_PROBE",
+    default=False,
+)
+# Set at startup / periodic recheck by federation.availability.
+FEDERATION_OPERATIONAL: bool = False
+FEDERATION_OPERATIONAL_REASON: str = ""
+# Tests may set via override_settings without running probes.
+FEDERATION_OPERATIONAL_OVERRIDE: bool | None = None
+# Export API: internal Docker/private networks (sync → django on sds-network).
+FEDERATION_EXPORT_ALLOWED_CIDRS: list[
+    ipaddress.IPv4Network | ipaddress.IPv6Network
+] = _parse_cidrs(
+    env.list(
+        "FEDERATION_EXPORT_ALLOWED_CIDRS",
+        default=[
+            "127.0.0.1/32",
+            "::1/128",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ],
+    ),
+)
 
 # ADMIN_CONSOLE_ENV is used to visually distinguish between different environments
 # (production, staging, local) in the admin console and error emails. It does not affect

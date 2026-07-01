@@ -88,6 +88,7 @@ class KeySources(StrEnum):
     SDSWebUI = "sds_web_ui"
     SVIBackend = "svi_backend"
     SVIWebUI = "svi_web_ui"
+    FederationSync = "federation_sync"
 
 
 class ItemType(StrEnum):
