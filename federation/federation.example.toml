@@ -1,0 +1,14 @@
+[site]
+name = "your-site"
+fqdn = "your-site.domain"
+display_name = "Your Site"
+
+[[peers]]
+# Notre Dame SDS site is the original site deployment
+# and is included as a peer by default.
+name = "crc"
+fqdn = "sds.crc.nd.edu"
+display_name = "Notre Dame CRC"
+gateway_api_base = "https://sds.crc.nd.edu/api/v1"
+sync_service_url = "https://sds.crc.nd.edu/sync/"
+ca_cert_path = "/etc/sds/certs/crc-ca.pem"
