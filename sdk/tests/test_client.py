@@ -6,6 +6,7 @@ from enum import IntEnum
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
+from unittest.mock import MagicMock
 from unittest.mock import patch
 from uuid import UUID
 
@@ -18,6 +19,7 @@ from spectrumx.client import resolve_dataset_capture_filter_params
 from spectrumx.config import CFG_NAME_LOOKUP
 from spectrumx.config import SDSConfig
 from spectrumx.errors import CaptureError
+from spectrumx.errors import Result
 from spectrumx.errors import SDSError
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.models.captures import CaptureType
@@ -891,3 +893,73 @@ def test_handle_existing_capture_error_read_fails(client: Client) -> None:
         handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
     assert not handled
     assert capture is None
+
+
+def test_download_byte_progress_credits_skipped_content(
+    client: Client, tmp_path: Path
+) -> None:
+    """Progress should reach file totals when content transfer is skipped."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.size = 1000
+    bytes_downloaded_shared: list[int] = [0]
+    prog_bar = MagicMock()
+
+    with (
+        patch.object(
+            Client,
+            "download_single_file",
+            return_value=Result(value=file_info),
+        ),
+        patch("spectrumx.client.get_prog_bar", return_value=prog_bar),
+    ):
+        results = client._download_files_with_byte_progress(  # noqa: SLF001
+            files_to_download=[file_info],
+            total_bytes_total=file_info.size,
+            to_local_path=tmp_path,
+            skip_contents=True,
+            overwrite=False,
+            verbose=True,
+            prefix="Downloading",
+            total_files=1,
+            period=30.0,
+            bytes_downloaded_shared=bytes_downloaded_shared,
+        )
+
+    assert len(results) == 1
+    assert results[0]
+    assert bytes_downloaded_shared[0] == file_info.size
+    prog_bar.update.assert_called_once_with(file_info.size)
+
+
+def test_download_byte_progress_credits_partial_stream(
+    client: Client, tmp_path: Path
+) -> None:
+    """Progress should include both streamed and unstreamed bytes per file."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.size = 1000
+    bytes_downloaded_shared: list[int] = [0]
+
+    def fake_download_single_file(*, progress_callback=None, **kwargs):
+        if progress_callback is not None:
+            progress_callback(400)
+        return Result(value=file_info)
+
+    with patch.object(
+        Client,
+        "download_single_file",
+        side_effect=fake_download_single_file,
+    ):
+        client._download_files_with_byte_progress(  # noqa: SLF001
+            files_to_download=[file_info],
+            total_bytes_total=file_info.size,
+            to_local_path=tmp_path,
+            skip_contents=False,
+            overwrite=True,
+            verbose=True,
+            prefix="Downloading",
+            total_files=1,
+            period=30.0,
+            bytes_downloaded_shared=bytes_downloaded_shared,
+        )
+
+    assert bytes_downloaded_shared[0] == file_info.size

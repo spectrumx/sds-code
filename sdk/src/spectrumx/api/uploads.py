@@ -33,6 +33,7 @@ from spectrumx.models.files.file import (
 )
 from spectrumx.ops import files as file_ops
 from spectrumx.utils import LogCategory
+from spectrumx.utils import credit_unstreamed_file_bytes
 from spectrumx.utils import get_prog_bar
 from spectrumx.utils import is_test_env
 from spectrumx.utils import log_context
@@ -574,6 +575,7 @@ class UploadWorkload(BaseModel):
             # every ~100 KB, to avoid excessive refresh overhead (mirrors
             # the same pattern used in _download_files).
             _acc: list[int] = [0]
+            _streamed: list[int] = [0]
             _throttle = 100_000
             bar = self._prog_uploaded_bytes
 
@@ -581,6 +583,7 @@ class UploadWorkload(BaseModel):
                 if bar is None:
                     return
                 _acc[0] += n
+                _streamed[0] += n
                 if _acc[0] >= _throttle:
                     bar.update(_acc[0])
                     _acc[0] = 0
@@ -597,6 +600,13 @@ class UploadWorkload(BaseModel):
             # Flush any remaining bytes that didn't reach the threshold
             if bar is not None and _acc[0] > 0:
                 bar.update(_acc[0])
+                _acc[0] = 0
+            if bar is not None:
+                credit_unstreamed_file_bytes(
+                    file_size=next_file.size,
+                    bytes_streamed=_streamed[0],
+                    prog_bar=bar,
+                )
             await self._mark_completed_result(successful_result=result)
         except SDSError as err:
             await self._mark_failed_file(sds_file=next_file, reason=str(err))

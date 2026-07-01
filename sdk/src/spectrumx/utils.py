@@ -182,6 +182,32 @@ def get_prog_bar(
     )
 
 
+def credit_unstreamed_file_bytes(
+    *,
+    file_size: int,
+    bytes_streamed: int,
+    prog_bar: tqdm | None,
+    bytes_accounted: list[int] | None = None,
+) -> int:
+    """Credit progress for file bytes that were not transferred over the wire.
+
+    Byte-level progress tracks streamed chunks. When a file completes without
+    transferring its full contents (skip, metadata-only, local exists, etc.),
+    credit the remaining bytes so totals stay accurate.
+
+    Returns:
+        The number of bytes credited.
+    """
+    remaining = max(file_size - bytes_streamed, 0)
+    if remaining == 0:
+        return 0
+    if bytes_accounted is not None:
+        bytes_accounted[0] += remaining
+    if prog_bar is not None:
+        prog_bar.update(remaining)
+    return remaining
+
+
 # --- Structured Logging ---
 
 

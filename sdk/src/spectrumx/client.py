@@ -34,6 +34,7 @@ from .ops import files
 from .utils import LogCategory
 from .utils import clean_local_path
 from .utils import enable_structured_logging
+from .utils import credit_unstreamed_file_bytes
 from .utils import get_prog_bar
 from .utils import log_user
 from .utils import log_user_error
@@ -480,11 +481,13 @@ class Client:
         )
         # Throttle callback updates: ~100 KB between tqdm refreshes
         _acc: list[int] = [0]
+        _file_streamed: list[int] = [0]
         _throttle = 100_000
 
         def _on_download_bytes(n: int) -> None:
             """Per-chunk callback: accumulate bytes, update bar every ~100 KB."""
             _acc[0] += n
+            _file_streamed[0] += n
             bytes_downloaded_shared[0] += n
             if _acc[0] >= _throttle:
                 prog_bar.update(_acc[0])
@@ -494,6 +497,7 @@ class Client:
 
         results: list[Result[File]] = []
         for file_info in files_to_download:
+            _file_streamed[0] = 0
             prog_bar.set_description(f"{prefix} '{file_info.name}'")
             result = self.download_single_file(
                 file_info=file_info,
@@ -503,6 +507,17 @@ class Client:
                 progress_callback=_on_download_bytes,
             )
             results.append(result)
+
+            if _acc[0] > 0:
+                prog_bar.update(_acc[0])
+                _acc[0] = 0
+            if result:
+                credit_unstreamed_file_bytes(
+                    file_size=file_info.size,
+                    bytes_streamed=_file_streamed[0],
+                    prog_bar=prog_bar,
+                    bytes_accounted=bytes_downloaded_shared,
+                )
 
             # Per-file completion log
             if result:

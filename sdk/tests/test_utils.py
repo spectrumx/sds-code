@@ -3,6 +3,7 @@
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 import urllib3
@@ -151,3 +152,37 @@ def test_into_bool_falsey() -> None:
     ]
     for falsey in falsey_values:
         assert utils.into_human_bool(falsey) is False, f"{falsey} failed"
+
+
+def test_credit_unstreamed_file_bytes_credits_remaining() -> None:
+    """Unstreamed bytes should be credited to the progress bar and counter."""
+    prog_bar = MagicMock()
+    bytes_accounted = [400]
+
+    credited = utils.credit_unstreamed_file_bytes(
+        file_size=1000,
+        bytes_streamed=400,
+        prog_bar=prog_bar,
+        bytes_accounted=bytes_accounted,
+    )
+
+    assert credited == 600
+    assert bytes_accounted[0] == 1000
+    prog_bar.update.assert_called_once_with(600)
+
+
+def test_credit_unstreamed_file_bytes_noop_when_fully_streamed() -> None:
+    """No credit is applied when all bytes were already streamed."""
+    prog_bar = MagicMock()
+    bytes_accounted = [1000]
+
+    credited = utils.credit_unstreamed_file_bytes(
+        file_size=1000,
+        bytes_streamed=1000,
+        prog_bar=prog_bar,
+        bytes_accounted=bytes_accounted,
+    )
+
+    assert credited == 0
+    assert bytes_accounted[0] == 1000
+    prog_bar.update.assert_not_called()

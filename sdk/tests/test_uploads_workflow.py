@@ -873,3 +873,51 @@ def test_remove_from_buffer_removes_file(
     UploadWorkload._remove_from_buffer(mock_file, upload_workload.fq_pending)
 
     assert mock_file not in upload_workload.fq_pending
+
+
+@pytest.mark.anyio
+async def test_upload_next_file_credits_unstreamed_bytes(
+    upload_workload: UploadWorkload, mock_file: File
+) -> None:
+    """Upload progress should reach file size when content is not fully streamed."""
+    mock_file.size = 1000
+    await upload_workload._register_discovered_file(mock_file)
+    prog_bar = MagicMock()
+    upload_workload._prog_uploaded_bytes = prog_bar
+
+    def fake_upload_file(*, progress_callback=None, **kwargs):
+        if progress_callback is not None:
+            progress_callback(250)
+        return mock_file
+
+    with patch.object(
+        upload_workload.client._sds_files,
+        "upload_file",
+        side_effect=fake_upload_file,
+    ):
+        result = await upload_workload._upload_next_file()
+
+    assert result
+    prog_bar.update.assert_any_call(250)
+    prog_bar.update.assert_any_call(750)
+
+
+@pytest.mark.anyio
+async def test_upload_next_file_credits_metadata_only_upload(
+    upload_workload: UploadWorkload, mock_file: File
+) -> None:
+    """Upload progress should reach file size for metadata-only uploads."""
+    mock_file.size = 1000
+    await upload_workload._register_discovered_file(mock_file)
+    prog_bar = MagicMock()
+    upload_workload._prog_uploaded_bytes = prog_bar
+
+    with patch.object(
+        upload_workload.client._sds_files,
+        "upload_file",
+        return_value=mock_file,
+    ):
+        result = await upload_workload._upload_next_file()
+
+    assert result
+    prog_bar.update.assert_called_once_with(1000)
