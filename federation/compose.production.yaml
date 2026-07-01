@@ -1,0 +1,43 @@
+networks:
+  sds-network-prod:
+    external: true
+    name: sds-network-prod
+  sds-network-prod-opensearch:
+    driver: bridge
+    name: sds-network-prod-opensearch
+
+services:
+  sds-federation-prod-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: sds-federation-prod-sync
+    container_name: sds-federation-prod-sync
+    env_file:
+      - .envs/production/sync.env
+    environment:
+      FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
+      GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-prod-app:8000/api/v1
+      REDIS_URL: redis://sds-gateway-prod-redis:6379/0
+      OPENSEARCH_HOST: sds-gateway-prod-opensearch
+    volumes:
+      - ./federation.toml:/etc/sds/federation.toml:ro
+      - ./certs:/etc/sds/certs:ro
+    ports:
+      - "8001:8000"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "uv",
+          "run",
+          "python",
+          "-c",
+          "import sys, httpx; r=httpx.get('http://127.0.0.1:8000/health', timeout=4); sys.exit(0 if r.status_code==200 else 1)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - sds-network-prod
+      - sds-network-prod-opensearch
