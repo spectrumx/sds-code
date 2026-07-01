@@ -7,6 +7,7 @@ import contextlib
 import hashlib
 import json
 import sys
+import threading
 from datetime import UTC
 from datetime import datetime
 from pathlib import Path
@@ -311,6 +312,7 @@ class UploadWorkload(BaseModel):
     def model_post_init(self, context) -> None:
         """Initialize the workload with an async lock."""
         self._state_lock = asyncio.Lock()
+        self._prog_bar_lock = threading.Lock()
         self._workload_id = self._compute_workload_id()
         self._persistence_manager = UploadPersistenceManager(
             local_root=self.local_root,
@@ -489,14 +491,23 @@ class UploadWorkload(BaseModel):
             file_size=uploaded_file.size,
         )
 
+    def _update_prog_bar_bytes(self, num_bytes: int) -> None:
+        """Thread-safe byte counter update for the shared upload progress bar."""
+        bar = self._prog_uploaded_bytes
+        if bar is None:
+            return
+        with self._prog_bar_lock:
+            bar.update(num_bytes)
+
     async def _update_prog_bars(self, num_bytes: int | None = None) -> None:
         """Update progress bars based on current upload state."""
         if self.verbose and isinstance(self._prog_uploaded_bytes, tqdm):
             async with self._state_lock:
-                self._prog_uploaded_bytes.disable = False
-                self._prog_uploaded_bytes.set_description(self._get_progress_string())
-                if num_bytes:
-                    self._prog_uploaded_bytes.update(num_bytes)
+                with self._prog_bar_lock:
+                    self._prog_uploaded_bytes.disable = False
+                    self._prog_uploaded_bytes.set_description(self._get_progress_string())
+                    if num_bytes:
+                        self._prog_uploaded_bytes.update(num_bytes)
 
     def _get_progress_string(self) -> str:
         """Returns a progress string for the upload progress bar."""
@@ -540,7 +551,8 @@ class UploadWorkload(BaseModel):
             self.fq_completed.clear()
             self.fq_failed.clear()
             if isinstance(self._prog_uploaded_bytes, tqdm):
-                self._prog_uploaded_bytes.clear()
+                with self._prog_bar_lock:
+                    self._prog_uploaded_bytes.clear()
 
     @property
     def total_files(self) -> int:
@@ -585,7 +597,7 @@ class UploadWorkload(BaseModel):
                 _acc[0] += n
                 _streamed[0] += n
                 if _acc[0] >= _throttle:
-                    bar.update(_acc[0])
+                    self._update_prog_bar_bytes(_acc[0])
                     _acc[0] = 0
 
             result = Result(
@@ -599,14 +611,16 @@ class UploadWorkload(BaseModel):
             )
             # Flush any remaining bytes that didn't reach the threshold
             if bar is not None and _acc[0] > 0:
-                bar.update(_acc[0])
+                self._update_prog_bar_bytes(_acc[0])
                 _acc[0] = 0
             if bar is not None:
-                credit_unstreamed_file_bytes(
+                credited = credit_unstreamed_file_bytes(
                     file_size=next_file.size,
                     bytes_streamed=_streamed[0],
-                    prog_bar=bar,
+                    prog_bar=None,
                 )
+                if credited:
+                    self._update_prog_bar_bytes(credited)
             await self._mark_completed_result(successful_result=result)
         except SDSError as err:
             await self._mark_failed_file(sds_file=next_file, reason=str(err))
@@ -684,7 +698,8 @@ class UploadWorkload(BaseModel):
 
         # close progress bar
         if isinstance(self._prog_uploaded_bytes, tqdm):
-            self._prog_uploaded_bytes.close()
+            with self._prog_bar_lock:
+                self._prog_uploaded_bytes.close()
 
     async def _reset_state(self) -> None:
         """Reset all state buffers."""
@@ -704,7 +719,8 @@ class UploadWorkload(BaseModel):
             self.fq_pending.append(file_model)
             self.total_bytes += file_model.size
             if isinstance(self._prog_uploaded_bytes, tqdm):
-                self._prog_uploaded_bytes.total = self.total_bytes
+                with self._prog_bar_lock:
+                    self._prog_uploaded_bytes.total = self.total_bytes
 
     async def _add_skipped(self, skipped: SkippedUpload) -> None:
         """Add a skipped file entry."""

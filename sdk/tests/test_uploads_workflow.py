@@ -16,6 +16,7 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
+from tqdm import tqdm
 from spectrumx.api.uploads import SkippedUpload
 from spectrumx.api.uploads import UploadWorkload
 from spectrumx.api.uploads import create_file_instance
@@ -921,3 +922,53 @@ async def test_upload_next_file_credits_metadata_only_upload(
 
     assert result
     prog_bar.update.assert_called_once_with(1000)
+
+
+@pytest.mark.anyio
+async def test_concurrent_upload_progress_bar_byte_count(
+    tmp_path: Path, client: Client
+) -> None:
+    """Concurrent upload workers must not lose byte-count updates on the shared bar."""
+    root = tmp_path / "upload_root"
+    root.mkdir()
+
+    num_files = 4
+    chunk_size = 50_000
+    chunks_per_file = 4
+    file_size = chunk_size * chunks_per_file
+    files = [
+        _create_mock_file(name=f"file_{i}.bin", size=file_size) for i in range(num_files)
+    ]
+
+    workload = UploadWorkload(
+        client=client,
+        local_root=root,
+        sds_path=PurePosixPath("/"),
+        max_concurrent_uploads=num_files,
+        verbose=True,
+    )
+    for file_obj in files:
+        await workload._register_discovered_file(file_obj)
+
+    def mock_upload_file(
+        *,
+        client: Client,
+        local_file: File,
+        sds_path: PurePosixPath,
+        progress_callback: object | None = None,
+    ) -> File:
+        del client, sds_path
+        if progress_callback is not None:
+            for _ in range(chunks_per_file):
+                progress_callback(chunk_size)
+        return local_file
+
+    workload.client._sds_files.upload_file = mock_upload_file  # type: ignore[method-assign]
+
+    await workload._execute_uploads()
+
+    expected_bytes = file_size * num_files
+    assert isinstance(workload._prog_uploaded_bytes, tqdm)
+    assert workload._prog_uploaded_bytes.n == expected_bytes, (
+        "Expected progress bar byte count to match total uploaded bytes"
+    )
