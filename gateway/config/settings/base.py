@@ -8,6 +8,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from celery.schedules import crontab
+from celery.schedules import schedule
 from environs import env
 
 from config.settings.logs import ColoredFormatter
@@ -543,7 +544,7 @@ CELERY_BEAT_SCHEDULE: dict[str, dict[str, Any]] = {
     },
     "monitor-services-health": {
         "task": "sds_gateway.monitoring.tasks.monitor_services_health",
-        "schedule": crontab(minute="*/1"),
+        "schedule": schedule(run_every=60),
         "options": {"expires": 50},
     },
 }

@@ -1,4 +1,4 @@
-from celery.schedules import crontab
+from celery.schedules import schedule
 from django.conf import settings
 from django.utils import timezone
 
@@ -12,7 +12,7 @@ def test_monitoring_task_is_in_celery_beat_schedule() -> None:
         schedule_config["task"]
         == "sds_gateway.monitoring.tasks.monitor_services_health"
     )
-    assert isinstance(schedule_config["schedule"], crontab)
+    assert isinstance(schedule_config["schedule"], schedule)
     _is_due, next_run_seconds = schedule_config["schedule"].is_due(timezone.now())
     check_period_sec: int = 60
     expected_expires_sec = check_period_sec - 10
