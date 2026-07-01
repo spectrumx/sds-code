@@ -1,0 +1,167 @@
+[build-system]
+requires = ["uv_build>=0.11.24,<0.12"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "sds_federation"
+module-root = ""
+
+[project]
+    name = "sds-federation"
+    version = "0.1.0"
+    description = "SDS Federation"
+    requires-python = ">=3.14,<3.15"
+    dependencies = [
+        "fastapi>=0.115.6",
+        "httpx>=0.28.1",
+        "loguru>=0.7.2",
+        "opensearch-py>=2.8.0",
+        "pydantic>=2.11.0",
+        "redis>=5.2.1",
+        "uvicorn[standard]>=0.34.0",
+    ]
+
+[project.optional-dependencies]
+dev = [
+    "deptry>=0.24.0",
+    "pyrefly>=0.42.1",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.15.0",
+]
+
+[tool.deptry]
+    extend_exclude = ["docs/"]
+
+    [tool.deptry.per_rule_ignores]
+        DEP002 = [
+            "deptry",
+            "pyrefly",
+            "pytest",
+            "pytest-asyncio",
+            "ruff",
+            "uvicorn",
+        ]
+
+    [tool.deptry.package_module_name_map]
+        opensearch-py = "opensearchpy"
+
+[tool.ruff]
+    exclude = [
+        ".git",
+        ".ruff_cache",
+        ".venv",
+        "build",
+        "dist",
+        "docs/",
+    ]
+    indent-width = 4
+    line-length = 88
+    src = ["/federation/"]
+    target-version = "py313"
+
+    [tool.ruff.lint]
+        ignore = [
+            "COM812",
+            "ISC001",
+            "RUF012",
+            "S101",
+            "S104",
+            "SIM102",
+            "TRY003",
+            "EM101",
+            "EM102",
+            "TC002",
+        ]
+        select = [
+            "F",
+            "E",
+            "W",
+            "C90",
+            "I",
+            "N",
+            "UP",
+            "YTT",
+            "ASYNC",
+            "S",
+            "BLE",
+            "FBT",
+            "B",
+            "A",
+            "COM",
+            "C4",
+            "DTZ",
+            "T10",
+            "EM",
+            "EXE",
+            "ISC",
+            "ICN",
+            "LOG",
+            "G",
+            "INP",
+            "PIE",
+            "T20",
+            "PYI",
+            "PT",
+            "Q",
+            "RSE",
+            "RET",
+            "SLF",
+            "SLOT",
+            "SIM",
+            "TID",
+            "TC",
+            "PTH",
+            "ERA",
+            "PGH",
+            "PL",
+            "TRY",
+            "FLY",
+            "PERF",
+            "FURB",
+            "RUF",
+            "FAST",
+        ]
+        fixable = ["ALL"]
+
+        [tool.ruff.lint.isort]
+            force-single-line = true
+
+        [tool.ruff.lint.pylint]
+            max-args = 9
+
+        [tool.ruff.lint.per-file-ignores]
+            "**/tests/**" = [
+                "FBT001",
+                "FBT002",
+                "PLR2004",
+                "E501",
+                "PT011",
+                "B017",
+                "PLC0415",
+            ]
+            "**/scripts/**" = ["T201", "EXE001", "E501"]
+
+    [tool.ruff.format]
+        indent-style = "space"
+        line-ending = "auto"
+        quote-style = "double"
+        skip-magic-trailing-comma = false
+
+[tool.pyrefly]
+    project-excludes = ["**/.[!/.]*", "**/tests", "tests/", "**/scripts"]
+    project-includes = ["sds_federation"]
+    search-path      = ["sds_federation"]
+
+    python-platform = "linux"
+    python-version  = "3.13"
+
+    ignore-errors-in-generated-code = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "integration: tests that exercise FastAPI routes or multi-step pipeline",
+    "regression: contract and indexer behavior guards",
+]

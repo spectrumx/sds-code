@@ -1,0 +1,71 @@
+set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
+
+compose_file := "compose.yaml"
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose"
+
+alias run := up
+
+default:
+    @just --list
+
+# install runtime + dev deps (pytest)
+[group('setup')]
+sync:
+    uv sync --extra dev
+
+[group('qa')]
+test-regression +args='':
+    uv run pytest -m regression {{ args }}
+
+[group('qa')]
+test-integration +args='':
+    uv run pytest -m integration {{ args }}
+
+[group('qa')]
+test +args='':
+    uv run pytest {{ args }}
+
+[group('qa')]
+test-q:
+    uv run pytest -q
+
+# Run federation pre-commit hooks from repo root (requires gateway dev deps / pre-commit install)
+[group('qa')]
+pre-commit +args='':
+    cd .. && uv run --directory gateway --extra local pre-commit run ruff-check-federation --all-files {{ args }}
+    cd .. && uv run --directory gateway --extra local pre-commit run ruff-format-federation --all-files {{ args }}
+    cd .. && uv run --directory gateway --extra local pre-commit run pyrefly-federation --all-files {{ args }}
+
+# dev PKI for mTLS experiments (see docs/mtls-certificates.md)
+[group('setup')]
+gen-certs +args='':
+    ./scripts/generate-dev-certs.sh all {{ args }}
+
+[group('setup')]
+gen-certs-ca:
+    ./scripts/generate-dev-certs.sh ca
+
+# publish simulated federation:events to Redis
+[group('dev')]
+simulate-redis +args='':
+    REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" uv run python scripts/simulate_redis_event.py {{ args }}
+
+[group('docker')]
+build +args='':
+    {{ docker_compose }} build {{ args }}
+
+[group('docker')]
+up +args='':
+    {{ docker_compose }} up -d --remove-orphans {{ args }}
+
+[group('docker')]
+down +args='':
+    {{ docker_compose }} down {{ args }}
+
+[group('docker')]
+logs +args='':
+    {{ docker_compose }} logs --tail 1000 -f {{ args }}
+
+[group('docker')]
+dc +args='':
+    {{ docker_compose }} {{ args }}

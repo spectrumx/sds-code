@@ -1,0 +1,8 @@
+# Dev PKI material — generate with scripts/generate-dev-certs.sh
+
+__pycache__/
+
+federation.toml
+
+.envs/*
+!/.envs/example
