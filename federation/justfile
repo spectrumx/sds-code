@@ -1,12 +1,42 @@
 set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 
-compose_file := "compose.yaml"
-docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose"
+# TIP: Production on this machine? Add hostname to ../gateway/scripts/prod-hostnames.env
+#       or set SDS_ENV=production|local
+
+env_selection_script := "./scripts/env-selection.sh"
+
+# variables | run `just env` to see current values
+
+compose_file := shell(env_selection_script + ' $1', "compose_file")
+env := shell(env_selection_script + ' $1', "env")
+env_file := shell(env_selection_script + ' $1', "env_file")
+sync_container := shell(env_selection_script + ' $1', "sync_container")
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
 
 alias run := up
 
 default:
     @just --list
+
+# prints currently selected environment (override with SDS_ENV=local|production)
+[group('utilities')]
+env:
+    #!/usr/bin/env bash
+    echo -e "\nSelected env:\n"
+    echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
+    echo -e "\tEnvironment file: \e[34m        '{{ env_file }}'\e[0m"
+    echo -e "\tCompose file: \e[34m            '{{ compose_file }}'\e[0m"
+    echo -e "\tSync container: \e[34m          '{{ sync_container }}'\e[0m"
+    echo -e "\tDocker compose command: \e[34m  '{{ docker_compose }}'\e[0m"
+
+    if ! [ -f "{{ compose_file }}" ]; then
+        echo -e "\n\e[31mError:\e[0m Compose file '{{ compose_file }}' does not exist."
+        exit 1
+    fi
+    if ! [ -f "{{ env_file }}" ]; then
+        echo -e "\n\e[33mWarning:\e[0m Env file '{{ env_file }}' does not exist."
+        echo -e "Copy from .envs/example/sync.env if needed."
+    fi
 
 # install runtime + dev deps (pytest)
 [group('setup')]

@@ -16,8 +16,7 @@ from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
-
-CHANNEL = "federation:events"
+from sds_federation.services.redis_channel import resolve_federation_events_channel
 
 type AssetResolver = Callable[
     [httpx.AsyncClient, FederationConfig, UUID, AssetTypeEnum],
@@ -150,10 +149,16 @@ async def run_federation_subscriber(
     config: FederationConfig,
     indexer: FederatedAssetIndexer,
     stop,
+    *,
+    channel: str | None = None,
 ) -> None:
+    resolved_channel = channel or resolve_federation_events_channel(
+        site_name=config.site.name,
+        env_override=os.environ.get("FEDERATION_EVENTS_CHANNEL"),
+    )
     client = aioredis.from_url(redis_url)
     pubsub = client.pubsub()
-    await pubsub.subscribe(CHANNEL)
+    await pubsub.subscribe(resolved_channel)
     try:
         async for message in pubsub.listen():
             if stop.is_set():
@@ -164,7 +169,7 @@ async def run_federation_subscriber(
 
             await dispatch_federation_redis_payload(http, config, indexer, data)
     finally:
-        await pubsub.unsubscribe(CHANNEL)
+        await pubsub.unsubscribe(resolved_channel)
         await client.aclose()
 
 
