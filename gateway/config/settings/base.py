@@ -14,6 +14,9 @@ from environs import env
 from config.settings.logs import ColoredFormatter
 from config.settings.utils import guess_admin_console_env
 from config.settings.utils import guess_max_web_download_size
+from sds_gateway.api_methods.federation.redis_channel import (
+    resolve_federation_events_channel,
+)
 
 __rng = random.SystemRandom()
 
@@ -719,9 +722,13 @@ SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
-FEDERATION_EVENTS_CHANNEL: str = env.str(
+_federation_events_channel_override: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
-    default="federation:events",
+    default="",
+).strip()
+FEDERATION_EVENTS_CHANNEL: str = resolve_federation_events_channel(
+    site_name=FEDERATION_SITE_NAME,
+    channel_override=_federation_events_channel_override,
 )
 FEDERATION_SYNC_USER_EMAIL: str = env.str(
     "FEDERATION_SYNC_USER_EMAIL",
