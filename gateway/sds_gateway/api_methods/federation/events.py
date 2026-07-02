@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from datetime import datetime
+from enum import StrEnum
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -39,9 +40,9 @@ def publish_federation_event(
     if not is_federation_operational():
         log.debug("Federation not operational, skipping Redis publish")
         return
-    channel = getattr(settings, "FEDERATION_EVENTS_CHANNEL", "federation:events")
+    channel = settings.FEDERATION_EVENTS_CHANNEL
     payload: dict[str, Any] = {
-        "event_type": event_type,
+        "event_type": str(event_type),
         "item_type": item_type.value,
         "uuid": str(uuid),
         "timestamp": (timestamp or datetime.now(UTC)).isoformat(),
