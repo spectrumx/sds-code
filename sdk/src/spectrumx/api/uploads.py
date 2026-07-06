@@ -12,7 +12,6 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import Annotated
 from typing import NoReturn
 
 from anyio import Path as AsyncPath
@@ -277,7 +276,7 @@ class UploadWorkload(BaseModel):
     """Serializable representation of an upload workload."""
 
     client: "Client" = Field(exclude=True)  # noqa: UP037
-    local_root: Annotated[Path, Field(alias="local_path")]
+    local_root: Path
     sds_path: PurePosixPath = Field(default_factory=lambda: PurePosixPath("/"))
     max_concurrent_uploads: int = 5
     persist_state: bool = True

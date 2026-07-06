@@ -394,19 +394,20 @@ class GatewayClient:
         )
         all_chunks: bytes = b""
 
-        file_ptr: BinaryIO | _ProgressFileReader = file_instance.local_path.open("rb")
+        file_ptr: BinaryIO = file_instance.local_path.open("rb")
+        upload_file: BinaryIO | _ProgressFileReader = file_ptr
         if progress_callback is not None:
-            file_ptr = _ProgressFileReader(file_ptr, progress_callback)
+            upload_file = _ProgressFileReader(file_ptr, progress_callback)
 
         with (
-            file_ptr,
+            upload_file,
             self._request(
                 method=HTTPMethods.POST,
                 endpoint=Endpoints.FILES,
                 data=payload,
                 stream=True,
                 files={
-                    "file": file_ptr,  # request.data['file'] on the server
+                    "file": upload_file,  # request.data['file'] on the server
                 },
                 verbose=verbose,
             ) as stream,
