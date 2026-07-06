@@ -1,5 +1,7 @@
 """Tests for structured logging functionality."""
 
+# pyright: reportPrivateUsage=false
+
 import json
 from pathlib import Path
 

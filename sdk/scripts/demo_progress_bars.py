@@ -6,6 +6,8 @@ at a given rate, and runs the real download/upload code paths so you
 can see the tqdm bars animate smoothly.
 """
 
+# pyright: reportPrivateUsage=false
+
 from __future__ import annotations
 
 import atexit

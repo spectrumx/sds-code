@@ -1,5 +1,7 @@
 """Tests for the client module."""
 
+# pyright: reportPrivateUsage=false
+
 import re
 import uuid
 from enum import IntEnum

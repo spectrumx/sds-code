@@ -12,7 +12,6 @@ from datetime import UTC
 from datetime import datetime
 from pathlib import Path
 from pathlib import PurePosixPath
-from typing import Annotated
 from typing import NoReturn
 
 from anyio import Path as AsyncPath
@@ -277,7 +276,7 @@ class UploadWorkload(BaseModel):
     """Serializable representation of an upload workload."""
 
     client: "Client" = Field(exclude=True)  # noqa: UP037
-    local_root: Annotated[Path, Field(alias="local_path")]
+    local_root: Path
     sds_path: PurePosixPath = Field(default_factory=lambda: PurePosixPath("/"))
     max_concurrent_uploads: int = 5
     persist_state: bool = True
@@ -302,7 +301,7 @@ class UploadWorkload(BaseModel):
         tqdm[NoReturn] | None  # pyrefly: ignore[bad-specialization]
     ) = None
     _persistence_manager: UploadPersistenceManager | None = None
-    _progress_log_task: asyncio.Task | None = None
+    _progress_log_task: asyncio.Task[None] | None = None
 
     model_config = {
         "populate_by_name": True,
@@ -837,13 +836,13 @@ def upload_resumable(
 
     upload_workload = UploadWorkload(
         client=client,
-        local_path=local_path,
+        local_root=local_path,
         sds_path=PurePosixPath(sds_path),
         max_concurrent_uploads=max_concurrent_uploads,
         verbose=verbose,
         warn_skipped=warn_skipped,
         persist_state=persist_state,
-        progress_log_period_secs=client._config.progress_log_period_secs,  # noqa: SLF001
+        progress_log_period_secs=client.config.progress_log_period_secs,
     )
 
     return asyncio.run(upload_workload.run(client=client))

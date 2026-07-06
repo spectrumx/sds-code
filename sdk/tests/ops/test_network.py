@@ -3,6 +3,8 @@
 Use the integration_client fixture for these tests.
 """
 
+# pyright: reportPrivateUsage=false
+
 # ruff: noqa: SLF001
 # pyright: ignore[reportPrivateUsage]
 

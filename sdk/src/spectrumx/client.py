@@ -127,7 +127,7 @@ class Client:
         # Enable structured logging
         _log_path = self._config.log_file
         enable_structured_logging(log_path=_log_path)
-        log_user(f"Structured log: {utils._current_log_path}")  # noqa: SLF001
+        log_user(f"Structured log: {_log_path}")
 
         # Bind persistent context
         api_key_prefix = ""
@@ -202,6 +202,11 @@ class Client:
             else "Dry-run DISABLED: modifications are now possible."
         )
         log_user_warning(msg)
+
+    @property
+    def config(self) -> SDSConfig:
+        """The client configuration."""
+        return self._config
 
     @property
     def gateway(self) -> GatewayClient:

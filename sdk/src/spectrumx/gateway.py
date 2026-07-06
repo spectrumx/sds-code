@@ -396,7 +396,7 @@ class GatewayClient:
 
         file_ptr: BinaryIO = file_instance.local_path.open("rb")
         if progress_callback is not None:
-            file_ptr = _ProgressFileReader(file_ptr, progress_callback)
+            file_ptr = _ProgressFileReader(file_ptr, progress_callback)  # type: ignore[assignment]
 
         with (
             file_ptr,
