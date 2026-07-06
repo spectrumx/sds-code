@@ -98,7 +98,7 @@ repos:
 
     # runs pyrefly type checker on the sdk project
     - repo: https://github.com/facebook/pyrefly-pre-commit
-      rev: 1.1.0.dev1
+      rev: 1.1.1
       hooks:
           - id: pyrefly-check
             name: pyrefly-check (sdk)
