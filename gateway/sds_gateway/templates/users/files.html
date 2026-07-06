@@ -127,9 +127,7 @@
                                             N/A
                                         {% endif %}
                                     </div>
-                                    <div class="file-shared">
-                                        {% if item.shared_by %}{{ item.shared_by }}{% endif %}
-                                    </div>
+                                    <div class="file-shared">{% if item.shared_by %}{{ item.shared_by }}{% endif %}</div>
                                     <div class="file-actions">
                                         {% if item.type == 'file' %}
                                             <div class="dropdown">

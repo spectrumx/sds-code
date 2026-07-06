@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from collections.abc import Callable
 from datetime import datetime
@@ -10,7 +11,6 @@ from uuid import UUID
 
 from django.http import HttpRequest
 from django.template.loader import render_to_string
-from django.utils import timezone
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.serializers.capture_serializers import (
@@ -65,7 +65,7 @@ def _format_numeric_value(value: float, field_name: str = "") -> str | None:
 
     if field_name in TIME_METADATA_FIELDS:
         try:
-            return datetime.fromtimestamp(value, tz=timezone.utc).strftime(
+            return datetime.fromtimestamp(value, tz=dt.UTC).strftime(
                 "%Y-%m-%d %H:%M:%S %Z"
             )
         except (OSError, OverflowError, ValueError):

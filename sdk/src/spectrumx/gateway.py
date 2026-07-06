@@ -151,7 +151,7 @@ class GatewayClient:
         endpoint: Endpoints,
         asset_id: None | str = None,
         endpoint_args: None | dict[str, Any] = None,
-    ) -> dict[str, str | dict[str, str] | bool]:
+    ) -> dict[str, Any]:
         endpoint_fmt = (
             endpoint.value.format(**endpoint_args) if endpoint_args else endpoint.value
         )
@@ -394,7 +394,7 @@ class GatewayClient:
         )
         all_chunks: bytes = b""
 
-        file_ptr: BinaryIO | _ProgressFileReader = file_instance.local_path.open("rb")
+        file_ptr: BinaryIO = file_instance.local_path.open("rb")
         if progress_callback is not None:
             file_ptr = _ProgressFileReader(file_ptr, progress_callback)
 

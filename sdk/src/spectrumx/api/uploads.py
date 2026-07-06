@@ -837,7 +837,7 @@ def upload_resumable(
 
     upload_workload = UploadWorkload(
         client=client,
-        local_root=local_path,
+        local_path=local_path,
         sds_path=PurePosixPath(sds_path),
         max_concurrent_uploads=max_concurrent_uploads,
         verbose=verbose,

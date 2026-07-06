@@ -35,7 +35,9 @@
                             <th scope="col" class="w-25">Authors</th>
                             <th scope="col" class="w-20">Keywords</th>
                             <th scope="col" class="w-15">Created At</th>
-                            {% if user.is_authenticated %}<th scope="col" class="w-10">Actions</th>{% endif %}
+                            {% if user.is_authenticated %}
+                                <th scope="col" class="w-10">Actions</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody id="search-results-tbody">
@@ -52,7 +54,9 @@
                                        data-dataset-uuid="{{ dataset.uuid }}"
                                        data-item-uuid="{{ dataset.uuid }}"
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
-                                    {% if dataset.is_public %}<i class="bi bi-globe me-1 text-primary" title="Public"></i>{% endif %}
+                                    {% if dataset.is_public %}
+                                        <i class="bi bi-globe me-1 text-primary" title="Public"></i>
+                                    {% endif %}
                                 </td>
                                 <td class="text-break">
                                     {% if dataset.authors %}
