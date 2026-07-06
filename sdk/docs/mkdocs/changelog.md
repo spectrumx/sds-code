@@ -1,13 +1,93 @@
 # SpectrumX SDK Changelog
 
+## `0.2.0` - 2026-07-06
+
++ Features:
+    + [**Byte-level progress bars for file
+      downloads**](https://github.com/spectrumx/sds-code/pull/306): file downloads now
+      show a byte-level progress bar with throttled `tqdm` callbacks (~100 KB refresh
+      rate), providing smooth visual feedback during multi-file downloads — matching the
+      upload progress bar experience introduced in v0.1.15. When total bytes are unknown
+      (e.g. paginated results), a file-level fallback progress bar is used instead.
+    + [**Configurable periodic progress
+      logging**](https://github.com/spectrumx/sds-code/pull/306): new
+      `progress_log_period_secs` config option (default: 30 seconds) controls how often
+      structured progress log entries are emitted during long-running uploads and
+      downloads. Set via environment variable or `.env` file.
+    + [**Custom structured log path**](https://github.com/spectrumx/sds-code/pull/306):
+      new `log_file` config option allows setting a custom path for the structured JSONL
+      log file via environment variable, `.env` file, or `Client(log_file=...)`
+      parameter.
+
++ Observability:
+    + [**Structured JSONL logging
+      system**](https://github.com/spectrumx/sds-code/pull/306): new
+      `enable_structured_logging()` function configures the SDK to write
+      machine-parseable JSON lines to `~/.local/state/spectrumx/logs/YYYY-MM-DD.jsonl`.
+      Each log line includes timestamp, process ID, severity, category, and message. Use
+      `jq` to filter and analyze:
+
+      ```bash
+      # Show only download operations
+      jq 'select(.cat == "download")' ~/.local/state/spectrumx/logs/*.jsonl
+
+      # Show warnings and errors
+      jq 'select(.lvl == "WARNING" or .lvl == "ERROR")' ~/.local/state/spectrumx/logs/*.jsonl
+      ```
+
+        + Boot message with SDK version, OS platform, and Python version on every
+          session.
+        + Log categories: `config`, `auth`, `network`, `filesystem`, `download`,
+          `upload`, `log`.
+        + Scoped context via `LogContext` context manager for per-operation fields (e.g.
+          upload ID, directory).
+        + Persistent context via `set_persistent_log_context()` for cross-operation
+          fields (e.g. API key prefix).
+        + Error entries include exception type and message in `exc_info` field.
+        + Re-configurable at runtime — calling `enable_structured_logging()` with a new
+          path switches to the new file and emits a fresh boot message.
+    + **Upload workflow now emits structured log entries**:
+        + Periodic progress every `progress_log_period_secs` with completed/total files,
+          bytes uploaded/total, failures, in-progress, and skipped counts.
+        + Completion summary with elapsed time, average speed, and status
+          (clean/interrupted).
+        + Per-file operation log context via `log_context(upload_id=...,
+          upload_dir=...)`.
+    + **Download workflow now emits structured log entries**:
+        + Per-file completion with file name and size.
+        + Periodic progress every `progress_log_period_secs` with completed/total files,
+          bytes downloaded/total, and failure count.
+        + Completion summary with elapsed time, average speed, and status
+          (clean/interrupted).
+    + **Configuration events tagged with `LogCategory.CONFIG`** — config loading, env
+      file discovery, and attribute setting now emit structured log entries for easier
+      debugging.
+
++ Housekeeping:
+    + [**Developer demo script**](https://github.com/spectrumx/sds-code/pull/306): added
+      `scripts/demo_progress_bars.py` that simulates upload/download transfers at
+      configurable rates to let developers preview progress bar visuals without a live
+      gateway.
+    + [**Improved test coverage**](https://github.com/spectrumx/sds-code/pull/306):
+        + New `test_structured_logging.py` module (9 tests): JSONL file paths, boot
+          message emission, core fields on every log line, contextual field binding,
+          category filtering, scoped context lifecycle, persistent context, path
+          re-configuration, and state reset.
+        + New download byte progress tests in `test_client.py` covering skipped content
+          credit and partial stream accounting.
+        + New upload progress tests in `test_uploads_workflow.py` covering unstreamed
+          byte credit, metadata-only uploads, and concurrent progress bar byte counting.
+        + New `credit_unstreamed_file_bytes` tests in `test_utils.py`.
+    + Version bump to `0.2.0`.
+
 ## `0.1.20` - 2026-06-02
 
 + Fixes:
-    + **Fixed crash when `owner` and related fields are missing from API responses**: the
-      `Capture.owner` field (and `User.name`/`User.email` for cascading partial data) are
-      now optional with `None` defaults. Previously, the SDK would raise a Pydantic
-      `ValidationError` when the server omitted these fields from capture payloads during
-      file and capture listing, causing the entire operation to fail.
+    + **Fixed crash when `owner` and related fields are missing from API responses**:
+      the `Capture.owner` field (and `User.name`/`User.email` for cascading partial
+      data) are now optional with `None` defaults. Previously, the SDK would raise a
+      Pydantic `ValidationError` when the server omitted these fields from capture
+      payloads during file and capture listing, causing the entire operation to fail.
 
 ## `0.1.19` - 2026-05-15
 

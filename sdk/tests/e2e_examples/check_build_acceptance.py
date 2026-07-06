@@ -61,6 +61,7 @@ def check_basic_usage() -> None:
         host=SDS_HOST,
         # env_file=Path(".env"),  # default
         # env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
+        log_file=Path("my_spectrum_files") / "sdk.log",
     )
 
     # when in dry-run (default), no changes are made to the SDS or the local filesystem
@@ -121,7 +122,10 @@ def check_error_handling() -> None:
 
     from spectrumx.errors import AuthError, NetworkError
 
-    sds = Client(host=SDS_HOST)
+    sds = Client(
+        host=SDS_HOST,
+        log_file=Path("my_spectrum_files") / "sdk.log",
+    )
     try:
         sds.authenticate()
     except NetworkError as err:
@@ -205,7 +209,10 @@ def check_error_handling() -> None:
 def check_file_listing_usage() -> None:
     """Basic file listing usage example."""
 
-    sds = Client(host=SDS_HOST)
+    sds = Client(
+        host=SDS_HOST,
+        log_file=Path("my_spectrum_files") / "sdk.log",
+    )
     sds.authenticate()
     reference_name: str = "my_spectrum_files"
 
@@ -252,7 +259,10 @@ def check_capture_usage() -> None:
 
     from spectrumx.models.captures import Capture, CaptureType
 
-    sds = Client(host=SDS_HOST)
+    sds = Client(
+        host=SDS_HOST,
+        log_file=Path("my_spectrum_files") / "sdk.log",
+    )
     sds.authenticate()
 
     capture_sds_dir = Path("/location/in/sds/")
@@ -305,7 +315,10 @@ def check_capture_usage() -> None:
 def check_download_modes() -> None:
     """Other download examples."""
 
-    sds = Client(host=SDS_HOST)
+    sds = Client(
+        host=SDS_HOST,
+        log_file=Path("my_spectrum_files") / "sdk.log",
+    )
     sds.authenticate()
     reference_name: str = "my_spectrum_files"
 
@@ -349,7 +362,10 @@ def check_download_modes() -> None:
 def check_dataset_api() -> None:
     """Dataset API methods (new in v0.1.19)."""
 
-    sds = Client(host=SDS_HOST)
+    sds = Client(
+        host=SDS_HOST,
+        log_file=Path("my_spectrum_files") / "sdk.log",
+    )
     sds.authenticate()
 
     ds_uuid = "123e4567-e89b-42d3-a456-426614174000"  # valid UUID4 for dry-run
