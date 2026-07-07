@@ -35,7 +35,7 @@ jobs:
         env:
             UV_LINK_MODE: copy
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             # this ubuntu-latest version ships node 18, which was causing issues
             # https://github.com/actions/setup-node#usage
@@ -44,12 +44,12 @@ jobs:
                   node-version: 24
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v7
+              uses: astral-sh/setup-uv@v8
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Cache prek hooks
               id: cache-prek
-              uses: actions/cache@v5
+              uses: actions/cache@v6
               # https://github.com/actions/cache/blob/main/examples.md#python---pip
               with:
                   key: prek-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -73,10 +73,10 @@ jobs:
             UV_LINK_MODE: copy
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v7
+              uses: astral-sh/setup-uv@v8
 
             - name: Install Python
               working-directory: ./sdk
@@ -86,7 +86,7 @@ jobs:
               working-directory: ./sdk
               run: uv sync -p ${{ env.PYTHON_VERSION }} --frozen --dev
 
-            - uses: jakebailey/pyright-action@v2
+            - uses: jakebailey/pyright-action@v3
               # https://github.com/jakebailey/pyright-action#options
               with:
                   pylance-version: latest-release
@@ -106,7 +106,7 @@ jobs:
                 platform: [ubuntu-latest]
 
         steps:
-            - uses: actions/checkout@v6
+            - uses: actions/checkout@v7
 
             - name: Install just on ubuntu
               if: matrix.platform == 'ubuntu-latest'
@@ -115,7 +115,7 @@ jobs:
                   npm install -g rust-just
 
             - name: Install uv
-              uses: astral-sh/setup-uv@v7
+              uses: astral-sh/setup-uv@v8
               # https://github.com/marketplace/actions/astral-sh-setup-uv
 
             - name: Run all tests
