@@ -990,6 +990,28 @@ class Dataset(BaseModel):
             field_value = getattr(self, field)
             if field_value:
                 if isinstance(field_value, list):
+                    # --- Authors format normalization ---
+                    # Prevent "authors still in old string format" warning by
+                    # auto-converting old-style list-of-strings to list-of-dicts
+                    # on save. Catches all write paths (form, versioning, API,
+                    # direct ORM create) so old format cannot persist even when
+                    # entering through code paths that bypass form validation
+                    # (e.g. dataset versioning which copies raw field values
+                    # via getattr + Dataset.objects.create).
+                    #
+                    # Old format: ["Author One", "Author Two"]
+                    # New format: [{"name": "Author One", "orcid_id": ""}, ...]
+                    if (
+                        field == "authors"
+                        and field_value
+                        and isinstance(field_value[0], str)
+                    ):
+                        field_value = [
+                            {"name": author, "orcid_id": ""}
+                            for author in field_value
+                            if isinstance(author, str)
+                        ]
+                    # --- End authors format normalization ---
                     setattr(self, field, json.dumps(field_value))
                 elif isinstance(field_value, str):
                     # If it's already a string, it might be JSON - try to parse it
