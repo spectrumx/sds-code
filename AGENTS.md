@@ -55,13 +55,22 @@ docker exec -e DJANGO_SUPERUSER_PASSWORD='<pw>' \
 Local auth uses django-allauth with email + password (email verification is off and
 self-registration is allowed), so you can also just sign up at `/accounts/login/`.
 
-### Known non-blocking caveat: nginx health
+### Known non-blocking caveats: container "unhealthy" markers
 
-The `sds-gateway-local-nginx` container reports `unhealthy`. This is only because its
-healthcheck runs `wget http://localhost/healthz`, which resolves to IPv6 `::1` while nginx
-listens on IPv4 `0.0.0.0:80`. nginx serves correctly (static files and `/healthz` return
-`200` over IPv4). This does not affect local development — the Django app is reached
-directly on port `8000`.
+Two containers can report `unhealthy` while functioning correctly:
+
+- `sds-gateway-local-nginx`: its healthcheck runs `wget http://localhost/healthz`, which
+  resolves to IPv6 `::1` while nginx listens on IPv4 `0.0.0.0:80`. nginx serves correctly
+  (static files and `/healthz` return `200` over IPv4). The Django app is reached directly
+  on port `8000`, so this does not affect local development.
+- `sds-gateway-local-celery-worker`: the `celery inspect ping` healthcheck can flap, but
+  the worker is functional — it actively receives and succeeds tasks (e.g. the periodic
+  `monitor_services_health` task), and `uv run celery -A config.celery_app inspect ping`
+  returns `OK`.
+
+Note the health-monitoring task reports `secondary-storage: down` locally; this is expected
+because SeaweedFS (the optional secondary store) is intentionally skipped — RustFS is the
+healthy primary store.
 
 ### Lint / test / build
 
