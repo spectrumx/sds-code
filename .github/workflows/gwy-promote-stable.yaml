@@ -9,12 +9,38 @@ on:
                 type: string
 
 permissions:
+    contents: read
     packages: write
 
 jobs:
     gwy-promote:
         runs-on: ubuntu-latest
         steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+              with:
+                  fetch-depth: 0
+
+            - name: Verify commit is on default branch
+              env:
+                  SHA: ${{ inputs.commit_sha }}
+              run: |
+                  SHA_INPUT="${SHA}"
+                  # Resolve the short SHA to a full SHA
+                  if ! FULL_SHA=$(git rev-parse --verify "${SHA_INPUT}^{commit}" 2>/dev/null); then
+                      echo "ERROR: Could not resolve commit '${SHA_INPUT}' in this repository."
+                      echo "Ensure you are using a valid short SHA from the default branch (main)."
+                      exit 1
+                  fi
+                  echo "Resolved SHA: ${FULL_SHA}"
+                  # Verify the commit is an ancestor of the default branch (main)
+                  if ! git merge-base --is-ancestor "${FULL_SHA}" origin/main; then
+                      echo "ERROR: Commit ${SHA_INPUT} (${FULL_SHA}) is not an ancestor of the default branch (main)."
+                      echo "Only commits from the default branch can be promoted to stable."
+                      exit 1
+                  fi
+                  echo "✓ Commit ${SHA_INPUT} is a valid ancestor of main. Proceeding with promotion."
+
             - name: Log in to ghcr.io
               uses: docker/login-action@v4
               with:
@@ -23,8 +49,9 @@ jobs:
                   password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Promote dev-<sha> to stable
+              env:
+                  SHA: ${{ inputs.commit_sha }}
               run: |
-                  SHA="${{ inputs.commit_sha }}"
                   REGISTRY="ghcr.io/spectrumx/sds-gateway"
                   docker buildx imagetools create \
                       --tag "${REGISTRY}:stable" \
