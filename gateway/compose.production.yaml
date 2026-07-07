@@ -39,10 +39,7 @@ networks:
 
 services:
     sds-gateway-prod-app:
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
+        image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
         container_name: sds-gateway-prod-app
         tty: true
         depends_on:
@@ -337,10 +334,7 @@ services:
     # ===================
     # Celery services for background tasks
     celery-worker:
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
+        image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
         container_name: sds-gateway-prod-celery-worker
         tty: true
         depends_on:
@@ -398,10 +392,7 @@ services:
 
     celery-beat:
         # Celery Beat scheduler for periodic tasks
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
+        image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
         container_name: sds-gateway-prod-celery-beat
         depends_on:
             sds-gateway-prod-app:
@@ -458,10 +449,7 @@ services:
 
     celery-flower:
         # Celery monitoring and administration tool
-        build:
-            context: .
-            dockerfile: ./compose/production/django/Dockerfile
-        image: sds-gateway-prod-app
+        image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
         container_name: sds-gateway-prod-celery-flower
         tty: true
         depends_on:

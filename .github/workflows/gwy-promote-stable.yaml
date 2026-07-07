@@ -1,0 +1,31 @@
+name: gateway-promote-stable
+
+on:
+    workflow_dispatch:
+        inputs:
+            commit_sha:
+                description: 'Short commit SHA to promote (e.g. a1b2c3d)'
+                required: true
+                type: string
+
+permissions:
+    packages: write
+
+jobs:
+    gwy-promote:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Log in to ghcr.io
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Promote dev-<sha> to stable
+              run: |
+                  SHA="${{ inputs.commit_sha }}"
+                  REGISTRY="ghcr.io/spectrumx/sds-gateway"
+                  docker buildx imagetools create \
+                      --tag "${REGISTRY}:stable" \
+                      "${REGISTRY}:dev-${SHA}"
