@@ -23,6 +23,7 @@ User = get_user_model()
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
+    SDS_SITE_FQDN="sds.crc.nd.edu",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
     FEDERATION_EXPORT_ALLOWED_CIDRS=["0.0.0.0/0", "::/0"],
 )
@@ -96,7 +97,7 @@ class FederationExportAPITest(APITestCase):
             )
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["uuid"] == str(self.public_dataset.uuid)
-        assert response.json()["site_name"] == "crc"
+        assert response.json()["site_name"] == "sds.crc.nd.edu"
 
     def test_sync_key_dataset_detail_404_when_not_indexed(self) -> None:
         with patch(

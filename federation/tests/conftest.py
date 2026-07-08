@@ -8,6 +8,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 from sds_federation.models import FederationConfig
+from sds_federation.models import site_name_for_federation
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.services.fed_index import FederatedAssetIndexer
@@ -97,7 +98,7 @@ def stub_dataset_resolver(test_site_config: FederationConfig):
     def _seed(recording_opensearch: RecordingOpenSearch) -> None:
         seed_federated_dataset_in_opensearch(
             recording_opensearch,
-            test_site_config.site.name,
+            site_name_for_federation(test_site_config.site),
         )
 
     return _seed

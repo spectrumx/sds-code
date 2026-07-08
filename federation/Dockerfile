@@ -2,10 +2,11 @@ FROM docker.io/python:3.14-slim-trixie
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-WORKDIR /app
+WORKDIR /app/federation
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+COPY ../common/sds_opensearch_query /app/common/sds_opensearch_query
 COPY pyproject.toml uv.lock ./
 COPY sds_federation ./sds_federation
 RUN uv sync --frozen --no-dev

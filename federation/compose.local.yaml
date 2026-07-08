@@ -9,8 +9,8 @@ networks:
 services:
   sds-federation-local-sync:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: federation/Dockerfile
     image: sds-federation-local-sync
     container_name: sds-federation-local-sync
     env_file:

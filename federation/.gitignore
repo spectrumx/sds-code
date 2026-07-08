@@ -6,3 +6,4 @@ federation.toml
 
 .envs/*
 !/.envs/example
+scripts/local_e2e/.env
