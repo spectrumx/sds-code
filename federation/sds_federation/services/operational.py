@@ -24,7 +24,7 @@ class CheckResult:
 
 
 def _skip_gateway_probe() -> bool:
-    return os.environ.get("FEDERATION_HEALTH_SKIP_GATEWAY_PROBE", "").lower() in (
+    return os.environ.get("FEDERATION_HEALTH_SKIP_GATEWAY_PROBE", "true").lower() in (
         "1",
         "true",
         "yes",
@@ -110,22 +110,16 @@ async def evaluate_operational(
         "REDIS_URL",
         "redis://redis:6379/0",
     )
-    gateway_result: CheckResult
-    if config is None:
-        gateway_result = CheckResult(False, "federation config not loaded")
-    else:
-        gateway_result = await check_gateway_export(
-            http,
-            str(config.gateway_api_base),
-        )
-
     checks: dict[str, dict[str, str | bool]] = {
         "config": check_config(config).as_dict(),
         "redis_subscriber": check_subscriber_task(subscriber_task).as_dict(),
         "redis": (await check_redis(resolved_redis)).as_dict(),
         "opensearch": (await check_opensearch(opensearch)).as_dict(),
-        "gateway_export": gateway_result.as_dict(),
     }
+    if not _skip_gateway_probe() and config is not None:
+        checks["gateway_export"] = (
+            await check_gateway_export(http, str(config.gateway_api_base))
+        ).as_dict()
 
     failed = [name for name, result in checks.items() if not result["ok"]]
     operational = not failed

@@ -32,20 +32,18 @@ async def test_mesh_dispatches_redis_event_to_peer_opensearch(
     mesh = two_site_mesh
     payload = simulated_dataset_redis_payload()
     local = mesh.site("testsite")
+    stub_dataset_resolver(local.opensearch)
+    calls_before = len(local.opensearch.index_calls)
     indexer = FederatedAssetIndexer(local.opensearch)
     ok = await dispatch_federation_redis_payload(
         mesh.http,
         test_site_config,
+        local.opensearch,
         indexer,
         payload,
-        resolve_asset=stub_dataset_resolver,
     )
     assert ok is True
-    assert len(local.opensearch.index_calls) == 1
-    assert local.opensearch.index_calls[0]["id"] == doc_id(
-        "testsite",
-        TEST_DATASET_UUID,
-    )
+    assert len(local.opensearch.index_calls) == calls_before
     peer = mesh.site("peer-one")
     assert len(peer.opensearch.index_calls) == 1
     assert peer.opensearch.index_calls[0]["id"] == doc_id(
