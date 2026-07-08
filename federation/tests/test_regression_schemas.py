@@ -25,12 +25,15 @@ def test_federated_dataset_doc_rejects_unknown_fields() -> None:
         FederatedDatasetDoc.model_validate(base)
 
 
+CRC_FQDN = "sds.crc.nd.edu"
+
+
 @pytest.mark.regression
 def test_asset_updated_webhook_round_trip_dataset() -> None:
-    asset = sample_federated_dataset_doc(site_name="crc")
+    asset = sample_federated_dataset_doc(site_name=CRC_FQDN)
     payload = AssetUpdatedWebhook(
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
-        site_name="crc",
+        site_name=CRC_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -41,10 +44,10 @@ def test_asset_updated_webhook_round_trip_dataset() -> None:
 
 @pytest.mark.regression
 def test_asset_updated_webhook_round_trip_capture() -> None:
-    asset = sample_federated_capture_doc(site_name="crc")
+    asset = sample_federated_capture_doc(site_name=CRC_FQDN)
     payload = AssetUpdatedWebhook(
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
-        site_name="crc",
+        site_name=CRC_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.CAPTURE,
     )

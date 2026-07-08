@@ -20,6 +20,7 @@ from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
 from tests.conftest import seed_federated_dataset_in_opensearch
+from tests.support.federation_mesh import TESTSITE_FQDN
 
 
 @pytest.mark.asyncio
@@ -57,7 +58,7 @@ async def test_dispatch_reads_opensearch_and_posts_webhook_to_peer(
     recorded, transport = peer_webhook_recorder
     seed_federated_dataset_in_opensearch(
         recording_opensearch,
-        test_site_config.site.name,
+        TESTSITE_FQDN,
     )
     calls_before = len(recording_opensearch.index_calls)
     indexer = FederatedAssetIndexer(recording_opensearch)
@@ -82,7 +83,7 @@ async def test_dispatch_reads_opensearch_and_posts_webhook_to_peer(
     )
     assert str(req.url) == expected_url
     body = json.loads(req.content.decode())
-    assert body["site_name"] == "testsite"
+    assert body["site_name"] == TESTSITE_FQDN
     assert body["asset_type"] == "dataset"
     assert body["asset"]["uuid"] == str(TEST_DATASET_UUID)
     assert body["asset"]["name"] == "Simulated public dataset"
@@ -97,11 +98,11 @@ async def test_dispatch_deleted_doc_from_opensearch(
 ) -> None:
     recorded, transport = peer_webhook_recorder
     doc = sample_federated_dataset_doc(
-        site_name=test_site_config.site.name,
+        site_name=TESTSITE_FQDN,
     ).model_copy(update={"is_deleted": True})
     FederatedAssetIndexer(recording_opensearch).apply_asset_event(
         event_at=datetime.now(UTC),
-        site_name=test_site_config.site.name,
+        site_name=TESTSITE_FQDN,
         asset=doc,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -161,7 +162,7 @@ async def test_dispatch_uses_registry_sync_url_overlay(
 
     seed_federated_dataset_in_opensearch(
         recording_opensearch,
-        test_site_config.site.name,
+        TESTSITE_FQDN,
     )
     peer = test_site_config.peers[0]
     registry = PeerRegistry()

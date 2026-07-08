@@ -12,6 +12,7 @@ from loguru import logger
 
 from sds_federation.models import FederationConfig
 from sds_federation.models import PeerInfo
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
@@ -211,14 +212,15 @@ def _index_export_docs(
 ) -> int:
     indexed = 0
     for doc in docs:
-        if doc.site_name != peer.name:
+        if doc.site_name not in {peer.name, peer.fqdn}:
             logger.error(
                 "bootstrap export failed for {} {}: site name mismatch "
-                "(doc.site_name={!r}, peer.name={!r})",
+                "(doc.site_name={!r}, peer.name={!r}, peer.fqdn={!r})",
                 peer.name,
                 asset_type.value,
                 doc.site_name,
                 peer.name,
+                peer.fqdn,
             )
             continue
 
@@ -353,7 +355,7 @@ async def bootstrap_all_peers(
 
 def peer_by_name(config: FederationConfig, site_name: str) -> PeerInfo | None:
     for peer in config.peers:
-        if peer.name == site_name:
+        if peer.name == site_name or peer.fqdn == site_name:
             return peer
     return None
 
@@ -376,7 +378,7 @@ async def backfill_peer_on_hello(
 
 def _site_hello_payload(config: FederationConfig) -> SiteHelloWebhook:
     return SiteHelloWebhook(
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         fqdn=config.site.fqdn,
         display_name=config.site.display_name,
         sync_service_url=config.sync_service_url,

@@ -14,6 +14,11 @@ class SiteInfo(BaseModel):
     sync_service_url: AnyHttpUrl | None = None
 
 
+def site_name_for_federation(site: SiteInfo) -> str:
+    """FQDN stored in export docs and OpenSearch ``site_name`` (RFC §6)."""
+    return site.fqdn
+
+
 class PeerInfo(BaseModel):
     name: str
     fqdn: str
@@ -29,6 +34,10 @@ class FederationConfig(BaseModel):
     peers: list[PeerInfo] = Field(default_factory=list)
     gateway_api_base: AnyHttpUrl
     sync_service_url: AnyHttpUrl
+
+
+def allowed_federated_origin_fqdns(config: FederationConfig) -> set[str]:
+    return {peer.fqdn for peer in config.peers} | {config.site.fqdn}
 
 
 def load_federation_config() -> FederationConfig:

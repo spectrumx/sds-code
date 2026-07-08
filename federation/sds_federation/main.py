@@ -11,9 +11,11 @@ from opensearchpy import OpenSearch
 
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
+from sds_federation.routes.search_index import search_index_router
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
+from sds_federation.services.fed_indices import ensure_fed_indices
 from sds_federation.services.local_events import build_gateway_http_client
 from sds_federation.services.local_events import run_federation_subscriber
 from sds_federation.services.peer_registry import PeerRegistry
@@ -32,6 +34,7 @@ def _bootstrap_enabled() -> bool:
 
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
+sync_app.include_router(search_index_router, prefix=API_PREFIX)
 sync_app.include_router(webhooks_router, prefix=API_PREFIX)
 
 
@@ -44,6 +47,11 @@ async def lifespan(app: FastAPI):
     os_host = os.environ.get("OPENSEARCH_HOST", "opensearch")
     os_port = os.environ.get("OPENSEARCH_PORT", "9200")
     os_client = OpenSearch(hosts=[{"host": os_host, "port": int(os_port)}])
+    try:
+        ensure_fed_indices(os_client)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to ensure fed-* OpenSearch indices: {}", exc)
+    
     peer_registry = PeerRegistry()
     fed_indexer = FederatedAssetIndexer(os_client)
 

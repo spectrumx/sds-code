@@ -80,6 +80,42 @@ gen-certs-ca:
 simulate-redis +args='':
     REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" uv run python scripts/simulate_redis_event.py {{ args }}
 
+[group('dev')]
+verify-federation-live +args='':
+    uv run python scripts/local_e2e/verify_federation_live.py {{ args }}
+
+[group('dev')]
+local-e2e-env:
+    @if [ ! -f scripts/local_e2e/.env ]; then cp scripts/local_e2e/env.example scripts/local_e2e/.env; fi
+    @echo "Edit federation/scripts/local_e2e/.env (SDS_SECRET_TOKEN, LOCAL_SDS_SECRET_TOKEN, …)"
+
+# Download from CRC (SDK env); run `just local-e2e-env` first
+[group('dev')]
+download-crc-dataset dataset_uuid to='../federation/data/downloaded_dataset' +args='':
+    #!/usr/bin/env bash
+    set -eu -o pipefail
+    env_file="scripts/local_e2e/.env"
+    if [[ ! -f "$env_file" ]]; then
+      echo "Missing $env_file — run: just local-e2e-env" >&2
+      exit 1
+    fi
+    set -a && source "$env_file" && set +a
+    cd ../sdk && uv run python ../federation/scripts/local_e2e/download_crc_dataset.py \
+        --dataset-uuid {{ dataset_uuid }} --to {{ to }} {{ args }}
+
+[group('dev')]
+upload-capture-local local_path sds_path='federation-fixture/sample' +args='':
+    #!/usr/bin/env bash
+    set -eu -o pipefail
+    env_file="scripts/local_e2e/.env"
+    if [[ ! -f "$env_file" ]]; then
+      echo "Missing $env_file — run: just local-e2e-env" >&2
+      exit 1
+    fi
+    set -a && source "$env_file" && set +a
+    cd ../sdk && uv run python ../federation/scripts/local_e2e/upload_capture_to_local.py \
+        --local-path {{ local_path }} --sds-path {{ sds_path }} {{ args }}
+
 [group('docker')]
 build +args='':
     {{ docker_compose }} build {{ args }}
