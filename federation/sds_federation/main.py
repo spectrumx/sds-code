@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
             redis_url,
             http,
             config,
+            os_client,
             app.state.fed_indexer,
             stop,
         ),
