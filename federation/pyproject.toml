@@ -16,6 +16,7 @@ module-root = ""
         "httpx>=0.28.1",
         "loguru>=0.7.2",
         "opensearch-py>=2.8.0",
+        "sds-opensearch-query",
         "pydantic>=2.11.0",
         "redis>=5.2.1",
         "uvicorn[standard]>=0.34.0",
@@ -165,3 +166,6 @@ markers = [
     "integration: tests that exercise FastAPI routes or multi-step pipeline",
     "regression: contract and indexer behavior guards",
 ]
+
+[tool.uv.sources]
+sds-opensearch-query = { path = "../common/sds_opensearch_query" }

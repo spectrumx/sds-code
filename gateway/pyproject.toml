@@ -56,6 +56,7 @@
         "redis>=5.2.0",
         "requests>=2.32.5",
         "rich>=13.9.3",
+        "sds-opensearch-query",
         "scipy>=1.16.1",
         "sentry-sdk[django]>=2.25.1",
         "uvicorn>=0.32.0",
@@ -661,3 +662,6 @@
 [tool.uv]
     # https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns
     exclude-newer = "1 week"
+
+[tool.uv.sources]
+sds-opensearch-query = { path = "../common/sds_opensearch_query" }

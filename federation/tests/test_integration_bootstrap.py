@@ -106,7 +106,7 @@ async def test_push_site_hello_to_in_process_peer(
         result = await push_site_hello_to_peer(http, peer, caller_config)
 
     assert result["status"] == "registered"
-    assert app.state.peer_registry.get("testsite") is not None
+    assert app.state.peer_registry.get("localhost") is not None
 
 
 @pytest.mark.integration
@@ -115,8 +115,8 @@ async def test_run_bootstrap_pulls_exports_then_registers(
     recording_opensearch: RecordingOpenSearch,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    local_doc = sample_federated_dataset_doc(site_name="testsite")
-    peer_doc = sample_federated_dataset_doc(site_name="peer-one")
+    local_doc = sample_federated_dataset_doc(site_name="localhost")
+    peer_doc = sample_federated_dataset_doc(site_name="peer.test")
     hello_posts: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:  # noqa: PLR0911
@@ -186,7 +186,7 @@ async def test_run_bootstrap_pulls_exports_then_registers(
     assert len(recording_opensearch.index_calls) == 2
     indexed_ids = {call["id"] for call in recording_opensearch.index_calls}
     assert indexed_ids == {
-        doc_id("testsite", TEST_DATASET_UUID),
-        doc_id("peer-one", TEST_DATASET_UUID),
+        doc_id("localhost", TEST_DATASET_UUID),
+        doc_id("peer.test", TEST_DATASET_UUID),
     }
     assert len(hello_posts) == 1

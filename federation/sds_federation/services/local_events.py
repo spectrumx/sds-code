@@ -11,6 +11,7 @@ from loguru import logger as log
 from opensearchpy import OpenSearch
 
 from sds_federation.models import FederationConfig
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
@@ -48,7 +49,7 @@ async def _default_load_asset(
 ) -> FederatedDatasetDoc | FederatedCaptureDoc | None:
     return await aload_federated_asset(
         os_client,
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         uuid=uuid,
         asset_type=asset_type,
     )
@@ -95,7 +96,7 @@ async def handle_redis_asset_event(
 
     payload = AssetUpdatedWebhook(
         timestamp=timestamp,
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         asset=asset,
         asset_type=asset_type,
     )

@@ -8,6 +8,8 @@ from fastapi import HTTPException
 from fastapi import Request
 from loguru import logger
 
+from sds_federation.models import allowed_federated_origin_fqdns
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import SiteHelloWebhook
@@ -32,7 +34,7 @@ def _local_site_name(request: Request) -> str:
     config = getattr(request.app.state, "config", None)
     if config is None:
         raise HTTPException(status_code=503, detail="Config not ready")
-    return config.site.name
+    return site_name_for_federation(config.site)
 
 
 def _indexer(request: Request) -> FederatedAssetIndexer:
@@ -55,12 +57,13 @@ def _http_client(request: Request) -> httpx.AsyncClient | None:
 
 def _allowed_origin_sites(request: Request, payload: AssetUpdatedWebhook) -> None:
     config = request.app.state.config
-    if payload.site_name == config.site.name:
+    if payload.site_name == site_name_for_federation(config.site):
         raise HTTPException(
             status_code=403,
             detail="Local site metadata is not accepted via peer webhooks",
         )
-    allowed = {peer.name for peer in config.peers}
+
+    allowed = allowed_federated_origin_fqdns(config)
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown origin site")
 
@@ -144,12 +147,12 @@ async def list_captures(request: Request) -> list[dict]:
 @webhooks_router.post("/webhook/site-hello")
 async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
     config = request.app.state.config
-    if payload.site_name == config.site.name:
+    if payload.site_name == site_name_for_federation(config.site):
         raise HTTPException(
             status_code=422,
             detail="Cannot register self via site-hello",
         )
-    allowed = {peer.name for peer in config.peers}
+    allowed = {peer.fqdn for peer in config.peers}
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown registering site")
 

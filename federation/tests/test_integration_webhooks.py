@@ -22,8 +22,10 @@ from tests.conftest import make_peer_config
 if TYPE_CHECKING:
     from tests.support.mock_opensearch import RecordingOpenSearch
 
+TESTSITE_FQDN = "localhost"
 
-def _dataset_webhook_payload(*, site_name: str = "testsite") -> dict:
+
+def _dataset_webhook_payload(*, site_name: str = TESTSITE_FQDN) -> dict:
     asset = sample_federated_dataset_doc(site_name=site_name)
     webhook = AssetUpdatedWebhook(
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
@@ -48,7 +50,7 @@ async def test_dataset_webhook_indexes_via_http(
     ) as client:
         response = await client.post(
             f"{SYNC_API_PREFIX}/webhook/dataset-updated",
-            json=_dataset_webhook_payload(site_name="testsite"),
+            json=_dataset_webhook_payload(),
         )
 
     assert response.status_code == 200
@@ -58,7 +60,7 @@ async def test_dataset_webhook_indexes_via_http(
         recording_opensearch.index_calls[0]["index"] == AssetTypeEnum.DATASET.index_name
     )
     assert recording_opensearch.index_calls[0]["id"] == doc_id(
-        "testsite",
+        TESTSITE_FQDN,
         TEST_DATASET_UUID,
     )
 
@@ -112,7 +114,7 @@ async def test_webhook_rejects_site_name_mismatch_on_asset(
 ) -> None:
     config = make_peer_config()
     app = build_webhook_app(config, FederatedAssetIndexer(recording_opensearch))
-    body = _dataset_webhook_payload(site_name="testsite")
+    body = _dataset_webhook_payload()
     body["asset"]["site_name"] = "mismatch"
 
     async with httpx.AsyncClient(
@@ -136,8 +138,8 @@ async def test_site_hello_registers_known_peer(
     config = make_peer_config()
     app = build_webhook_app(config, FederatedAssetIndexer(recording_opensearch))
     body = {
-        "site_name": "testsite",
-        "fqdn": "localhost",
+        "site_name": TESTSITE_FQDN,
+        "fqdn": TESTSITE_FQDN,
         "display_name": "Originating test site",
         "sync_service_url": "http://testsite.test/sync",
     }
@@ -149,8 +151,8 @@ async def test_site_hello_registers_known_peer(
         response = await client.post(f"{SYNC_API_PREFIX}/webhook/site-hello", json=body)
 
     assert response.status_code == 200
-    assert response.json() == {"status": "registered", "site_name": "testsite"}
-    assert app.state.peer_registry.get("testsite") is not None
+    assert response.json() == {"status": "registered", "site_name": TESTSITE_FQDN}
+    assert app.state.peer_registry.get(TESTSITE_FQDN) is not None
 
 
 @pytest.mark.integration
@@ -240,7 +242,7 @@ async def test_site_hello_rejects_self_registration(
     config = make_peer_config()
     app = build_webhook_app(config, FederatedAssetIndexer(recording_opensearch))
     body = {
-        "site_name": "peer-one",
+        "site_name": "peer.test",
         "fqdn": "peer.test",
         "sync_service_url": "http://peer-one.test/sync",
     }
