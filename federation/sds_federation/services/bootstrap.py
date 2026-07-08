@@ -211,12 +211,10 @@ async def run_bootstrap(
     *,
     event_at: datetime | None = None,
 ) -> None:
-    when = event_at or datetime.now(UTC)
-    local_count = await bootstrap_local_site(http, config, indexer, event_at=when)
-    peer_count = await bootstrap_all_peers(config, http, indexer, event_at=when)
+    """Register with peers. Local and peer metadata live in OpenSearch (not gateway export)."""
+    _ = event_at
+    _ = indexer
     logger.info(
-        "Bootstrap indexed {} local + {} peer export documents",
-        local_count,
-        peer_count,
+        "Skipping gateway export bootstrap; federated metadata is OpenSearch-only",
     )
     await register_with_peers(http, config)

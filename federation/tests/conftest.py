@@ -1,14 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC
+from datetime import datetime
+
 import httpx
 import pytest
 from fastapi import FastAPI
 from sds_federation.models import FederationConfig
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.schemas.webhooks import AssetTypeEnum
-from sds_federation.schemas.webhooks import FederatedDatasetDoc
+from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.local_events import AssetResolver
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
@@ -65,32 +67,34 @@ def test_site_config() -> FederationConfig:
     return testsite_config()
 
 
+def seed_federated_dataset_in_opensearch(
+    opensearch: RecordingOpenSearch,
+    site_name: str,
+    *,
+    uuid=TEST_DATASET_UUID,
+) -> None:
+    """Simulate gateway having indexed a public dataset into fed-datasets."""
+    doc = sample_federated_dataset_doc(site_name=site_name, uuid=uuid)
+    FederatedAssetIndexer(opensearch).apply_asset_event(
+        event_type=FederationEventType.UPDATED,
+        event_at=datetime.now(UTC),
+        site_name=site_name,
+        asset=doc,
+        asset_type=AssetTypeEnum.DATASET,
+    )
+
+
 @pytest.fixture
-def stub_dataset_resolver(test_site_config: FederationConfig) -> AssetResolver:
-    docs: dict[str, FederatedDatasetDoc] = {
-        str(TEST_DATASET_UUID): sample_federated_dataset_doc(
-            site_name=test_site_config.site.name,
-        ),
-    }
+def stub_dataset_resolver(test_site_config: FederationConfig):
+    """Deprecated name: seeds OpenSearch instead of resolving via HTTP export."""
 
-    async def resolve(
-        _http: httpx.AsyncClient,
-        config: FederationConfig,
-        uuid,
-        asset_type: AssetTypeEnum,
-    ) -> FederatedDatasetDoc:
-        if asset_type != AssetTypeEnum.DATASET:
-            msg = f"stub resolver only supports datasets, got {asset_type}"
-            raise ValueError(msg)
-        doc = docs.get(str(uuid))
-        if doc is None:
-            msg = f"no stub document for uuid {uuid}"
-            raise KeyError(msg)
-        if doc.site_name != config.site.name:
-            return doc.model_copy(update={"site_name": config.site.name})
-        return doc
+    def _seed(recording_opensearch: RecordingOpenSearch) -> None:
+        seed_federated_dataset_in_opensearch(
+            recording_opensearch,
+            test_site_config.site.name,
+        )
 
-    return resolve
+    return _seed
 
 
 @pytest.fixture

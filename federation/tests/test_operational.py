@@ -57,10 +57,14 @@ async def test_check_gateway_export_success() -> None:
         lambda request: httpx.Response(200, json=[]),
     )
     async with httpx.AsyncClient(transport=transport) as client:
-        result = await check_gateway_export(
-            client,
-            "http://gateway:8000/api/v1",
-        )
+        with patch(
+            "sds_federation.services.operational._skip_gateway_probe",
+            return_value=False,
+        ):
+            result = await check_gateway_export(
+                client,
+                "http://gateway:8000/api/v1",
+            )
     assert result.ok is True
 
 
@@ -70,10 +74,14 @@ async def test_check_gateway_export_non_200() -> None:
         lambda request: httpx.Response(503, json={"detail": "unavailable"}),
     )
     async with httpx.AsyncClient(transport=transport) as client:
-        result = await check_gateway_export(
-            client,
-            "http://gateway:8000/api/v1",
-        )
+        with patch(
+            "sds_federation.services.operational._skip_gateway_probe",
+            return_value=False,
+        ):
+            result = await check_gateway_export(
+                client,
+                "http://gateway:8000/api/v1",
+            )
     assert result.ok is False
     assert "503" in result.detail
 
