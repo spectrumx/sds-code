@@ -10,6 +10,7 @@ import urllib.request
 from typing import Any
 
 from django.conf import settings
+from django.db.utils import DatabaseError
 from loguru import logger as log
 
 from sds_gateway.api_methods.models import KeySources
@@ -34,8 +35,16 @@ def _export_allowed_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Net
     for item in raw:
         if isinstance(item, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
             networks.append(item)
-        else:
-            networks.append(ipaddress.ip_network(str(item).strip(), strict=False))
+            continue
+        text = str(item).strip()
+        if not text:
+            continue
+        networks.append(ipaddress.ip_network(text, strict=False))
+    if not networks:
+        from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
+        from config.settings.base import _parse_cidrs
+
+        networks = _parse_cidrs(FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT)
     return networks
 
 
@@ -102,7 +111,10 @@ def _sync_health_ok() -> tuple[bool, str]:  # noqa: PLR0911
 def _sync_api_key_present() -> tuple[bool, str]:
     if _setting("FEDERATION_SKIP_SYNC_API_KEY_CHECK", default=False):
         return True, "sync API key check skipped"
-    exists = UserAPIKey.objects.filter(source=KeySources.FederationSync).exists()
+    exists = UserAPIKey.objects.filter(
+        source=KeySources.FederationSync,
+        revoked=False,
+    ).exists()
     if not exists:
         return False, "no FederationSync API key in database"
     return True, "FederationSync API key present"
@@ -130,7 +142,7 @@ def evaluate_federation_operational() -> tuple[bool, str]:
     if not site_name:
         return False, "FEDERATION_SITE_NAME must be set when federation is enabled"
 
-    for check in (_sync_api_key_present, _sync_health_ok, _redis_ok):
+    for check in (_sync_api_key_present, _redis_ok, _sync_health_ok):
         ok, reason = check()
         if not ok:
             return False, reason
@@ -157,7 +169,26 @@ def refresh_federation_operational_state(*, force: bool = False) -> tuple[bool, 
     return operational, reason
 
 
+def federation_operational_db_ready() -> bool:
+    """False when federation probes would hit tables that are not migrated yet."""
+    if not _setting("FEDERATION_ENABLED", default=False):
+        return True
+    table = UserAPIKey._meta.db_table
+    try:
+        from django.db import connection
+
+        return table in connection.introspection.table_names()
+    except DatabaseError:
+        return False
+
+
 def initialize_federation_operational_state() -> None:
+    if not federation_operational_db_ready():
+        settings.FEDERATION_OPERATIONAL = False
+        settings.FEDERATION_OPERATIONAL_REASON = "database tables not ready"
+        log.debug("Federation operational init deferred until migrations apply")
+        return
+
     operational, reason = refresh_federation_operational_state(force=True)
     if operational:
         log.info("Federation is operational: {}", reason)

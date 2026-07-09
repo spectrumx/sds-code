@@ -1,5 +1,6 @@
 """Run gateway startup preparation in a single Django process."""
 
+from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
@@ -13,7 +14,7 @@ class Command(BaseCommand):
 
     help = (
         "Prepare the gateway for serving: migrate, init search indices, "
-        "SVI token, and visualization pipelines."
+        "service tokens, and visualization pipelines."
     )
 
     def add_arguments(self, parser):
@@ -41,12 +42,22 @@ class Command(BaseCommand):
             ("Applying database migrations...", "migrate", {"no_input": True}),
             ("Initializing OpenSearch indices...", "init_indices", {}),
             ("Initializing SVI server token...", "init_svi_token", {}),
+        ]
+        if getattr(settings, "FEDERATION_ENABLED", False):
+            steps.append(
+                (
+                    "Initializing federation sync server token...",
+                    "init_federation_sync_token",
+                    {},
+                ),
+            )
+        steps.append(
             (
                 "Setting up django-cog pipelines...",
                 "setup_pipelines",
                 {"strategy": pipeline_strategy},
             ),
-        ]
+        )
 
         for label, command_name, kwargs in steps:
             self.stdout.write(label)

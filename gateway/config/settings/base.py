@@ -27,8 +27,41 @@ def __get_random_token(length: int) -> str:
         __rng.choice(string.ascii_letters + string.digits) for _ in range(length)
     )
 
-def _parse_cidrs(raw: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
-    return [ipaddress.ip_network(item.strip(), strict=False) for item in raw]
+
+FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT: list[str] = [
+    "127.0.0.1/32",
+    "::1/128",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+]
+
+
+def _parse_cidrs(
+    raw: list[str],
+) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for item in raw:
+        text = str(item).strip()
+        if not text:
+            continue
+        networks.append(ipaddress.ip_network(text, strict=False))
+    return networks
+
+
+def _federation_export_allowed_cidrs_from_env() -> list[
+    ipaddress.IPv4Network | ipaddress.IPv6Network
+]:
+    raw = env.list(
+        "FEDERATION_EXPORT_ALLOWED_CIDRS",
+        default=FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT,
+    )
+    tokens = [str(item).strip() for item in raw]
+    tokens = [token for token in tokens if token]
+    if not tokens:
+        tokens = list(FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT)
+    return _parse_cidrs(tokens)
+
 
 env.read_env()
 
@@ -734,6 +767,11 @@ FEDERATION_SYNC_USER_EMAIL: str = env.str(
     "FEDERATION_SYNC_USER_EMAIL",
     default="federation-sync@internal.local",
 )
+# Shared with federation-sync (Authorization: Token …) to call get-federation-sync-api-key.
+FEDERATION_SYNC_SERVER_API_KEY: str = env.str(
+    "FEDERATION_SYNC_SERVER_API_KEY",
+    default=__get_random_token(TOKEN_LENGTH),
+)
 FEDERATION_SYNC_HEALTH_URL: str = env.str(
     "FEDERATION_SYNC_HEALTH_URL",
     default="http://federation-sync:8000/sync/health",
@@ -762,18 +800,7 @@ FEDERATION_OPERATIONAL_OVERRIDE: bool | None = None
 # Export API: internal Docker/private networks (sync → django on sds-network).
 FEDERATION_EXPORT_ALLOWED_CIDRS: list[
     ipaddress.IPv4Network | ipaddress.IPv6Network
-] = _parse_cidrs(
-    env.list(
-        "FEDERATION_EXPORT_ALLOWED_CIDRS",
-        default=[
-            "127.0.0.1/32",
-            "::1/128",
-            "10.0.0.0/8",
-            "172.16.0.0/12",
-            "192.168.0.0/16",
-        ],
-    ),
-)
+] = _federation_export_allowed_cidrs_from_env()
 
 # ADMIN_CONSOLE_ENV is used to visually distinguish between different environments
 # (production, staging, local) in the admin console and error emails. It does not affect

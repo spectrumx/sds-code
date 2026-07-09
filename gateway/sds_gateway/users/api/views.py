@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import cast
 
 from django.conf import settings
@@ -18,9 +19,9 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import GenericViewSet
 
-from sds_gateway.api_methods.models import KeySources
+from sds_gateway.users.backend_service_key_utils import mint_federation_sync_api_key
+from sds_gateway.users.backend_service_key_utils import mint_svi_backend_api_key
 from sds_gateway.users.models import User
-from sds_gateway.users.models import UserAPIKey
 
 from .serializers import UserSerializer
 
@@ -49,17 +50,21 @@ class UserViewSet(
 
 
 @extend_schema(exclude=True)
-class GetAPIKeyView(APIView):
+class BackendServiceMintAPIKeyView(APIView):
+    """Token-authenticated mint endpoint for internal backend services."""
+
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
+    service_user_email_setting: str
+    unauthorized_message: str
+    mint_user_api_key: Callable[[User], str]
 
     def get(self, request: Request) -> Response:
-        """Generates an API Key for an SDS user."""
-
+        allowed_email = getattr(settings, self.service_user_email_setting)
         log.debug(f"request.user: {request.user}")
-        if request.user.email != settings.SVI_SERVER_EMAIL:
+        if request.user.email != allowed_email:
             return Response(
-                {"error": "Unauthorized. Only SVI Server can access this endpoint."},
+                {"error": self.unauthorized_message},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
@@ -70,17 +75,21 @@ class GetAPIKeyView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        try:
-            user = get_object_or_404(User, email=email, is_approved=True)
-            UserAPIKey.objects.filter(user=user, source=KeySources.SVIBackend).delete()
-            _, raw_key = UserAPIKey.objects.create_key(
-                name=f"{user.email}-SVI-API-KEY",
-                user=user,
-                source=KeySources.SVIBackend,
-            )
-            return Response({"api_key": raw_key, "email": user.email})
-        except User.DoesNotExist:
-            return Response(
-                {"error": "User not found"},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+        user = get_object_or_404(User, email=email, is_approved=True)
+        raw_key = self.mint_user_api_key(user)
+        return Response({"api_key": raw_key, "email": user.email})
+
+
+get_svi_api_key_view = BackendServiceMintAPIKeyView.as_view(
+    service_user_email_setting="SVI_SERVER_EMAIL",
+    unauthorized_message="Unauthorized. Only SVI Server can access this endpoint.",
+    mint_user_api_key=mint_svi_backend_api_key,
+)
+
+get_federation_sync_api_key_view = BackendServiceMintAPIKeyView.as_view(
+    service_user_email_setting="FEDERATION_SYNC_USER_EMAIL",
+    unauthorized_message=(
+        "Unauthorized. Only federation sync can access this endpoint."
+    ),
+    mint_user_api_key=mint_federation_sync_api_key,
+)

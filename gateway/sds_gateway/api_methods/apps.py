@@ -1,7 +1,22 @@
 import logging
+import sys
 
 from django.apps import AppConfig
+from django.db.models.signals import post_migrate
 from loguru import logger as log
+
+
+def _skip_federation_init_in_ready() -> bool:
+    """Management commands that load apps before the schema exists."""
+    if len(sys.argv) < 2:  # noqa: PLR2004
+        return False
+    return sys.argv[1] in {
+        "migrate",
+        "makemigrations",
+        "showmigrations",
+        "sqlmigrate",
+        "flush",
+    }
 
 
 class ApiMethodsConfig(AppConfig):
@@ -18,7 +33,17 @@ class ApiMethodsConfig(AppConfig):
             initialize_federation_operational_state,
         )
 
-        initialize_federation_operational_state()
+        def _init_federation_after_migrate(_sender, **kwargs) -> None:
+            initialize_federation_operational_state()
+
+        post_migrate.connect(
+            _init_federation_after_migrate,
+            sender=self,
+            dispatch_uid="api_methods_federation_operational_init",
+        )
+
+        if not _skip_federation_init_in_ready():
+            initialize_federation_operational_state()
 
         silence_unwanted_logs()
 

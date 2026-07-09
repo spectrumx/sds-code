@@ -933,6 +933,18 @@ class Keyword(BaseModel):
         return self.name
 
 
+class DatasetQuerySet(QuerySet["Dataset"]):
+    def federation_exportable(self) -> QuerySet:
+        return self.filter(
+            status=DatasetStatus.FINAL,
+            is_public=True,
+            is_deleted=False,
+        )
+
+
+DatasetManager = models.Manager.from_queryset(DatasetQuerySet)
+
+
 class Dataset(BaseModel):
     """
     Model for datasets defined and created through the API.
@@ -987,8 +999,17 @@ class Dataset(BaseModel):
         related_name="shared_datasets",
     )
 
+    objects = DatasetManager()
+
     def __str__(self) -> str:
         return self.name
+
+    def is_federation_exportable(self) -> bool:
+        return (
+            not self.is_deleted
+            and self.is_public
+            and self.status == DatasetStatus.FINAL
+        )
 
     def _published_snapshot_from_db(self) -> tuple[str, bool] | None:
         if not self.pk:
