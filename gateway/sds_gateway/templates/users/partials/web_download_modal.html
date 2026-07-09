@@ -1,5 +1,9 @@
 <!-- Web Download Modal -->
-<div class="modal fade" id="webDownloadModal-{{ item.uuid }}" tabindex="-1" aria-labelledby="webDownloadModalLabel-{{ item.uuid }}" aria-hidden="true" {# djlint:off #}
+<div class="modal fade"
+     id="webDownloadModal-{{ item.uuid }}"
+     tabindex="-1"
+     aria-labelledby="webDownloadModalLabel-{{ item.uuid }}"
+     aria-hidden="true"
      {% if item_type == "capture" %}
      data-item-type="capture"
      data-item-uuid="{{ item.uuid }}"
@@ -12,7 +16,6 @@
      data-total-files-count="{{ item.files|length|default:0 }}"
      data-capture-start-epoch-sec="{{ item.capture_start_epoch_sec|default:0 }}"
      {% endif %}>
-    {# djlint:on #}
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
