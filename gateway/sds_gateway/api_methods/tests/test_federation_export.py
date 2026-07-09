@@ -55,7 +55,10 @@ class FederationExportAPITest(APITestCase):
             status=DatasetStatus.DRAFT,
             keywords=None,
         )
-        self.public_capture = CaptureFactory(owner=self.owner, is_public=True)
+        self.public_capture = CaptureFactory(
+            owner=self.owner,
+            datasets=[self.public_dataset],
+        )
         self.list_datasets_url = reverse(
             "api:federation-export-datasets-list",
         )

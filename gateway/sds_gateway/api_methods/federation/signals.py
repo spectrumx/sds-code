@@ -25,9 +25,6 @@ from sds_gateway.api_methods.federation.compile_federated_data import (
 from sds_gateway.api_methods.federation.compile_federated_data import (
     federation_site_name,
 )
-from sds_gateway.api_methods.federation.compile_federated_data import (
-    is_federation_exportable_dataset,
-)
 from sds_gateway.api_methods.federation.events import FederationEventType
 from sds_gateway.api_methods.federation.events import publish_federation_event
 from sds_gateway.api_methods.federation.fed_index import LocalFederatedIndexer
@@ -203,7 +200,7 @@ def federation_dataset_changed(
             _maybe_tombstone_capture_after_dataset_change(capture, dataset=instance)
         return
 
-    if not is_federation_exportable_dataset(instance):
+    if not instance.is_federation_exportable():
         return
 
     _upsert_federated(instance, ItemType.DATASET)

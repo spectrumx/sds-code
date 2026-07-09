@@ -3,7 +3,7 @@
 from django.core.management.base import BaseCommand
 from loguru import logger as log
 
-from sds_gateway.users.svi_utils import update_svi_server_token
+from sds_gateway.users.backend_service_key_utils import update_svi_server_token
 
 
 class Command(BaseCommand):

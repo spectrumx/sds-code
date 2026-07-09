@@ -1,7 +1,8 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from .api.views import GetAPIKeyView
+from .api.views import get_federation_sync_api_key_view
+from .api.views import get_svi_api_key_view
 from .views import CheckFileExistsView
 from .views import FileContentView
 from .views import FileDownloadView
@@ -129,7 +130,12 @@ urlpatterns = [
     path("upload-files/", UploadCaptureView.as_view(), name="upload_files"),
     path("check-file-exists/", CheckFileExistsView.as_view(), name="check_file_exists"),
     # Used by SVI Server to get API key for a user
-    path("get-svi-api-key/", GetAPIKeyView.as_view(), name="get_svi_api_key"),
+    path("get-svi-api-key/", get_svi_api_key_view, name="get_svi_api_key"),
+    path(
+        "get-federation-sync-api-key/",
+        get_federation_sync_api_key_view,
+        name="get_federation_sync_api_key",
+    ),
     path("revoke-api-key/", revoke_api_key_view, name="revoke_api_key"),
     path(
         "generate-api-key-form/",

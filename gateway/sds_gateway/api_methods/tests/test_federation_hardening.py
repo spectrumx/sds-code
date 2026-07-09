@@ -18,6 +18,9 @@ from sds_gateway.api_methods.federation.availability import (
     evaluate_federation_operational,
 )
 from sds_gateway.api_methods.federation.availability import (
+    initialize_federation_operational_state,
+)
+from sds_gateway.api_methods.federation.availability import (
     is_client_ip_allowed_for_federation_export,
 )
 from sds_gateway.api_methods.federation.availability import (
@@ -114,6 +117,14 @@ class TestFederationAvailability:
         assert is_client_ip_allowed_for_federation_export(allowed) is True
         assert is_client_ip_allowed_for_federation_export(denied) is False
 
+    @override_settings(FEDERATION_EXPORT_ALLOWED_CIDRS=[])
+    def test_empty_cidr_override_falls_back_to_private_defaults(self) -> None:
+        factory = RequestFactory()
+        loopback = factory.get("/", REMOTE_ADDR="127.0.0.1")
+        public = factory.get("/", REMOTE_ADDR="203.0.113.8")
+        assert is_client_ip_allowed_for_federation_export(loopback) is True
+        assert is_client_ip_allowed_for_federation_export(public) is False
+
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="",
@@ -139,6 +150,47 @@ class TestFederationAvailability:
         assert operational is True
         assert settings.FEDERATION_OPERATIONAL is True
         assert reason
+
+
+class TestFederationExportCidrParsing:
+    def test_parse_cidrs_skips_blank_tokens(self) -> None:
+        from config.settings.base import _parse_cidrs
+
+        networks = _parse_cidrs(["10.0.0.0/8", "", "  ", "192.168.0.0/16"])
+        assert len(networks) == 2
+
+    def test_coerce_empty_env_tokens_to_defaults(self) -> None:
+        from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
+        from config.settings.base import _federation_export_allowed_cidrs_from_env
+
+        with patch(
+            "config.settings.base.env.list",
+            return_value=["", "  "],
+        ):
+            networks = _federation_export_allowed_cidrs_from_env()
+        assert len(networks) == len(FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT)
+
+
+class TestFederationOperationalInit:
+    @override_settings(FEDERATION_ENABLED=True)
+    @patch(
+        "sds_gateway.api_methods.federation.availability."
+        "federation_operational_db_ready",
+        return_value=False,
+    )
+    @patch(
+        "sds_gateway.api_methods.federation.availability."
+        "refresh_federation_operational_state",
+    )
+    def test_initialize_skips_db_when_tables_missing(
+        self,
+        mock_refresh: MagicMock,
+        _mock_db_ready: MagicMock,
+    ) -> None:
+        initialize_federation_operational_state()
+        mock_refresh.assert_not_called()
+        assert settings.FEDERATION_OPERATIONAL is False
+        assert settings.FEDERATION_OPERATIONAL_REASON == "database tables not ready"
 
 
 @override_settings(

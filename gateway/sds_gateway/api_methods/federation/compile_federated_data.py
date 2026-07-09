@@ -13,7 +13,6 @@ from sds_gateway.api_methods.federation.fed_index import index_for_item_type
 from sds_gateway.api_methods.federation.fed_index import federated_doc_id
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
-from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.capture_serializers import (
     CaptureFederationSerializer,
@@ -31,20 +30,8 @@ def federation_site_name() -> str:
     return getattr(settings, "FEDERATION_SITE_NAME", "").strip()
 
 
-def is_federation_exportable_dataset(dataset: Dataset) -> bool:
-    return (
-        not dataset.is_deleted
-        and dataset.is_public
-        and dataset.status == DatasetStatus.FINAL
-    )
-
-
 def capture_in_published_dataset(capture: Capture) -> bool:
-    return capture.datasets.filter(
-        status=DatasetStatus.FINAL,
-        is_public=True,
-        is_deleted=False,
-    ).exists()
+    return capture.datasets.federation_exportable().exists()
 
 
 def capture_in_other_published_datasets(
@@ -53,11 +40,7 @@ def capture_in_other_published_datasets(
     exclude_dataset_id: UUID,
 ) -> bool:
     return (
-        capture.datasets.filter(
-            status=DatasetStatus.FINAL,
-            is_public=True,
-            is_deleted=False,
-        )
+        capture.datasets.federation_exportable()
         .exclude(uuid=exclude_dataset_id)
         .exists()
     )
@@ -144,17 +127,16 @@ def fed_doc_is_tombstoned(
 
 def public_datasets_queryset() -> QuerySet[Dataset]:
     return (
-        Dataset.objects.filter(
-            status=DatasetStatus.FINAL,
-            is_public=True,
-            is_deleted=False,
-        )
+        Dataset.objects.federation_exportable()
         .prefetch_related("keywords", "owner")
         .order_by("-updated_at")
     )
 
 
 def public_captures_queryset() -> QuerySet[Capture]:
-    return Capture.objects.filter(is_public=True, is_deleted=False).order_by(
-        "-updated_at",
+    return (
+        Capture.objects.filter(is_deleted=False)
+        .filter(datasets__in=Dataset.objects.federation_exportable())
+        .distinct()
+        .order_by("-updated_at")
     )
