@@ -256,11 +256,16 @@ class Result(Generic[T]):
     def __repr__(self) -> str:
         return self.__str__()
 
-    def __call__(self) -> T:
-        """Returns the value or raises the exception."""
+    @property
+    def value(self) -> T:
+        """Returns the value or raises the stored exception on failure."""
         if self:
             return self._value
         raise self._exception
+
+    def __call__(self) -> T:
+        """Returns the value or raises the exception."""
+        return self.value
 
     def value_or(self, default: T) -> T:
         """Returns the wrapped value or a default value when result is an exception."""

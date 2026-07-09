@@ -5,6 +5,7 @@
 import uuid
 from datetime import datetime
 from datetime import timedelta
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -17,6 +18,7 @@ from spectrumx.models.capture_enums import CaptureType
 from spectrumx.models.files import File
 from spectrumx.models.files import PermissionRepresentation
 from spectrumx.models.files import UnixPermissionStr
+from spectrumx.models.files.permission import octal_to_unix_perm_string
 
 
 @pytest.fixture
@@ -217,3 +219,69 @@ def test_file_payload_may_include_redundant_singular_capture(
     assert f.captures is not None
     assert len(f.captures) == 1
     assert f.captures[0].uuid == cap_uid
+
+
+def test_is_local_returns_false_when_downloading(
+    file_properties: dict[str, Any],
+) -> None:
+    """``is_local`` is False while a download is in flight.
+
+    Reaching into the private ``_is_downloading`` flag is intentional: ``is_local``'s
+    public contract depends on this internal state, and the public ``download_file``
+    entry point sets it asynchronously (hard to drive deterministically here). This
+    test pins the invariant directly; if ``_is_downloading`` is ever renamed or the
+    contract changes, update here.
+    """
+    file_obj = File(**file_properties)
+    file_obj._is_downloading = True
+    assert file_obj.is_local is False
+
+
+def test_compute_sum_blake3_returns_none_when_not_local(
+    file_properties: dict[str, Any],
+) -> None:
+    """File.compute_sum_blake3() returns None when file has no local path."""
+    file_obj = File(**file_properties)
+    result = file_obj.compute_sum_blake3()
+    assert result is None
+
+
+def test_is_same_contents_true_when_identical(
+    file_properties: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """``is_same_contents`` returns True (with verbose on) for matching files."""
+    local_a = tmp_path / "file_a.txt"
+    local_b = tmp_path / "file_b.txt"
+    local_a.write_text("hello")
+    local_b.write_text("hello")
+
+    file_a = File(**file_properties, local_path=local_a)
+    file_b = File(**file_properties, local_path=local_b)
+
+    assert file_a.is_same_contents(file_b, verbose=True) is True
+
+
+def test_is_same_contents_false_when_diverging(
+    file_properties: dict[str, Any],
+    tmp_path: Path,
+) -> None:
+    """``is_same_contents`` returns False (with verbose on) for differing files."""
+    local_a = tmp_path / "file_a.txt"
+    local_b = tmp_path / "file_b.txt"
+    local_a.write_text("hello")
+    local_b.write_text("world")
+
+    file_a = File(**file_properties, local_path=local_a)
+    file_b = File(**file_properties, local_path=local_b)
+
+    assert file_a.is_same_contents(file_b, verbose=True) is False
+
+
+def test_chmod_round_trips_at_file_level(
+    file_properties: dict[str, Any],
+) -> None:
+    """octal_to_unix_perm_string recovers the original permission string."""
+    file_obj = File(**file_properties)  # permissions: "-w-rw-r--"
+    octal = int(file_obj.chmod_props, base=8)
+    assert octal_to_unix_perm_string(octal) == file_properties["permissions"]

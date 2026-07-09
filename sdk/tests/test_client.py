@@ -30,8 +30,41 @@ from spectrumx.ops import files
 
 from tests.conftest import get_captures_endpoint
 from tests.conftest import get_content_check_endpoint
+from tests.conftest import get_dataset_revoke_share_permissions_url
 from tests.conftest import get_datasets_endpoint
+from tests.conftest import get_file_detach_from_datasets_url
 from tests.conftest import get_files_endpoint
+
+
+# simplified: recording fakes for progress bar and captures API;
+#   replace with Production implementations when multi-user features land
+class _RecordingProgressBar:
+    """Records calls for state-based assertions instead of mock-verify."""
+
+    def __init__(self) -> None:
+        self.updates: list[int] = []
+        self.descriptions: list[str] = []
+        self.refreshes: int = 0
+
+    def update(self, n: int) -> None:
+        self.updates.append(n)
+
+    def set_description(self, desc: str) -> None:
+        self.descriptions.append(desc)
+
+    def refresh(self) -> None:
+        self.refreshes += 1
+
+
+class _RecordingCapturesDelete:
+    """Records calls to delete(capture_uuid=...) for state-based assertions."""
+
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+
+    def delete(self, **kwargs: object) -> None:
+        self.calls.append(kwargs)
+
 
 _DRY_RUN_FILE_COUNT = 10
 
@@ -262,7 +295,7 @@ def test_download_fails_for_invalid_files(
 
     def _get_problematic_list_of_files(num_files: int = 10) -> list[File]:
         """Generates a list of fabricated files with issues for download."""
-        # num_files is ignored here 😈
+        # num_files is ignored — using pre-generated file list instead
         altered_list = [
             ofile.model_copy() for ofile in original_list[:target_num_files]
         ]
@@ -874,7 +907,7 @@ def test_upload_multichannel_drf_capture_dry_run(
 def test_handle_existing_capture_error_non_capture_error(client: Client) -> None:
     """Non-CaptureError returns (False, None) (lines 889-890)."""
     err = SDSError("Some other error")
-    handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+    handled, capture = client._handle_existing_capture_error(err)
     assert not handled
     assert capture is None
 
@@ -882,7 +915,7 @@ def test_handle_existing_capture_error_non_capture_error(client: Client) -> None
 def test_handle_existing_capture_error_no_existing_uuid(client: Client) -> None:
     """CaptureError without existing UUID returns (False, None) (lines 892-894)."""
     err = CaptureError("Generic capture error without UUID info")
-    handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+    handled, capture = client._handle_existing_capture_error(err)
     assert not handled
     assert capture is None
 
@@ -894,7 +927,7 @@ def test_handle_existing_capture_error_read_fails(client: Client) -> None:
         "12345678-1234-5678-1234-567812345678"
     )
     with patch.object(client.captures, "read", side_effect=SDSError("Read failed")):
-        handled, capture = client._handle_existing_capture_error(err)  # noqa: SLF001
+        handled, capture = client._handle_existing_capture_error(err)
     assert not handled
     assert capture is None
 
@@ -906,7 +939,7 @@ def test_download_byte_progress_credits_skipped_content(
     file_info = files.generate_sample_file(uuid.uuid4())
     file_info.size = 1000
     bytes_downloaded_shared: list[int] = [0]
-    prog_bar = MagicMock()
+    prog_bar = _RecordingProgressBar()
 
     with (
         patch.object(
@@ -916,7 +949,7 @@ def test_download_byte_progress_credits_skipped_content(
         ),
         patch("spectrumx.client.get_prog_bar", return_value=prog_bar),
     ):
-        results = client._download_files_with_byte_progress(  # noqa: SLF001
+        results = client._download_files_with_byte_progress(
             files_to_download=[file_info],
             total_bytes_total=file_info.size,
             to_local_path=tmp_path,
@@ -932,7 +965,7 @@ def test_download_byte_progress_credits_skipped_content(
     assert len(results) == 1
     assert results[0]
     assert bytes_downloaded_shared[0] == file_info.size
-    prog_bar.update.assert_called_once_with(file_info.size)
+    assert prog_bar.updates == [file_info.size]
 
 
 def test_download_byte_progress_credits_partial_stream(
@@ -953,7 +986,7 @@ def test_download_byte_progress_credits_partial_stream(
         "download_single_file",
         side_effect=fake_download_single_file,
     ):
-        client._download_files_with_byte_progress(  # noqa: SLF001
+        client._download_files_with_byte_progress(
             files_to_download=[file_info],
             total_bytes_total=file_info.size,
             to_local_path=tmp_path,
@@ -967,3 +1000,952 @@ def test_download_byte_progress_credits_partial_stream(
         )
 
     assert bytes_downloaded_shared[0] == file_info.size
+
+
+# ======================================================================
+# Additional coverage: _issue_user_alerts with dry_run=False (line 168 exit)
+# ======================================================================
+
+
+def test_issue_user_alerts_no_dry_run(caplog: pytest.LogCaptureFixture) -> None:
+    """No dry-run warning when dry_run=False — constructor alerts are called."""
+    caplog.set_level(LogLevels.INFO)
+    client = Client(
+        host="sds-test.example.com",
+        env_config={
+            "DRY_RUN": "False",
+            "SDS_HOST": "sds-test.example.com",
+            "SDS_SECRET_TOKEN": "test-key-123",
+        },
+    )
+    assert not client.dry_run
+    # _issue_user_alerts was called during __init__ (SDK version logged)
+    assert caplog.text, "Expected _issue_user_alerts to have logged SDK version"
+    # No dry-run warning when dry_run=False
+    assert "dry run" not in caplog.text.lower()
+
+
+# ======================================================================
+# Additional coverage: delete_file (line 270)
+# ======================================================================
+
+
+@responses.activate
+def test_delete_file_dry_run() -> None:
+    """delete_file in dry-run mode returns True (line 270)."""
+    client = Client(host="sds-test.example.com")
+    assert client.dry_run
+    result = client.delete_file(file_uuid=uuid.uuid4())
+    assert result is True
+
+
+@responses.activate
+def test_delete_file_non_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """delete_file in non-dry-run mode (line 270, gateway path)."""
+    client.dry_run = False
+    file_uuid_obj = uuid.uuid4()
+    # Mock the file GET (fetch before delete) and DELETE endpoints
+    responses.add(
+        method=responses.GET,
+        url=get_files_endpoint(client) + f"{file_uuid_obj.hex}/",
+        status=200,
+        json={
+            "uuid": file_uuid_obj.hex,
+            "name": "test.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+            "sum_blake3": "abc123",
+        },
+    )
+    responses.add(
+        method=responses.DELETE,
+        url=get_files_endpoint(client) + f"{file_uuid_obj.hex}/",
+        status=204,
+    )
+    result = client.delete_file(file_uuid=file_uuid_obj)
+    assert result is True
+
+
+# ======================================================================
+# Additional coverage: _prepare_download_directory creates dir (line 350)
+# ======================================================================
+
+
+def test_prepare_download_directory_creates_dir(
+    tmp_path: Path,
+    client: Client,
+) -> None:
+    """_prepare_download_directory creates dir when needed (line 350)."""
+    client.dry_run = False
+    target_dir = tmp_path / "new_output_dir"
+    assert not target_dir.exists()
+
+    results = client.download(
+        to_local_path=target_dir,
+        files_to_download=[],
+        verbose=False,
+    )
+    assert results == []
+    assert target_dir.exists()
+
+
+# ======================================================================
+# Additional coverage: download_single_file error handling
+# ======================================================================
+
+
+def test_download_single_file_no_uuid(
+    tmp_path: Path,
+    client: Client,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """download_single_file skips file with uuid=None."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.uuid = None
+    file_info.directory = PurePosixPath("some/dir")
+
+    caplog.set_level(LogLevels.WARNING)
+    result = client.download_single_file(
+        file_info=file_info,
+        to_local_path=tmp_path,
+        skip_contents=False,
+        overwrite=False,
+    )
+    assert not result
+    exc = result.exception_or(None)
+    assert exc is not None
+    assert "Skipping local file" in str(exc)
+
+
+def test_download_single_file_path_not_relative(
+    tmp_path: Path,
+    client: Client,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """download_single_file warns when path is outside target."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = PurePosixPath("../../../etc")
+    file_info.name = "bad_path.txt"
+
+    caplog.set_level(LogLevels.WARNING)
+    result = client.download_single_file(
+        file_info=file_info,
+        to_local_path=tmp_path,
+        skip_contents=False,
+        overwrite=False,
+    )
+    assert not result
+    exc = result.exception_or(None)
+    assert exc is not None
+    assert "not relative to" in str(exc)
+
+
+def test_download_single_file_skip_contents(
+    tmp_path: Path,
+    client: Client,
+) -> None:
+    """download_single_file with skip_contents=True succeeds."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = PurePosixPath("remote/dir")
+
+    result = client.download_single_file(
+        file_info=file_info,
+        to_local_path=tmp_path,
+        skip_contents=True,
+        overwrite=False,
+    )
+    assert result
+
+
+# ======================================================================
+# Additional coverage: _download_files_fallback (lines 581-598)
+# ======================================================================
+
+
+class _MockPaginator:
+    """Minimal Paginator stand-in that is not a list."""
+
+    def __init__(self, items: list[File]) -> None:
+        self._items = items
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+    def __iter__(self):
+        return iter(self._items)
+
+
+def test_download_files_fallback_happy_path(
+    tmp_path: Path,
+    client: Client,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """_download_files_fallback iterates Paginator and succeeds (lines 581-596)."""
+    client.dry_run = False
+    caplog.set_level(LogLevels.INFO)
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = PurePosixPath("remote/dir")
+    paginator = _MockPaginator([file_info])
+
+    with (
+        patch.object(client, "list_files", return_value=paginator),
+        patch.object(
+            client,
+            "download_single_file",
+            return_value=Result(value=file_info),
+        ),
+    ):
+        results = client.download(
+            from_sds_path="/some/path",
+            to_local_path=tmp_path,
+            verbose=False,
+        )
+    assert len(results) == 1
+    assert results[0]
+
+
+def test_download_files_fallback_failure_path(
+    tmp_path: Path,
+    client: Client,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """_download_files_fallback handles failed downloads (lines 597-602)."""
+    client.dry_run = False
+    caplog.set_level(LogLevels.WARNING)
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.directory = PurePosixPath("remote/dir")
+    paginator = _MockPaginator([file_info])
+
+    with (
+        patch.object(client, "list_files", return_value=paginator),
+        patch.object(
+            client,
+            "download_single_file",
+            return_value=Result(exception=SDSError("Download failed")),
+        ),
+    ):
+        results = client.download(
+            from_sds_path="/some/path",
+            to_local_path=tmp_path,
+            verbose=False,
+        )
+    assert len(results) == 1
+    assert not results[0]
+
+
+# ======================================================================
+# Additional coverage: list_files (line 713)
+# ======================================================================
+
+
+def test_list_files_dry_run(client: Client) -> None:
+    """list_files in dry-run mode returns a Paginator with files (line 713)."""
+    paginator = client.list_files(
+        sds_path=PurePosixPath("/some/path"),
+        verbose=False,
+    )
+    # len() triggers paginator fetch; dry_run generates sample files
+    assert len(paginator) > 0
+
+
+# ======================================================================
+# Additional coverage: download_dataset verbose paths (lines 845, 853, 861-864)
+# ======================================================================
+
+
+@responses.activate
+def test_download_dataset_verbose_with_filter(
+    tmp_path: Path,
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """download_dataset with verbose=True and active filter (line 845, 864)."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    target_dir = tmp_path / "ds_output"
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid.hex) + "files/",
+        status=200,
+        json={"count": 0, "results": []},
+    )
+    results = client.download_dataset(
+        dataset_uuid=ds_uuid,
+        to_local_path=target_dir,
+        capture_uuids=[uuid.uuid4()],
+        verbose=True,
+    )
+    assert len(results) == 0
+    assert target_dir.exists()
+
+
+@responses.activate
+def test_download_dataset_verbose_no_filter(
+    tmp_path: Path,
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """download_dataset with verbose=True no filter (lines 853, 864)."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    target_dir = tmp_path / "ds_output2"
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid.hex) + "files/",
+        status=200,
+        json={"count": 0, "results": []},
+    )
+    results = client.download_dataset(
+        dataset_uuid=ds_uuid,
+        to_local_path=target_dir,
+        verbose=True,
+    )
+    assert len(results) == 0
+    assert target_dir.exists()
+
+
+# ======================================================================
+# Additional coverage: get_dataset, list_dataset_captures, list_dataset_artifact_files
+#   with string UUID in non-dry-run mode (lines 877-893)
+# ======================================================================
+
+
+@responses.activate
+def test_get_dataset_non_dry_run_string_uuid(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """get_dataset accepts string UUID in non-dry-run mode (lines 877-879)."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid.hex),
+        status=200,
+        json={
+            "uuid": ds_uuid.hex,
+            "name": "test-dataset",
+            "captures": [],
+            "files": [],
+        },
+    )
+    ds = client.get_dataset(dataset_uuid=str(ds_uuid))
+    assert ds.uuid is not None
+
+
+@responses.activate
+def test_get_dataset_with_uuid_object(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """get_dataset with UUID object (else branch of isinstance check, line 879)."""
+    client.dry_run = False
+    ds_uuid_obj = uuid.uuid4()
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid_obj.hex),
+        status=200,
+        json={
+            "uuid": ds_uuid_obj.hex,
+            "name": "test-dataset",
+            "captures": [],
+            "files": [],
+        },
+    )
+    ds = client.get_dataset(dataset_uuid=ds_uuid_obj)
+    assert ds.uuid is not None
+
+
+@responses.activate
+def test_list_dataset_captures_non_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """list_dataset_captures works in non-dry-run mode (lines 883-885)."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid.hex),
+        status=200,
+        json={
+            "uuid": ds_uuid.hex,
+            "captures": [
+                {"uuid": str(uuid.uuid4()), "name": "capture-1"},
+                {"uuid": str(uuid.uuid4()), "name": "capture-2"},
+            ],
+            "files": [],
+        },
+    )
+    result = client.list_dataset_captures(dataset_uuid=str(ds_uuid))
+    assert len(result) == 2
+
+
+@responses.activate
+def test_list_dataset_artifact_files_non_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """list_dataset_artifact_files works in non-dry-run mode (lines 891-893)."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    responses.add(
+        method=responses.GET,
+        url=get_datasets_endpoint(client, dataset_id=ds_uuid.hex),
+        status=200,
+        json={
+            "uuid": ds_uuid.hex,
+            "captures": [],
+            "files": [
+                {"uuid": str(uuid.uuid4()), "name": "artifact-1.txt"},
+                {"uuid": str(uuid.uuid4()), "name": "artifact-2.txt"},
+            ],
+        },
+    )
+    result = client.list_dataset_artifact_files(dataset_uuid=str(ds_uuid))
+    assert len(result) == 2
+
+
+# ======================================================================
+# Additional coverage: revoke_dataset_share_permissions
+# ======================================================================
+
+
+def test_dataset_revoke_share_permissions_dry_run(client: Client) -> None:
+    """revoke_share_permissions in dry-run mode returns True."""
+    result = client.datasets.revoke_share_permissions(dataset_uuid=uuid.uuid4())
+    assert result is True
+
+
+@responses.activate
+def test_dataset_revoke_share_permissions_non_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """revoke_share_permissions works end-to-end."""
+    client.dry_run = False
+    ds_uuid = uuid.uuid4()
+    responses.add(
+        method=responses.PUT,
+        url=get_dataset_revoke_share_permissions_url(client, ds_uuid.hex),
+        status=200,
+        json={"detail": "Share permissions revoked"},
+    )
+    result = client.datasets.revoke_share_permissions(dataset_uuid=ds_uuid)
+    assert result is True
+
+
+# ======================================================================
+# Additional coverage: detach_file_from_datasets
+# ======================================================================
+
+
+def test_detach_file_from_datasets_dry_run(client: Client) -> None:
+    """detach_file_from_datasets in dry-run mode returns True."""
+    result = client.detach_file_from_datasets(file_uuid=uuid.uuid4())
+    assert result is True
+
+
+@responses.activate
+def test_detach_file_from_datasets_non_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """detach_file_from_datasets works end-to-end."""
+    client.dry_run = False
+    file_uuid = uuid.uuid4()
+    responses.add(
+        method=responses.PUT,
+        url=get_file_detach_from_datasets_url(client, file_uuid.hex),
+        status=200,
+        json={"detail": "File detached from datasets"},
+    )
+    result = client.detach_file_from_datasets(file_uuid=file_uuid)
+    assert result is True
+
+
+# ======================================================================
+# Additional coverage: _handle_existing_capture_error read succeeds
+# ======================================================================
+
+
+def test_handle_existing_capture_error_read_succeeds(client: Client) -> None:
+    """_handle_existing_capture_error: read succeeds -> (True, capture)."""
+    existing_uuid_str = "12345678-1234-5678-1234-567812345678"
+    err = CaptureError(
+        "drf_unique_channel_and_tld another capture: " + existing_uuid_str
+    )
+    expected_capture = MagicMock()
+    with patch.object(client.captures, "read", return_value=expected_capture):
+        handled, capture = client._handle_existing_capture_error(err)
+    assert handled
+    assert capture is expected_capture
+
+
+# ======================================================================
+# Additional coverage: upload_capture SDSError paths (lines 1089, 1091)
+# ======================================================================
+
+
+@responses.activate
+def test_upload_capture_sdserror_raises(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_capture SDSError with raise_on_error=True re-raises (line 1089)."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    mock_file = files.generate_sample_file(uuid.uuid4())
+    with (
+        patch.object(client, "upload", return_value=[Result(value=mock_file)]),
+        patch.object(
+            client.captures,
+            "create",
+            side_effect=SDSError("Capture creation failed"),
+        ),
+        pytest.raises(SDSError, match="Capture creation failed"),
+    ):
+        client.upload_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            capture_type=CaptureType.DigitalRF,
+            verbose=False,
+            raise_on_error=True,
+        )
+
+
+@responses.activate
+def test_upload_capture_sdserror_verbose_noraise(
+    client: Client,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """upload_capture SDSError with raise_on_error=False logs (line 1091)."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    mock_file = files.generate_sample_file(uuid.uuid4())
+    caplog.set_level(LogLevels.ERROR)
+    with (
+        patch.object(client, "upload", return_value=[Result(value=mock_file)]),
+        patch.object(
+            client.captures,
+            "create",
+            side_effect=SDSError("Capture creation failed"),
+        ),
+    ):
+        result = client.upload_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            capture_type=CaptureType.DigitalRF,
+            verbose=True,
+            raise_on_error=False,
+        )
+    assert result is None
+    assert "Failed to create capture" in caplog.text
+
+
+# ======================================================================
+# Additional coverage: upload_multichannel_drf_capture error paths
+# ======================================================================
+
+
+@responses.activate
+def test_upload_multichannel_drf_capture_raise_on_error(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel raises when upload fails and raise_on_error=True."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    with (
+        patch.object(
+            client,
+            "upload",
+            return_value=[Result(exception=SDSError("Upload failed"))],
+        ),
+        pytest.raises(SDSError, match="Upload failed"),
+    ):
+        client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["chan1"],
+            verbose=False,
+            raise_on_error=True,
+        )
+
+
+@responses.activate
+def test_upload_multichannel_drf_capture_returns_none(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel returns None when upload fails (line 1165)."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    with patch.object(
+        client,
+        "upload",
+        return_value=[Result(exception=SDSError("Upload failed"))],
+    ):
+        result = client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["chan1"],
+            verbose=False,
+            raise_on_error=False,
+        )
+    assert result is None
+
+
+@responses.activate
+def test_upload_multichannel_drf_capture_existing_capture(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel recovers existing capture on duplicate (lines 1181-1187)."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    mock_file = files.generate_sample_file(uuid.uuid4())
+    existing_capture = MagicMock()
+
+    with (
+        patch.object(client, "upload", return_value=[Result(value=mock_file)]),
+        patch.object(
+            client.captures,
+            "create",
+            side_effect=CaptureError(
+                "drf_unique_channel_and_tld another capture: "
+                "12345678-1234-5678-1234-567812345678"
+            ),
+        ),
+        patch.object(
+            client.captures,
+            "read",
+            return_value=existing_capture,
+        ),
+    ):
+        result = client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["chan1"],
+            verbose=False,
+            raise_on_error=False,
+        )
+    assert result is not None
+    assert len(result) == 1
+    assert result[0] is existing_capture
+
+
+@responses.activate
+def test_upload_multichannel_drf_capture_cleanup(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel cleans up captures on non-recoverable error."""
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    mock_file = files.generate_sample_file(uuid.uuid4())
+    first_capture = MagicMock()
+    first_capture.uuid = uuid.uuid4()
+    delete_recorder = _RecordingCapturesDelete()
+
+    with (
+        patch.object(client, "upload", return_value=[Result(value=mock_file)]),
+        patch.object(
+            client.captures,
+            "create",
+            side_effect=[
+                first_capture,
+                SDSError("Non-recoverable error"),
+            ],
+        ),
+        patch.object(client.captures, "delete", side_effect=delete_recorder.delete),
+    ):
+        result = client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["chan1", "chan2"],
+            verbose=False,
+            raise_on_error=False,
+        )
+    assert result == []
+    assert len(delete_recorder.calls) == 1
+    assert delete_recorder.calls[0] == {"capture_uuid": first_capture.uuid}
+
+
+# ======================================================================
+# Additional coverage: _upload_deprecated (lines 912-929, 986)
+# ======================================================================
+
+
+def test_upload_deprecated_path(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """_upload_deprecated is called when ENABLE_NEW_UPLOAD_METHOD is False."""
+    client.ENABLE_NEW_UPLOAD_METHOD = False
+    local_file = tmp_path / "test_upload.txt"
+    local_file.write_text("test content")
+
+    mock_result = files.generate_sample_file(uuid.uuid4())
+    with patch.object(client._sds_files, "upload_file", return_value=mock_result):
+        results = client.upload(
+            local_path=tmp_path,
+            sds_path="/",
+            verbose=False,
+        )
+    assert len(results) >= 1
+    assert all(r() is mock_result for r in results if r)
+
+
+# ======================================================================
+# Additional coverage: _download_files_with_byte_progress throttle (lines 498-499)
+# ======================================================================
+
+
+def test_download_byte_progress_throttle_callback(
+    client: Client, tmp_path: Path
+) -> None:
+    """_on_download_bytes triggers prog_bar.update at throttle threshold."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    file_info.size = 500_000
+    bytes_downloaded_shared: list[int] = [0]
+    prog_bar = _RecordingProgressBar()
+
+    def fake_download_single_file(*, progress_callback=None, **kwargs):
+        if progress_callback is not None:
+            progress_callback(60_000)
+            progress_callback(60_000)  # 120K total, exceeds 100K threshold
+        return Result(value=file_info)
+
+    with (
+        patch.object(
+            Client,
+            "download_single_file",
+            side_effect=fake_download_single_file,
+        ),
+        patch("spectrumx.client.get_prog_bar", return_value=prog_bar),
+    ):
+        results = client._download_files_with_byte_progress(
+            files_to_download=[file_info],
+            total_bytes_total=file_info.size,
+            to_local_path=tmp_path,
+            skip_contents=False,
+            overwrite=True,
+            verbose=True,
+            prefix="Downloading",
+            total_files=1,
+            period=30.0,
+            bytes_downloaded_shared=bytes_downloaded_shared,
+        )
+
+    assert len(results) == 1
+    assert len(prog_bar.updates) >= 1
+    # After streaming 120K of a 500K file, remaining = 380K credited
+    assert bytes_downloaded_shared[0] == file_info.size
+
+
+# ======================================================================
+# Additional coverage: Client init with various arguments
+# ======================================================================
+
+
+def test_client_init_with_verbose() -> None:
+    """Client init with verbose=True propagates to config."""
+    client = Client(
+        host="sds-test.example.com",
+        env_config={
+            "SDS_SECRET_TOKEN": "test-key-123",
+            "DRY_RUN": "False",
+        },
+        verbose=True,
+    )
+    assert client.verbose is True
+
+
+def test_client_init_with_log_file(tmp_path: Path) -> None:
+    """Client init with log_file sets the log path."""
+    log_file = tmp_path / "test.log"
+    client = Client(
+        host="sds-test.example.com",
+        env_config={
+            "SDS_SECRET_TOKEN": "test-key-123",
+            "DRY_RUN": "False",
+        },
+        log_file=log_file,
+    )
+    assert client.config.log_file == log_file
+
+
+# ======================================================================
+# Additional coverage: remaining edge cases
+# ======================================================================
+
+
+def test_download_dataset_dry_run_mkdir(tmp_path: Path, client: Client) -> None:
+    """download_dataset dry_run logs dir creation (line 862)."""
+    client.dry_run = True
+    new_dir = tmp_path / "nonexistent"
+    assert not new_dir.exists()
+    results = client.download_dataset(
+        dataset_uuid=uuid.uuid4(),
+        to_local_path=new_dir,
+        verbose=False,
+    )
+    assert len(results) == _DRY_RUN_FILE_COUNT
+
+
+def test_list_dataset_captures_uuid_object(client: Client) -> None:
+    """list_dataset_captures with UUID object (line 883 else branch)."""
+    result = client.list_dataset_captures(dataset_uuid=uuid.uuid4())
+    assert result == []
+
+
+def test_list_dataset_artifact_files_uuid_object(client: Client) -> None:
+    """list_dataset_artifact_files with UUID object (line 891 else branch)."""
+    result = client.list_dataset_artifact_files(dataset_uuid=uuid.uuid4())
+    assert result == []
+
+
+def test_upload_file_dry_run(client: Client) -> None:
+    """upload_file in dry-run mode (line 1016)."""
+    file_info = files.generate_sample_file(uuid.uuid4())
+    result = client.upload_file(local_file=file_info, sds_path="/")
+    assert result.uuid == file_info.uuid
+
+
+@responses.activate
+def test_upload_capture_success(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_capture succeeds and returns capture (line 1094)."""
+    (tmp_path / "f.txt").write_text("data")
+    mock_file = files.generate_sample_file(uuid.uuid4())
+    mock_capture = MagicMock()
+    with (
+        patch.object(client, "upload", return_value=[Result(value=mock_file)]),
+        patch.object(client.captures, "create", return_value=mock_capture),
+    ):
+        result = client.upload_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            capture_type=CaptureType.DigitalRF,
+            verbose=False,
+            raise_on_error=True,
+        )
+    assert result is mock_capture
+
+
+@responses.activate
+def test_upload_multichannel_drf_capture_verbose_error(
+    client: Client,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """upload_multichannel verbose error log (line 1182)."""
+    (tmp_path / "f.txt").write_text("data")
+    caplog.set_level(LogLevels.ERROR)
+    with (
+        patch.object(
+            client,
+            "upload",
+            return_value=[Result(value=files.generate_sample_file(uuid.uuid4()))],
+        ),
+        patch.object(
+            client.captures,
+            "create",
+            side_effect=SDSError("Channel failed"),
+        ),
+    ):
+        result = client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["ch1"],
+            verbose=True,
+            raise_on_error=False,
+        )
+    assert result == []
+    assert "Failed to create multi-channel capture" in caplog.text
+
+
+@responses.activate
+def test_upload_deprecated_sdserror(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """_upload_deprecated catches SDSError (lines 925-927)."""
+    client.ENABLE_NEW_UPLOAD_METHOD = False
+    (tmp_path / "f.txt").write_text("data")
+    with patch.object(
+        client._sds_files,
+        "upload_file",
+        side_effect=SDSError("Upload error"),
+    ):
+        results = client.upload(
+            local_path=tmp_path,
+            sds_path="/",
+            verbose=False,
+        )
+    assert len(results) >= 1
+    assert not results[0]
+
+
+def test_upload_capture_empty_upload(client: Client, tmp_path: Path) -> None:
+    """upload_capture returns None when no files uploaded (line 1076)."""
+    with patch.object(client, "upload", return_value=[]):
+        result = client.upload_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            capture_type=CaptureType.DigitalRF,
+            verbose=False,
+            raise_on_error=False,
+        )
+    assert result is None
+
+
+@responses.activate
+def test_upload_multichannel_cleanup_none_uuid(
+    client: Client,
+    tmp_path: Path,
+) -> None:
+    """upload_multichannel cleanup skips captures with uuid=None (line 1196)."""
+    (tmp_path / "f.txt").write_text("data")
+    first_capture = MagicMock()
+    first_capture.uuid = None  # uuid is None → skip delete
+    delete_recorder = _RecordingCapturesDelete()
+
+    with (
+        patch.object(
+            client,
+            "upload",
+            return_value=[Result(value=files.generate_sample_file(uuid.uuid4()))],
+        ),
+        patch.object(
+            client.captures, "create", side_effect=[first_capture, SDSError("fail")]
+        ),
+        patch.object(client.captures, "delete", side_effect=delete_recorder.delete),
+    ):
+        result = client.upload_multichannel_drf_capture(
+            local_path=tmp_path,
+            sds_path="/",
+            channels=["ch1", "ch2"],
+            verbose=False,
+            raise_on_error=False,
+        )
+    assert result == []
+    assert len(delete_recorder.calls) == 0

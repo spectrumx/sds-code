@@ -32,7 +32,7 @@ def test_jsonl_file_creation_default_xdg_path(tmp_path: Path, monkeypatch) -> No
     enable_structured_logging()
     log.info("test message for default path")
 
-    current_log_path = utils._current_log_path  # noqa: SLF001
+    current_log_path = utils._current_log_path
     assert current_log_path is not None
     assert current_log_path.exists()
     assert current_log_path.suffix == ".jsonl"
@@ -47,7 +47,7 @@ def test_jsonl_file_creation_custom_path(tmp_path: Path) -> None:
     enable_structured_logging(log_path=custom_path)
     log.info("test message for custom path")
 
-    current_log_path = utils._current_log_path  # noqa: SLF001
+    current_log_path = utils._current_log_path
     assert current_log_path == custom_path
     assert custom_path.exists()
     lines = custom_path.read_text().strip().split("\n")
@@ -125,7 +125,7 @@ def test_contextual_fields_only_when_set(tmp_path: Path) -> None:
 
     # Persistent context line: has api_key_prefix and timeout
     assert persistent_entry.get("api_key_prefix") == "test_key"
-    assert persistent_entry.get("timeout") == 120  # noqa: PLR2004
+    assert persistent_entry.get("timeout") == 120
 
     # Scoped context line: has upload_id and upload_dir
     assert scoped_entry.get("upload_id") == "abc123"
@@ -188,9 +188,9 @@ def test_persistent_context_persists(tmp_path: Path) -> None:
     msg2 = json.loads(lines[2])
 
     assert msg1.get("api_key_prefix") == "persist_key"
-    assert msg1.get("timeout") == 999  # noqa: PLR2004
+    assert msg1.get("timeout") == 999
     assert msg2.get("api_key_prefix") == "persist_key"
-    assert msg2.get("timeout") == 999  # noqa: PLR2004
+    assert msg2.get("timeout") == 999
 
 
 def test_enable_structured_logging_override_changes_path(tmp_path: Path) -> None:
@@ -201,14 +201,14 @@ def test_enable_structured_logging_override_changes_path(tmp_path: Path) -> None
     enable_structured_logging(log_path=path_a)
     log.info("written to path A")
 
-    assert utils._current_log_path == path_a  # noqa: SLF001
+    assert utils._current_log_path == path_a
     assert path_a.exists()
 
     # Re-enable with new path — boot message emitted again on new file
     enable_structured_logging(log_path=path_b)
     log.info("written to path B")
 
-    assert utils._current_log_path == path_b  # noqa: SLF001
+    assert utils._current_log_path == path_b
     assert path_b.exists()
 
     # Path A should not have the second message
@@ -235,7 +235,7 @@ def test_reset_structured_logging_clears_state() -> None:
 
     reset_structured_logging()
 
-    assert utils._structured_sink_id is None  # noqa: SLF001
-    assert utils._current_log_path is None  # noqa: SLF001
-    assert utils._persistent_context == {}  # noqa: SLF001
-    assert utils._log_context.get() is None  # noqa: SLF001
+    assert utils._structured_sink_id is None
+    assert utils._current_log_path is None
+    assert utils._persistent_context == {}
+    assert utils._log_context.get() is None

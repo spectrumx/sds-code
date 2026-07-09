@@ -25,7 +25,6 @@ from spectrumx.models.files.file import File
 if TYPE_CHECKING:
     from spectrumx.client import Client
 
-# ruff: noqa: SLF001
 # pyright: reportPrivateUsage=false
 
 

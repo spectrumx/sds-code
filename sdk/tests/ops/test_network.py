@@ -5,9 +5,9 @@ Use the integration_client fixture for these tests.
 
 # pyright: reportPrivateUsage=false
 
-# ruff: noqa: SLF001
 # pyright: ignore[reportPrivateUsage]
 
+import sys
 from unittest.mock import patch
 
 import pytest
@@ -22,19 +22,22 @@ def test_success_or_raise_success() -> None:
     response = requests.Response()
     response.status_code = 200
     response._content = b"{}"
-    try:
-        success_or_raise(response)
-    except errors.SDSError:
-        pytest.fail("SDSError raised on successful response")
+    # No exception = pass; an unexpected exception type surfaces directly.
+    success_or_raise(response)
 
 
-def test_success_or_raise_auth_error() -> None:
-    """AuthError should be raised for 401 and 403 responses."""
+def test_success_or_raise_raises_auth_error_on_401() -> None:
+    """AuthError should be raised for a 401 response."""
     response = requests.Response()
     response.status_code = 401
     response._content = b'{"detail": "Unauthorized"}'
     with pytest.raises(errors.AuthError, match="Unauthorized"):
         success_or_raise(response)
+
+
+def test_success_or_raise_raises_auth_error_on_403() -> None:
+    """AuthError should be raised for a 403 response."""
+    response = requests.Response()
     response.status_code = 403
     response._content = b'{"detail": "Forbidden"}'
     with pytest.raises(errors.AuthError, match="Forbidden"):
@@ -140,3 +143,47 @@ def test_extract_error_details_from_html_with_bs4() -> None:
     response._content = b'<li id="summary">Extracted error</li>'
     result = extract_error_details_from_html(response)
     assert result == "Extracted error"
+
+
+def test_extract_error_details_from_html_no_bs4(monkeypatch) -> None:
+    """Without bs4, returns response.reason."""
+    monkeypatch.setitem(sys.modules, "bs4", None)
+    response = requests.Response()
+    response.status_code = 500
+    response.reason = "Internal Server Error"
+    response._content = b""
+    result = extract_error_details_from_html(response)
+    assert result == "Internal Server Error"
+
+
+def test_extract_error_details_from_html_no_bs4_no_reason(
+    monkeypatch,
+) -> None:
+    """Without bs4 and no reason, returns 'Unknown reason'."""
+    monkeypatch.setitem(sys.modules, "bs4", None)
+    response = requests.Response()
+    response.status_code = 500
+    response.reason = None
+    response._content = b""
+    result = extract_error_details_from_html(response)
+    assert result == "Unknown reason"
+
+
+def test_extract_error_details_from_html_bs4_no_elements() -> None:
+    """When bs4 is available but no matching elements, falls back to reason."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b"<html><body>nothing relevant</body></html>"
+    response.reason = "Internal Server Error"
+    result = extract_error_details_from_html(response)
+    assert result == "Internal Server Error"
+
+
+def test_extract_error_details_from_html_bs4_no_elements_no_reason() -> None:
+    """When bs4 available, no elements, reason None, returns 'Unknown reason'."""
+    response = requests.Response()
+    response.status_code = 500
+    response._content = b"<html><body>nothing relevant</body></html>"
+    response.reason = None
+    result = extract_error_details_from_html(response)
+    assert result == "Unknown reason"

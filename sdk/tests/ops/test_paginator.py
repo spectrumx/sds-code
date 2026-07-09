@@ -1,6 +1,5 @@
 """Tests for the paginator module."""
 
-# ruff: noqa: SLF001
 # pyright: reportPrivateUsage=false
 
 import json

@@ -11,15 +11,29 @@ from datetime import timedelta
 from datetime import timezone
 from pathlib import Path
 from pathlib import PurePosixPath
+from threading import RLock
 from unittest.mock import patch
 
 import pytest
 import responses
 from spectrumx import Client
+from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
+    __download_file_contents,
+)
+from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
+    __update_existing_file_metadata_only,
+)
+from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
+    __upload_contents_and_metadata,
+)
+from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
+    __upload_new_file_metadata_only,
+)
 from spectrumx.api.sds_files import delete_file
 from spectrumx.api.sds_files import download_file
 from spectrumx.api.sds_files import file_list_time_query_param
 from spectrumx.api.sds_files import list_files
+from spectrumx.api.sds_files import upload_file
 from spectrumx.api.uploads import UploadPersistenceManager
 from spectrumx.errors import FileError
 from spectrumx.errors import SDSError
@@ -513,7 +527,7 @@ def test_delete_file_success(client: Client, responses: responses.RequestsMock) 
     test_uuid = uuidlib.uuid4()
     test_uuid_hex = test_uuid.hex
     client.dry_run = False
-    assert client.dry_run is False, "Dry run must be enabled for this test."
+    assert client.dry_run is False, "Dry run must be DISABLED for this test."
     responses.add(
         responses.DELETE,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
@@ -611,7 +625,7 @@ def test_delete_file_str_uuid(
     test_uuid = uuidlib.uuid4()
     test_uuid_hex = test_uuid.hex
     client.dry_run = False  # calls are mocked, but we want to test the actual requests
-    assert client.dry_run is False, "Dry run must be enabled for this test."
+    assert client.dry_run is False, "Dry run must be DISABLED for this test."
     responses.add(
         responses.GET,
         f"{get_files_endpoint(client)}{test_uuid_hex}/",
@@ -999,9 +1013,7 @@ def test_upload_file_metadata_only_mode(
 
     assert result.uuid == file_id, "Metadata-only upload should return a server File"
     assert result.directory == PurePosixPath("/test/metadata-only")
-    assert len(responses.calls) == 2, (  # noqa: PLR2004
-        "Expected content-check + metadata-upload calls"
-    )
+    assert len(responses.calls) == 2, "Expected content-check + metadata-upload calls"
 
 
 def test_download_file_with_file_instance(
@@ -1166,7 +1178,7 @@ def test_delete_file_get_file_fails(
     result = delete_file(client=client, file_uuid=test_uuid)
 
     assert result is True, "Delete should succeed even if get_file fails"
-    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"
 
 
 def test_delete_file_cleanup_called(
@@ -1213,7 +1225,7 @@ def test_delete_file_cleanup_called(
         assert result is True
         mock_cleanup.assert_called_once_with(checksum=test_checksum)
 
-    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"
 
 
 def test_delete_file_gateway_returns_false(
@@ -1336,4 +1348,834 @@ def test_cleanup_persisted_uploads_error(
         result = delete_file(client=client, file_uuid=test_uuid)
 
     assert result is True, "Delete should still succeed even if cleanup fails"
-    assert len(responses.calls) == 2, "Expected GET + DELETE calls"  # noqa: PLR2004
+    assert len(responses.calls) == 2, "Expected GET + DELETE calls"
+
+
+# =============================================================================
+# Phase 3 coverage: download_file variants
+# =============================================================================
+
+
+def test_download_file_empty_204_response(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """204 No Content download creates an empty local file."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    num_bytes = 0
+
+    responses.add(
+        method=responses.GET,
+        url=_get_file_id_endpoint(client, file_id=file_id.hex),
+        status=200,
+        json={
+            "uuid": file_id.hex,
+            "name": "empty.txt",
+            "media_type": "text/plain",
+            "size": num_bytes,
+            "directory": "/empty/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=204,
+    )
+
+    result = download_file(client=client, file_uuid=file_id.hex)
+    downloaded_path = result.local_path
+    assert downloaded_path is not None, "Returned path must not be None"
+    assert downloaded_path.exists(), "File was not created"
+    assert downloaded_path.stat().st_size == num_bytes, (
+        f"Expected empty file, got {downloaded_path.stat().st_size} bytes"
+    )
+
+    downloaded_path.unlink(missing_ok=True)
+
+
+def test_download_file_to_directory_path(
+    client: Client, responses: responses.RequestsMock, tmp_path: Path
+) -> None:
+    """to_local_path pointing to a directory uses that exact path as the file."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    file_contents = "content for dir-test"
+    num_bytes = len(file_contents.encode("utf-8"))
+    target_dir = tmp_path / "subdir"
+    expected_path = target_dir  # path passed as if it were a file
+
+    responses.add(
+        method=responses.GET,
+        url=_get_file_id_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=json.dumps(
+            {
+                "uuid": file_id.hex,
+                "name": "test.txt",
+                "media_type": "text/plain",
+                "size": num_bytes,
+                "directory": "/test/",
+                "permissions": "rw-r--r--",
+                "created_at": "2024-12-01T12:00:00Z",
+                "updated_at": "2024-12-01T12:00:00Z",
+                "expiration_date": "2026-12-01T12:00:00Z",
+            }
+        ),
+    )
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=file_contents,
+    )
+
+    result = download_file(
+        client=client, file_uuid=file_id.hex, to_local_path=target_dir
+    )
+    downloaded_path = result.local_path
+    assert downloaded_path == expected_path
+    assert downloaded_path.exists()
+    assert downloaded_path.stat().st_size == num_bytes
+
+    downloaded_path.unlink(missing_ok=True)
+
+
+def test_download_file_with_progress_callback(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """download_file invokes progress_callback with chunk byte counts."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    file_contents = "x" * 20000
+    num_bytes = len(file_contents.encode("utf-8"))
+
+    responses.add(
+        method=responses.GET,
+        url=_get_file_id_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=json.dumps(
+            {
+                "uuid": file_id.hex,
+                "name": "progress_test.txt",
+                "media_type": "text/plain",
+                "size": num_bytes,
+                "directory": "/progress/",
+                "permissions": "rw-r--r--",
+                "created_at": "2024-12-01T12:00:00Z",
+                "updated_at": "2024-12-01T12:00:00Z",
+                "expiration_date": "2026-12-01T12:00:00Z",
+            }
+        ),
+    )
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=200,
+        body=file_contents,
+    )
+
+    chunks_received: list[int] = []
+
+    def _callback(byte_count: int) -> None:
+        chunks_received.append(byte_count)
+
+    result = download_file(
+        client=client,
+        file_uuid=file_id.hex,
+        progress_callback=_callback,
+    )
+    assert result.local_path is not None
+    assert result.local_path.exists()
+    assert len(chunks_received) > 0, "progress_callback was never called"
+    assert sum(chunks_received) == num_bytes, (
+        f"Expected {num_bytes} bytes total, got {sum(chunks_received)}"
+    )
+
+    result.local_path.unlink(missing_ok=True)
+
+
+# =============================================================================
+# Phase 3 coverage: delete_file edge cases
+# =============================================================================
+
+
+def test_delete_file_via_patch_gateway_returns_false(
+    client: Client,
+) -> None:
+    """When gateway.delete_file_by_id returns False, delete_file returns False."""
+    test_uuid = uuidlib.uuid4()
+    client.dry_run = False
+
+    with (
+        patch.object(client._gateway, "delete_file_by_id", return_value=False),
+        patch.object(
+            client._gateway,
+            "get_file_by_id",
+            return_value=b'{"uuid":"' + test_uuid.hex.encode() + b'","name":"test.txt",'
+            b'"media_type":"text/plain","size":100,"directory":"/test/",'
+            b'"permissions":"rw-r--r--","sum_blake3":"somechecksum",'
+            b'"created_at":"2024-12-01T12:00:00Z",'
+            b'"updated_at":"2024-12-01T12:00:00Z",'
+            b'"expiration_date":"2026-12-01T12:00:00Z"}',
+        ),
+    ):
+        result = delete_file(client=client, file_uuid=test_uuid)
+
+    assert result is False, "Expected delete_file to return False"
+
+
+# =============================================================================
+# Phase 3 coverage: list_files pagination & temporal edge cases
+# =============================================================================
+
+
+def test_list_files_multiple_pages(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """list_files paginates across multiple result pages."""
+    client.dry_run = False
+    page_size = 2
+    total_count = 3
+
+    page1_results = [
+        {
+            "uuid": uuidlib.uuid4().hex,
+            "name": f"file_{i}.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/multi/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        }
+        for i in range(page_size)
+    ]
+    page2_results = [
+        {
+            "uuid": uuidlib.uuid4().hex,
+            "name": "file_2.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/multi/",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        }
+    ]
+
+    responses.add(
+        method=responses.GET,
+        url=get_files_endpoint(client),
+        status=200,
+        json={"count": total_count, "results": page1_results},
+    )
+    responses.add(
+        method=responses.GET,
+        url=get_files_endpoint(client),
+        status=200,
+        json={"count": total_count, "results": page2_results},
+    )
+
+    paginator = list_files(
+        client=client,
+        sds_path=PurePosixPath("/multi"),
+    )
+    # Replace page_size to ensure multiple fetches with our data
+    paginator._page_size = page_size  # pyright: ignore[reportPrivateUsage]
+    results = list(paginator)
+
+    assert len(results) == total_count, (
+        f"Expected {total_count} files, got {len(results)}"
+    )
+    assert len(responses.calls) == 2, "Expected 2 page requests"
+
+
+def test_list_files_temporal_inverted_range(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Inverted temporal range (start > end) returns empty results gracefully."""
+    client.dry_run = False
+    start = datetime(2024, 6, 28, 14, 0, 0, tzinfo=UTC)
+    end = datetime(2024, 6, 27, 14, 0, 0, tzinfo=UTC)
+    expected_start_q = file_list_time_query_param(start)
+    expected_end_q = file_list_time_query_param(end)
+
+    empty_page = b'{"count": 0, "results": []}'
+
+    with patch.object(client._gateway, "list_files", return_value=empty_page) as m_list:
+        paginator = list_files(
+            client=client,
+            sds_path=PurePosixPath("/temporal"),
+            start_time=start,
+            end_time=end,
+        )
+        results = list(paginator)
+
+    assert results == [], "Expected empty result for inverted range"
+    for call in m_list.call_args_list:
+        kw = call.kwargs
+        assert kw["start_time"] == expected_start_q
+        assert kw["end_time"] == expected_end_q
+
+
+def test_list_files_temporal_zero_width_range(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Zero-width temporal range (start == end) is valid and sent as-is."""
+    client.dry_run = False
+    t = datetime(2024, 6, 27, 14, 0, 0, tzinfo=UTC)
+    expected_q = file_list_time_query_param(t)
+
+    empty_page = b'{"count": 0, "results": []}'
+
+    with patch.object(client._gateway, "list_files", return_value=empty_page) as m_list:
+        paginator = list_files(
+            client=client,
+            sds_path=PurePosixPath("/temporal"),
+            start_time=t,
+            end_time=t,
+        )
+        list(paginator)
+
+    m_list.assert_called()
+    for call in m_list.call_args_list:
+        kw = call.kwargs
+        assert kw["start_time"] == expected_q
+        assert kw["end_time"] == expected_q
+
+
+# =============================================================================
+# Phase 3 coverage: upload_file SKIP mode with differ flag
+# =============================================================================
+
+
+def test_upload_file_skip_mode_with_differ(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """SKIP mode returns local file when file_exists_in_tree even with differ=True."""
+    client.dry_run = False
+    asset_id = uuidlib.uuid4()
+
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": True,
+            "user_mutable_attributes_differ": True,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/differ"),
+    )
+
+    assert result.uuid is None, "SKIP mode should return the local file without UUID"
+    assert result.local_path == temp_file_with_text_contents
+    assert len(responses.calls) == 1, "Only content-check request expected"
+
+
+# =============================================================================
+# Phase 3 coverage: upload_file progress_callback in metadata-only path
+# =============================================================================
+
+
+def test_upload_file_metadata_only_with_progress_callback(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Metadata-only upload accepts (and ignores) progress_callback."""
+    client.dry_run = False
+    asset_id = uuidlib.uuid4()
+    file_id = uuidlib.uuid4()
+    file_size = temp_file_with_text_contents.stat().st_size
+
+    # content-check: contents exist for user, not in tree → UPLOAD_METADATA_ONLY
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": True,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json={
+            "uuid": file_id.hex,
+            "name": temp_file_with_text_contents.name,
+            "media_type": "text/plain",
+            "size": file_size,
+            "directory": "/test/meta-progress",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    callback_invoked = False
+
+    def _callback(_bytes: int) -> None:
+        nonlocal callback_invoked
+        callback_invoked = True
+
+    result = upload_file(
+        client=client,
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/meta-progress"),
+        progress_callback=_callback,
+    )
+
+    assert result.uuid == file_id
+    assert result.directory == PurePosixPath("/test/meta-progress")
+    # progress_callback is not used in metadata-only path (no contents to upload)
+    assert callback_invoked is False
+
+
+# =============================================================================
+# Phase 3 coverage: remaining uncovered lines in sds_files.py
+# =============================================================================
+
+
+def test_upload_file_instance_without_directory(client: Client, tmp_path: Path) -> None:
+    """Uploading a File with no directory set does not compose sds_path."""
+    client.dry_run = True
+    file_path = tmp_path / "test_no_dir.txt"
+    file_path.write_text("content")
+
+    # directory defaults to PurePosixPath() (empty / falsy)
+    file_instance = File(
+        name=file_path.name,
+        media_type="text/plain",
+        size=file_path.stat().st_size,
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+        local_path=file_path,
+    )
+
+    result = client.upload_file(
+        local_file=file_instance,
+        sds_path=PurePosixPath("/base"),
+    )
+
+    # directory stays as default (empty PurePosixPath) since it was falsy
+    assert result.directory == PurePosixPath("/base"), (
+        f"Expected '/base', got '{result.directory}' — "
+        "directory should not be composed when empty"
+    )
+
+
+def test_download_file_dry_run(
+    client: Client,
+) -> None:
+    """download_file in dry_run returns sample without network calls."""
+    client.dry_run = True
+    file_id = uuidlib.uuid4()
+
+    result = download_file(client=client, file_uuid=file_id.hex)
+
+    assert result.uuid == file_id
+    assert result.local_path is None, (
+        "No local path should be set in dry_run without to_local_path"
+    )
+
+
+def test_download_file_no_identifier(
+    client: Client,
+) -> None:
+    """download_file without file_instance or file_uuid raises ValueError."""
+    with pytest.raises(ValueError, match="Expected a file instance or UUID"):
+        download_file(client=client)
+
+
+def test_upload_file_skip_verbose(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """SKIP mode with verbose logs a message."""
+    client.dry_run = False
+    client.verbose = True
+    asset_id = uuidlib.uuid4()
+
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": True,
+            "user_mutable_attributes_differ": False,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/skip-verbose"),
+    )
+
+    assert result.uuid is None, "SKIP mode should return local file"
+
+
+def test_upload_file_contents_verbose(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Upload-contents mode with verbose logs a message."""
+    client.dry_run = False
+    client.verbose = True
+    file_id = uuidlib.uuid4()
+    file_size = temp_file_with_text_contents.stat().st_size
+
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": False,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": True,
+        },
+    )
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json={
+            "uuid": file_id.hex,
+            "name": temp_file_with_text_contents.name,
+            "media_type": "text/plain",
+            "size": file_size,
+            "directory": "/test/contents-verbose",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/contents-verbose"),
+    )
+
+    assert result.uuid == file_id
+
+
+def test_upload_file_metadata_only_missing_asset_id(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Metadata-only upload raises SDSError when asset_id is None."""
+    client.dry_run = False
+
+    # content-check: contents exist but asset_id is None
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": True,
+            "asset_id": None,
+        },
+    )
+
+    with pytest.raises(SDSError, match="Expected an asset ID"):
+        upload_file(
+            client=client,
+            local_file=temp_file_with_text_contents,
+            sds_path=PurePosixPath("/test/no-asset"),
+        )
+
+
+def test_upload_contents_and_metadata_dry_run(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Dry-run in __upload_contents_and_metadata logs and returns early."""
+    client.dry_run = True
+
+    result = client.upload_file(
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/dry-contents"),
+    )
+
+    assert result.local_path == temp_file_with_text_contents
+    assert result.uuid is None
+
+
+def test_upload_new_file_metadata_only_dry_run(
+    client: Client,
+) -> None:
+    """Dry-run in __upload_new_file_metadata_only logs and returns early."""
+    file_instance = File(
+        name="dry_meta.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/dry/meta"),
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    result = __upload_new_file_metadata_only(
+        client=client,
+        file_instance=file_instance,
+        sibling_uuid=uuidlib.uuid4(),
+    )
+
+    assert result is file_instance, "Should return the input file instance unchanged"
+
+
+def test_update_existing_file_metadata_only_updates_metadata(
+    client: Client,
+) -> None:
+    """asset_id=None leaves uuid unchanged (no update sent)."""
+    client.dry_run = True
+    file_instance = File(
+        name="update_meta.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/update/meta"),
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+    result = __update_existing_file_metadata_only(
+        client=client,
+        file_instance=file_instance.model_copy(),
+        asset_id=None,
+    )
+    assert result.uuid is None, "uuid should remain None when asset_id is None"
+
+
+def test_update_existing_file_metadata_only_preserves_file(
+    client: Client,
+) -> None:
+    """dry_run returns early with asset_id set on file_instance (no PUT)."""
+    client.dry_run = True
+    asset_id = uuidlib.uuid4()
+    file_instance = File(
+        name="update_meta.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/update/meta"),
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+    result = __update_existing_file_metadata_only(
+        client=client,
+        file_instance=file_instance.model_copy(),
+        asset_id=asset_id,
+    )
+    assert result.uuid == asset_id, (
+        "asset_id should be set on file_instance even in dry_run"
+    )
+
+
+def test_update_existing_file_metadata_only_no_download(
+    client: Client,
+    responses: responses.RequestsMock,
+) -> None:
+    """non-dry_run sends PUT and returns updated File with server UUID."""
+    client.dry_run = False
+    asset_id = uuidlib.uuid4()
+    updated_uuid = uuidlib.uuid4()
+    file_instance = File(
+        name="update_meta.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/update/meta"),
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+    file_instance.uuid = asset_id
+
+    responses.add(
+        method=responses.PUT,
+        url=f"{get_files_endpoint(client)}{asset_id.hex}/",
+        status=200,
+        json={
+            "uuid": updated_uuid.hex,
+            "name": "update_meta.txt",
+            "media_type": "text/plain",
+            "size": 100,
+            "directory": "/update/meta",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    result = __update_existing_file_metadata_only(
+        client=client,
+        file_instance=file_instance,
+        asset_id=asset_id,
+    )
+    assert result.uuid == updated_uuid
+
+
+def test_download_file_contents_dry_run(
+    client: Client,
+) -> None:
+    """__download_file_contents dry-run logs and returns the target path."""
+    file_id = uuidlib.uuid4()
+    client.dry_run = True
+    contents_lock = RLock()
+
+    result = __download_file_contents(
+        client=client,
+        file_uuid=file_id,
+        contents_lock=contents_lock,
+        target_path=None,
+    )
+
+    assert result is not None
+    assert isinstance(result, Path)
+
+
+def test_upload_file_metadata_only_verbose(
+    client: Client,
+    responses: responses.RequestsMock,
+    temp_file_with_text_contents: Path,
+) -> None:
+    """Metadata-only upload with verbose logs additional messages."""
+    client.dry_run = False
+    client.verbose = True
+    asset_id = uuidlib.uuid4()
+    file_id = uuidlib.uuid4()
+    file_size = temp_file_with_text_contents.stat().st_size
+
+    responses.add(
+        method=responses.POST,
+        url=get_content_check_endpoint(client),
+        status=201,
+        json={
+            "file_contents_exist_for_user": True,
+            "file_exists_in_tree": False,
+            "user_mutable_attributes_differ": True,
+            "asset_id": asset_id.hex,
+        },
+    )
+
+    responses.add(
+        method=responses.POST,
+        url=get_files_endpoint(client),
+        status=201,
+        json={
+            "uuid": file_id.hex,
+            "name": temp_file_with_text_contents.name,
+            "media_type": "text/plain",
+            "size": file_size,
+            "directory": "/test/meta-verbose",
+            "permissions": "rw-r--r--",
+            "created_at": "2024-12-01T12:00:00Z",
+            "updated_at": "2024-12-01T12:00:00Z",
+            "expiration_date": "2026-12-01T12:00:00Z",
+        },
+    )
+
+    result = upload_file(
+        client=client,
+        local_file=temp_file_with_text_contents,
+        sds_path=PurePosixPath("/test/meta-verbose"),
+    )
+
+    assert result.uuid == file_id
+
+
+def test_upload_contents_and_metadata_dry_run_direct(
+    client: Client,
+) -> None:
+    """__upload_contents_and_metadata dry-run logs and returns the input."""
+    client.dry_run = True
+    file_id = uuidlib.uuid4()
+    file_instance = File(
+        uuid=file_id,
+        name="dry_content.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/dry/content"),
+        permissions="rw-r--r--",
+        created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    result = __upload_contents_and_metadata(
+        client=client,
+        file_instance=file_instance,
+    )
+
+    assert result is file_instance, "Should return the input file instance unchanged"
+
+
+def test_download_file_temp_target_failure(
+    client: Client, responses: responses.RequestsMock
+) -> None:
+    """Download failure with temp target does not attempt cleanup (branch 394->396)."""
+    client.dry_run = False
+    file_id = uuidlib.uuid4()
+    now_ts = datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC)
+
+    file_instance = File(
+        uuid=file_id,
+        name="temp_fail.txt",
+        media_type="text/plain",
+        size=100,
+        directory=PurePosixPath("/test/"),
+        permissions="rw-r--r--",
+        created_at=now_ts,
+        updated_at=now_ts,
+        expiration_date=datetime(2026, 12, 1, 12, 0, 0, tzinfo=UTC),
+    )
+
+    # No file metadata endpoint needed — File instance has the info
+    # Mock download to fail
+    responses.add(
+        method=responses.GET,
+        url=_download_file_endpoint(client, file_id=file_id.hex),
+        status=500,
+        json={"detail": "Simulated failure"},
+    )
+
+    with pytest.raises(SDSError):
+        download_file(
+            client=client,
+            file_instance=file_instance,
+            # to_local_path deliberately omitted → is_temp_target=True
+        )

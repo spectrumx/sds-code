@@ -58,7 +58,7 @@ def test_authentication_env_config_succeeds(
     """Tests that authentication with the inline dictionary succeeds."""
 
     # auth test
-    inline_auth_integration_client._config.show_config()  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
+    inline_auth_integration_client._config.show_config()  # pyright: ignore[reportPrivateUsage]
     try:
         inline_auth_integration_client.authenticate()
         assert inline_auth_integration_client.is_authenticated

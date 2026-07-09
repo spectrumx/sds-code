@@ -292,7 +292,7 @@ def _integration_client() -> Client:
         verbose=True,
     )
     assert (
-        _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
+        _integration_client._config.api_key is not None  # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
     return _integration_client
@@ -340,7 +340,7 @@ def _inline_auth_integration_client() -> Client:
         verbose=True,
     )
     assert (
-        _integration_client._config.api_key is not None  # noqa: SLF001 # pyright: ignore[reportPrivateUsage]
+        _integration_client._config.api_key is not None  # pyright: ignore[reportPrivateUsage]
     ), "Client didn't load the API key."
     assert _integration_client.dry_run is False, "Dry run mode should be disabled."
     return _integration_client

@@ -13,6 +13,7 @@
         "python-dotenv>=1.0.0",
         "requests>=2.28.2",
         "tqdm>=4.64.1",
+        "urllib3>=2.0.0",
     ]
 
     name            = "spectrumx"
@@ -417,7 +418,7 @@
             "gateway/sds_gateway/users/views.py" = ["PLC0415"]
 
             # Tests commonly use boolean fixtures as positional args — intentional
-            "sdk/tests/**" = ["FBT001", "FBT002"]
+            "sdk/tests/**" = ["FBT001", "FBT002", "SLF001", "PLR2004"]
 
             # Demo scripts intentionally use print(), lazy imports, private member access for mocking
             "sdk/scripts/**" = ["T201", "PLC0415", "SLF001", "S108", "RUF001"]

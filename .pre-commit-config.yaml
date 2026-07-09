@@ -41,7 +41,7 @@ repos:
     #   biome-format    Format the committed files
     #   biome-lint      Lint and apply safe fixes to the committed files
     - repo: https://github.com/biomejs/pre-commit
-      rev: v2.5.1
+      rev: v2.5.2
       hooks:
           - id: biome-check
             additional_dependencies: ["@biomejs/biome@^1.9.4"]
@@ -83,14 +83,14 @@ repos:
 
     # linter for django templates
     - repo: https://github.com/Riverside-Healthcare/djLint
-      rev: v1.39.5
+      rev: v1.40.1
       hooks:
           - id: djlint-reformat-django
           - id: djlint-django
 
     # linter for markdown files - see .rumdl.toml to configure rules
     - repo: https://github.com/rvben/rumdl-pre-commit
-      rev: v0.2.26
+      rev: v0.2.27
       hooks:
           - id: rumdl # Lint only (fails on issues)
           - id: rumdl-fmt # Auto-format and fail if issues remain
@@ -98,7 +98,7 @@ repos:
 
     # runs pyrefly type checker on the sdk project
     - repo: https://github.com/facebook/pyrefly-pre-commit
-      rev: 1.1.1
+      rev: 1.2.0.dev1
       hooks:
           - id: pyrefly-check
             name: pyrefly-check (sdk)
