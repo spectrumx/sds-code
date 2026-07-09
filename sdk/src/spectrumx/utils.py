@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import NoReturn
+from typing import Protocol
 from typing import TypeVar
 from typing import cast
 
@@ -34,6 +35,12 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
+
+
+class SupportsProgressUpdate(Protocol):
+    def update(self, n: int = 1) -> bool | None:
+        """Advance progress by ``n`` units."""
+        ...
 
 
 def validate_file_permission_string(permissions: str) -> None:
@@ -186,7 +193,7 @@ def credit_unstreamed_file_bytes(
     *,
     file_size: int,
     bytes_streamed: int,
-    prog_bar: tqdm[NoReturn] | None,
+    prog_bar: SupportsProgressUpdate | None,
     bytes_accounted: list[int] | None = None,
 ) -> int:
     """Credit progress for file bytes that were not transferred over the wire.
