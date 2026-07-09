@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GATEWAY_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
+FEDERATION_ROOT=$(cd "${GATEWAY_ROOT}/../federation" && pwd)
 SFS_ROOT=$(cd "${GATEWAY_ROOT}/../seaweedfs" && pwd)
 EXAMPLE_DIR="${GATEWAY_ROOT}/.envs/example"
 
@@ -15,6 +16,20 @@ PRIMARY_S3_ENDPOINT_URL=""
 # SECONDARY (RustFS or SeaweedFS) — only for production
 SECONDARY_ACCESS_KEY_ID=""
 SECONDARY_SECRET_ACCESS_KEY=""
+
+FEDERATION_SYNC_DRF_TOKEN=""
+
+function ensure_federation_sync_drf_token() {
+	local env_type="$1"
+	if [[ -n "${FEDERATION_SYNC_DRF_TOKEN}" ]]; then
+		return 0
+	fi
+	if [[ "${env_type}" == "ci" ]]; then
+		FEDERATION_SYNC_DRF_TOKEN="ci-federation-sync-drf-01234567890123456"
+	else
+		FEDERATION_SYNC_DRF_TOKEN=$(generate_secret 40)
+	fi
+}
 
 function usage() {
 	cat <<EOF
@@ -36,6 +51,7 @@ EXAMPLES:
 
     NOTES:
         - Generated files are placed in .envs/<env>/ directory
+        - Federation federation-shared.env → ../federation/.envs/<env>/federation-shared.env
         - Example templates are read from .envs/example/
         - Secrets are randomly generated using OpenSSL
         - CI environment uses insecure but deterministic values for ephemeral usage
@@ -167,6 +183,11 @@ function process_env_file() {
 	# set WEB_CONCURRENCY based on CPU cores (applies to all environments)
 	content="${content//WEB_CONCURRENCY=4/WEB_CONCURRENCY=${web_concurrency}}"
 
+	if [[ "${filename}" == "federation-shared.env" ]]; then
+		ensure_federation_sync_drf_token "${env_type}"
+		content="${content//FEDERATION_SYNC_DRF_TOKEN=/FEDERATION_SYNC_DRF_TOKEN=${FEDERATION_SYNC_DRF_TOKEN}}"
+	fi
+
 	if [[ "${filename}" == "storage.env" ]]; then
 		# PRIMARY vars
 		content="${content//PRIMARY_ACCESS_KEY_ID=admin/PRIMARY_ACCESS_KEY_ID=${PRIMARY_ACCESS_KEY_ID}}"
@@ -243,6 +264,7 @@ function set_permissions() {
 	env_dirs=(
 		"${GATEWAY_ROOT}/.envs"
 		"${SFS_ROOT}/.envs"
+		"${FEDERATION_ROOT}/.envs"
 	)
 	for dir in "${env_dirs[@]}"; do
 		if [ -d "${dir}" ]; then
@@ -322,9 +344,22 @@ function main() {
 			continue
 		fi
 
+		# federation-shared.env is written under ../federation/.envs/
+		if [[ "${filename}" == "federation-shared.env" ]]; then
+			continue
+		fi
+
 		local output="${target_dir_gwy}/${filename}"
 		process_env_file "${template}" "${output}" "${env_type}" "${force}"
 	done
+
+	if [[ "${env_type}" != "ci" ]]; then
+		process_env_file \
+			"${EXAMPLE_DIR}/federation-shared.env" \
+			"${FEDERATION_ROOT}/.envs/${env_type}/federation-shared.env" \
+			"${env_type}" \
+			"${force}"
+	fi
 
 	set_permissions
 

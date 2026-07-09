@@ -767,11 +767,8 @@ FEDERATION_SYNC_USER_EMAIL: str = env.str(
     "FEDERATION_SYNC_USER_EMAIL",
     default="federation-sync@internal.local",
 )
-# Shared with federation-sync (Authorization: Token …) to call get-federation-sync-api-key.
-FEDERATION_SYNC_SERVER_API_KEY: str = env.str(
-    "FEDERATION_SYNC_SERVER_API_KEY",
-    default=__get_random_token(TOKEN_LENGTH),
-)
+# From federation-shared.env (compose env_file); used by init_federation_sync_token only.
+FEDERATION_SYNC_DRF_TOKEN: str = env.str("FEDERATION_SYNC_DRF_TOKEN", default="")
 FEDERATION_SYNC_HEALTH_URL: str = env.str(
     "FEDERATION_SYNC_HEALTH_URL",
     default="http://federation-sync:8000/sync/health",
