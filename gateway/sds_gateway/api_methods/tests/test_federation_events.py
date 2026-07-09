@@ -80,3 +80,46 @@ class TestPublishFederationEvent:
             uuid=uuid4(),
         )
         mock_get_redis.assert_not_called()
+
+
+class TestFederationSignals:
+    @override_settings(
+        FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
+        FEDERATION_OPERATIONAL_OVERRIDE=True,
+        FEDERATION_EVENTS_CHANNEL="federation:events:crc",
+    )
+    @patch("sds_gateway.api_methods.federation.signals.publish_federation_event")
+    @patch("sds_gateway.api_methods.federation.signals.LocalFederatedIndexer")
+    @patch("sds_gateway.api_methods.federation.signals.get_opensearch_client")
+    @patch("sds_gateway.api_methods.federation.signals.fed_doc_exists", return_value=False)
+    def test_dataset_post_save_indexes_when_published(
+        self,
+        _mock_exists: MagicMock,
+        _mock_os: MagicMock,
+        mock_indexer_cls: MagicMock,
+        mock_publish: MagicMock,
+    ) -> None:
+        from sds_gateway.api_methods.models import Dataset
+        from sds_gateway.api_methods.models import DatasetStatus
+        from sds_gateway.api_methods.federation.signals import federation_dataset_changed
+        from sds_gateway.api_methods.tests.factories import DatasetFactory
+
+        mock_indexer = mock_indexer_cls.return_value
+        dataset = DatasetFactory(
+            status=DatasetStatus.FINAL,
+            is_public=True,
+        )
+        federation_dataset_changed(
+            sender=Dataset,
+            instance=dataset,
+            created=False,
+        )
+
+        mock_indexer.apply_local_event.assert_called_once()
+        call = mock_indexer.apply_local_event.call_args.kwargs
+        assert call["site_name"] == "crc"
+        assert call["item_type"] == ItemType.DATASET
+        assert call["uuid"] == dataset.uuid
+        assert call["event_type"] == "created"
+        mock_publish.assert_called_once()

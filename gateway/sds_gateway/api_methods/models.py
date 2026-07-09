@@ -12,6 +12,7 @@ from typing import cast
 
 from blake3 import blake3 as Blake3  # noqa: N812
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.signals import request_started
 from django.db import models
 from django.db.models import Count
@@ -97,6 +98,10 @@ class ItemType(StrEnum):
     DATASET = "dataset"
     CAPTURE = "capture"
     FILE = "file"
+
+    def pluralize(self) -> str:
+        """Get the plural form of the item type."""
+        return self.value + "s"
 
 
 class ProcessingType(StrEnum):
@@ -985,6 +990,42 @@ class Dataset(BaseModel):
     def __str__(self) -> str:
         return self.name
 
+    def _published_snapshot_from_db(self) -> tuple[str, bool] | None:
+        if not self.pk:
+            return None
+        row = (
+            type(self).objects.filter(pk=self.pk)
+            .values_list("status", "is_public")
+            .first()
+        )
+        return row  # (status, is_public) or None
+
+    @staticmethod
+    def _was_final_status(status: DatasetStatus) -> bool:
+        return status == DatasetStatus.FINAL
+
+    @staticmethod
+    def _was_public(is_public: bool) -> bool:
+        return is_public
+
+    def clean(self) -> None:
+        super().clean()
+        snapshot = self._published_snapshot_from_db()
+        if snapshot is None:
+            return
+
+        old_status, old_is_public = snapshot
+        if not self._was_final_status(old_status) and not self._was_public(
+            is_public=old_is_public,
+        ):
+            return
+
+        if self._was_final_status(status=old_status) and self.status != old_status:
+            raise ValidationError("Final datasets cannot be reverted to draft.")
+
+        if self._was_public(is_public=old_is_public) and self.is_public != old_is_public:
+            raise ValidationError("Public datasets cannot be reverted to private.")
+
     def save(self, *args, **kwargs) -> None:
         # Serialize the list fields to a JSON string before saving
         for field in self.list_fields:
@@ -1019,6 +1060,7 @@ class Dataset(BaseModel):
                     )
                     raise ValueError(msg)
 
+        self.full_clean()
         super().save(*args, **kwargs)
 
     def soft_delete(self) -> None:
