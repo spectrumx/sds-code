@@ -90,12 +90,20 @@ def update_svi_server_token() -> None:
         logger.exception("Failed to update SVI server token")
 
 
-def update_federation_sync_server_token() -> None:
-    """Sync federation-sync DRF Token from ``FEDERATION_SYNC_SERVER_API_KEY``."""
+def update_federation_sync_drf_token() -> None:
+    """Sync federation-sync DRF ``Token`` from ``FEDERATION_SYNC_DRF_TOKEN`` (shared env)."""
+    token_key = settings.FEDERATION_SYNC_DRF_TOKEN
+    if len(token_key) != settings.TOKEN_LENGTH:
+        msg = (
+            f"FEDERATION_SYNC_DRF_TOKEN must be {settings.TOKEN_LENGTH} characters "
+            f"(load federation-shared.env on the gateway container)"
+        )
+        raise ValueError(msg)
     try:
         update_service_server_token(
             user_email=settings.FEDERATION_SYNC_USER_EMAIL,
-            token_key=settings.FEDERATION_SYNC_SERVER_API_KEY,
+            token_key=token_key,
         )
     except (DatabaseError, IntegrityError, ValidationError):
-        logger.exception("Failed to update federation sync server token")
+        logger.exception("Failed to update federation sync DRF token")
+        raise
