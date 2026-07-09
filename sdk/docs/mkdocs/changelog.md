@@ -1,5 +1,31 @@
 # SpectrumX SDK Changelog
 
+## `0.2.1` - 2026-07-09
+
++ Fixes:
+    + [**Fixed file descriptor leak**](https://github.com/spectrumx/sds-code/commit/83f039d6a8ea9a49a755e4a9a88977ed99fe00b9):
+      replaced `multiprocessing.RLock` with `threading.RLock` in file models and gateway
+      client to prevent OS-level file descriptor leakage in long-running sessions.
+    + [**Connection pooling in gateway
+      client**](https://github.com/spectrumx/sds-code/commit/83f039d6a8ea9a49a755e4a9a88977ed99fe00b9):
+      the gateway now uses `requests.Session` with a configured retry strategy instead of
+      opening a new connection on every API call, reducing TCP connection churn and
+      associated FD leakage.
+    + [**Network errors now raise `NetworkError`**](https://github.com/spectrumx/sds-code/commit/83f039d6a8ea9a49a755e4a9a88977ed99fe00b9):
+      connection failures in the gateway are now wrapped in the SDK's `NetworkError`
+      exception instead of bare `requests` exceptions, making them catchable by existing
+      error-handling patterns in user code.
+
++ Housekeeping:
+    + [**Expanded test coverage**](https://github.com/spectrumx/sds-code/commit/57198b14cf14300a285618eef3ad18fcf415267b):
+      added new test modules (`test_base.py`, `test_datasets.py`, `test_enums.py`,
+      `test_files.py`, `test_permission.py`, `test_user.py`, `test_config.py`,
+      `test_errors.py`, `test_gateway.py`) with comprehensive model, config, error, and
+      gateway tests — 4,272 lines of additional test coverage.
+    + [`log_cli=true` removed from pytest config](https://github.com/spectrumx/sds-code/commit/83f039d6a8ea9a49a755e4a9a88977ed99fe00b9):
+      disabled noisy CLI log capture in pytest defaults to reduce test output noise.
+    + Version bump to `0.2.1`.
+
 ## `0.2.0` - 2026-07-06
 
 + Features:
