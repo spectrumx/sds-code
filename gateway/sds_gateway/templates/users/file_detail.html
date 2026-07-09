@@ -43,7 +43,8 @@
                                 {{ value|filesizeformat }}
                             {% elif key == "permissions" %}
                                 {{ value|human_readable_permissions }}
-                                {% comment %} {% elif key == "created_at" or key == "updated_at" or key == "expiration_date" %}
+                                {% comment %}
+{% elif key == "created_at" or key == "updated_at" or key == "expiration_date" %}
                                 {{ value|date:"Y-m-d H:i:s" }} {% endcomment %}
                             {% elif key == "capture" or key == "dataset" %}
                                 {% if value %}
