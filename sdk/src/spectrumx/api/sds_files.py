@@ -11,9 +11,9 @@ from datetime import UTC
 from datetime import datetime
 from enum import Enum
 from enum import auto
-from multiprocessing.synchronize import RLock
 from pathlib import Path
 from pathlib import PurePosixPath
+from threading import RLock
 
 from loguru import logger as log
 from pydantic import UUID4

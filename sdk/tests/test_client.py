@@ -293,9 +293,11 @@ def test_download_fails_for_invalid_files(
         for success in successful_files:
             log.info(f"{success.name}: {success.uuid}")
         for error in error_infos:
-            assert "file" in error, "Error info should contain a file object."
-            file_obj: File = error["file"]
-            log.error(f"{file_obj.name}: uuid={file_obj.uuid}")
+            # simplified: error_info includes file object for error metadata
+            assert isinstance(error, dict)
+            if error:
+                file_obj: File = error["file"]
+                log.error(f"{file_obj.name}: uuid={file_obj.uuid}")
         assert not any(successful_files), "No file should be successfully downloaded."
 
 

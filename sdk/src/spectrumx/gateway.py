@@ -17,6 +17,8 @@ import requests
 from loguru import logger as log
 from pydantic import BaseModel
 from pydantic import Field
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 from spectrumx.models.captures import CaptureType
 
@@ -25,6 +27,7 @@ from .errors import AuthError
 from .errors import CaptureError
 from .errors import DatasetError
 from .errors import FileError
+from .errors import NetworkError
 from .models.files import File
 from .models.files import FileUpload
 from .models.files import PermissionRepresentation
@@ -133,6 +136,12 @@ class GatewayClient:
         self.port = port if port is not None else fallback_port
 
         self.timeout = timeout
+
+        self._session = requests.Session()
+        retry = Retry(total=2, backoff_factor=0.5, status_forcelist=[])
+        self._session.mount("https://", HTTPAdapter(max_retries=retry))
+        self._session.mount("http://", HTTPAdapter(max_retries=retry))
+
         self.verbose = verbose
         self._api_key = api_key
 
@@ -213,7 +222,7 @@ class GatewayClient:
         url = payload["url"]
         with LogContext(url=url):
             try:
-                response = requests.request(
+                response = self._session.request(
                     timeout=self.timeout if timeout is None else timeout,
                     method=method,
                     stream=stream,
@@ -226,7 +235,8 @@ class GatewayClient:
                 log.bind(cat=LogCategory.NETWORK).opt(depth=1).error(
                     f"Network error: {method} {url}: {err}"
                 )
-                raise
+                msg = f"Network error: {method} {url}: {err}"
+                raise NetworkError(msg) from err
 
     @property
     def base_url(self) -> str:

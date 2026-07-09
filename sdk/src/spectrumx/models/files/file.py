@@ -1,10 +1,10 @@
 """File model for SpectrumX."""
 
 from datetime import datetime
-from multiprocessing import RLock
-from multiprocessing.synchronize import RLock as RLockT
 from pathlib import Path
 from pathlib import PurePosixPath
+from threading import RLock
+from threading import RLock as RLockT
 from typing import Annotated
 
 from pydantic import ConfigDict

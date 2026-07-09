@@ -253,8 +253,8 @@
         "--cov=src",
         "--cov-report=html",
         "--show-capture=stdout",
-        "-o",
-        "log_cli=true",
+        # "-o",
+        # "log_cli=true",
         "--tb=short",
         # "--tb=long",    # more verbose
         # "--capture=no", # more verbose
