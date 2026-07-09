@@ -3,9 +3,12 @@ set -Eeuo pipefail
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GATEWAY_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
-FEDERATION_ROOT=$(cd "${GATEWAY_ROOT}/../federation" && pwd)
-SFS_ROOT=$(cd "${GATEWAY_ROOT}/../seaweedfs" && pwd)
+SDS_ROOT=$(cd "${GATEWAY_ROOT}/.." && pwd)
+FEDERATION_ROOT=$(cd "${SDS_ROOT}/federation" && pwd)
+SFS_ROOT=$(cd "${SDS_ROOT}/seaweedfs" && pwd)
 EXAMPLE_DIR="${GATEWAY_ROOT}/.envs/example"
+FEDERATION_SHARED_TEMPLATE="${SDS_ROOT}/federation-shared.example.env"
+FEDERATION_SHARED_OUTPUT="${SDS_ROOT}/federation-shared.env"
 
 # PRIMARY (RustFS or SeaweedFS)
 PRIMARY_ACCESS_KEY_ID=""
@@ -50,8 +53,8 @@ EXAMPLES:
     ${0} production         # Generate production env files
 
     NOTES:
-        - Generated files are placed in .envs/<env>/ directory
-        - Federation federation-shared.env → ../federation/.envs/<env>/federation-shared.env
+        - Generated gateway files are placed in gateway/.envs/<env>/
+        - federation-shared.env is written to the repo root (from federation-shared.example.env)
         - Example templates are read from .envs/example/
         - Secrets are randomly generated using OpenSSL
         - CI environment uses insecure but deterministic values for ephemeral usage
@@ -136,7 +139,7 @@ function process_env_file() {
 		return 0
 	fi
 
-	echo "  ✓  Generating ${output}"
+	echo "  ✓  Generating ${output} (from ${template})"
 
 	local content
 	content=$(cat "${template}")
@@ -183,7 +186,7 @@ function process_env_file() {
 	# set WEB_CONCURRENCY based on CPU cores (applies to all environments)
 	content="${content//WEB_CONCURRENCY=4/WEB_CONCURRENCY=${web_concurrency}}"
 
-	if [[ "${filename}" == "federation-shared.env" ]]; then
+	if [[ "${filename}" == "federation-shared.example.env" ]]; then
 		ensure_federation_sync_drf_token "${env_type}"
 		content="${content//FEDERATION_SYNC_DRF_TOKEN=/FEDERATION_SYNC_DRF_TOKEN=${FEDERATION_SYNC_DRF_TOKEN}}"
 	fi
@@ -253,7 +256,11 @@ function process_env_file() {
 		# content="${content//RUSTFS_SECRET_ACCESS_KEY=<SAME AS SECONDARY_ROOT_PASSWORD>/RUSTFS_SECRET_ACCESS_KEY=${SECONDARY_SECRET_ACCESS_KEY}}"
 	fi
 
-	# write to output
+	# write to output (never overwrite *.example.env templates)
+	if [[ "${output}" == *".example.env" ]]; then
+		echo "ERROR: refused to write secrets to example template: ${output}" >&2
+		exit 1
+	fi
 	mkdir -p "$(dirname "${output}")"
 	echo "${content}" >"${output}"
 	chmod 600 "${output}"
@@ -271,6 +278,9 @@ function set_permissions() {
 			find "${dir}" -type f -name "*.env" -exec chmod --changes 600 {} \;
 		fi
 	done
+	if [[ -f "${FEDERATION_SHARED_OUTPUT}" ]]; then
+		chmod --changes 600 "${FEDERATION_SHARED_OUTPUT}"
+	fi
 }
 
 function main() {
@@ -344,27 +354,28 @@ function main() {
 			continue
 		fi
 
-		# federation-shared.env is written under ../federation/.envs/
-		if [[ "${filename}" == "federation-shared.env" ]]; then
-			continue
-		fi
-
 		local output="${target_dir_gwy}/${filename}"
 		process_env_file "${template}" "${output}" "${env_type}" "${force}"
 	done
 
-	if [[ "${env_type}" != "ci" ]]; then
+	if [[ -f "${FEDERATION_SHARED_TEMPLATE}" ]]; then
+		# Read federation-shared.example.env → write repo-root federation-shared.env only
 		process_env_file \
-			"${EXAMPLE_DIR}/federation-shared.env" \
-			"${FEDERATION_ROOT}/.envs/${env_type}/federation-shared.env" \
+			"${FEDERATION_SHARED_TEMPLATE}" \
+			"${FEDERATION_SHARED_OUTPUT}" \
 			"${env_type}" \
 			"${force}"
+	else
+		echo "  ⏭  ${FEDERATION_SHARED_TEMPLATE} not found (skipping federation-shared.env)"
 	fi
 
 	set_permissions
 
 	echo ""
 	echo "✅ Secrets generated successfully in ${target_dir_gwy}/"
+	if [[ -f "${FEDERATION_SHARED_OUTPUT}" ]]; then
+		echo "   Federation shared env: ${FEDERATION_SHARED_OUTPUT}"
+	fi
 	echo ""
 	echo "Next steps:"
 	if [[ "${env_type}" == "ci" ]]; then
