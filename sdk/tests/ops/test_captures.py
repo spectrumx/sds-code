@@ -35,6 +35,7 @@ from tests.conftest import get_files_endpoint
 
 if TYPE_CHECKING:
     from collections.abc import Generator
+    from collections.abc import Mapping
 
     import responses
     from pydantic import UUID4
@@ -1732,7 +1733,7 @@ def test_extract_page_from_payload_dict_with_empty_next() -> None:
 class _GatewayStub:
     """Minimal stub that emulates the gateway list endpoint."""
 
-    def __init__(self, payload: dict[str, object]) -> None:
+    def __init__(self, payload: Mapping[str, object]) -> None:
         self._payload = payload
         self.calls = 0
 

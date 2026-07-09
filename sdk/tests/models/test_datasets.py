@@ -180,9 +180,11 @@ class TestDataset:
         assert dataset.uuid == ds_uid
         assert isinstance(dataset.owner, User)
         assert dataset.owner.name == "Owner"
+        assert dataset.captures is not None
         assert isinstance(dataset.captures[0], DatasetCapture)
         assert dataset.captures[0].capture_type is CaptureType.DigitalRF
         assert isinstance(dataset.captures[0].owner, User)
+        assert dataset.files is not None
         assert isinstance(dataset.files[0], DatasetFile)
 
     def test_model_dump_round_trips(self) -> None:
