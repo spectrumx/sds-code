@@ -1438,6 +1438,7 @@ def test_download_file_to_directory_path(
     )
     downloaded_path = result.local_path
     assert downloaded_path == expected_path
+    assert downloaded_path is not None
     assert downloaded_path.exists()
     assert downloaded_path.stat().st_size == num_bytes
 
@@ -1767,6 +1768,7 @@ def test_upload_file_instance_without_directory(client: Client, tmp_path: Path) 
         name=file_path.name,
         media_type="text/plain",
         size=file_path.stat().st_size,
+        directory=PurePosixPath(),
         permissions="rw-r--r--",
         created_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),
         updated_at=datetime(2024, 12, 1, 12, 0, 0, tzinfo=UTC),

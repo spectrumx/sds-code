@@ -79,7 +79,7 @@ class TestUser:
 
     def test_create_with_defaults(self) -> None:
         """User created with no args has all fields as None."""
-        user = User()
+        user = User.model_validate({})
         assert user.name is None
         assert user.email is None
         assert user.uuid is None
@@ -114,11 +114,13 @@ class TestUserSharePermission:
 
     def test_item_type_coerced_from_string(self) -> None:
         """item_type accepts string serialization value and coerces to enum."""
-        perm = UserSharePermission(
-            item_type="capture",
-            item_uuid=uuid.uuid4(),
-            shared_with=self._shared_with(),
-            permission_level="co-owner",
+        perm = UserSharePermission.model_validate(
+            {
+                "item_type": "capture",
+                "item_uuid": uuid.uuid4(),
+                "shared_with": self._shared_with(),
+                "permission_level": "co-owner",
+            }
         )
         assert perm.item_type is ItemType.CAPTURE
         assert perm.permission_level is PermissionLevel.CO_OWNER

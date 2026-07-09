@@ -1732,7 +1732,7 @@ def test_extract_page_from_payload_dict_with_empty_next() -> None:
 class _GatewayStub:
     """Minimal stub that emulates the gateway list endpoint."""
 
-    def __init__(self, payload: dict[str, object]) -> None:
+    def __init__(self, payload: dict[str, Any]) -> None:
         self._payload = payload
         self.calls = 0
 

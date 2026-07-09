@@ -1,10 +1,5 @@
 <!-- Web Download Modal -->
-<div class="modal fade"
-    id="webDownloadModal-{{ item.uuid }}"
-    tabindex="-1"
-    aria-labelledby="webDownloadModalLabel-{{ item.uuid }}"
-    aria-hidden="true"
-    {# djlint:off #}
+<div class="modal fade" id="webDownloadModal-{{ item.uuid }}" tabindex="-1" aria-labelledby="webDownloadModalLabel-{{ item.uuid }}" aria-hidden="true" {# djlint:off #}
      {% if item_type == "capture" %}
      data-item-type="capture"
      data-item-uuid="{{ item.uuid }}"

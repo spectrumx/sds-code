@@ -10,6 +10,7 @@ import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any
 from unittest.mock import patch
 from urllib.parse import parse_qs
@@ -337,7 +338,7 @@ def test_update_existing_file_metadata_sends_put() -> None:
         name="test.txt",
         media_type="text/plain",
         size=100,
-        directory=Path("/some/dir"),
+        directory=PurePosixPath("/some/dir"),
         permissions="rw-r--r--",
         created_at=datetime(2024, 1, 1, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
@@ -361,7 +362,7 @@ def test_update_existing_file_metadata_requires_uuid() -> None:
         name="test.txt",
         media_type="text/plain",
         size=100,
-        directory=Path("/some/dir"),
+        directory=PurePosixPath("/some/dir"),
         permissions="rw-r--r--",
         created_at=datetime(2024, 1, 1, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
@@ -408,7 +409,7 @@ def test_upload_new_file_raises_file_error_when_no_local_path() -> None:
         name="test.txt",
         media_type="text/plain",
         size=100,
-        directory=Path("/some/dir"),
+        directory=PurePosixPath("/some/dir"),
         permissions="rw-r--r--",
         created_at=datetime(2024, 1, 1, tzinfo=UTC),
         updated_at=datetime(2024, 1, 1, tzinfo=UTC),
@@ -446,7 +447,12 @@ def test_create_capture_with_channel_scan_group_name() -> None:
     # create_capture sends form-encoded data (requests `data=`), so decode the body
     # and assert structured fields — robust to key naming (avoids "groupA" matching
     # a "scan_group_name" key by accident, which a substring check would do).
-    body = parse_qs(responses.calls[0].request.body)
+    raw_body = responses.calls[0].request.body
+    assert raw_body is not None
+    if isinstance(raw_body, bytes):
+        raw_body = raw_body.decode()
+    assert isinstance(raw_body, str)
+    body = parse_qs(raw_body)
     assert body["channel"] == ["chan1"]
     assert body["scan_group"] == ["groupA"]
     assert body["name"] == ["my_capture"]

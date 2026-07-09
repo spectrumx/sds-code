@@ -9,6 +9,8 @@ import types
 import warnings
 from contextlib import contextmanager
 from pathlib import Path
+from typing import NoReturn
+from typing import cast
 
 import pytest
 import urllib3
@@ -177,7 +179,7 @@ def test_credit_unstreamed_file_bytes_credits_remaining() -> None:
     file_size = 1000
     bytes_streamed = 400
     credited_bytes = file_size - bytes_streamed
-    prog_bar = RecordingProgBar()
+    prog_bar = cast("tqdm[NoReturn]", RecordingProgBar())
     bytes_accounted = [bytes_streamed]
 
     credited = utils.credit_unstreamed_file_bytes(
@@ -196,7 +198,7 @@ def test_credit_unstreamed_file_bytes_credits_remaining() -> None:
 def test_credit_unstreamed_file_bytes_noop_when_fully_streamed() -> None:
     """No credit is applied when all bytes were already streamed."""
     file_size = 1000
-    prog_bar = RecordingProgBar()
+    prog_bar = cast("tqdm[NoReturn]", RecordingProgBar())
     bytes_accounted = [file_size]
 
     credited = utils.credit_unstreamed_file_bytes(
