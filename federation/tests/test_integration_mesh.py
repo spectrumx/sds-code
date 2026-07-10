@@ -18,8 +18,8 @@ from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
-from tests.support.federation_mesh import FederationMesh
 from tests.support.federation_mesh import TESTSITE_GATEWAY_HOST
+from tests.support.federation_mesh import FederationMesh
 
 
 @pytest.mark.integration
