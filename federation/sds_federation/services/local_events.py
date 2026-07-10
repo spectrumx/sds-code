@@ -15,7 +15,6 @@ from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
-from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_search import aload_federated_asset
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
@@ -27,38 +26,17 @@ type AssetLoader = Callable[
 ]
 
 
-def _tombstone_doc(
-    config: FederationConfig,
-    uuid: UUID,
-    asset_type: AssetTypeEnum,
-) -> FederatedDatasetDoc | FederatedCaptureDoc:
-    if asset_type is AssetTypeEnum.DATASET:
-        return FederatedDatasetDoc(
-            uuid=uuid,
-            site_name=config.site.name,
-            name="",
-            status="",
-            status_display="",
-        )
-    return FederatedCaptureDoc(
-        uuid=uuid,
-        site_name=config.site.name,
-        capture_type="",
-    )
-
-
 def parse_redis_event_payload(
     data: dict,
-) -> tuple[AssetTypeEnum, FederationEventType, UUID, datetime] | None:
+) -> tuple[AssetTypeEnum, UUID, datetime] | None:
     """Parse a gateway-style federation:events message. Returns None if invalid."""
     try:
         asset_type = AssetTypeEnum(data.get("item_type"))
-        event_type = FederationEventType(data["event_type"])
         uuid = UUID(data["uuid"])
         timestamp = datetime.fromisoformat(data["timestamp"])
     except (KeyError, TypeError, ValueError):
         return None
-    return asset_type, event_type, uuid, timestamp
+    return asset_type, uuid, timestamp
 
 
 async def _default_load_asset(
@@ -91,43 +69,29 @@ async def handle_redis_asset_event(
     http: httpx.AsyncClient,
     config: FederationConfig,
     os_client: OpenSearch,
-    indexer: FederatedAssetIndexer,
     *,
     asset_type: AssetTypeEnum,
-    event_type: FederationEventType,
     uuid: UUID,
     timestamp: datetime,
     load_asset: AssetLoader | None = None,
 ) -> None:
     """Read local doc from OpenSearch (gateway indexes on save) and fan out to peers."""
-    if event_type == FederationEventType.DELETED:
-        asset = await _load_local_asset(
-            os_client,
-            config,
+    asset = await _load_local_asset(
+        os_client,
+        config,
+        uuid,
+        asset_type,
+        load_asset=load_asset,
+    )
+    if asset is None:
+        log.warning(
+            "No fed-* document for {} {} after Redis event; skipping peer push",
+            asset_type.value,
             uuid,
-            asset_type,
-            load_asset=load_asset,
         )
-        if asset is None:
-            asset = _tombstone_doc(config, uuid, asset_type)
-    else:
-        asset = await _load_local_asset(
-            os_client,
-            config,
-            uuid,
-            asset_type,
-            load_asset=load_asset,
-        )
-        if asset is None:
-            log.warning(
-                "No fed-* document for {} {} after Redis event; skipping peer push",
-                asset_type.value,
-                uuid,
-            )
-            return
+        return
 
     payload = AssetUpdatedWebhook(
-        event_type=event_type,
         timestamp=timestamp,
         site_name=config.site.name,
         asset=asset,
@@ -150,17 +114,16 @@ async def dispatch_federation_redis_payload(
 
     Returns True if dispatched, False if the payload was ignored (invalid shape).
     """
+    _ = indexer
     parsed = parse_redis_event_payload(data)
     if parsed is None:
         return False
-    asset_type, event_type, uuid, timestamp = parsed
+    asset_type, uuid, timestamp = parsed
     await handle_redis_asset_event(
         http,
         config,
         os_client,
-        indexer,
         asset_type=asset_type,
-        event_type=event_type,
         uuid=uuid,
         timestamp=timestamp,
         load_asset=load_asset,
