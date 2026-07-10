@@ -1088,16 +1088,19 @@ class CaptureViewSet(viewsets.ViewSet):
         ],
         responses={
             200: OpenApiResponse(
-                description="Capture detached from all datasets successfully"
+                description="Capture detached from draft/private datasets successfully"
             ),
             400: OpenApiResponse(description="Bad Request"),
             500: OpenApiResponse(description="Internal Server Error"),
         },
-        description="Detach a capture from all connected datasets.",
-        summary="Detach Capture from All Connected Datasets",
+        description=(
+            "Detach a capture from draft and private datasets. "
+            "Published datasets (final or public) stay linked."
+        ),
+        summary="Detach Capture from Draft/Private Datasets",
     )
     def detach_from_datasets(self, request: Request, pk: str | None = None) -> Response:
-        """Detach a capture from all datasets."""
+        """Detach a capture from draft and private datasets (not published)."""
         if pk is None:
             return Response(
                 {"detail": "Capture UUID is required."},
@@ -1111,7 +1114,9 @@ class CaptureViewSet(viewsets.ViewSet):
         return Response(
             status=status.HTTP_200_OK,
             data={
-                "message": "Capture detached from all connected datasets successfully",
+                "message": (
+                    "Capture detached from draft/private datasets successfully"
+                ),
             },
         )
 
