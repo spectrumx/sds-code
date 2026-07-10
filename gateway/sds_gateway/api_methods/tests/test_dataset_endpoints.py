@@ -638,6 +638,8 @@ class DatasetEndpointsTestCase(TestCase):
 
     def test_get_dataset_files_via_session(self):
         """Dataset files manifest accepts session authentication."""
+        self.user.is_approved = True
+        self.user.save(update_fields=["is_approved"])
         self._attach_artifact_to_dataset()
         client = APIClient()
         client.force_login(self.user)

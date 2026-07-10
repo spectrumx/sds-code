@@ -272,8 +272,10 @@ class TestFederationOpenSearchReads:
         from sds_gateway.api_methods.models import ItemType
         from sds_gateway.api_methods.tests.factories import DatasetFactory
 
-        mock_get_client.return_value.get.side_effect = os_exceptions.ConnectionError(
+        mock_get_client.return_value.get.side_effect = os_exceptions.OpenSearchException(
+            503,
             "connection failed",
+            {},
         )
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
 

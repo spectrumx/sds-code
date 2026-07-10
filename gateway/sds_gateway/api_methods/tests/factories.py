@@ -17,6 +17,7 @@ from factory import Faker as FactoryFaker
 from factory import LazyAttribute
 from factory import LazyFunction
 from factory import Sequence
+from factory import SubFactory
 from factory import post_generation
 from factory.django import DjangoModelFactory
 from faker import Faker as FakerInstance
@@ -103,7 +104,7 @@ class DatasetFactory(DjangoModelFactory):
     provenance = {"source": "test"}
     citation = {"title": "Test Dataset"}
     other = {"notes": "Test dataset"}
-    owner = FactoryFaker("subfactory", factory=UserFactory)
+    owner = SubFactory(UserFactory)
     is_deleted = False
     is_public = False
 
@@ -197,7 +198,7 @@ class FileFactory(DjangoModelFactory):
     permissions = "rw-r--r--"
     size = FactoryFaker("random_int", min=1000, max=1000000)
     sum_blake3 = FactoryFaker("sha256")
-    owner = FactoryFaker("subfactory", factory=UserFactory)
+    owner = SubFactory(UserFactory)
     is_deleted = False
 
     @post_generation
@@ -239,7 +240,7 @@ class CaptureFactory(DjangoModelFactory):
     channel = FactoryFaker("word")
     capture_type = "drf"
     top_level_dir = LazyFunction(lambda: _faker.file_path(depth=2).replace("/", "_"))
-    owner = FactoryFaker("subfactory", factory=UserFactory)
+    owner = SubFactory(UserFactory)
     name = FactoryFaker("slug")
     index_name = "captures-drf"
 
@@ -260,8 +261,8 @@ class DRFDataFileFactory(DjangoModelFactory):
     permissions = "rw-r----"
     size = FactoryFaker("random_int", min=1000, max=1000000)
     sum_blake3 = FactoryFaker("sha256")
-    owner = FactoryFaker("subfactory", factory=UserFactory)
-    capture = FactoryFaker("subfactory", factory=CaptureFactory)
+    owner = SubFactory(UserFactory)
+    capture = SubFactory(CaptureFactory)
     is_deleted = False
 
     @post_generation
@@ -310,8 +311,8 @@ class UserSharePermissionFactory(DjangoModelFactory):
         permission = UserSharePermissionFactory(is_enabled=False)
     """
 
-    owner = FactoryFaker("subfactory", factory=UserFactory)
-    shared_with = FactoryFaker("subfactory", factory=UserFactory)
+    owner = SubFactory(UserFactory)
+    shared_with = SubFactory(UserFactory)
     item_type = FactoryFaker(
         "random_element", elements=[ItemType.DATASET, ItemType.CAPTURE]
     )

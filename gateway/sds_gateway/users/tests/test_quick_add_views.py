@@ -11,6 +11,7 @@ from rest_framework import status
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
@@ -509,7 +510,9 @@ class TestUserDatasetsForQuickAddView:
         assert entry["name"] == "My Dataset"
 
     def test_unnamed_dataset_shows_fallback(self, client: Client, owner: User):
-        ds = DatasetFactory(owner=owner, is_public=False, name="", keywords=None)
+        ds = DatasetFactory(owner=owner, is_public=False, keywords=None)
+        Dataset.objects.filter(pk=ds.pk).update(name="")
+        ds.refresh_from_db()
         client.force_login(owner)
         response = self._get(client)
 

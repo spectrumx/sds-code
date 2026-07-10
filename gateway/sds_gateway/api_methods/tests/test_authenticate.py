@@ -39,10 +39,9 @@ class APIKeyAuthenticationTest(APITestCase):
         assert user.email == "test@example.com"
 
     def test_auth_no_key(self) -> None:
-        """Makes sure that a request without an API key raises."""
+        """Without a key, authentication is deferred to other classes."""
         request = self.factory.get("/auth/")
-        with self.assertRaises(AuthenticationFailed):  # noqa: PT027
-            self.auth.authenticate(request)
+        assert self.auth.authenticate(request) is None
 
     def test_auth_invalid_key(self) -> None:
         """Makes sure that a request with an invalid API key raises."""

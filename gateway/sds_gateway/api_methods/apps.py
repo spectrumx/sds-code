@@ -33,7 +33,7 @@ class ApiMethodsConfig(AppConfig):
             initialize_federation_operational_state,
         )
 
-        def _init_federation_after_migrate(_sender, **kwargs) -> None:
+        def _init_federation_after_migrate(sender, **kwargs) -> None:  # noqa: ARG001
             initialize_federation_operational_state()
 
         post_migrate.connect(
