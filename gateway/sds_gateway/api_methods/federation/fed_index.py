@@ -9,7 +9,6 @@ from uuid import UUID
 from opensearchpy import OpenSearch
 from sds_gateway.api_methods.models import ItemType
 
-_EVENT_DELETED = "deleted"
 FED_DATASETS_INDEX = "fed-datasets"
 FED_CAPTURES_INDEX = "fed-captures"
 
@@ -36,7 +35,6 @@ class LocalFederatedIndexer:
     def apply_local_event(
         self,
         *,
-        event_type: str,
         event_at: datetime,
         site_name: str,
         item_type: ItemType,
@@ -45,26 +43,9 @@ class LocalFederatedIndexer:
     ) -> None:
         index_name = index_for_item_type(item_type)
         doc_id = federated_doc_id(site_name, uuid)
-        event_iso = event_at.isoformat()
-
-        if event_type == _EVENT_DELETED:
-            tombstone = {
-                "is_federated_deleted": True,
-                "federation_event_at": event_iso,
-            }
-            upsert_body = {**body, **tombstone}
-            self._client.update(
-                index=index_name,
-                id=doc_id,
-                body={"doc": tombstone, "upsert": upsert_body},
-                refresh="wait_for",
-            )
-            return
-
         doc = {
             **body,
-            "is_federated_deleted": False,
-            "federation_event_at": event_iso,
+            "federation_event_at": event_at.isoformat(),
         }
         self._client.index(
             index=index_name,

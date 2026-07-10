@@ -892,12 +892,16 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
     file_count = serializers.SerializerMethodField()
     size = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
-    dataset_ids = serializers.SerializerMethodField()
+    public_dataset_ids = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
         format="%Y-%m-%d %H:%M:%S%z",
         read_only=True,
     )
     updated_at = serializers.DateTimeField(
+        format="%Y-%m-%d %H:%M:%S%z",
+        read_only=True,
+    )
+    deleted_at = serializers.DateTimeField(
         format="%Y-%m-%d %H:%M:%S%z",
         read_only=True,
     )
@@ -911,13 +915,15 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
             "channel",
             "scan_group",
             "top_level_dir",
-            "created_at",
-            "updated_at",
             "site_name",
             "file_count",
             "size",
             "capture_props",
-            "dataset_ids",
+            "public_dataset_ids",
+            "created_at",
+            "updated_at",
+            "is_deleted",
+            "deleted_at",
         ]
 
     def get_site_name(self, obj: Capture) -> str:
@@ -932,6 +938,6 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
     def get_capture_props(self, obj: Capture) -> dict[str, Any]:
         return obj.get_opensearch_metadata() or {}
 
-    def get_dataset_ids(self, obj: Capture) -> list[str]:
-        qs = get_capture_datasets(obj, include_deleted=False)
+    def get_public_dataset_ids(self, obj: Capture) -> list[str]:
+        qs = obj.datasets.federation_exportable()
         return [str(dataset.uuid) for dataset in qs]

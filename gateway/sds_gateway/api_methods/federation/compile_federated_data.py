@@ -109,22 +109,6 @@ def fed_doc_exists(
     ) is not None
 
 
-def fed_doc_is_tombstoned(
-    *,
-    asset_type: ItemType,
-    site_name: str,
-    instance: Dataset | Capture,
-) -> bool:
-    source = get_federated_export_doc_by_uuid(
-        asset_type=asset_type,
-        asset_uuid=instance.uuid,
-        site_name=site_name,
-    )
-    if source is None:
-        return False
-    return source.get("is_federated_deleted") is True
-
-
 def public_datasets_queryset() -> QuerySet[Dataset]:
     return (
         Dataset.objects.federation_exportable()
