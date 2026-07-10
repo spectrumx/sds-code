@@ -6,7 +6,6 @@ from opensearchpy import OpenSearch
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
-from sds_federation.schemas.webhooks import FederationEventType
 
 
 def doc_id(site_name: str, uuid: UUID) -> str:
@@ -30,7 +29,6 @@ class FederatedAssetIndexer:
     def apply_asset_event(
         self,
         *,
-        event_type: FederationEventType,
         event_at: datetime,
         site_name: str,
         asset: FederatedDatasetDoc | FederatedCaptureDoc | None,
@@ -41,8 +39,6 @@ class FederatedAssetIndexer:
             msg = f"{kind} body required for {kind}-updated webhook"
             raise ValueError(msg)
 
-        # TODO: validate asset type matches body for a given asset type
-
         if asset.site_name != site_name:
             raise ValueError(f"site_name must match {asset_type.value}.site_name")
 
@@ -50,32 +46,13 @@ class FederatedAssetIndexer:
             return
 
         _id = doc_id(site_name, asset.uuid)
-
-        if event_type == FederationEventType.DELETED:
-            tombstone = {
-                "is_federated_deleted": True,
-                "federation_event_at": event_at.isoformat(),
-            }
-            upsert_body = asset.model_dump(mode="json")
-            upsert_body.update(tombstone)
-            self._client.update(
-                index=asset_type.index_name,
-                id=_id,
-                body={
-                    "doc": tombstone,
-                    "upsert": upsert_body,
-                },
-                refresh="wait_for",
-            )
-        else:
-            body = asset.model_dump(mode="json")
-            body["is_federated_deleted"] = False
-            body["federation_event_at"] = event_at.isoformat()
-            self._client.index(
-                index=asset_type.index_name,
-                id=_id,
-                body=body,
-                refresh="wait_for",
-            )
+        body = asset.model_dump(mode="json")
+        body["federation_event_at"] = event_at.isoformat()
+        self._client.index(
+            index=asset_type.index_name,
+            id=_id,
+            body=body,
+            refresh="wait_for",
+        )
 
         self._mark_applied(site_name, asset.uuid, event_at)

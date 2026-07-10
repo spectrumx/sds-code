@@ -9,7 +9,6 @@ from fastapi import FastAPI
 from sds_federation.models import FederationConfig
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.schemas.webhooks import AssetTypeEnum
-from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
@@ -76,7 +75,6 @@ def seed_federated_dataset_in_opensearch(
     """Simulate gateway having indexed a public dataset into fed-datasets."""
     doc = sample_federated_dataset_doc(site_name=site_name, uuid=uuid)
     FederatedAssetIndexer(opensearch).apply_asset_event(
-        event_type=FederationEventType.UPDATED,
         event_at=datetime.now(UTC),
         site_name=site_name,
         asset=doc,

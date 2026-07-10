@@ -19,11 +19,9 @@ SIMULATED_REDIS_TIMESTAMP = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
 def simulated_dataset_redis_payload(
     *,
     uuid: UUID = TEST_DATASET_UUID,
-    event_type: str = "updated",
 ) -> dict[str, str]:
     """Gateway-compatible federation:events JSON (before Redis serializes it)."""
     return {
-        "event_type": event_type,
         "item_type": "dataset",
         "uuid": str(uuid),
         "timestamp": SIMULATED_REDIS_TIMESTAMP.isoformat(),

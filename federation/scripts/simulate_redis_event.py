@@ -32,11 +32,6 @@ def main() -> int:
         default=str(TEST_DATASET_UUID),
         help="Dataset UUID in the event payload",
     )
-    parser.add_argument(
-        "--event-type",
-        default="updated",
-        choices=("created", "updated", "deleted"),
-    )
     args = parser.parse_args()
 
     redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -47,7 +42,6 @@ def main() -> int:
     )
     payload = simulated_dataset_redis_payload(
         uuid=UUID(args.uuid),
-        event_type=args.event_type,
     )
     client = redis.from_url(redis_url)
     receivers = client.publish(channel, json.dumps(payload))

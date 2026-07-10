@@ -26,7 +26,6 @@ if TYPE_CHECKING:
 def _dataset_webhook_payload(*, site_name: str = "testsite") -> dict:
     asset = sample_federated_dataset_doc(site_name=site_name)
     webhook = AssetUpdatedWebhook(
-        event_type="updated",
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
         site_name=site_name,
         asset=asset,
