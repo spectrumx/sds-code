@@ -29,7 +29,6 @@ def test_federated_dataset_doc_rejects_unknown_fields() -> None:
 def test_asset_updated_webhook_round_trip_dataset() -> None:
     asset = sample_federated_dataset_doc(site_name="crc")
     payload = AssetUpdatedWebhook(
-        event_type="updated",
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
         site_name="crc",
         asset=asset,
@@ -44,7 +43,6 @@ def test_asset_updated_webhook_round_trip_dataset() -> None:
 def test_asset_updated_webhook_round_trip_capture() -> None:
     asset = sample_federated_capture_doc(site_name="crc")
     payload = AssetUpdatedWebhook(
-        event_type="created",
         timestamp=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
         site_name="crc",
         asset=asset,

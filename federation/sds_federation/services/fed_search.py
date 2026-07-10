@@ -17,13 +17,13 @@ from sds_federation.services.fed_index import doc_id
 if TYPE_CHECKING:
     from opensearchpy import OpenSearch
 
-_FEDERATION_META_KEYS = frozenset(
-    {"is_federated_deleted", "federation_event_at"},
-)
+_FEDERATION_META_KEYS = frozenset({"federation_event_at"})
 
 
 def _strip_federation_meta(source: dict) -> dict:
-    return {key: value for key, value in source.items() if key not in _FEDERATION_META_KEYS}
+    return {
+        key: value for key, value in source.items() if key not in _FEDERATION_META_KEYS
+    }
 
 
 def load_federated_asset(
@@ -37,7 +37,9 @@ def load_federated_asset(
 
     def _get() -> dict | None:
         try:
-            response = client.get(index=asset_type.index_name, id=doc_id(site_name, uuid))
+            response = client.get(
+                index=asset_type.index_name, id=doc_id(site_name, uuid)
+            )
         except NotFoundError:
             return None
         source = response.get("_source")

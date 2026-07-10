@@ -15,7 +15,6 @@ from sds_federation.models import PeerInfo
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
-from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.schemas.webhooks import asset_doc_class
 from sds_federation.services.peer_sync import peer_webhook_url
@@ -102,7 +101,6 @@ async def bootstrap_gateway_exports(
             continue
         for doc in docs:
             indexer.apply_asset_event(
-                event_type=FederationEventType.UPDATED,
                 event_at=event_at,
                 site_name=doc.site_name,
                 asset=doc,

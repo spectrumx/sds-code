@@ -6,9 +6,7 @@ from datetime import UTC
 from datetime import datetime
 
 from sds_federation.schemas.webhooks import AssetTypeEnum
-from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_index import doc_id
 from sds_federation.services.fed_search import load_federated_asset
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
@@ -21,7 +19,6 @@ def test_load_federated_asset_returns_indexed_doc() -> None:
     site = "testsite"
     doc = sample_federated_dataset_doc(site_name=site)
     FederatedAssetIndexer(opensearch).apply_asset_event(
-        event_type=FederationEventType.UPDATED,
         event_at=datetime.now(UTC),
         site_name=site,
         asset=doc,

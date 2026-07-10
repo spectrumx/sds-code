@@ -45,7 +45,6 @@ async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
         )
     try:
         _indexer(request).apply_asset_event(
-            event_type=payload.event_type,
             event_at=payload.timestamp,
             site_name=payload.site_name,
             asset=payload.asset,
@@ -66,7 +65,6 @@ async def capture_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
         )
     try:
         _indexer(request).apply_asset_event(
-            event_type=payload.event_type,
             event_at=payload.timestamp,
             site_name=payload.site_name,
             asset=payload.asset,

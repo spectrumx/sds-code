@@ -9,12 +9,6 @@ from pydantic import ConfigDict
 from pydantic import Field
 
 
-class FederationEventType(StrEnum):
-    CREATED = "created"
-    UPDATED = "updated"
-    DELETED = "deleted"
-
-
 class AssetTypeEnum(StrEnum):
     DATASET = "dataset"
     CAPTURE = "capture"
@@ -64,6 +58,8 @@ class FederatedDatasetDoc(BaseModel):
     capture_count: int = 0
     capture_file_count: int = 0
     artifact_file_count: int = 0
+    is_deleted: bool = False
+    deleted_at: str | None = None
 
 
 class FederatedCaptureDoc(BaseModel):
@@ -83,7 +79,9 @@ class FederatedCaptureDoc(BaseModel):
     file_count: int = 0
     size: int = 0
     capture_props: dict[str, Any] = Field(default_factory=dict)
-    dataset_ids: list[str] = Field(default_factory=list)
+    public_dataset_ids: list[str] = Field(default_factory=list)
+    is_deleted: bool = False
+    deleted_at: str | None = None
 
 
 def asset_doc_class(
@@ -95,7 +93,6 @@ def asset_doc_class(
 
 
 class AssetUpdatedWebhook(BaseModel):
-    event_type: FederationEventType
     timestamp: datetime
     site_name: str
     asset: FederatedDatasetDoc | FederatedCaptureDoc | None = None

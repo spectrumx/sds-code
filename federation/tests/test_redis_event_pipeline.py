@@ -9,9 +9,7 @@ from datetime import datetime
 import httpx
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
-from sds_federation.schemas.webhooks import FederationEventType
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_index import doc_id
 from sds_federation.services.local_events import dispatch_federation_redis_payload
 from sds_federation.services.local_events import parse_redis_event_payload
 from sds_federation.services.peer_sync import peer_webhook_url
@@ -27,8 +25,7 @@ async def test_parse_simulated_redis_payload() -> None:
     data = simulated_dataset_redis_payload()
     parsed = parse_redis_event_payload(data)
     assert parsed is not None
-    asset_type, event_type, uuid, _ts = parsed
-    assert event_type == FederationEventType.UPDATED
+    asset_type, uuid, _ts = parsed
     assert uuid == TEST_DATASET_UUID
     assert asset_type.value == "dataset"
 
@@ -40,8 +37,9 @@ async def test_invalid_redis_payload_ignored() -> None:
     assert (
         parse_redis_event_payload(
             {
-                **simulated_dataset_redis_payload(),
-                "event_type": "not-a-real-event",
+                "item_type": "dataset",
+                "uuid": "not-a-uuid",
+                "timestamp": "2026-06-11T12:00:00+00:00",
             }
         )
         is None
@@ -86,18 +84,27 @@ async def test_dispatch_reads_opensearch_and_posts_webhook_to_peer(
     assert body["asset_type"] == "dataset"
     assert body["asset"]["uuid"] == str(TEST_DATASET_UUID)
     assert body["asset"]["name"] == "Simulated public dataset"
-    assert body["event_type"] == "updated"
+    assert "event_type" not in body
 
 
 @pytest.mark.asyncio
-async def test_dispatch_deleted_uses_opensearch_or_tombstone(
+async def test_dispatch_deleted_doc_from_opensearch(
     test_site_config,
     recording_opensearch,
     peer_webhook_recorder,
 ) -> None:
     recorded, transport = peer_webhook_recorder
+    doc = sample_federated_dataset_doc(
+        site_name=test_site_config.site.name,
+    ).model_copy(update={"is_deleted": True})
+    FederatedAssetIndexer(recording_opensearch).apply_asset_event(
+        event_at=datetime.now(UTC),
+        site_name=test_site_config.site.name,
+        asset=doc,
+        asset_type=AssetTypeEnum.DATASET,
+    )
     indexer = FederatedAssetIndexer(recording_opensearch)
-    payload = simulated_dataset_redis_payload(event_type="deleted")
+    payload = simulated_dataset_redis_payload()
 
     async with httpx.AsyncClient(transport=transport) as http:
         await dispatch_federation_redis_payload(
@@ -108,12 +115,10 @@ async def test_dispatch_deleted_uses_opensearch_or_tombstone(
             payload,
         )
 
-    assert recording_opensearch.update_calls == []
     assert len(recorded) == 1
     body = json.loads(recorded[0].content.decode())
-    assert body["event_type"] == "deleted"
+    assert body["asset"]["is_deleted"] is True
     assert body["asset"]["uuid"] == str(TEST_DATASET_UUID)
-    assert body["asset"]["name"] == ""
 
 
 @pytest.mark.asyncio
