@@ -256,3 +256,32 @@ class FederationExportAccessControlTest(APITestCase):
             **self._auth(self.sync_key),
         )
         assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+
+
+class TestFederationOpenSearchReads:
+    @patch("sds_gateway.api_methods.federation.compile_federated_data.get_opensearch_client")
+    def test_fed_doc_lookup_treats_cluster_errors_as_missing(
+        self,
+        mock_get_client: MagicMock,
+    ) -> None:
+        from opensearchpy import exceptions as os_exceptions
+
+        from sds_gateway.api_methods.federation.compile_federated_data import (
+            fed_doc_exists,
+        )
+        from sds_gateway.api_methods.models import ItemType
+        from sds_gateway.api_methods.tests.factories import DatasetFactory
+
+        mock_get_client.return_value.get.side_effect = os_exceptions.ConnectionError(
+            "connection failed",
+        )
+        dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
+
+        assert (
+            fed_doc_exists(
+                asset_type=ItemType.DATASET,
+                site_name="crc",
+                instance=dataset,
+            )
+            is False
+        )
