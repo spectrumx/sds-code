@@ -559,16 +559,19 @@ class FileViewSet(ViewSet):
         ],
         responses={
             200: OpenApiResponse(
-                description="File detached from all datasets successfully"
+                description="File detached from draft/private datasets successfully"
             ),
             400: OpenApiResponse(description="Bad Request"),
             500: OpenApiResponse(description="Internal Server Error"),
         },
-        description="Detach a file from all datasets.",
-        summary="Detach File from All Connected Datasets",
+        description=(
+            "Detach a file from draft and private datasets. "
+            "Published datasets (final or public) stay linked."
+        ),
+        summary="Detach File from Draft/Private Datasets",
     )
     def detach_from_datasets(self, request: Request, pk: str | None = None) -> Response:
-        """Detach a file from all datasets."""
+        """Detach a file from draft and private datasets (not published)."""
         if pk is None:
             return Response(
                 {"detail": "File UUID is required."},
@@ -582,7 +585,7 @@ class FileViewSet(ViewSet):
         return Response(
             status=status.HTTP_200_OK,
             data={
-                "message": "File detached from all connected datasets successfully",
+                "message": "File detached from draft/private datasets successfully",
             },
         )
 

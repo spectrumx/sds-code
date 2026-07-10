@@ -21,6 +21,7 @@ from rest_framework.test import APITestCase
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.file_serializers import FilePostSerializer
@@ -680,7 +681,7 @@ class FileTestCases(APITestCase):
         )
 
     def test_detach_file_from_datasets(self) -> None:
-        """PUT detach-from-datasets clears FK and M2M dataset links."""
+        """PUT detach-from-datasets clears draft/private FK and M2M dataset links."""
         dataset = DatasetFactory(owner=self.user)
         self.file.datasets.add(dataset)
         self.file.dataset = dataset
@@ -691,8 +692,27 @@ class FileTestCases(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["message"] == (
-            "File detached from all connected datasets successfully"
+            "File detached from draft/private datasets successfully"
         )
         self.file.refresh_from_db()
         assert self.file.dataset is None
         assert not self.file.datasets.exists()
+
+    def test_detach_file_keeps_published_dataset_links(self) -> None:
+        draft = DatasetFactory(owner=self.user, status=DatasetStatus.DRAFT, is_public=False)
+        published = DatasetFactory(
+            owner=self.user,
+            status=DatasetStatus.FINAL,
+            is_public=True,
+        )
+        self.file.datasets.add(draft, published)
+        self.file.dataset = draft
+        self.file.save()
+
+        url = reverse("api:files-detach-from-datasets", args=[str(self.file.uuid)])
+        response = self.client.put(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        self.file.refresh_from_db()
+        assert list(self.file.datasets.values_list("uuid", flat=True)) == [published.uuid]
+        assert self.file.dataset is None

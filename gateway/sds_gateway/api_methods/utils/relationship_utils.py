@@ -9,10 +9,12 @@ During contraction: Update these functions to only return M2M relationships
 """
 
 from django.db import transaction
+from django.db.models import Q
 from django.db.models import QuerySet
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 
 
@@ -305,12 +307,30 @@ def get_capture_datasets(
     return union_to_queryset(datasets_union, Dataset)
 
 
+def _datasets_removable_from_item(item: Capture | File) -> QuerySet[Dataset]:
+    if isinstance(item, Capture):
+        linked = get_capture_datasets(item, include_deleted=False)
+    else:
+        linked = get_file_datasets(item, include_deleted=False)
+    return linked.exclude(
+        Q(status=DatasetStatus.FINAL) | 
+        Q(is_public=True)
+    )
+
+
 @transaction.atomic
 def detach_item_from_all_datasets(item: Capture | File) -> None:
-    """Clear deprecated dataset FK and M2M links for a single capture or file."""
-    item.dataset = None
-    item.datasets.clear()
-    item.save()
+    """Remove draft/private dataset links; keep published (FINAL or public) links."""
+    to_remove = _datasets_removable_from_item(item)
+    remove_pks = list(to_remove.values_list("pk", flat=True))
+    if remove_pks:
+        item.datasets.remove(*remove_pks)
+
+    fk_dataset = item.dataset
+    if fk_dataset is not None and not fk_dataset.is_deleted:
+        if fk_dataset.status != DatasetStatus.FINAL and not fk_dataset.is_public:
+            item.dataset = None
+            item.save(update_fields=["dataset"])
 
 
 def group_captures_by_top_level_dir(
