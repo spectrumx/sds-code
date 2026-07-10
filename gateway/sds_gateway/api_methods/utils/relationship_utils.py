@@ -312,10 +312,7 @@ def _datasets_removable_from_item(item: Capture | File) -> QuerySet[Dataset]:
         linked = get_capture_datasets(item, include_deleted=False)
     else:
         linked = get_file_datasets(item, include_deleted=False)
-    return linked.exclude(
-        Q(status=DatasetStatus.FINAL) | 
-        Q(is_public=True)
-    )
+    return linked.exclude(Q(status=DatasetStatus.FINAL) | Q(is_public=True))
 
 
 @transaction.atomic

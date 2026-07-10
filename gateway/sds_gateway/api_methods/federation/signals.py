@@ -6,8 +6,12 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from sds_gateway.api_methods.federation.availability import is_federation_operational
-from sds_gateway.api_methods.federation.reindex import schedule_federation_capture_reindex
-from sds_gateway.api_methods.federation.reindex import schedule_federation_dataset_reindex
+from sds_gateway.api_methods.federation.reindex import (
+    schedule_federation_capture_reindex,
+)
+from sds_gateway.api_methods.federation.reindex import (
+    schedule_federation_dataset_reindex,
+)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 
@@ -16,7 +20,7 @@ from sds_gateway.api_methods.models import Dataset
 def federation_dataset_changed(
     sender: type[Dataset],
     instance: Dataset,
-    created: bool,  # noqa: FBT001, ARG001
+    created: bool,  # noqa: FBT001
     **kwargs,
 ) -> None:
     if not is_federation_operational():

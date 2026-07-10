@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 from typing import Any
-from uuid import UUID
 
-from opensearchpy import OpenSearch
 from sds_gateway.api_methods.models import ItemType
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
+
+    from opensearchpy import OpenSearch
 
 FED_DATASETS_INDEX = "fed-datasets"
 FED_CAPTURES_INDEX = "fed-captures"

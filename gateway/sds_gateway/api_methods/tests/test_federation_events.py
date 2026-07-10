@@ -16,7 +16,11 @@ from sds_gateway.api_methods.federation.events import publish_federation_event
 from sds_gateway.api_methods.federation.redis_channel import (
     resolve_federation_events_channel,
 )
+from sds_gateway.api_methods.federation.signals import federation_dataset_changed
+from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.tests.factories import DatasetFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -100,18 +104,15 @@ class TestFederationSignals:
     )
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     def test_dataset_post_save_indexes_when_published(
         self,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
-        from sds_gateway.api_methods.models import Dataset
-        from sds_gateway.api_methods.models import DatasetStatus
-        from sds_gateway.api_methods.federation.signals import federation_dataset_changed
-        from sds_gateway.api_methods.tests.factories import DatasetFactory
-
         mock_indexer = mock_indexer_cls.return_value
         dataset = DatasetFactory(
             status=DatasetStatus.FINAL,

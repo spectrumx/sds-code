@@ -5,8 +5,8 @@ from django.conf import settings
 from django.db.utils import IntegrityError
 from rest_framework.authtoken.models import Token
 
-from sds_gateway.users.models import User
 from sds_gateway.users.backend_service_key_utils import update_svi_server_token
+from sds_gateway.users.models import User
 
 
 @pytest.mark.django_db

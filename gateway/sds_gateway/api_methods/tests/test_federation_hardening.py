@@ -6,11 +6,15 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
+from config.settings.base import _federation_export_allowed_cidrs_from_env
+from config.settings.base import _parse_cidrs
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import RequestFactory
 from django.test import override_settings
 from django.urls import reverse
+from opensearchpy import exceptions as os_exceptions
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -26,7 +30,9 @@ from sds_gateway.api_methods.federation.availability import (
 from sds_gateway.api_methods.federation.availability import (
     refresh_federation_operational_state,
 )
+from sds_gateway.api_methods.federation.compile_federated_data import fed_doc_exists
 from sds_gateway.api_methods.models import DatasetStatus
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.users.models import UserAPIKey
@@ -154,15 +160,10 @@ class TestFederationAvailability:
 
 class TestFederationExportCidrParsing:
     def test_parse_cidrs_skips_blank_tokens(self) -> None:
-        from config.settings.base import _parse_cidrs
-
         networks = _parse_cidrs(["10.0.0.0/8", "", "  ", "192.168.0.0/16"])
-        assert len(networks) == 2
+        assert len(networks) == 2  # noqa: PLR2004
 
     def test_coerce_empty_env_tokens_to_defaults(self) -> None:
-        from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
-        from config.settings.base import _federation_export_allowed_cidrs_from_env
-
         with patch(
             "config.settings.base.env.list",
             return_value=["", "  "],
@@ -176,7 +177,7 @@ class TestFederationOperationalInit:
     @patch(
         "sds_gateway.api_methods.federation.availability."
         "federation_operational_db_ready",
-        return_value=False,
+        new=MagicMock(return_value=False),
     )
     @patch(
         "sds_gateway.api_methods.federation.availability."
@@ -185,7 +186,6 @@ class TestFederationOperationalInit:
     def test_initialize_skips_db_when_tables_missing(
         self,
         mock_refresh: MagicMock,
-        _mock_db_ready: MagicMock,
     ) -> None:
         initialize_federation_operational_state()
         mock_refresh.assert_not_called()
@@ -259,23 +259,19 @@ class FederationExportAccessControlTest(APITestCase):
 
 
 class TestFederationOpenSearchReads:
-    @patch("sds_gateway.api_methods.federation.compile_federated_data.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.compile_federated_data.get_opensearch_client"
+    )
     def test_fed_doc_lookup_treats_cluster_errors_as_missing(
         self,
         mock_get_client: MagicMock,
     ) -> None:
-        from opensearchpy import exceptions as os_exceptions
-
-        from sds_gateway.api_methods.federation.compile_federated_data import (
-            fed_doc_exists,
-        )
-        from sds_gateway.api_methods.models import ItemType
-        from sds_gateway.api_methods.tests.factories import DatasetFactory
-
-        mock_get_client.return_value.get.side_effect = os_exceptions.OpenSearchException(
-            503,
-            "connection failed",
-            {},
+        mock_get_client.return_value.get.side_effect = (
+            os_exceptions.OpenSearchException(
+                503,
+                "connection failed",
+                {},
+            )
         )
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
 

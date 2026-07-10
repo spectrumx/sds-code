@@ -11,13 +11,13 @@ from urllib.parse import urlparse
 from celery.schedules import crontab
 from celery.schedules import schedule
 from environs import env
+from sds_gateway.api_methods.federation.redis_channel import (
+    resolve_federation_events_channel,
+)
 
 from config.settings.logs import ColoredFormatter
 from config.settings.utils import guess_admin_console_env
 from config.settings.utils import guess_max_web_download_size
-from sds_gateway.api_methods.federation.redis_channel import (
-    resolve_federation_events_channel,
-)
 
 __rng = random.SystemRandom()
 
@@ -752,7 +752,8 @@ SDS_SHORT_INSTITUTION_NAME: str = env.str("SDS_SHORT_INSTITUTION_NAME", default=
 SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default="sds")
 SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 
-# Federation peer short name (RFC [site].name, e.g. crc, haystack); not SDS_PROGRAMMATIC_SITE_NAME.
+# Federation peer short name (RFC [site].name, e.g. crc, haystack);
+# not SDS_PROGRAMMATIC_SITE_NAME.
 FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
@@ -768,7 +769,8 @@ FEDERATION_SYNC_USER_EMAIL: str = env.str(
     "FEDERATION_SYNC_USER_EMAIL",
     default="federation-sync@internal.local",
 )
-# From federation-shared.env (compose env_file); used by init_federation_sync_token only.
+# From federation-shared.env (compose env_file);
+# used by init_federation_sync_token only.
 FEDERATION_SYNC_DRF_TOKEN: str = env.str("FEDERATION_SYNC_DRF_TOKEN", default="")
 FEDERATION_SYNC_HEALTH_URL: str = env.str(
     "FEDERATION_SYNC_HEALTH_URL",
@@ -796,9 +798,9 @@ FEDERATION_OPERATIONAL_REASON: str = ""
 # Tests may set via override_settings without running probes.
 FEDERATION_OPERATIONAL_OVERRIDE: bool | None = None
 # Export API: internal Docker/private networks (sync → django on sds-network).
-FEDERATION_EXPORT_ALLOWED_CIDRS: list[
-    ipaddress.IPv4Network | ipaddress.IPv6Network
-] = _federation_export_allowed_cidrs_from_env()
+FEDERATION_EXPORT_ALLOWED_CIDRS: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = (
+    _federation_export_allowed_cidrs_from_env()
+)
 
 # ADMIN_CONSOLE_ENV is used to visually distinguish between different environments
 # (production, staging, local) in the admin console and error emails. It does not affect

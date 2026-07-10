@@ -699,7 +699,9 @@ class FileTestCases(APITestCase):
         assert not self.file.datasets.exists()
 
     def test_detach_file_keeps_published_dataset_links(self) -> None:
-        draft = DatasetFactory(owner=self.user, status=DatasetStatus.DRAFT, is_public=False)
+        draft = DatasetFactory(
+            owner=self.user, status=DatasetStatus.DRAFT, is_public=False
+        )
         published = DatasetFactory(
             owner=self.user,
             status=DatasetStatus.FINAL,
@@ -714,5 +716,7 @@ class FileTestCases(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         self.file.refresh_from_db()
-        assert list(self.file.datasets.values_list("uuid", flat=True)) == [published.uuid]
+        assert list(self.file.datasets.values_list("uuid", flat=True)) == [
+            published.uuid
+        ]
         assert self.file.dataset is None

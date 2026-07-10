@@ -8,11 +8,11 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from sds_gateway.api_methods.models import DatasetStatus
-from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.federation.compile_federated_data import (
     compile_federated_dataset_doc,
 )
+from sds_gateway.api_methods.models import DatasetStatus
+from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.users.models import UserAPIKey
