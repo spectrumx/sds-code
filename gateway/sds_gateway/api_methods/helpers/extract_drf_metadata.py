@@ -160,7 +160,7 @@ def validate_metadata_by_channel(
 T = typing.TypeVar("T", int, bool)
 
 
-def convert_or_warn(
+def convert_or_warn[T: (int, bool)](
     *,
     value: typing.Any,
     target_type: type[T],

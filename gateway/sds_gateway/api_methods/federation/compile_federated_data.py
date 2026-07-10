@@ -4,15 +4,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 from typing import Any
-from uuid import UUID
 
 from django.conf import settings
 from loguru import logger as log
 from opensearchpy import exceptions as os_exceptions
 from opensearchpy.exceptions import NotFoundError
 
-from sds_gateway.api_methods.federation.fed_index import index_for_item_type
 from sds_gateway.api_methods.federation.fed_index import federated_doc_id
+from sds_gateway.api_methods.federation.fed_index import index_for_item_type
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
@@ -25,6 +24,8 @@ from sds_gateway.api_methods.serializers.dataset_serializers import (
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from django.db.models import QuerySet
 
 
@@ -112,11 +113,14 @@ def fed_doc_exists(
     site_name: str,
     instance: Dataset | Capture,
 ) -> bool:
-    return get_federated_export_doc_by_uuid(
-        asset_type=asset_type,
-        asset_uuid=instance.uuid,
-        site_name=site_name,
-    ) is not None
+    return (
+        get_federated_export_doc_by_uuid(
+            asset_type=asset_type,
+            asset_uuid=instance.uuid,
+            site_name=site_name,
+        )
+        is not None
+    )
 
 
 def public_datasets_queryset() -> QuerySet[Dataset]:

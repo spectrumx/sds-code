@@ -51,7 +51,7 @@ def replace_user_api_key_for_source(
     name: str,
     description: str = "",
 ) -> str:
-    """Delete existing keys for ``(user, source)`` and mint a new Api-Key (SVI pattern)."""
+    """Delete existing keys for ``(user, source)`` and mint a new Api-Key."""
     UserAPIKey.objects.filter(user=user, source=source).delete()
     _obj, raw_key = UserAPIKey.objects.create_key(
         name=name,
@@ -91,7 +91,7 @@ def update_svi_server_token() -> None:
 
 
 def update_federation_sync_drf_token() -> None:
-    """Sync federation-sync DRF ``Token`` from ``FEDERATION_SYNC_DRF_TOKEN`` (shared env)."""
+    """Sync federation-sync DRF ``Token`` from ``FEDERATION_SYNC_DRF_TOKEN``."""
     token_key = settings.FEDERATION_SYNC_DRF_TOKEN
     if len(token_key) != settings.TOKEN_LENGTH:
         msg = (

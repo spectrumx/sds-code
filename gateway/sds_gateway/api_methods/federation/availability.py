@@ -9,7 +9,10 @@ import urllib.error
 import urllib.request
 from typing import Any
 
+from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
+from config.settings.base import _parse_cidrs
 from django.conf import settings
+from django.db import connection
 from django.db.utils import DatabaseError
 from loguru import logger as log
 
@@ -41,9 +44,6 @@ def _export_allowed_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Net
             continue
         networks.append(ipaddress.ip_network(text, strict=False))
     if not networks:
-        from config.settings.base import FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT
-        from config.settings.base import _parse_cidrs
-
         networks = _parse_cidrs(FEDERATION_EXPORT_ALLOWED_CIDRS_DEFAULT)
     return networks
 
@@ -70,7 +70,7 @@ def is_client_ip_allowed_for_federation_export(request) -> bool:
     return any(addr in network for network in cidrs)
 
 
-def _sync_health_ok() -> tuple[bool, str]:  # noqa: PLR0911
+def _sync_health_ok() -> tuple[bool, str]:  # noqa: C901, PLR0911
     if _setting("FEDERATION_SKIP_SYNC_HEALTH_PROBE", default=False):
         return True, "health probe skipped"
     url = (_setting("FEDERATION_SYNC_HEALTH_URL") or "").strip()
@@ -173,10 +173,8 @@ def federation_operational_db_ready() -> bool:
     """False when federation probes would hit tables that are not migrated yet."""
     if not _setting("FEDERATION_ENABLED", default=False):
         return True
-    table = UserAPIKey._meta.db_table
+    table = UserAPIKey._meta.db_table  # noqa: SLF001
     try:
-        from django.db import connection
-
         return table in connection.introspection.table_names()
     except DatabaseError:
         return False

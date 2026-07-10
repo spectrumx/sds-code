@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from typing import TYPE_CHECKING
 
 from django.db import transaction
 from loguru import logger as log
@@ -11,18 +11,25 @@ from sds_gateway.api_methods.federation.availability import is_federation_operat
 from sds_gateway.api_methods.federation.compile_federated_data import (
     capture_in_published_dataset,
 )
-from sds_gateway.api_methods.federation.compile_federated_data import compile_federated_doc
+from sds_gateway.api_methods.federation.compile_federated_data import (
+    compile_federated_doc,
+)
 from sds_gateway.api_methods.federation.compile_federated_data import fed_doc_exists
+from sds_gateway.api_methods.federation.compile_federated_data import (
+    federation_site_name,
+)
 from sds_gateway.api_methods.federation.compile_federated_data import (
     get_federated_export_doc_by_uuid,
 )
-from sds_gateway.api_methods.federation.compile_federated_data import federation_site_name
 from sds_gateway.api_methods.federation.events import publish_federation_event
 from sds_gateway.api_methods.federation.fed_index import LocalFederatedIndexer
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 
 def reindex_federated_asset(
@@ -135,7 +142,9 @@ def _fed_doc_shows_is_deleted(
 
 def dataset_needs_federation_reindex(dataset: Dataset) -> bool:
     if dataset.is_deleted:
-        return not _fed_doc_shows_is_deleted(dataset, ItemType.DATASET) and fed_doc_exists(
+        return not _fed_doc_shows_is_deleted(
+            dataset, ItemType.DATASET
+        ) and fed_doc_exists(
             asset_type=ItemType.DATASET,
             site_name=federation_site_name(),
             instance=dataset,
@@ -154,7 +163,9 @@ def dataset_needs_federation_reindex(dataset: Dataset) -> bool:
 
 def capture_needs_federation_reindex(capture: Capture) -> bool:
     if capture.is_deleted:
-        return not _fed_doc_shows_is_deleted(capture, ItemType.CAPTURE) and fed_doc_exists(
+        return not _fed_doc_shows_is_deleted(
+            capture, ItemType.CAPTURE
+        ) and fed_doc_exists(
             asset_type=ItemType.CAPTURE,
             site_name=federation_site_name(),
             instance=capture,

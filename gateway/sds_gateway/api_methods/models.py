@@ -1004,49 +1004,6 @@ class Dataset(BaseModel):
     def __str__(self) -> str:
         return self.name
 
-    def is_federation_exportable(self) -> bool:
-        return (
-            not self.is_deleted
-            and self.is_public
-            and self.status == DatasetStatus.FINAL
-        )
-
-    def _published_snapshot_from_db(self) -> tuple[str, bool] | None:
-        if not self.pk:
-            return None
-        row = (
-            type(self).objects.filter(pk=self.pk)
-            .values_list("status", "is_public")
-            .first()
-        )
-        return row  # (status, is_public) or None
-
-    @staticmethod
-    def _was_final_status(status: DatasetStatus) -> bool:
-        return status == DatasetStatus.FINAL
-
-    @staticmethod
-    def _was_public(is_public: bool) -> bool:
-        return is_public
-
-    def clean(self) -> None:
-        super().clean()
-        snapshot = self._published_snapshot_from_db()
-        if snapshot is None:
-            return
-
-        old_status, old_is_public = snapshot
-        if not self._was_final_status(old_status) and not self._was_public(
-            is_public=old_is_public,
-        ):
-            return
-
-        if self._was_final_status(status=old_status) and self.status != old_status:
-            raise ValidationError("Final datasets cannot be reverted to draft.")
-
-        if self._was_public(is_public=old_is_public) and self.is_public != old_is_public:
-            raise ValidationError("Public datasets cannot be reverted to private.")
-
     def save(self, *args, **kwargs) -> None:
         # Serialize the list fields to a JSON string before saving
         for field in self.list_fields:
@@ -1083,6 +1040,54 @@ class Dataset(BaseModel):
 
         self.full_clean()
         super().save(*args, **kwargs)
+
+    def clean(self) -> None:
+        super().clean()
+        snapshot = self._published_snapshot_from_db()
+        if snapshot is None:
+            return
+
+        old_status, old_is_public = snapshot
+        if not self._was_final_status(old_status) and not self._was_public(
+            is_public=old_is_public,
+        ):
+            return
+
+        if self._was_final_status(status=old_status) and self.status != old_status:
+            msg = "Final datasets cannot be reverted to draft."
+            raise ValidationError(msg)
+
+        if (
+            self._was_public(is_public=old_is_public)
+            and self.is_public != old_is_public
+        ):
+            msg = "Public datasets cannot be reverted to private."
+            raise ValidationError(msg)
+
+    def is_federation_exportable(self) -> bool:
+        return (
+            not self.is_deleted
+            and self.is_public
+            and self.status == DatasetStatus.FINAL
+        )
+
+    def _published_snapshot_from_db(self) -> tuple[str, bool] | None:
+        if not self.pk:
+            return None
+        return (
+            type(self)
+            .objects.filter(pk=self.pk)
+            .values_list("status", "is_public")
+            .first()
+        )
+
+    @staticmethod
+    def _was_final_status(status: DatasetStatus) -> bool:
+        return status == DatasetStatus.FINAL
+
+    @staticmethod
+    def _was_public(*, is_public: bool) -> bool:
+        return is_public
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""

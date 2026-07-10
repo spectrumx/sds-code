@@ -40,11 +40,11 @@ from sds_gateway.api_methods.permissions import IsFederationSyncKey
 
 def _federation_export_uuid(pk: str | None) -> UUID:
     if not pk:
-        raise NotFound()
+        raise NotFound
     try:
         return UUID(pk)
     except ValueError as exc:
-        raise NotFound() from exc
+        raise NotFound from exc
 
 
 @extend_schema(exclude=True)
@@ -81,7 +81,7 @@ class FederationViewSet(ViewSet):
             asset_uuid=asset_uuid,
         )
         if body is None:
-            raise NotFound()
+            raise NotFound
         return Response(body)
 
     @action(detail=False, methods=["get"], url_path="export/captures")
@@ -107,5 +107,5 @@ class FederationViewSet(ViewSet):
             asset_uuid=asset_uuid,
         )
         if body is None:
-            raise NotFound()
+            raise NotFound
         return Response(body)

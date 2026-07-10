@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
+from django.db import transaction
 from django.test import TestCase
 from django.test import override_settings
 
@@ -24,6 +25,8 @@ from sds_gateway.api_methods.utils.asset_access_control import (
 
 pytestmark = pytest.mark.django_db
 
+_DATASET_AND_CAPTURE = 2
+
 
 @contextmanager
 def _federation_on_commit():
@@ -39,10 +42,12 @@ def _federation_on_commit():
 class TestFederationDatasetSignals(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     def test_published_dataset_upserts_and_syncs_captures(
         self,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
@@ -58,30 +63,29 @@ class TestFederationDatasetSignals(TestCase):
                 created=False,
             )
 
-        assert mock_indexer.apply_local_event.call_count == 2
+        assert mock_indexer.apply_local_event.call_count == _DATASET_AND_CAPTURE
         item_types = {
-            c.kwargs["item_type"]
-            for c in mock_indexer.apply_local_event.call_args_list
+            c.kwargs["item_type"] for c in mock_indexer.apply_local_event.call_args_list
         }
         assert item_types == {ItemType.DATASET, ItemType.CAPTURE}
-        assert mock_publish.call_count == 2
+        assert mock_publish.call_count == _DATASET_AND_CAPTURE
 
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     @patch(
         "sds_gateway.api_methods.federation.reindex.get_federated_export_doc_by_uuid",
-        return_value={"is_deleted": False},
+        new=MagicMock(return_value={"is_deleted": False}),
     )
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=True,
+        new=MagicMock(return_value=True),
     )
     def test_deleted_dataset_reindexes_full_body(
         self,
-        _mock_exists: MagicMock,
-        _mock_doc: MagicMock,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
@@ -122,16 +126,14 @@ class TestFederationDatasetSignals(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
     @patch(
         "sds_gateway.api_methods.federation.reindex.get_federated_export_doc_by_uuid",
-        return_value={"is_deleted": True},
+        new=MagicMock(return_value={"is_deleted": True}),
     )
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=True,
+        new=MagicMock(return_value=True),
     )
     def test_deleted_dataset_skips_when_fed_doc_already_deleted(
         self,
-        _mock_exists: MagicMock,
-        _mock_doc: MagicMock,
         mock_reindex: MagicMock,
     ) -> None:
         dataset = DatasetFactory(
@@ -152,10 +154,12 @@ class TestFederationDatasetSignals(TestCase):
 class TestFederationCaptureSignals(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     def test_capture_on_published_dataset_upserts(
         self,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
         mock_publish: MagicMock,
     ) -> None:
@@ -181,11 +185,10 @@ class TestFederationCaptureSignals(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=False,
+        new=MagicMock(return_value=False),
     )
     def test_capture_on_draft_only_skips_without_fed_doc(
         self,
-        _mock_exists: MagicMock,
         mock_reindex: MagicMock,
     ) -> None:
         dataset = DatasetFactory(status=DatasetStatus.DRAFT, is_public=False)
@@ -197,22 +200,21 @@ class TestFederationCaptureSignals(TestCase):
 
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     @patch(
         "sds_gateway.api_methods.federation.reindex.get_federated_export_doc_by_uuid",
-        return_value={"is_deleted": False},
+        new=MagicMock(return_value={"is_deleted": False}),
     )
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=True,
+        new=MagicMock(return_value=True),
     )
     def test_deleted_capture_reindexes_with_is_deleted(
         self,
-        _mock_exists: MagicMock,
-        _mock_doc: MagicMock,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
-        _mock_publish: MagicMock,
     ) -> None:
         mock_indexer = mock_indexer_cls.return_value
         capture = CaptureFactory(is_deleted=True)
@@ -230,17 +232,17 @@ class TestFederationCaptureSignals(TestCase):
 class TestDatasetDisconnectReindex(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
-    @patch("sds_gateway.api_methods.federation.reindex.get_opensearch_client")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
+        new=MagicMock(),
+    )
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=True,
+        new=MagicMock(return_value=True),
     )
     def test_disconnect_captures_reindexes_orphans(
         self,
-        _mock_exists: MagicMock,
-        _mock_os: MagicMock,
         mock_indexer_cls: MagicMock,
-        _mock_publish: MagicMock,
     ) -> None:
         mock_indexer = mock_indexer_cls.return_value
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
@@ -259,11 +261,10 @@ class TestDatasetDisconnectReindex(TestCase):
     @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
     @patch(
         "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
-        return_value=True,
+        new=MagicMock(return_value=True),
     )
     def test_dataset_soft_delete_reindexes_orphan_capture(
         self,
-        _mock_exists: MagicMock,
         mock_reindex: MagicMock,
     ) -> None:
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
@@ -294,14 +295,13 @@ class TestFederationReindexOnCommit(TestCase):
         self,
         mock_reindex: MagicMock,
     ) -> None:
-        from django.db import transaction
-
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
         try:
             with transaction.atomic():
                 dataset.name = "rolled back"
                 dataset.save()
-                raise RuntimeError("abort")
+                abort_msg = "abort"
+                raise RuntimeError(abort_msg)  # noqa: TRY301
         except RuntimeError:
             pass
         mock_reindex.assert_not_called()
