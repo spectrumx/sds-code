@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from django.conf import settings
 from django.test import override_settings
 from rest_framework.authtoken.models import Token
 
@@ -14,11 +15,12 @@ pytestmark = pytest.mark.django_db
 
 @override_settings(FEDERATION_SYNC_DRF_TOKEN="a" * 40)
 def test_update_federation_sync_drf_token_from_settings() -> None:
-    User.objects.filter(email="federation-sync@internal.local").delete()
+    email = settings.FEDERATION_SYNC_USER_EMAIL
+    User.objects.filter(email=email).delete()
 
     update_federation_sync_drf_token()
 
-    user = User.objects.get(email="federation-sync@internal.local")
+    user = User.objects.get(email=email)
     assert Token.objects.get(user=user).key == "a" * 40
 
 

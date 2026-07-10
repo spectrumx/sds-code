@@ -83,7 +83,7 @@ services:
             - ./.envs/local/storage.env
             - ./.envs/local/postgres.env
             - ./.envs/local/opensearch.env
-            - ../../federation-shared.env
+            - ../federation-shared.env
         environment:
             - SKIP_POSTGRES_WAIT=1
         # remember /entrypoint runs first

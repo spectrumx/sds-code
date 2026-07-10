@@ -257,8 +257,13 @@ class TestDatasetDisconnectReindex(TestCase):
         assert body["public_dataset_ids"] == []
 
     @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.fed_doc_exists",
+        return_value=True,
+    )
     def test_dataset_soft_delete_reindexes_orphan_capture(
         self,
+        _mock_exists: MagicMock,
         mock_reindex: MagicMock,
     ) -> None:
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)

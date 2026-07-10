@@ -25,8 +25,7 @@ class APIKeyAuthentication(BaseAuthentication):
         """
         auth_header = request.headers.get("Authorization")
         if not auth_header:
-            msg = "No API key provided"
-            raise AuthenticationFailed(msg)
+            return None
 
         # extract key from header
         split_header = auth_header.split(":")

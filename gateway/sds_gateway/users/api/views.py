@@ -55,9 +55,9 @@ class BackendServiceMintAPIKeyView(APIView):
 
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
-    service_user_email_setting: str
-    unauthorized_message: str
-    mint_user_api_key: Callable[[User], str]
+    service_user_email_setting = ""
+    unauthorized_message = ""
+    mint_user_api_key: Callable[[User], str] | None = None
 
     def get(self, request: Request) -> Response:
         allowed_email = getattr(settings, self.service_user_email_setting)

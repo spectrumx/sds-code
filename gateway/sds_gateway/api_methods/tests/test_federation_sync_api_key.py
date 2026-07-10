@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from django.conf import settings
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.authtoken.models import Token
@@ -19,14 +20,15 @@ pytestmark = pytest.mark.django_db
 
 class TestFederationSyncMint:
     def setup_method(self) -> None:
-        User.objects.filter(email="federation-sync@internal.local").delete()
+        email = settings.FEDERATION_SYNC_USER_EMAIL
+        User.objects.filter(email=email).delete()
         update_service_server_token(
-            user_email="federation-sync@internal.local",
+            user_email=email,
             token_key="a" * 40,
         )
 
     def test_mint_creates_api_key(self) -> None:
-        user = User.objects.get(email="federation-sync@internal.local")
+        user = User.objects.get(email=settings.FEDERATION_SYNC_USER_EMAIL)
         raw = mint_federation_sync_api_key(user)
         assert raw is not None
         key = UserAPIKey.objects.get_from_key(raw)
@@ -34,7 +36,7 @@ class TestFederationSyncMint:
         assert key.user_id == user.pk
 
     def test_mint_replaces_prior_key_like_svi(self) -> None:
-        user = User.objects.get(email="federation-sync@internal.local")
+        user = User.objects.get(email=settings.FEDERATION_SYNC_USER_EMAIL)
         first = mint_federation_sync_api_key(user)
         second = mint_federation_sync_api_key(user)
         assert second != first
@@ -49,21 +51,24 @@ class TestFederationSyncMint:
 
 class TestGetFederationSyncApiKeyEndpoint:
     def setup_method(self) -> None:
-        User.objects.filter(email="federation-sync@internal.local").delete()
+        email = settings.FEDERATION_SYNC_USER_EMAIL
+        User.objects.filter(email=email).delete()
         update_service_server_token(
-            user_email="federation-sync@internal.local",
+            user_email=email,
             token_key="b" * 40,
         )
 
     def test_mint_via_http(self) -> None:
-        user = User.objects.get(email="federation-sync@internal.local")
-        token = Token.objects.get(user=user)
+        sync_email = settings.FEDERATION_SYNC_USER_EMAIL
+        sync_user = User.objects.get(email=sync_email)
+        target = User.objects.create(email="mint-target@example.com", is_approved=True)
+        token = Token.objects.get(user=sync_user)
         client = APIClient()
         url = reverse("users:get_federation_sync_api_key")
         response = client.get(
-            url,
-            {"email": user.email},
+            f"{url}?email={target.email}",
             HTTP_AUTHORIZATION=f"Token {token.key}",
         )
         assert response.status_code == status.HTTP_200_OK
         assert "api_key" in response.json()
+        assert response.json()["email"] == target.email
