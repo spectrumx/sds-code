@@ -32,6 +32,9 @@ from sds_gateway.api_methods.utils.relationship_utils import get_dataset_capture
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 
 def reindex_federated_asset(
     instance: Dataset | Capture,
