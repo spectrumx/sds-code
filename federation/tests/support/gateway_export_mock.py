@@ -8,7 +8,6 @@ from dataclasses import field
 from urllib.parse import urlparse
 
 import httpx
-
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 
@@ -42,7 +41,7 @@ def gateway_host_from_base(gateway_api_base: str) -> str:
     return parsed.hostname or ""
 
 
-def handle_gateway_export_request(
+def handle_gateway_export_request(  # noqa: C901, PLR0911
     request: httpx.Request,
     catalog: GatewayExportCatalog,
 ) -> httpx.Response | None:
@@ -53,7 +52,10 @@ def handle_gateway_export_request(
     if not host:
         return None
     path = request.url.path
-    if "/federation/export/datasets/" not in path and "/federation/export/captures/" not in path:
+    if (
+        "/federation/export/datasets/" not in path
+        and "/federation/export/captures/" not in path
+    ):
         return None
 
     if "/federation/export/datasets" in path and path.rstrip("/").endswith(

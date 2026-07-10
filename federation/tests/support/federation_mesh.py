@@ -7,12 +7,12 @@ from dataclasses import field
 
 import httpx
 from fastapi import FastAPI
-
 from sds_federation.models import FederationConfig
 from sds_federation.models import PeerInfo
 from sds_federation.models import SiteInfo
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.fed_index import FederatedAssetIndexer
+
 from tests.support.gateway_export_mock import GatewayExportCatalog
 from tests.support.gateway_export_mock import handle_gateway_export_request
 from tests.support.mock_opensearch import RecordingOpenSearch
