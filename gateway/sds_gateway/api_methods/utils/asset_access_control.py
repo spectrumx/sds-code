@@ -388,7 +388,18 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
 
     Clears ``Capture.datasets`` (M2M) and deprecated ``Capture.dataset`` (FK).
     """
+    from sds_gateway.api_methods.federation.reindex import (  # noqa: PLC0415
+        reindex_captures_after_dataset_unlink,
+    )
+
+    capture_pks = list(
+        Capture.datasets.through.objects.filter(dataset_id=dataset.pk).values_list(
+            "capture_id",
+            flat=True,
+        ),
+    )
     Capture.datasets.through.objects.filter(dataset_id=dataset.pk).delete()
+    reindex_captures_after_dataset_unlink(capture_pks)
     # TODO: remove FK after contraction
     Capture.objects.filter(dataset=dataset).update(dataset=None)
 

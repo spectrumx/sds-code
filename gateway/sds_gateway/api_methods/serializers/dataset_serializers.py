@@ -356,6 +356,8 @@ class DatasetFederationSerializer(DatasetPublicSerializer):
             "capture_count",
             "capture_file_count",
             "artifact_file_count",
+            "is_deleted",
+            "deleted_at",
         ]
 
     def get_site_name(self, obj: Dataset) -> str:

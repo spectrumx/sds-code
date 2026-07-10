@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from datetime import datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -20,18 +19,9 @@ if TYPE_CHECKING:
 
     from sds_gateway.api_methods.models import ItemType
 
-class FederationEventType(StrEnum):
-    CREATED = "created"
-    UPDATED = "updated"
-    DELETED = "deleted"
-
-    def __str__(self) -> str:
-        return self.value
-
 
 def publish_federation_event(
     *,
-    event_type: FederationEventType,
     item_type: ItemType,
     uuid: UUID,
     timestamp: datetime | None = None,
@@ -42,7 +32,6 @@ def publish_federation_event(
         return
     channel = settings.FEDERATION_EVENTS_CHANNEL
     payload: dict[str, Any] = {
-        "event_type": str(event_type),
         "item_type": item_type.value,
         "uuid": str(uuid),
         "timestamp": (timestamp or datetime.now(UTC)).isoformat(),
