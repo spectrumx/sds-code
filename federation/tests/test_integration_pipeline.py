@@ -13,7 +13,6 @@ from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
 from tests.conftest import PEER_SYNC_BASE
-from tests.conftest import seed_federated_dataset_in_opensearch
 from tests.support.mock_opensearch import RecordingOpenSearch
 
 

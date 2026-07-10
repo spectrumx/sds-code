@@ -209,7 +209,7 @@ async def run_bootstrap(
     *,
     event_at: datetime | None = None,
 ) -> None:
-    """Register with peers. Local and peer metadata live in OpenSearch (not gateway export)."""
+    """Register with peers; metadata is indexed in OpenSearch (not via export pull)."""
     _ = event_at
     _ = indexer
     logger.info(

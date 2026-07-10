@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 from opensearchpy.exceptions import NotFoundError
 
@@ -15,6 +14,8 @@ from sds_federation.schemas.webhooks import asset_doc_class
 from sds_federation.services.fed_index import doc_id
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from opensearchpy import OpenSearch
 
 _FEDERATION_META_KEYS = frozenset({"federation_event_at"})

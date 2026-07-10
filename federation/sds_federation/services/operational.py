@@ -5,13 +5,17 @@ from __future__ import annotations
 import asyncio
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from typing import Any
 
 import httpx
 import redis.asyncio as aioredis
 from opensearchpy import OpenSearch
 
-from sds_federation.models import FederationConfig
+if TYPE_CHECKING:
+    from sds_federation.models import FederationConfig
+
+_HTTP_OK = 200
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,21 +37,21 @@ def _skip_gateway_probe() -> bool:
 
 def check_config(config: FederationConfig | None) -> CheckResult:
     if config is None:
-        return CheckResult(False, "federation config not loaded")
-    return CheckResult(True, f"site={config.site.name}")
+        return CheckResult(ok=False, detail="federation config not loaded")
+    return CheckResult(ok=True, detail=f"site={config.site.name}")
 
 
 def check_subscriber_task(task: asyncio.Task[None] | None) -> CheckResult:
     if task is None:
-        return CheckResult(False, "redis subscriber not started")
+        return CheckResult(ok=False, detail="redis subscriber not started")
     if task.done():
         if task.cancelled():
-            return CheckResult(False, "redis subscriber cancelled")
+            return CheckResult(ok=False, detail="redis subscriber cancelled")
         exc = task.exception()
         if exc is not None:
-            return CheckResult(False, f"redis subscriber failed: {exc}")
-        return CheckResult(False, "redis subscriber stopped")
-    return CheckResult(True, "running")
+            return CheckResult(ok=False, detail=f"redis subscriber failed: {exc}")
+        return CheckResult(ok=False, detail="redis subscriber stopped")
+    return CheckResult(ok=True, detail="running")
 
 
 async def check_redis(redis_url: str) -> CheckResult:
@@ -55,17 +59,17 @@ async def check_redis(redis_url: str) -> CheckResult:
     try:
         pong = await client.ping()
     except Exception as exc:  # noqa: BLE001
-        return CheckResult(False, f"redis ping failed: {exc}")
+        return CheckResult(ok=False, detail=f"redis ping failed: {exc}")
     finally:
         await client.aclose()
     if not pong:
-        return CheckResult(False, "redis ping returned false")
-    return CheckResult(True, "pong")
+        return CheckResult(ok=False, detail="redis ping returned false")
+    return CheckResult(ok=True, detail="pong")
 
 
 async def check_opensearch(client: OpenSearch | None) -> CheckResult:
     if client is None:
-        return CheckResult(False, "opensearch client not configured")
+        return CheckResult(ok=False, detail="opensearch client not configured")
 
     def _ping() -> bool:
         return bool(client.ping())
@@ -73,10 +77,10 @@ async def check_opensearch(client: OpenSearch | None) -> CheckResult:
     try:
         alive = await asyncio.to_thread(_ping)
     except Exception as exc:  # noqa: BLE001
-        return CheckResult(False, f"opensearch ping failed: {exc}")
+        return CheckResult(ok=False, detail=f"opensearch ping failed: {exc}")
     if not alive:
-        return CheckResult(False, "opensearch ping returned false")
-    return CheckResult(True, "pong")
+        return CheckResult(ok=False, detail="opensearch ping returned false")
+    return CheckResult(ok=True, detail="pong")
 
 
 async def check_gateway_export(
@@ -84,17 +88,20 @@ async def check_gateway_export(
     gateway_api_base: str,
 ) -> CheckResult:
     if _skip_gateway_probe():
-        return CheckResult(True, "gateway probe skipped")
+        return CheckResult(ok=True, detail="gateway probe skipped")
     if http is None:
-        return CheckResult(False, "gateway http client not configured")
+        return CheckResult(ok=False, detail="gateway http client not configured")
     url = f"{gateway_api_base.rstrip('/')}/federation/export/datasets/"
     try:
         resp = await http.get(url, timeout=2.0)
     except httpx.HTTPError as exc:
-        return CheckResult(False, f"gateway export request failed: {exc}")
-    if resp.status_code == 200:
-        return CheckResult(True, "federation export reachable")
-    return CheckResult(False, f"gateway export returned HTTP {resp.status_code}")
+        return CheckResult(ok=False, detail=f"gateway export request failed: {exc}")
+    if resp.status_code == _HTTP_OK:
+        return CheckResult(ok=True, detail="federation export reachable")
+    return CheckResult(
+        ok=False,
+        detail=f"gateway export returned HTTP {resp.status_code}",
+    )
 
 
 async def evaluate_operational(

@@ -100,7 +100,7 @@ async def test_evaluate_operational_all_pass() -> None:
     transport = httpx.MockTransport(
         lambda request: httpx.Response(200, json=[]),
     )
-    redis_ok = CheckResult(True, "pong")
+    redis_ok = CheckResult(ok=True, detail="pong")
     try:
         async with httpx.AsyncClient(transport=transport) as http:
             with patch(
@@ -133,8 +133,8 @@ async def test_evaluate_operational_fails_when_subscriber_stopped() -> None:
     done_task = asyncio.create_task(asyncio.sleep(0))
     await done_task
 
-    redis_ok = CheckResult(True, "pong")
-    gateway_ok = CheckResult(True, "ok")
+    redis_ok = CheckResult(ok=True, detail="pong")
+    gateway_ok = CheckResult(ok=True, detail="ok")
     with (
         patch(
             "sds_federation.services.operational.check_redis",

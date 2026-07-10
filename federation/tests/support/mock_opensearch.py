@@ -31,15 +31,16 @@ class RecordingOpenSearch:
         self._docs[(index_name, doc_id)] = existing
         return {"result": "updated"}
 
-    def get(self, *, index: str, id: str, **kwargs: Any) -> dict[str, Any]:
-        key = (index, id)
+    def get(self, *, index: str, **kwargs: Any) -> dict[str, Any]:
+        doc_id_value = kwargs["id"]
+        key = (index, doc_id_value)
         if key not in self._docs:
             raise NotFoundError(
                 404,
                 "index_not_found_exception",
-                {"_index": index, "_id": id},
+                {"_index": index, "_id": doc_id_value},
             )
-        return {"_index": index, "_id": id, "_source": self._docs[key]}
+        return {"_index": index, "_id": doc_id_value, "_source": self._docs[key]}
 
     def ping(self) -> bool:
         return True

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
@@ -20,7 +21,9 @@ from tests.support.federation_mesh import close_mesh
 from tests.support.federation_mesh import peer_one_config
 from tests.support.federation_mesh import testsite_config
 from tests.support.mock_opensearch import RecordingOpenSearch
-from tests.support.mock_peer_registry import RecordingPeerRegistry
+
+if TYPE_CHECKING:
+    from tests.support.mock_peer_registry import RecordingPeerRegistry
 
 API_PREFIX = "/api/v1"
 SYNC_API_PREFIX = f"/sync{API_PREFIX}"
