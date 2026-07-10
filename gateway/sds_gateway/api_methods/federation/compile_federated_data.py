@@ -7,6 +7,8 @@ from typing import Any
 from uuid import UUID
 
 from django.conf import settings
+from loguru import logger as log
+from opensearchpy import exceptions as os_exceptions
 from opensearchpy.exceptions import NotFoundError
 
 from sds_gateway.api_methods.federation.fed_index import index_for_item_type
@@ -89,6 +91,14 @@ def get_federated_export_doc_by_uuid(
     try:
         response = client.get(index=index, id=doc_id)
     except NotFoundError:
+        return None
+    except os_exceptions.OpenSearchException as exc:
+        log.warning(
+            "Federation fed doc lookup failed for {} {}: {}",
+            asset_type.value,
+            asset_uuid,
+            exc,
+        )
         return None
     source = response.get("_source")
     if not isinstance(source, dict):

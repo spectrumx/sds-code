@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from django.test import TestCase
 from django.test import override_settings
 
 from sds_gateway.api_methods.federation.events import publish_federation_event
@@ -17,6 +19,12 @@ from sds_gateway.api_methods.federation.redis_channel import (
 from sds_gateway.api_methods.models import ItemType
 
 pytestmark = pytest.mark.django_db
+
+
+@contextmanager
+def _federation_on_commit():
+    with TestCase.captureOnCommitCallbacks(execute=True):
+        yield
 
 
 class TestResolveFederationEventsChannel:
@@ -109,11 +117,12 @@ class TestFederationSignals:
             status=DatasetStatus.FINAL,
             is_public=True,
         )
-        federation_dataset_changed(
-            sender=Dataset,
-            instance=dataset,
-            created=False,
-        )
+        with _federation_on_commit():
+            federation_dataset_changed(
+                sender=Dataset,
+                instance=dataset,
+                created=False,
+            )
 
         mock_indexer.apply_local_event.assert_called_once()
         call = mock_indexer.apply_local_event.call_args.kwargs

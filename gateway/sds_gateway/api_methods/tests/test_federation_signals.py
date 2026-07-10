@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -24,6 +25,12 @@ from sds_gateway.api_methods.utils.asset_access_control import (
 pytestmark = pytest.mark.django_db
 
 
+@contextmanager
+def _federation_on_commit():
+    with TestCase.captureOnCommitCallbacks(execute=True):
+        yield
+
+
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
@@ -44,11 +51,12 @@ class TestFederationDatasetSignals(TestCase):
         capture = CaptureFactory(is_deleted=False)
         capture.datasets.add(dataset)
 
-        federation_dataset_changed(
-            sender=Dataset,
-            instance=dataset,
-            created=False,
-        )
+        with _federation_on_commit():
+            federation_dataset_changed(
+                sender=Dataset,
+                instance=dataset,
+                created=False,
+            )
 
         assert mock_indexer.apply_local_event.call_count == 2
         item_types = {
@@ -84,11 +92,12 @@ class TestFederationDatasetSignals(TestCase):
             is_deleted=True,
         )
 
-        federation_dataset_changed(
-            sender=Dataset,
-            instance=dataset,
-            created=False,
-        )
+        with _federation_on_commit():
+            federation_dataset_changed(
+                sender=Dataset,
+                instance=dataset,
+                created=False,
+            )
 
         mock_indexer.apply_local_event.assert_called_once()
         call = mock_indexer.apply_local_event.call_args.kwargs
@@ -106,7 +115,8 @@ class TestFederationDatasetSignals(TestCase):
         mock_reindex: MagicMock,
     ) -> None:
         dataset = DatasetFactory(status=DatasetStatus.DRAFT, is_public=False)
-        federation_dataset_changed(sender=Dataset, instance=dataset, created=True)
+        with _federation_on_commit():
+            federation_dataset_changed(sender=Dataset, instance=dataset, created=True)
         mock_reindex.assert_not_called()
 
     @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
@@ -129,7 +139,8 @@ class TestFederationDatasetSignals(TestCase):
             is_public=True,
             is_deleted=True,
         )
-        federation_dataset_changed(sender=Dataset, instance=dataset, created=False)
+        with _federation_on_commit():
+            federation_dataset_changed(sender=Dataset, instance=dataset, created=False)
         mock_reindex.assert_not_called()
 
 
@@ -153,7 +164,8 @@ class TestFederationCaptureSignals(TestCase):
         capture = CaptureFactory(is_deleted=False)
         capture.datasets.add(dataset)
 
-        federation_capture_changed(sender=Capture, instance=capture)
+        with _federation_on_commit():
+            federation_capture_changed(sender=Capture, instance=capture)
 
         mock_indexer.apply_local_event.assert_called_once()
         assert (
@@ -179,7 +191,8 @@ class TestFederationCaptureSignals(TestCase):
         dataset = DatasetFactory(status=DatasetStatus.DRAFT, is_public=False)
         capture = CaptureFactory(is_deleted=False)
         capture.datasets.add(dataset)
-        federation_capture_changed(sender=Capture, instance=capture)
+        with _federation_on_commit():
+            federation_capture_changed(sender=Capture, instance=capture)
         mock_reindex.assert_not_called()
 
     @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
@@ -203,7 +216,8 @@ class TestFederationCaptureSignals(TestCase):
     ) -> None:
         mock_indexer = mock_indexer_cls.return_value
         capture = CaptureFactory(is_deleted=True)
-        federation_capture_changed(sender=Capture, instance=capture)
+        with _federation_on_commit():
+            federation_capture_changed(sender=Capture, instance=capture)
         mock_indexer.apply_local_event.assert_called_once()
         assert mock_indexer.apply_local_event.call_args.kwargs["body"]["is_deleted"]
 
@@ -233,7 +247,8 @@ class TestDatasetDisconnectReindex(TestCase):
         capture = CaptureFactory(is_deleted=False)
         capture.datasets.add(dataset)
 
-        disconnect_captures_from_dataset(dataset)
+        with _federation_on_commit():
+            disconnect_captures_from_dataset(dataset)
 
         capture.refresh_from_db()
         assert not capture.datasets.exists()
@@ -250,7 +265,8 @@ class TestDatasetDisconnectReindex(TestCase):
         capture = CaptureFactory(is_deleted=False)
         capture.datasets.add(dataset)
 
-        dataset.soft_delete()
+        with _federation_on_commit():
+            dataset.soft_delete()
 
         capture.refresh_from_db()
         assert capture.datasets.federation_exportable().exists() is False
@@ -260,3 +276,27 @@ class TestDatasetDisconnectReindex(TestCase):
             if c.args[1] == ItemType.CAPTURE and c.args[0].pk == capture.pk
         ]
         assert capture_calls
+
+
+@override_settings(
+    FEDERATION_ENABLED=True,
+    FEDERATION_SITE_NAME="crc",
+    FEDERATION_OPERATIONAL_OVERRIDE=True,
+)
+class TestFederationReindexOnCommit(TestCase):
+    @patch("sds_gateway.api_methods.federation.reindex.reindex_federated_asset")
+    def test_rollback_skips_federation_reindex(
+        self,
+        mock_reindex: MagicMock,
+    ) -> None:
+        from django.db import transaction
+
+        dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
+        try:
+            with transaction.atomic():
+                dataset.name = "rolled back"
+                dataset.save()
+                raise RuntimeError("abort")
+        except RuntimeError:
+            pass
+        mock_reindex.assert_not_called()

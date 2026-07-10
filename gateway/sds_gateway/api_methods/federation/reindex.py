@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
+from django.db import transaction
 from loguru import logger as log
 
 from sds_gateway.api_methods.federation.availability import is_federation_operational
@@ -55,13 +56,64 @@ def reindex_federated_asset(
     )
 
 
+def schedule_federation_dataset_reindex(dataset: Dataset) -> None:
+    """Run dataset (+ exportable member captures) reindex after transaction commit."""
+    dataset_pk = dataset.pk
+
+    def _on_commit() -> None:
+        try:
+            fresh = Dataset.objects.get(pk=dataset_pk)
+        except Dataset.DoesNotExist:
+            return
+        try:
+            if not dataset_needs_federation_reindex(fresh):
+                return
+            reindex_federated_asset(fresh, ItemType.DATASET)
+            if fresh.is_deleted or not fresh.is_federation_exportable():
+                return
+            for capture in fresh.captures.filter(is_deleted=False):
+                if capture_needs_federation_reindex(capture):
+                    reindex_federated_asset(capture, ItemType.CAPTURE)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Federation dataset reindex on commit failed: {}", exc)
+
+    transaction.on_commit(_on_commit, robust=True)
+
+
+def schedule_federation_capture_reindex(capture: Capture) -> None:
+    """Run capture reindex after transaction commit."""
+    capture_pk = capture.pk
+
+    def _on_commit() -> None:
+        try:
+            fresh = Capture.objects.get(pk=capture_pk)
+        except Capture.DoesNotExist:
+            return
+        try:
+            if not capture_needs_federation_reindex(fresh):
+                return
+            reindex_federated_asset(fresh, ItemType.CAPTURE)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Federation capture reindex on commit failed: {}", exc)
+
+    transaction.on_commit(_on_commit, robust=True)
+
+
 def reindex_captures_after_dataset_unlink(capture_pks: Iterable[int]) -> None:
+    """Reindex captures unlinked from a dataset after transaction commit."""
     pks = list(capture_pks)
     if not pks:
         return
-    for capture in Capture.objects.filter(pk__in=pks):
-        if capture_needs_federation_reindex(capture):
-            reindex_federated_asset(capture, ItemType.CAPTURE)
+
+    def _on_commit() -> None:
+        try:
+            for capture in Capture.objects.filter(pk__in=pks):
+                if capture_needs_federation_reindex(capture):
+                    reindex_federated_asset(capture, ItemType.CAPTURE)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("Federation capture unlink reindex on commit failed: {}", exc)
+
+    transaction.on_commit(_on_commit, robust=True)
 
 
 def _fed_doc_shows_is_deleted(
