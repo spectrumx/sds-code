@@ -29,17 +29,17 @@ jobs:
                   # Resolve the short SHA to a full SHA
                   if ! FULL_SHA=$(git rev-parse --verify "${SHA_INPUT}^{commit}" 2>/dev/null); then
                       echo "ERROR: Could not resolve commit '${SHA_INPUT}' in this repository."
-                      echo "Ensure you are using a valid short SHA from the default branch (main)."
+                      echo "Ensure you are using a valid short SHA from the default branch (master)."
                       exit 1
                   fi
                   echo "Resolved SHA: ${FULL_SHA}"
-                  # Verify the commit is an ancestor of the default branch (main)
-                  if ! git merge-base --is-ancestor "${FULL_SHA}" origin/main; then
-                      echo "ERROR: Commit ${SHA_INPUT} (${FULL_SHA}) is not an ancestor of the default branch (main)."
+                  # Verify the commit is an ancestor of the default branch (master)
+                  if ! git merge-base --is-ancestor "${FULL_SHA}" origin/master; then
+                      echo "ERROR: Commit ${SHA_INPUT} (${FULL_SHA}) is not an ancestor of the default branch (master)."
                       echo "Only commits from the default branch can be promoted to stable."
                       exit 1
                   fi
-                  echo "✓ Commit ${SHA_INPUT} is a valid ancestor of main. Proceeding with promotion."
+                  echo "✓ Commit ${SHA_INPUT} is a valid ancestor of master. Proceeding with promotion."
 
             - name: Log in to ghcr.io
               uses: docker/login-action@v4
