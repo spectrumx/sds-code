@@ -2,7 +2,6 @@
 
 Metadata management and web interface for SDS.
 
-[![Built with Cookiecutter Django](https://img.shields.io/badge/built%20with-Cookiecutter%20Django-ff69b4.svg?logo=cookiecutter)](https://github.com/cookiecutter/cookiecutter-django/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 + [SpectrumX Data System | Gateway](#spectrumx-data-system--gateway)
@@ -12,8 +11,8 @@ Metadata management and web interface for SDS.
     + [Just recipes](#just-recipes)
     + [More SDS Gateway docs](#more-sds-gateway-docs)
 
-> [!TIP]
-> Deploying SDS in production? Start with the [`network`](../network/README.md) component.
+> [!TIP] Deploying SDS in production? Start with the [`network`](../network/README.md)
+> component.
 
 ## System requirements
 
@@ -23,7 +22,8 @@ Make sure you have the following binaries available:
 
 + [`docker`](https://docs.docker.com/get-docker/) - container runtime
 + [`just`](https://github.com/casey/just) - command runner
-+ [`uv`](https://docs.astral.sh/uv/getting-started/installation/) - python package and project manager
++ [`uv`](https://docs.astral.sh/uv/getting-started/installation/) - python package and
+  project manager
 
 ## Development setup
 
@@ -81,10 +81,9 @@ that doesn't happen, feel free to open an issue or reach out for help.
     `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
     interface.
 
-    > [!TIP]
-    > The superuser credentials are the ones provided in a step above, or during an
-    > interactive execution of the `deploy.sh` script.
-    > If the credentials were lost, you can reset the password with:
+    > [!TIP] The superuser credentials are the ones provided in a step above, or during
+    > an interactive execution of the `deploy.sh` script. If the credentials were lost,
+    > you can reset the password with:
     >
     > ```bash
     > just uv run manage.py changepassword <email>
@@ -105,6 +104,47 @@ that doesn't happen, feel free to open an issue or reach out for help.
 
 Alternatively, follow the steps that are [not automated for a first-time
 setup](./docs/detailed-deploy.md#first-deployment-not-automated).
+
+## Container image
+
+Pre-built Docker images for the Gateway are published to GitHub Container Registry:
+
+```text
+ghcr.io/spectrumx/sds-gateway
+```
+
+> **Package URL:** <https://github.com/spectrumx/sds-code/pkgs/container/sds-gateway>
+
+### Available tags
+
+| Tag | Origin | Description |
+|-----|--------|-------------|
+| `:stable` | Manually promoted from a verified `dev-<sha>` build | **Recommended for production.** A specific commit that passed all checks and was promoted via the [`gwy-promote-stable`](https://github.com/spectrumx/sds-code/actions/workflows/gwy-promote-stable.yaml) workflow. |
+| `:dev` | Automatically built from the `master` branch | Latest commit on `master`. Suitable for staging, testing, or early evaluation. May include unreviewed changes. |
+| `:dev-<sha>` | Per-commit SHA tag on `master` | Pinned to an exact commit for traceability. Useful between `dev` and a `stable` promotion. |
+
+The production Compose file ([`compose.production.yaml`](./compose.production.yaml))
+defaults to the `:stable` tag via the `SDS_GATEWAY_TAG` environment variable:
+
+```yaml
+image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
+```
+
+> [!TIP] Override the tag by setting `SDS_GATEWAY_TAG=dev` in your deployment
+> environment if you need the latest master build. For production, keep the default
+> (`stable`).
+
+### How images are built and promoted
+
+1. **Build** — every push to `master` triggers the
+   [`gwy-code-quality`](https://github.com/spectrumx/sds-code/actions/workflows/gwy-code-quality.yaml)
+   workflow, which runs pre-commit checks and Django tests. If all pass, it builds the
+   image and pushes it to `ghcr.io/spectrumx/sds-gateway` with tags `dev` and
+   `dev-<sha>`.
+2. **Promotion** — a maintainer runs the
+   [`gwy-promote-stable`](https://github.com/spectrumx/sds-code/actions/workflows/gwy-promote-stable.yaml)
+   workflow (manually, via GitHub Actions) to promote a specific `dev-<sha>` to
+   `:stable`.
 
 ## Just recipes
 
@@ -178,7 +218,8 @@ Available recipes:
 
 + [Setting up a dev environment](./docs/detailed-deploy.md#development-environment)
 + Production
-    + [Detailed production deploy instructions](./docs/detailed-deploy.md#production-deploy)
+    + [Detailed production deploy
+      instructions](./docs/detailed-deploy.md#production-deploy)
     + [Production backups](./docs/dev-notes.md#production-backups)
 + Others
     + [OpenSearch Query Tips](./docs/detailed-deploy.md#opensearch-query-tips)

@@ -44,8 +44,7 @@ uv sync --frozen --extra local
 # --extra local installs the required dependencies + 'local' ones (for local development)
 ```
 
-> [!NOTE]
-> When using `uv`, all base, local, and production dependencies are described in
+> [!NOTE] When using `uv`, all base, local, and production dependencies are described in
 > the `pyproject.toml` file.
 >
 > If you're using `pip`, refer to the `requirements/` directory.
@@ -61,19 +60,16 @@ uv run --extra local pre-commit install
 
 Choose the automated or manual deploy method below:
 
-> [!IMPORTANT]
-> If you ran the `deploy.sh` script from the main README, skip to the [first deployment:
-> not automated](#first-deployment-not-automated) section below.
+> [!IMPORTANT] If you ran the `deploy.sh` script from the main README, skip to the
+> [first deployment: not automated](#first-deployment-not-automated) section below.
 
 ### A. Automated (recommended)
 
-> [!IMPORTANT]
-> Skip this section if you ran the `deploy.sh` script from the main README.
+> [!IMPORTANT] Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Generate secrets:
 
-    > [!TIP]
-    > You can ignore "file does not exist" warnings when running the "just"
+    > [!TIP] You can ignore "file does not exist" warnings when running the "just"
     > recipe below.
 
     ```bash
@@ -93,8 +89,7 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
 
 ### B. Manual (if needed)
 
-> [!IMPORTANT]
-> Skip this section if you ran the `deploy.sh` script from the main README.
+> [!IMPORTANT] Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Set secrets:
 
@@ -144,9 +139,8 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
 
 ## First deployment: automated
 
-> [!IMPORTANT]
-> These are "automated" steps because they are covered by the `deploy.sh` script from
-> the main README. If you ran that script, you can skip to the next section.
+> [!IMPORTANT] These are "automated" steps because they are covered by the `deploy.sh`
+> script from the main README. If you ran that script, you can skip to the next section.
 
 This applies for both local and production deploys, but the names of the containers will
 differ.
@@ -186,10 +180,9 @@ accessing the Gateway for the first time.
     `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
     interface.
 
-    > [!TIP]
-    > The superuser credentials are the ones provided in a step above, or during an
-    > interactive execution of the `deploy.sh` script.
-    > If the credentials were lost, you can reset the password with:
+    > [!TIP] The superuser credentials are the ones provided in a step above, or during
+    > an interactive execution of the `deploy.sh` script. If the credentials were lost,
+    > you can reset the password with:
     >
     > ```bash
     > just uv run manage.py changepassword <email>
@@ -240,6 +233,14 @@ accessing the Gateway for the first time.
 > e.g. `sds.example.com` and `sds-dev.example.com` to the prod and local services
 > respectively, using different container names and ports.
 
+> [!NOTE]
+>
+> Production deployments pull pre-built images from
+> [`ghcr.io/spectrumx/sds-gateway`](https://github.com/spectrumx/sds-code/pkgs/container/sds-gateway).
+> By default the `:stable` tag is used. See the [Gateway
+> README](../README.md#container-image) for details on available tags (`:stable`,
+> `:dev`, `:dev-<sha>`) and the promotion workflow.
+
 Keep this in mind, however:
 
 > [!CAUTION]
@@ -256,11 +257,10 @@ rsync -aP ./.envs/example/ ./.envs/production
 # manually set the secrets in .envs/production/*.env files
 ```
 
-> [!NOTE]
-> Follow these steps to set the secrets:
+> [!NOTE] Follow these steps to set the secrets:
 
-+ Set most secrets, passwords, tokens, etc. to random values. You can use the
-  following one-liner and adjust the length as needed:
++ Set most secrets, passwords, tokens, etc. to random values. You can use the following
+  one-liner and adjust the length as needed:
 
     ```bash
     echo $(head /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 40)
@@ -272,10 +272,10 @@ rsync -aP ./.envs/example/ ./.envs/production
   (or this path under your own domain).
     + **Copy the generated key to that env file**. The key is not stored in the
       database, so you will only see it at creation time.
-+ In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID`
-  and `CLIENT_SECRET`** accordingly.
-+ In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user,
-  password, and database name** in that file.
++ In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID` and
+  `CLIENT_SECRET`** accordingly.
++ In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password,
+  and database name** in that file.
 + If using the Spectrum Visualization Interface (SVI) component:
     + In `django.env`, set the `SVI_SERVER_EMAIL` and `SVI_SERVER_API_KEY` to match the
       values in the SVI's environment variables. Important: `SVI_SERVER_API_KEY` must be
@@ -331,8 +331,8 @@ Then, run the services:
 just dc up
 ```
 
-`just dc` is equivalent to the `docker compose ...` command, but it's
-environment-aware, so you can use it for both local and production deploys seamlessly.
+`just dc` is equivalent to the `docker compose ...` command, but it's environment-aware,
+so you can use it for both local and production deploys seamlessly.
 
 Run `just env` to see which environment is currently selected, and change the
 `scripts/prod-hostnames.env` to add or remove the current host from the list of
@@ -340,8 +340,8 @@ production hosts.
 
 > [!TIP]
 >
-> When restarting, **don't forget to re-build it**, as this deploy doesn't use a
-> bind mount to the source code:
+> When restarting, **don't forget to re-build it**, as this deploy doesn't use a bind
+> mount to the source code:
 >
 > ```bash
 > just dc build && just dc down; just dc up -d; just logs
@@ -378,17 +378,16 @@ production hosts.
     regular users by signing up there.
 
     You can sign in with the superuser credentials at
-    `localhost:18000/<admin_path_set_in_django.env>`
-    to access the admin interface.
+    `localhost:18000/<admin_path_set_in_django.env>` to access the admin interface.
 
 4. RustFS setup:
 
-    > [!NOTE]
-    > As of May 2026, RustFS is used as a secondary storage for production deployments
-    > of SDS, and the primary is SeaweedFS. MinIO was replaced by a combination of
-    > SeaweedFS (primary) and RustFS (secondary) after project maintainers abandoned the
-    > open source community version of MinIO. For more details, see the [MinIO to
-    > SeaweedFS migration documentation](./migration-minio-to-seaweedfs.md).
+    > [!NOTE] As of May 2026, RustFS is used as a secondary storage for production
+    > deployments of SDS, and the primary is SeaweedFS. MinIO was replaced by a
+    > combination of SeaweedFS (primary) and RustFS (secondary) after project
+    > maintainers abandoned the open source community version of MinIO. For more
+    > details, see the [MinIO to SeaweedFS migration
+    > documentation](./migration-minio-to-seaweedfs.md).
 
     The instructions below are for setting up the RustFS instance if you choose to use
     it, and instructions are very similar to the pre-existing ones for MinIO. This is a
@@ -409,8 +408,8 @@ production hosts.
     >[!NOTE]
     >
     > We're using `prod-secondary-rustfs` in the example commands below as our mc alias.
-    > Change it accordingly if you're using a different alias in your config.
-    > To see all aliases, run `mc alias list`.
+    > Change it accordingly if you're using a different alias in your config. To see all
+    > aliases, run `mc alias list`.
 
     1. Establish the connection alias:
 
@@ -467,10 +466,9 @@ production hosts.
 
     4. (Optional) Diagnostic checks:
 
-        > [!TIP]
-        > If using `rc`, check their documentation. They have additional commands like:
-        > `rc admin info disk prod-secondary-rustfs` and
-        > `rc admin info cluster prod-secondary-rustfs`
+        > [!TIP] If using `rc`, check their documentation. They have additional commands
+        > like: `rc admin info disk prod-secondary-rustfs` and `rc admin info cluster
+        > prod-secondary-rustfs`
 
         Check the output of these commands to make sure everything is as expected:
 
@@ -529,8 +527,8 @@ production hosts.
       `OPENSEARCH_USER` and admin user are set).
 
     + `roles.yml`: Here, you can set up custom roles for users. The extensive list of
-      allowed permissions can be found
-      [OpenSearch access control permissions documentation](https://opensearch.org/docs/latest/security/access-control/permissions/).
+      allowed permissions can be found [OpenSearch access control permissions
+      documentation](https://opensearch.org/docs/latest/security/access-control/permissions/).
 
     + `roles_mapping.yml`: In this file, you can map roles to users defined in
       `internal_users.yml`. It is necessary to map a role directly to a user by adding
@@ -548,8 +546,7 @@ production hosts.
         -key /usr/share/opensearch/config/certs/admin-key.pem
     ```
 
-    > [!TIP]
-    > If you want to reserve users or permissions so they cannot be changed
+    > [!TIP] If you want to reserve users or permissions so they cannot be changed
     > through the API and only through running the `securityadmin.sh` script, set a
     > parameter on individual entries: `reserved: true`.
     >
@@ -596,8 +593,7 @@ For example:
 }
 ```
 
-> [!NOTE]
-> You do not have to worry about building nested queries. The API handles
+> [!NOTE] You do not have to worry about building nested queries. The API handles
 > nesting based on the dot notation in the `field_path`. Only provide the inner-most
 > `filter_value`, the actual filter you want to apply to the field, when constructing
 > filters for requests.
@@ -639,11 +635,10 @@ Here are some useful examples of advanced queries one might want to make to the 
         }
     ```
 
-    >[!Note]
-    > `now` is a keyword in OpenSearch that refers to the current date and time.
+    >[!Note] `now` is a keyword in OpenSearch that refers to the current date and time.
 
-    More information about `range` queries can be found
-    [OpenSearch range queries documentation](https://opensearch.org/docs/latest/query-dsl/term/range/).
+    More information about `range` queries can be found [OpenSearch range queries
+    documentation](https://opensearch.org/docs/latest/query-dsl/term/range/).
 
 2. Geo-bounding Box Queries
 
@@ -673,8 +668,9 @@ Here are some useful examples of advanced queries one might want to make to the 
         }
     ```
 
-    More information about `geo_bounding_box` queries can be found
-    [OpenSearch geo-bounding box queries documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geo-bounding-box/).
+    More information about `geo_bounding_box` queries can be found [OpenSearch
+    geo-bounding box queries
+    documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geo-bounding-box/).
 
 3. Geodistance Queries
 
@@ -698,5 +694,6 @@ Here are some useful examples of advanced queries one might want to make to the 
         }
     ```
 
-   More information about `geo_distance` queries can be found
-   [OpenSearch geodistance queries documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).
+   More information about `geo_distance` queries can be found [OpenSearch geodistance
+   queries
+   documentation](https://opensearch.org/docs/latest/query-dsl/geo-and-xy/geodistance/).
