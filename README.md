@@ -4,7 +4,8 @@
 
 ---------------------------------------------------------
 
-> [!NOTE] The SDK and Gateway are under active development and features might not be
+> [!NOTE]
+> The SDK and Gateway are under active development and features might not be
 > implemented or change. Reach out to the maintainers for more information.
 
 The SpectrumX Data System (SDS) is a system for storing and managing radio-frequency
@@ -39,7 +40,8 @@ Two main tags are available:
 | `:dev` | Latest build from the `master` branch | Latest code, may include unreviewed changes. Suitable for staging, testing, or early evaluation. |
 | `:dev-<sha>` | Per-commit builds from `master` | Pinned to a specific commit for traceability. Useful when you need an exact version between `dev` and a `stable` promotion. |
 
-> [!TIP] Production deployments should use the `:stable` tag. The Gateway's production
+> [!TIP]
+> Production deployments should use the `:stable` tag. The Gateway's production
 > Compose file defaults to `:stable` (`SDS_GATEWAY_TAG=stable`), and the
 > `gwy-promote-stable` workflow is used to promote verified builds from `master`.
 
