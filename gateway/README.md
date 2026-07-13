@@ -11,7 +11,8 @@ Metadata management and web interface for SDS.
     + [Just recipes](#just-recipes)
     + [More SDS Gateway docs](#more-sds-gateway-docs)
 
-> [!TIP] Deploying SDS in production? Start with the [`network`](../network/README.md)
+> [!TIP]
+> Deploying SDS in production? Start with the [`network`](../network/README.md)
 > component.
 
 ## System requirements
@@ -81,7 +82,8 @@ that doesn't happen, feel free to open an issue or reach out for help.
     `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
     interface.
 
-    > [!TIP] The superuser credentials are the ones provided in a step above, or during
+    > [!TIP]
+    > The superuser credentials are the ones provided in a step above, or during
     > an interactive execution of the `deploy.sh` script. If the credentials were lost,
     > you can reset the password with:
     >
@@ -130,7 +132,8 @@ defaults to the `:stable` tag via the `SDS_GATEWAY_TAG` environment variable:
 image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
 ```
 
-> [!TIP] Override the tag by setting `SDS_GATEWAY_TAG=dev` in your deployment
+> [!TIP]
+> Override the tag by setting `SDS_GATEWAY_TAG=dev` in your deployment
 > environment if you need the latest master build. For production, keep the default
 > (`stable`).
 
