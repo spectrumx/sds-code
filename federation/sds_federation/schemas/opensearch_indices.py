@@ -1,7 +1,7 @@
 """OpenSearch index definitions for federated metadata (RFC fed-datasets / fed-captures).
 
 Explicit ``properties`` match the RFC search-facing field lists; export-only and
-envelope fields (e.g. ``status``, ``capture_props``, ``is_federated_deleted``) rely on
+envelope fields (e.g. ``status``, ``capture_props``, ``is_deleted``) rely on
 dynamic mapping.
 """
 

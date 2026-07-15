@@ -7,8 +7,8 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from loguru import logger
-from opensearchpy import OpenSearch
 
+from common.sds_opensearch_query.client import build_opensearch_client
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
 from sds_federation.routes.search_index import search_index_router
@@ -32,6 +32,9 @@ def _bootstrap_enabled() -> bool:
     )
 
 
+def get_setting(key: str) -> str:
+    return os.environ.get(key, "")
+
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
 sync_app.include_router(search_index_router, prefix=API_PREFIX)
@@ -43,15 +46,20 @@ async def lifespan(app: FastAPI):
     config = load_federation_config()
     http = build_gateway_http_client()
 
-    # TODO: Create a shared OpenSearch client for both apps in a later PR.
-    os_host = os.environ.get("OPENSEARCH_HOST", "opensearch")
-    os_port = os.environ.get("OPENSEARCH_PORT", "9200")
-    os_client = OpenSearch(hosts=[{"host": os_host, "port": int(os_port)}])
+    os_client = build_opensearch_client(
+        host=get_setting("OPENSEARCH_HOST"),
+        port=get_setting("OPENSEARCH_PORT"),
+        user=get_setting("OPENSEARCH_USER"),
+        password=get_setting("OPENSEARCH_PASSWORD"),
+        use_ssl=get_setting("OPENSEARCH_USE_SSL"),
+        verify_certs=get_setting("OPENSEARCH_VERIFY_CERTS") == "true",
+        ca_certs=get_setting("OPENSEARCH_CA_CERTS"),
+    )
     try:
         ensure_fed_indices(os_client)
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to ensure fed-* OpenSearch indices: {}", exc)
-    
+
     peer_registry = PeerRegistry()
     fed_indexer = FederatedAssetIndexer(os_client)
 

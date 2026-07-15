@@ -38,7 +38,7 @@ def test_search_federated_datasets_builds_bool_query() -> None:
     call = client.search_calls[0]
     assert call["index"] == "fed-datasets"
     must = call["body"]["query"]["bool"]["must"]
-    assert {"term": {"is_federated_deleted": False}} in must
+    assert {"term": {"is_deleted": False}} in must
     assert {"term": {"site_name": "sds.crc.nd.edu"}} in must
     assert any("multi_match" in clause for clause in must)
 

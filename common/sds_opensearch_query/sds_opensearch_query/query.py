@@ -28,7 +28,7 @@ def multi_match_clause(
 
 
 def federation_not_deleted_clause() -> dict[str, Any]:
-    return {"term": {"is_federated_deleted": False}}
+    return {"term": {"is_deleted": False}}
 
 
 def bool_must_search_body(
