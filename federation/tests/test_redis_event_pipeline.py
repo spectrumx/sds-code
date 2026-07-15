@@ -9,9 +9,11 @@ from datetime import datetime
 import httpx
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
+from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.local_events import dispatch_federation_redis_payload
 from sds_federation.services.local_events import parse_redis_event_payload
+from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import peer_webhook_url
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
@@ -144,3 +146,48 @@ async def test_dispatch_missing_opensearch_doc_skips_peer_push(
 
     assert dispatched is True
     assert recorded == []
+
+
+@pytest.mark.asyncio
+async def test_dispatch_uses_registry_sync_url_overlay(
+    test_site_config,
+    recording_opensearch,
+) -> None:
+    recorded: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        recorded.append(request)
+        return httpx.Response(200, json={"status": "accepted"})
+
+    seed_federated_dataset_in_opensearch(
+        recording_opensearch,
+        test_site_config.site.name,
+    )
+    peer = test_site_config.peers[0]
+    registry = PeerRegistry()
+    registry.register(
+        SiteHelloWebhook(
+            site_name=peer.name,
+            fqdn=peer.fqdn,
+            display_name=peer.display_name,
+            sync_service_url="http://overlay-sync.test/sync",
+            timestamp=datetime.now(UTC),
+        ),
+    )
+    indexer = FederatedAssetIndexer(recording_opensearch)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        await dispatch_federation_redis_payload(
+            http,
+            test_site_config,
+            recording_opensearch,
+            indexer,
+            simulated_dataset_redis_payload(),
+            registry=registry,
+        )
+
+    assert len(recorded) == 1
+    assert str(recorded[0].url) == (
+        "http://overlay-sync.test/sync/api/v1/webhook/dataset-updated"
+    )
+    assert str(recorded[0].url) != peer_webhook_url(peer, "/webhook/dataset-updated")

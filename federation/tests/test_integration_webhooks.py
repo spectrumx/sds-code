@@ -86,6 +86,27 @@ async def test_webhook_rejects_unknown_origin_site(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_webhook_rejects_local_site_name(
+    recording_opensearch: RecordingOpenSearch,
+) -> None:
+    config = make_peer_config()
+    app = build_webhook_app(config, FederatedAssetIndexer(recording_opensearch))
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            f"{SYNC_API_PREFIX}/webhook/dataset-updated",
+            json=_dataset_webhook_payload(site_name=config.site.name),
+        )
+
+    assert response.status_code == 403
+    assert recording_opensearch.index_calls == []
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_webhook_rejects_site_name_mismatch_on_asset(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:
