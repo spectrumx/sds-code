@@ -93,6 +93,31 @@ def test_indexer_skips_stale_events(recording_opensearch: RecordingOpenSearch) -
 
 
 @pytest.mark.regression
+def test_indexer_skips_stale_events_after_restart(
+    recording_opensearch: RecordingOpenSearch,
+) -> None:
+    asset = sample_federated_dataset_doc(site_name="testsite")
+    t1 = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
+    t0 = t1 - timedelta(seconds=1)
+
+    FederatedAssetIndexer(recording_opensearch).apply_asset_event(
+        event_at=t1,
+        site_name="testsite",
+        asset=asset,
+        asset_type=AssetTypeEnum.DATASET,
+    )
+    # New process: empty in-memory map; persisted federation_event_at must win.
+    FederatedAssetIndexer(recording_opensearch).apply_asset_event(
+        event_at=t0,
+        site_name="testsite",
+        asset=asset,
+        asset_type=AssetTypeEnum.DATASET,
+    )
+
+    assert len(recording_opensearch.index_calls) == 1
+
+
+@pytest.mark.regression
 def test_indexer_rejects_site_name_mismatch(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:

@@ -209,10 +209,17 @@ async def run_bootstrap(
     *,
     event_at: datetime | None = None,
 ) -> None:
-    """Register with peers; metadata is indexed in OpenSearch (not via export pull)."""
-    _ = event_at
-    _ = indexer
+    """Backfill OpenSearch from gateway export lists, then register with peers.
+
+    Post-save signals only cover new changes; existing public assets must be
+    pulled from ``/federation/export/{datasets,captures}/`` on start.
+    """
+    at = event_at or datetime.now(UTC)
+    local_count = await bootstrap_local_site(http, config, indexer, event_at=at)
+    peer_count = await bootstrap_all_peers(config, http, indexer, event_at=at)
     logger.info(
-        "Skipping gateway export bootstrap; federated metadata is OpenSearch-only",
+        "Bootstrap indexed {} local and {} peer export document(s)",
+        local_count,
+        peer_count,
     )
     await register_with_peers(http, config)

@@ -2,9 +2,9 @@ networks:
   sds-network-local:
     external: true
     name: sds-network-local
-  sds-network-local-opensearch:
-    driver: bridge
-    name: sds-network-local-opensearch
+  sds-gateway-local-opensearch-net:
+    external: true
+    name: sds-gateway-local-opensearch-net
 
 services:
   sds-federation-local-sync:
@@ -15,12 +15,12 @@ services:
     container_name: sds-federation-local-sync
     env_file:
       - .envs/local/sync.env
+      - ../gateway/.envs/local/opensearch.env
       - ../federation-shared.env
     environment:
       FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
       GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-local-app:8000/api/v1
       REDIS_URL: redis://sds-gateway-local-redis:6379/0
-      OPENSEARCH_HOST: sds-gateway-local-opensearch
     volumes:
       - ./federation.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro
@@ -41,4 +41,4 @@ services:
       retries: 3
     networks:
       - sds-network-local
-      - sds-network-local-opensearch
+      - sds-gateway-local-opensearch-net

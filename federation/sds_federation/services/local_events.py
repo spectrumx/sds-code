@@ -17,6 +17,7 @@ from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_search import aload_federated_asset
+from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
 from sds_federation.services.redis_channel import resolve_federation_events_channel
 
@@ -74,6 +75,7 @@ async def handle_redis_asset_event(
     uuid: UUID,
     timestamp: datetime,
     load_asset: AssetLoader | None = None,
+    registry: PeerRegistry | None = None,
 ) -> None:
     """Read local doc from OpenSearch (gateway indexes on save) and fan out to peers."""
     asset = await _load_local_asset(
@@ -97,7 +99,7 @@ async def handle_redis_asset_event(
         asset=asset,
         asset_type=asset_type,
     )
-    await push_asset_updated_to_peers(http, config, payload)
+    await push_asset_updated_to_peers(http, config, payload, registry)
 
 
 async def dispatch_federation_redis_payload(
@@ -108,6 +110,7 @@ async def dispatch_federation_redis_payload(
     data: dict,
     *,
     load_asset: AssetLoader | None = None,
+    registry: PeerRegistry | None = None,
 ) -> bool:
     """
     Handle one Redis pub/sub payload dict.
@@ -127,6 +130,7 @@ async def dispatch_federation_redis_payload(
         uuid=uuid,
         timestamp=timestamp,
         load_asset=load_asset,
+        registry=registry,
     )
     return True
 
@@ -140,6 +144,7 @@ async def run_federation_subscriber(
     stop,
     *,
     channel: str | None = None,
+    registry: PeerRegistry | None = None,
 ) -> None:
     resolved_channel = channel or resolve_federation_events_channel(
         site_name=config.site.name,
@@ -162,6 +167,7 @@ async def run_federation_subscriber(
                 os_client,
                 indexer,
                 data,
+                registry=registry,
             )
     finally:
         await pubsub.unsubscribe(resolved_channel)
