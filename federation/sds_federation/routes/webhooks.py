@@ -30,7 +30,12 @@ def _peer_registry(request: Request) -> PeerRegistry:
 
 def _allowed_origin_sites(request: Request, payload: AssetUpdatedWebhook) -> None:
     config = request.app.state.config
-    allowed = {peer.name for peer in config.peers} | {config.site.name}
+    if payload.site_name == config.site.name:
+        raise HTTPException(
+            status_code=403,
+            detail="Local site metadata is not accepted via peer webhooks",
+        )
+    allowed = {peer.name for peer in config.peers}
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown origin site")
 
