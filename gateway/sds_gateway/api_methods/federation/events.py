@@ -40,4 +40,4 @@ def publish_federation_event(
         client = get_redis_client()
         client.publish(channel, json.dumps(payload))
     except Exception as err:  # noqa: BLE001
-        log.warning("Failed to publish federation event: {}", err)
+        log.warning(f"Failed to publish federation event: {err}")
