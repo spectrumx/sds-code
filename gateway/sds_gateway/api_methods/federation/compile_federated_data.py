@@ -34,7 +34,13 @@ def federation_site_name() -> str:
 
 
 def capture_in_published_dataset(capture: Capture) -> bool:
-    return capture.datasets.federation_exportable().exists()
+    m2m_eligible = capture.datasets.federation_exportable().exists()
+
+    # if no m2m eligible, try fk
+    if not m2m_eligible:
+        return capture.dataset.federation_exportable().exists()
+
+    return m2m_eligible
 
 
 def capture_in_other_published_datasets(
@@ -42,11 +48,17 @@ def capture_in_other_published_datasets(
     *,
     exclude_dataset_id: UUID,
 ) -> bool:
-    return (
-        capture.datasets.federation_exportable()
-        .exclude(uuid=exclude_dataset_id)
-        .exists()
-    )
+    m2m_eligible = capture.datasets.federation_exportable().exclude(
+        uuid=exclude_dataset_id
+    ).exists()
+
+    # if no m2m eligible, try fk
+    if not m2m_eligible:
+        return capture.dataset.federation_exportable().exclude(
+            uuid=exclude_dataset_id
+        ).exists()
+
+    return m2m_eligible
 
 
 def compile_federated_dataset_doc(dataset: Dataset) -> dict[str, Any]:
@@ -95,10 +107,7 @@ def get_federated_export_doc_by_uuid(
         return None
     except os_exceptions.OpenSearchException as exc:
         log.warning(
-            "Federation fed doc lookup failed for {} {}: {}",
-            asset_type.value,
-            asset_uuid,
-            exc,
+            f"Federation fed doc lookup failed for {asset_type.value} {asset_uuid}: {exc}",
         )
         return None
     source = response.get("_source")
