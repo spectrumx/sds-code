@@ -53,8 +53,12 @@
                                        class="dataset-name-link"
                                        data-dataset-uuid="{{ dataset.uuid }}"
                                        data-item-uuid="{{ dataset.uuid }}"
+                                       data-item-type="dataset"
+                                       {% if dataset.is_federated %}data-is-federated="true" data-site-name="{{ dataset.site_name }}"{% endif %}
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
-                                    {% if dataset.is_public %}
+                                    {% if dataset.is_federated %}
+                                        <span class="ms-2 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>
+                                    {% elif dataset.is_public %}
                                         <i class="bi bi-globe me-1 text-primary" title="Public"></i>
                                     {% endif %}
                                 </td>
@@ -98,18 +102,18 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-nowrap">
-                                    {% if dataset.dataset.created_at %}
+                                    {% if dataset.created_at %}
                                         {% localtime on %}
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y-m-d" }}</span>
-                                            <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
+                                            <span class="bg-transparent pe-2">{{ dataset.created_at|date:"Y-m-d" }}</span>
+                                            <span class="text-muted bg-transparent">{{ dataset.created_at|date:"H:i:s T" }}</span>
                                         </div>
                                     {% endlocaltime %}
                                 {% else %}
                                     -
                                 {% endif %}
                             </td>
-                            {% if user.is_authenticated %}
+                            {% if user.is_authenticated and not dataset.is_federated %}
                                 <td class="text-center">
                                     <div class="dropdown">
                                         <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
@@ -139,6 +143,8 @@
                                         </ul>
                                     </div>
                                 </td>
+                            {% elif user.is_authenticated %}
+                                <td class="text-center text-muted">—</td>
                             {% endif %}
                         </tr>
                     {% endfor %}

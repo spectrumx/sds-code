@@ -11,11 +11,10 @@ from loguru import logger
 from common.sds_opensearch_query.client import build_opensearch_client
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
-from sds_federation.routes.search_index import search_index_router
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_indices import ensure_fed_indices
+from sds_federation.services.fed_index import ensure_fed_indices
 from sds_federation.services.local_events import build_gateway_http_client
 from sds_federation.services.local_events import run_federation_subscriber
 from sds_federation.services.peer_registry import PeerRegistry
@@ -37,7 +36,6 @@ def get_setting(key: str) -> str:
 
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
-sync_app.include_router(search_index_router, prefix=API_PREFIX)
 sync_app.include_router(webhooks_router, prefix=API_PREFIX)
 
 

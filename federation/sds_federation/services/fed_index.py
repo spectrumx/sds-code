@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import asyncio
+from typing import Any
 from datetime import datetime
 from uuid import UUID
 
@@ -7,6 +11,19 @@ from opensearchpy.exceptions import NotFoundError
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
+from sds_federation.schemas.webhooks import asset_doc_class
+from sds_federation.schemas.opensearch_indices import index_body_for_asset
+
+
+def ensure_fed_indices(client: OpenSearch) -> None:
+    for asset_type in AssetTypeEnum:
+        index_name = asset_type.index_name
+        if client.indices.exists(index=index_name):
+            continue
+        client.indices.create(
+            index=index_name,
+            body=index_body_for_asset(asset_type),
+        )
 
 
 def doc_id(site_name: str, uuid: UUID) -> str:
@@ -19,6 +36,144 @@ def _parse_event_at(value: object) -> datetime | None:
     if isinstance(value, str) and value:
         return datetime.fromisoformat(value)
     return None
+
+
+_FEDERATION_META_KEYS = frozenset({"federation_event_at"})
+
+
+def _strip_federation_meta(source: dict) -> dict:
+    return {
+        key: value for key, value in source.items() if key not in _FEDERATION_META_KEYS
+    }
+
+
+
+_LIST_PAGE_SIZE = 1000
+
+
+def _parse_hit(
+    source: dict,
+    asset_type: AssetTypeEnum,
+) -> FederatedDatasetDoc | FederatedCaptureDoc | None:
+    if not isinstance(source, dict):
+        return None
+    doc_class = asset_doc_class(asset_type)
+    return doc_class.model_validate(_strip_federation_meta(source))
+
+
+def load_federated_asset(
+    client: OpenSearch,
+    *,
+    site_name: str,
+    uuid: UUID,
+    asset_type: AssetTypeEnum,
+) -> FederatedDatasetDoc | FederatedCaptureDoc | None:
+    """Return the indexed document for a site asset, or None if missing."""
+
+    def _get() -> dict | None:
+        try:
+            response = client.get(
+                index=asset_type.index_name, id=doc_id(site_name, uuid)
+            )
+        except NotFoundError:
+            return None
+        source = response.get("_source")
+        if not isinstance(source, dict):
+            return None
+        return source
+
+    source = _get()
+    if source is None:
+        return None
+    return _parse_hit(source, asset_type)
+
+
+async def aload_federated_asset(
+    client: OpenSearch,
+    *,
+    site_name: str,
+    uuid: UUID,
+    asset_type: AssetTypeEnum,
+) -> FederatedDatasetDoc | FederatedCaptureDoc | None:
+    return await asyncio.to_thread(
+        load_federated_asset,
+        client,
+        site_name=site_name,
+        uuid=uuid,
+        asset_type=asset_type,
+    )
+
+
+
+
+def _site_owned_query(site_name: str) -> dict[str, Any]:
+    return {
+        "bool": {
+            "should": [
+                {"term": {"site_name.keyword": site_name}},
+                {"term": {"site_name": site_name}},
+            ],
+            "minimum_should_match": 1,
+        }
+    }
+
+
+def list_federated_assets_for_site(
+    client: OpenSearch,
+    *,
+    site_name: str,
+    asset_type: AssetTypeEnum,
+) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
+    """Return all fed-* docs owned by ``site_name`` (paginated search_after)."""
+    docs: list[FederatedDatasetDoc | FederatedCaptureDoc] = []
+    search_after: list[Any] | None = None
+
+    while True:
+        body: dict[str, Any] = {
+            "size": _LIST_PAGE_SIZE,
+            "sort": [{"_id": "asc"}],
+            "query": _site_owned_query(site_name),
+        }
+        if search_after is not None:
+            body["search_after"] = search_after
+
+        response = client.search(index=asset_type.index_name, body=body)
+        hits = (response.get("hits") or {}).get("hits") or []
+        if not hits:
+            break
+
+        for hit in hits:
+            source = hit.get("_source")
+            if not isinstance(source, dict):
+                continue
+            if source.get("site_name") != site_name:
+                continue
+            parsed = _parse_hit(source, asset_type)
+            if parsed is not None:
+                docs.append(parsed)
+
+        if len(hits) < _LIST_PAGE_SIZE:
+            break
+        last_sort = hits[-1].get("sort")
+        if not isinstance(last_sort, list) or not last_sort:
+            break
+        search_after = last_sort
+
+    return docs
+
+
+async def alist_federated_assets_for_site(
+    client: OpenSearch,
+    *,
+    site_name: str,
+    asset_type: AssetTypeEnum,
+) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
+    return await asyncio.to_thread(
+        list_federated_assets_for_site,
+        client,
+        site_name=site_name,
+        asset_type=asset_type,
+    )
 
 
 class FederatedAssetIndexer:
