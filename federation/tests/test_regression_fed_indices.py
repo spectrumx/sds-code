@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
-from sds_federation.services.fed_indices import ensure_fed_indices
+from sds_federation.services.fed_index import ensure_fed_indices
 
 
 class _IndicesStub:

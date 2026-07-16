@@ -16,7 +16,7 @@ from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.services.bootstrap import backfill_peer_on_hello
 from sds_federation.services.bootstrap import peer_by_name
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import alist_federated_assets_for_site
+from sds_federation.services.fed_index import alist_federated_assets_for_site
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import peer_for_outbound
 

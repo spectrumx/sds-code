@@ -1,5 +1,3 @@
-from typing import TYPE_CHECKING
-from typing import cast
 from uuid import UUID
 
 from django.conf import settings
@@ -9,21 +7,18 @@ from django.views import View
 from django.views.generic import TemplateView
 from loguru import logger as log
 
+from sds_gateway.api_methods.helpers.list_helpers import serialize_datasets_for_user
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
-from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.users.forms import PublishedDatasetSearchForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.models import UserAPIKey
 
 from .api_keys import MAX_API_KEY_COUNT
 from .api_keys import get_active_api_key_count
-
-if TYPE_CHECKING:
-    from rest_framework.utils.serializer_helpers import ReturnDict
 
 
 class HomePageView(TemplateView):
@@ -41,30 +36,20 @@ class HomePageView(TemplateView):
                 is_public=True,
                 is_deleted=False,
             )
-            .prefetch_related("keywords", "owner")
+            .select_related("owner")
+            .prefetch_related("keywords")
             .distinct()
             .order_by("-created_at")[:5]
         )
 
-        # Serialize datasets
-        serialized_datasets = []
-        for dataset in latest_datasets:
-            context_req = {
-                "request": type(
-                    "Request",
-                    (),
-                    {
-                        "user": self.request.user
-                        if self.request.user.is_authenticated
-                        else None
-                    },
-                )()
-            }
-            dataset_data = cast(
-                "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
-            )
-            dataset_data["dataset"] = dataset
-            serialized_datasets.append(dataset_data)
+        user = (
+            self.request.user if self.request.user.is_authenticated else None
+        )
+        serialized_datasets = serialize_datasets_for_user(
+            latest_datasets,
+            user,
+            include_actions=False,
+        )
 
         context["search_form"] = PublishedDatasetSearchForm()
         context["latest_datasets"] = serialized_datasets
