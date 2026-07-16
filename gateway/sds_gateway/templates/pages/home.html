@@ -68,8 +68,8 @@
                                                     </h5>
                                                     <div class="mb-2">
                                                         <small class="text-muted">
-                                                            {% if dataset.dataset.created_at %}
-                                                                <i class="bi bi-calendar3 me-1"></i>{{ dataset.dataset.created_at|date:"Y-m-d" }}
+                                                            {% if dataset.created_at %}
+                                                                <i class="bi bi-calendar3 me-1"></i>{{ dataset.created_at|date:"Y-m-d" }}
                                                             {% endif %}
                                                         </small>
                                                     </div>

@@ -17,7 +17,7 @@ from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import aload_federated_asset
+from sds_federation.services.fed_index import aload_federated_asset
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
 from sds_federation.services.redis_channel import resolve_federation_events_channel

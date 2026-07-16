@@ -1,4 +1,3 @@
-from django.conf import settings
 from loguru import logger as log
 from opensearchpy import OpenSearch
 from opensearchpy import RequestsHttpConnection
