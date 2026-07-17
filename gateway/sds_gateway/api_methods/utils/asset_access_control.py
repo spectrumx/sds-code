@@ -394,7 +394,7 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
     """
     capture_pks = list(
         relationship_utils.get_dataset_captures(dataset).values_list(
-            "capture_id",
+            "uuid",
             flat=True,
         ),
     )
