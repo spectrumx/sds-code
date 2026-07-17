@@ -13,6 +13,10 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.utils import relationship_utils
 
+from sds_gateway.api_methods.federation.reindex import (
+    reindex_captures_after_dataset_unlink,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -388,20 +392,18 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
 
     Clears ``Capture.datasets`` (M2M) and deprecated ``Capture.dataset`` (FK).
     """
-    from sds_gateway.api_methods.federation.reindex import (  # noqa: PLC0415
-        reindex_captures_after_dataset_unlink,
-    )
-
     capture_pks = list(
-        Capture.datasets.through.objects.filter(dataset_id=dataset.pk).values_list(
+        relationship_utils.get_dataset_capture(dataset).values_list(
             "capture_id",
             flat=True,
         ),
     )
+
     Capture.datasets.through.objects.filter(dataset_id=dataset.pk).delete()
-    reindex_captures_after_dataset_unlink(capture_pks)
     # TODO: remove FK after contraction
     Capture.objects.filter(dataset=dataset).update(dataset=None)
+    
+    reindex_captures_after_dataset_unlink(capture_pks)    
 
 
 def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
