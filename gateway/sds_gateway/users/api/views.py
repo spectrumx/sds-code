@@ -25,6 +25,10 @@ from sds_gateway.users.models import User
 
 from .serializers import UserSerializer
 
+class ServiceUserSetting(StrEnum):
+    SVI_SERVER_EMAIL = "SVI_SERVER_EMAIL"
+    FEDERATION_SYNC_USER_EMAIL = "FEDERATION_SYNC_USER_EMAIL"
+
 
 @extend_schema(exclude=True)
 class UserViewSet(
@@ -75,19 +79,30 @@ class BackendServiceMintAPIKeyView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        user = get_object_or_404(User, email=request_email, is_approved=True)
+        email_to_mint = ""
+        if self.service_user_email_setting == ServiceUserSetting.FEDERATION_SYNC_USER_EMAIL:
+            email_to_mint = request_email
+        elif self.service_user_email_setting == ServiceUserSetting.SVI_SERVER_EMAIL:
+            email_to_mint = request.query_params.get("email")
+            if not email_to_mint:
+                return Response(
+                    {"error": "Email parameter is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        user = get_object_or_404(User, email=email_to_mint, is_approved=True)
         raw_key = self.mint_user_api_key(user)
         return Response({"api_key": raw_key, "email": user.email})
 
 
 get_svi_api_key_view = BackendServiceMintAPIKeyView.as_view(
-    service_user_email_setting="SVI_SERVER_EMAIL",
+    service_user_email_setting=ServiceUserSetting.SVI_SERVER_EMAIL,
     unauthorized_message="Unauthorized. Only SVI Server can access this endpoint.",
     mint_user_api_key=mint_svi_backend_api_key,
 )
 
 get_federation_sync_api_key_view = BackendServiceMintAPIKeyView.as_view(
-    service_user_email_setting="FEDERATION_SYNC_USER_EMAIL",
+    service_user_email_setting=ServiceUserSetting.FEDERATION_SYNC_USER_EMAIL,
     unauthorized_message=(
         "Unauthorized. Only federation sync can access this endpoint."
     ),
