@@ -393,7 +393,7 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
     Clears ``Capture.datasets`` (M2M) and deprecated ``Capture.dataset`` (FK).
     """
     capture_pks = list(
-        relationship_utils.get_dataset_capture(dataset).values_list(
+        relationship_utils.get_dataset_captures(dataset).values_list(
             "capture_id",
             flat=True,
         ),
