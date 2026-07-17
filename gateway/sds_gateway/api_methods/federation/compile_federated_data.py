@@ -22,6 +22,7 @@ from sds_gateway.api_methods.serializers.dataset_serializers import (
     DatasetFederationSerializer,
 )
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import get_capture_datasets
 
 if TYPE_CHECKING:
     from uuid import UUID
