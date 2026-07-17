@@ -34,13 +34,11 @@ def federation_site_name() -> str:
 
 
 def capture_in_published_dataset(capture: Capture) -> bool:
-    m2m_eligible = capture.datasets.federation_exportable().exists()
-
-    # if no m2m eligible, try fk
-    if not m2m_eligible:
-        return capture.dataset.federation_exportable().exists()
-
-    return m2m_eligible
+    exportable_datasets = get_capture_datasets(
+        capture,
+        include_deleted=False
+    ).federation_exportable()
+    return exportable_datasets.exists()
 
 
 def capture_in_other_published_datasets(
@@ -48,17 +46,11 @@ def capture_in_other_published_datasets(
     *,
     exclude_dataset_id: UUID,
 ) -> bool:
-    m2m_eligible = capture.datasets.federation_exportable().exclude(
-        uuid=exclude_dataset_id
-    ).exists()
-
-    # if no m2m eligible, try fk
-    if not m2m_eligible:
-        return capture.dataset.federation_exportable().exclude(
-            uuid=exclude_dataset_id
-        ).exists()
-
-    return m2m_eligible
+    exportable_datasets = get_capture_datasets(
+        capture,
+        include_deleted=False
+    ).federation_exportable()
+    return exportable_datasets.exclude(uuid=exclude_dataset_id).exists()
 
 
 def compile_federated_dataset_doc(dataset: Dataset) -> dict[str, Any]:

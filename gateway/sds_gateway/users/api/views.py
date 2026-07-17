@@ -61,21 +61,21 @@ class BackendServiceMintAPIKeyView(APIView):
 
     def get(self, request: Request) -> Response:
         allowed_email = getattr(settings, self.service_user_email_setting)
-        log.debug(f"request.user: {request.user}")
-        if request.user.email != allowed_email:
+        
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "The requesting user could not be identified."},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        request_email = request.user.email
+        if request_email != allowed_email:
             return Response(
                 {"error": self.unauthorized_message},
                 status=status.HTTP_403_FORBIDDEN,
             )
 
-        email = request.query_params.get("email")
-        if not email:
-            return Response(
-                {"error": "Email is required"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        user = get_object_or_404(User, email=email, is_approved=True)
+        user = get_object_or_404(User, email=request_email, is_approved=True)
         raw_key = self.mint_user_api_key(user)
         return Response({"api_key": raw_key, "email": user.email})
 
