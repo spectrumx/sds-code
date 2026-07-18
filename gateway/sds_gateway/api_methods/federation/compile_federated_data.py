@@ -36,8 +36,7 @@ def federation_site_name() -> str:
 
 def capture_in_published_dataset(capture: Capture) -> bool:
     exportable_datasets = get_capture_datasets(
-        capture,
-        include_deleted=False
+        capture, include_deleted=False
     ).federation_exportable()
     return exportable_datasets.exists()
 
@@ -48,8 +47,7 @@ def capture_in_other_published_datasets(
     exclude_dataset_id: UUID,
 ) -> bool:
     exportable_datasets = get_capture_datasets(
-        capture,
-        include_deleted=False
+        capture, include_deleted=False
     ).federation_exportable()
     return exportable_datasets.exclude(uuid=exclude_dataset_id).exists()
 

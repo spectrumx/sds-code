@@ -5,6 +5,9 @@ import logging
 from django.db.models import Q
 from pydantic import UUID4
 
+from sds_gateway.api_methods.federation.reindex import (
+    reindex_captures_after_dataset_unlink,
+)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
@@ -12,10 +15,6 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.utils import relationship_utils
-
-from sds_gateway.api_methods.federation.reindex import (
-    reindex_captures_after_dataset_unlink,
-)
 
 logger = logging.getLogger(__name__)
 
