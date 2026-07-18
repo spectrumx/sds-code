@@ -4,7 +4,10 @@ set -Eeuo pipefail
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 GATEWAY_ROOT=$(cd "${SCRIPT_DIR}/.." && pwd)
 SDS_ROOT=$(cd "${GATEWAY_ROOT}/.." && pwd)
-FEDERATION_ROOT=$(cd "${SDS_ROOT}/federation" && pwd)
+FEDERATION_ROOT=""
+if [[ -d "${SDS_ROOT}/federation" ]]; then
+	FEDERATION_ROOT=$(cd "${SDS_ROOT}/federation" && pwd)
+fi
 SFS_ROOT=$(cd "${SDS_ROOT}/seaweedfs" && pwd)
 EXAMPLE_DIR="${GATEWAY_ROOT}/.envs/example"
 FEDERATION_SHARED_TEMPLATE="${SDS_ROOT}/federation-shared.example.env"
@@ -271,8 +274,10 @@ function set_permissions() {
 	env_dirs=(
 		"${GATEWAY_ROOT}/.envs"
 		"${SFS_ROOT}/.envs"
-		"${FEDERATION_ROOT}/.envs"
 	)
+	if [[ -n "${FEDERATION_ROOT}" ]]; then
+		env_dirs+=("${FEDERATION_ROOT}/.envs")
+	fi
 	for dir in "${env_dirs[@]}"; do
 		if [ -d "${dir}" ]; then
 			find "${dir}" -type f -name "*.env" -exec chmod --changes 600 {} \;
