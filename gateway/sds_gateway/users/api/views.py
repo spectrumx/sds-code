@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from enum import StrEnum
 from typing import cast
 
 from django.conf import settings
@@ -24,6 +25,7 @@ from sds_gateway.users.backend_service_key_utils import mint_svi_backend_api_key
 from sds_gateway.users.models import User
 
 from .serializers import UserSerializer
+
 
 class ServiceUserSetting(StrEnum):
     SVI_SERVER_EMAIL = "SVI_SERVER_EMAIL"
@@ -65,7 +67,7 @@ class BackendServiceMintAPIKeyView(APIView):
 
     def get(self, request: Request) -> Response:
         allowed_email = getattr(settings, self.service_user_email_setting)
-        
+
         if not request.user.is_authenticated:
             return Response(
                 {"error": "The requesting user could not be identified."},
@@ -80,7 +82,10 @@ class BackendServiceMintAPIKeyView(APIView):
             )
 
         email_to_mint = ""
-        if self.service_user_email_setting == ServiceUserSetting.FEDERATION_SYNC_USER_EMAIL:
+        if (
+            self.service_user_email_setting
+            == ServiceUserSetting.FEDERATION_SYNC_USER_EMAIL
+        ):
             email_to_mint = request_email
         elif self.service_user_email_setting == ServiceUserSetting.SVI_SERVER_EMAIL:
             email_to_mint = request.query_params.get("email")

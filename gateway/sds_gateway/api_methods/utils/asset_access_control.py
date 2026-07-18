@@ -402,8 +402,8 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
     Capture.datasets.through.objects.filter(dataset_id=dataset.pk).delete()
     # TODO: remove FK after contraction
     Capture.objects.filter(dataset=dataset).update(dataset=None)
-    
-    reindex_captures_after_dataset_unlink(capture_pks)    
+
+    reindex_captures_after_dataset_unlink(capture_pks)
 
 
 def disconnect_assets(item: Dataset | Capture, item_type: ItemType) -> None:
