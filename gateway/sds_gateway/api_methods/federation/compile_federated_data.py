@@ -100,7 +100,8 @@ def get_federated_export_doc_by_uuid(
         return None
     except os_exceptions.OpenSearchException as exc:
         log.warning(
-            f"Federation fed doc lookup failed for {asset_type.value} {asset_uuid}: {exc}",
+            f"Federation fed doc lookup failed for {asset_type.value} "
+            f"{asset_uuid}: {exc}",
         )
         return None
     source = response.get("_source")
