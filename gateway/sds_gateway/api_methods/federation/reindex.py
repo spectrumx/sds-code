@@ -26,8 +26,8 @@ from sds_gateway.api_methods.federation.fed_index import LocalFederatedIndexer
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
-from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.relationship_utils import get_dataset_captures
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
