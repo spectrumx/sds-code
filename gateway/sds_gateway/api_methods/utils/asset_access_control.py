@@ -5,9 +5,6 @@ import logging
 from django.db.models import Q
 from pydantic import UUID4
 
-from sds_gateway.api_methods.federation.reindex import (
-    reindex_captures_after_dataset_unlink,
-)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import File
@@ -391,6 +388,10 @@ def disconnect_captures_from_dataset(dataset: Dataset) -> None:
 
     Clears ``Capture.datasets`` (M2M) and deprecated ``Capture.dataset`` (FK).
     """
+    from sds_gateway.api_methods.federation.reindex import (  # noqa: PLC0415
+        reindex_captures_after_dataset_unlink,
+    )
+
     capture_pks = list(
         relationship_utils.get_dataset_captures(dataset).values_list(
             "uuid",
