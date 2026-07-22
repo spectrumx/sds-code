@@ -60,12 +60,14 @@ uv run --extra local pre-commit install
 
 Choose the automated or manual deploy method below:
 
-> [!IMPORTANT] If you ran the `deploy.sh` script from the main README, skip to the
+> [!IMPORTANT]
+> If you ran the `deploy.sh` script from the main README, skip to the
 > [first deployment: not automated](#first-deployment-not-automated) section below.
 
 ### A. Automated (recommended)
 
-> [!IMPORTANT] Skip this section if you ran the `deploy.sh` script from the main README.
+> [!IMPORTANT]
+> Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Generate secrets:
 
@@ -139,7 +141,8 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
 
 ## First deployment: automated
 
-> [!IMPORTANT] These are "automated" steps because they are covered by the `deploy.sh`
+> [!IMPORTANT]
+> These are "automated" steps because they are covered by the `deploy.sh`
 > script from the main README. If you ran that script, you can skip to the next section.
 
 This applies for both local and production deploys, but the names of the containers will
@@ -180,7 +183,8 @@ accessing the Gateway for the first time.
     `localhost:18000/<admin-path-set-in-django.env>` in production) to access the admin
     interface.
 
-    > [!TIP] The superuser credentials are the ones provided in a step above, or during
+    > [!TIP]
+    > The superuser credentials are the ones provided in a step above, or during
     > an interactive execution of the `deploy.sh` script. If the credentials were lost,
     > you can reset the password with:
     >
