@@ -44,7 +44,8 @@ uv sync --frozen --extra local
 # --extra local installs the required dependencies + 'local' ones (for local development)
 ```
 
-> [!NOTE] When using `uv`, all base, local, and production dependencies are described in
+> [!NOTE]
+> When using `uv`, all base, local, and production dependencies are described in
 > the `pyproject.toml` file.
 >
 > If you're using `pip`, refer to the `requirements/` directory.
@@ -71,7 +72,8 @@ Choose the automated or manual deploy method below:
 
 1. Generate secrets:
 
-    > [!TIP] You can ignore "file does not exist" warnings when running the "just"
+    > [!TIP]
+    > You can ignore "file does not exist" warnings when running the "just"
     > recipe below.
 
     ```bash
@@ -91,7 +93,8 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
 
 ### B. Manual (if needed)
 
-> [!IMPORTANT] Skip this section if you ran the `deploy.sh` script from the main README.
+> [!IMPORTANT]
+> Skip this section if you ran the `deploy.sh` script from the main README.
 
 1. Set secrets:
 
@@ -409,7 +412,7 @@ production hosts.
         + Most `mc` commands can be replaced with `rc`, as they are, but the API is not
           exactly a drop-in replacement.
 
-    >[!NOTE]
+    > [!NOTE]
     >
     > We're using `prod-secondary-rustfs` in the example commands below as our mc alias.
     > Change it accordingly if you're using a different alias in your config. To see all
@@ -550,7 +553,8 @@ production hosts.
         -key /usr/share/opensearch/config/certs/admin-key.pem
     ```
 
-    > [!TIP] If you want to reserve users or permissions so they cannot be changed
+    > [!TIP]
+    > If you want to reserve users or permissions so they cannot be changed
     > through the API and only through running the `securityadmin.sh` script, set a
     > parameter on individual entries: `reserved: true`.
     >
@@ -597,7 +601,8 @@ For example:
 }
 ```
 
-> [!NOTE] You do not have to worry about building nested queries. The API handles
+> [!NOTE]
+> You do not have to worry about building nested queries. The API handles
 > nesting based on the dot notation in the `field_path`. Only provide the inner-most
 > `filter_value`, the actual filter you want to apply to the field, when constructing
 > filters for requests.
@@ -639,7 +644,8 @@ Here are some useful examples of advanced queries one might want to make to the 
         }
     ```
 
-    >[!Note] `now` is a keyword in OpenSearch that refers to the current date and time.
+    > [!Note]
+    > `now` is a keyword in OpenSearch that refers to the current date and time.
 
     More information about `range` queries can be found [OpenSearch range queries
     documentation](https://opensearch.org/docs/latest/query-dsl/term/range/).
