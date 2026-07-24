@@ -13,7 +13,6 @@ if TYPE_CHECKING:
 class PeerRegistry:
     def __init__(self) -> None:
         self._peers: dict[str, SiteHelloWebhook] = {}
-        self._last_seen: dict[str, datetime] = {}
 
     def register(self, hello: SiteHelloWebhook) -> None:
         self._peers[hello.site_name] = hello
@@ -21,6 +20,3 @@ class PeerRegistry:
 
     def get(self, site_name: str) -> SiteHelloWebhook | None:
         return self._peers.get(site_name)
-
-    def known_site_names(self) -> set[str]:
-        return set(self._peers.keys())
