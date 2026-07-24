@@ -30,7 +30,6 @@ class PostProcessedDataAdmin(admin.ModelAdmin):
         "capture__name",
         "capture__uuid",
         "pipeline_id",
-        "processing_error",
     )
     readonly_fields = (
         "uuid",
