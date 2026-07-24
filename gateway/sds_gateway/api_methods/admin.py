@@ -25,7 +25,7 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
 
-    @admin.display(description="# Cap")
+    @admin.display(description="# Cap", ordering="_capture_count")
     def capture_count(self, obj):
         count = getattr(obj, "_capture_count", 0)
         return count or "-"
@@ -62,12 +62,12 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_filter = ("channel", "capture_type", "index_name")
     ordering = ("-updated_at",)
 
-    @admin.display(description="# Ds")
+    @admin.display(description="# Ds", ordering="_dataset_count")
     def dataset_count(self, obj):
         count = getattr(obj, "_dataset_count", 0)
         return count or "-"
 
-    @admin.display(description="Files")
+    @admin.display(description="Files", ordering="_file_count")
     def file_count(self, obj):
         count = getattr(obj, "_file_count", 0)
         return f"{count} files" if count else "-"
@@ -102,12 +102,12 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_filter = ("status", "keywords")
     ordering = ("-updated_at",)
 
-    @admin.display(description="Captures")
+    @admin.display(description="# Cap", ordering="_capture_count")
     def capture_count(self, obj):
         count = getattr(obj, "_capture_count", 0)
         return f"{count} captures" if count else "-"
 
-    @admin.display(description="Artifact Files")
+    @admin.display(description="Artifact Files", ordering="_file_count")
     def file_count(self, obj):
         count = getattr(obj, "_file_count", 0)
         return f"{count} artifact files" if count else "-"
@@ -267,7 +267,7 @@ class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArg
     search_fields = ("name", "owner__email")
     ordering = ("-updated_at",)
 
-    @admin.display(description="Members")
+    @admin.display(description="Members", ordering="_member_count")
     def member_count(self, obj):
         return getattr(obj, "_member_count", "-")
 

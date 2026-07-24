@@ -1,0 +1,177 @@
+{% extends "admin/base_site.html" %}
+
+{% load i18n static %}
+
+{% block title %}Dashboard | {{ title }}{% endblock title %}
+{% block extrahead %}
+    {{ block.super }}
+    <link rel="stylesheet" href="{% static 'admin/css/dashboard.css' %}" />
+{% endblock extrahead %}
+{% block content %}
+    <div id="content-main">
+        <h1 class="dashboard-heading">Gateway Dashboard</h1>
+        <!-- Overview Cards -->
+        <div class="dashboard-grid">
+            <div class="dashboard-card">
+                <div class="dashboard-card__number">
+                    <a href="{{ dashboard.file_admin_url }}">{{ dashboard.active_file_count }}</a>
+                </div>
+                <div class="dashboard-card__label">Files</div>
+                <div class="dashboard-card__sub">{{ dashboard.active_total_size }}</div>
+            </div>
+            <div class="dashboard-card">
+                <div class="dashboard-card__number">
+                    <a href="{{ dashboard.capture_admin_url }}">{{ dashboard.capture_count }}</a>
+                </div>
+                <div class="dashboard-card__label">Captures</div>
+            </div>
+            <div class="dashboard-card">
+                <div class="dashboard-card__number">
+                    <a href="{{ dashboard.dataset_admin_url }}">{{ dashboard.dataset_count }}</a>
+                </div>
+                <div class="dashboard-card__label">Datasets</div>
+            </div>
+            <div class="dashboard-card">
+                <div class="dashboard-card__number">
+                    <a href="{{ dashboard.user_admin_url }}">{{ dashboard.total_user_count }}</a>
+                </div>
+                <div class="dashboard-card__label">Users</div>
+            </div>
+        </div>
+        <!-- Cleanup Candidates -->
+        {% if dashboard.cleanup_file_count > 0 %}
+            <div class="dashboard-cleanup">
+                <h2 class="dashboard-cleanup__title">Cleanup Candidates</h2>
+                <p class="dashboard-cleanup__body">
+                    {{ dashboard.cleanup_file_count }} soft-deleted files older than 30 days
+                    — {{ dashboard.cleanup_total_size }} recoverable
+                </p>
+            </div>
+        {% endif %}
+        <!-- System Health -->
+        {% if dashboard.health_payload %}
+            <div class="module dashboard-section">
+                <h2>System Health</h2>
+                {% with status=dashboard.health_payload.overall_status %}
+                    <span class="dashboard-pill {% if status == 'healthy' %}dashboard-pill--healthy {% elif status == 'degraded' %}dashboard-pill--degraded {% else %}dashboard-pill--down{% endif %}">{{ status|upper }}</span>
+                {% endwith %}
+                <div class="dashboard-meta">Checked at: {{ dashboard.health_payload.checked_at }}</div>
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Service</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for service in dashboard.health_payload.child_statuses %}
+                            <tr>
+                                <td>{{ service.service_name }}</td>
+                                <td>
+                                    <span class="dashboard-dot {% if service.status == 'healthy' %}dashboard-dot--healthy {% elif service.status == 'degraded' %}dashboard-dot--degraded {% else %}dashboard-dot--down{% endif %}"></span>
+                                    {{ service.status }}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+        <!-- Recent Users -->
+        <div class="module dashboard-section">
+            <h2>Recent Users (14 days)</h2>
+            {% if dashboard.recent_users %}
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Joined</th>
+                            <th class="text-center">Active</th>
+                            <th class="text-center">Approved</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in dashboard.recent_users %}
+                            <tr class="dashboard-clickable"
+                                onclick="location.href='{% url 'admin:users_user_change' user.pk %}'">
+                                <td>{{ user.name }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                                <td class="text-center">
+                                    {% if user.is_active %}<span class="dashboard-check">✓</span>{% else %}<span class="dashboard-cross">✗</span>{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if user.is_approved %}<span class="dashboard-check">✓</span>{% else %}<span class="dashboard-cross">✗</span>{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="dashboard-empty">No users joined in the last 14 days.</p>
+            {% endif %}
+        </div>
+        <!-- Superusers & Admins -->
+        <div class="module dashboard-section">
+            <h2>Superusers &amp; Admins</h2>
+            {% if dashboard.superusers %}
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th class="text-center">Staff</th>
+                            <th class="text-center">Superuser</th>
+                            <th class="text-center">Active</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in dashboard.superusers %}
+                            <tr class="dashboard-clickable"
+                                onclick="location.href='{% url 'admin:users_user_change' user.pk %}'">
+                                <td>{{ user.name }}</td>
+                                <td>{{ user.email }}</td>
+                                <td class="text-center">
+                                    {% if user.is_staff %}<span class="dashboard-check">✓</span>{% else %}<span class="dashboard-cross">✗</span>{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if user.is_superuser %}<span class="dashboard-check">✓</span>{% else %}<span class="dashboard-cross">✗</span>{% endif %}
+                                </td>
+                                <td class="text-center">
+                                    {% if user.is_active %}<span class="dashboard-check">✓</span>{% else %}<span class="dashboard-cross">✗</span>{% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="dashboard-empty">No staff or superuser accounts found.</p>
+            {% endif %}
+        </div>
+        <!-- Top Users by Storage -->
+        {% if dashboard.top_users %}
+            <div class="module dashboard-section">
+                <h2>Top Users by Storage</h2>
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Files</th>
+                            <th>Total Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in dashboard.top_users %}
+                            <tr>
+                                <td>{{ user.email }}</td>
+                                <td>{{ user.file_count }}</td>
+                                <td>{{ user.total_size|filesizeformat }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+{% endblock content %}

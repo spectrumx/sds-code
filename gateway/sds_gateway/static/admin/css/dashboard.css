@@ -1,0 +1,245 @@
+/* Dashboard styles — uses Django admin's native CSS variables */
+
+/* Layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+/* Stat cards */
+.dashboard-card {
+    background: var(--darkened-bg);
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid var(--hairline-color);
+}
+
+/* Stat card numbers — var(--primary) ≈ #79aec8 is borderline on dark bg.
+   Brighter blue ensures 7:1+ contrast for large bold text. */
+.dashboard-card__number {
+    font-size: 2.2em;
+    font-weight: 700;
+    color: #60a5fa;
+    line-height: 1.2;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-card__number {
+        color: #0055aa;
+    }
+}
+
+.dashboard-card__number a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.dashboard-card__number a:hover {
+    color: var(--secondary);
+}
+
+/* Card labels — var(--body-quiet-color) can be too low contrast.
+   Explicit lighter gray ensures 6:1+ contrast on dark bg. */
+.dashboard-card__label {
+    color: #b0b0b0;
+    margin-top: 4px;
+    font-size: 0.9em;
+}
+
+/* Card sub-text */
+.dashboard-card__sub {
+    color: #a0a0a0;
+    font-size: 0.85em;
+    margin-top: 2px;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-card__label {
+        color: #555;
+    }
+    .dashboard-card__sub {
+        color: #666;
+    }
+}
+
+/* Cleanup banner */
+.dashboard-cleanup {
+    background: var(--message-error-bg);
+    border-left: 4px solid var(--error-fg);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+}
+
+.dashboard-cleanup__title {
+    margin: 0 0 8px;
+    color: var(--error-fg);
+}
+
+.dashboard-cleanup__body {
+    margin: 0;
+    color: var(--body-fg);
+}
+
+/* Section modules */
+.dashboard-section {
+    margin-bottom: 24px;
+    padding: 16px 20px;
+}
+
+/* Health status pill */
+.dashboard-pill {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.9em;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.03em;
+}
+
+.dashboard-pill--healthy {
+    background: #28a745;
+}
+.dashboard-pill--degraded {
+    background: var(--accent);
+    color: var(--body-fg);
+}
+.dashboard-pill--down {
+    background: var(--error-fg);
+}
+
+/* Health meta */
+.dashboard-meta {
+    color: #a0a0a0;
+    font-size: 0.85em;
+    margin-top: 6px;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-meta {
+        color: #666;
+    }
+}
+
+/* Tables */
+.dashboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+
+.dashboard-table th {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 2px solid var(--border-color);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #b0b0b0;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-table th {
+        color: #555;
+    }
+}
+
+.dashboard-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--hairline-color);
+    color: var(--body-fg);
+}
+
+.dashboard-table tbody tr:nth-child(even) {
+    background: var(--darkened-bg);
+}
+
+.dashboard-table tbody tr:hover {
+    background: var(--selected-bg);
+}
+
+/* Clickable rows */
+.dashboard-clickable {
+    cursor: pointer;
+}
+
+.dashboard-clickable:hover {
+    background: var(--selected-bg) !important;
+}
+
+/* Status indicator dot */
+.dashboard-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.dashboard-dot--healthy {
+    background: #28a745;
+}
+.dashboard-dot--degraded {
+    background: var(--accent);
+}
+.dashboard-dot--down {
+    background: var(--error-fg);
+}
+
+/* Check/cross marks — #28a745 on success bg is ~2.3:1, fails WCAG AA */
+.dashboard-check {
+    color: #1a7a2e;
+    background: var(--message-success-bg);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-check {
+        color: #145a22;
+    }
+}
+
+.dashboard-cross {
+    color: var(--error-fg);
+}
+
+/* Muted empty state */
+.dashboard-empty {
+    color: #a0a0a0;
+    margin: 8px 0 0;
+    font-style: italic;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-empty {
+        color: #666;
+    }
+}
+
+/* Utility classes */
+.text-center {
+    text-align: center;
+}
+
+/* Dashboard heading — WCAG AA: var(--secondary) ≈ #417690 fails on dark bg (~2.6:1).
+   Use explicit high-contrast colors with theme adaptation. */
+.dashboard-heading {
+    color: #e0e0e0;
+    margin-bottom: 20px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #5cb8ff;
+}
+
+@media (prefers-color-scheme: light) {
+    .dashboard-heading {
+        color: #1a1a2e;
+        border-bottom-color: #417690;
+    }
+}
