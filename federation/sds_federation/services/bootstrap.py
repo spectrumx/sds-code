@@ -23,11 +23,28 @@ if TYPE_CHECKING:
     from sds_federation.services.fed_index import FederatedAssetIndexer
 
 SITE_HELLO_PATH = "/webhook/site-hello"
+_MINT_PATH = "/users/get-federation-sync-api-key/"
 
 
 def _export_list_url(peer: PeerInfo, asset_type: AssetTypeEnum) -> str:
     base = str(peer.gateway_api_base).rstrip("/")
     return f"{base}{asset_type.export_path}"
+
+
+def _gateway_origin(gateway_api_base: str) -> str:
+    """Strip ``/api/v1`` (or ``/api/<version>``) so non-API routes resolve."""
+    base = str(gateway_api_base).rstrip("/")
+    if base.endswith("/api/v1"):
+        return base[: -len("/api/v1")]
+    marker = "/api/"
+    if marker in base:
+        return base.rsplit(marker, 1)[0]
+    return base
+
+
+def mint_api_key_url(gateway_api_base: str) -> str:
+    """Gateway mint lives at ``/users/...``, not under ``/api/v1``."""
+    return f"{_gateway_origin(gateway_api_base)}{_MINT_PATH}"
 
 
 def _gateway_auth_headers(api_key: str) -> dict[str, str]:
@@ -39,7 +56,69 @@ def _gateway_auth_headers(api_key: str) -> dict[str, str]:
 def _resolve_gateway_api_key(peer: PeerInfo) -> str:
     if peer.gateway_export_api_key:
         return peer.gateway_export_api_key
-    return os.environ.get("FEDERATION_SYNC_SERVER_API_KEY", "")
+    return os.environ.get("FEDERATION_SYNC_SERVER_API_KEY", "").strip()
+
+
+async def mint_local_export_api_key(
+    http: httpx.AsyncClient,
+    gateway_api_base: str,
+    *,
+    drf_token: str,
+) -> str:
+    """Mint a FederationSync UserAPIKey via the local gateway."""
+    url = mint_api_key_url(gateway_api_base)
+    resp = await http.get(
+        url,
+        headers={"Authorization": f"Token {drf_token}"},
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    if not isinstance(data, dict):
+        msg = f"expected dict from {url}, got {type(data).__name__}"
+        raise TypeError(msg)
+    raw = data.get("api_key")
+    if not isinstance(raw, str) or not raw.strip():
+        msg = f"mint response from {url} missing api_key"
+        raise ValueError(msg)
+    return raw.strip()
+
+
+async def ensure_local_export_api_key(
+    http: httpx.AsyncClient,
+    gateway_api_base: str,
+) -> str:
+    """
+    Resolve the Api-Key used for local gateway export.
+
+    Prefer ``FEDERATION_SYNC_SERVER_API_KEY`` when set; otherwise mint using
+    ``FEDERATION_SYNC_DRF_TOKEN`` and cache the raw key in the process env for
+    subsequent bootstrap export calls.
+    """
+    existing = os.environ.get("FEDERATION_SYNC_SERVER_API_KEY", "").strip()
+    if existing:
+        return existing
+
+    token = os.environ.get("FEDERATION_SYNC_DRF_TOKEN", "").strip()
+    if not token:
+        logger.warning(
+            "Neither FEDERATION_SYNC_SERVER_API_KEY nor FEDERATION_SYNC_DRF_TOKEN "
+            "is set; gateway export requests will be unauthenticated",
+        )
+        return ""
+
+    try:
+        api_key = await mint_local_export_api_key(
+            http,
+            gateway_api_base,
+            drf_token=token,
+        )
+    except (httpx.HTTPError, TypeError, ValueError) as exc:
+        logger.error("Failed to mint federation sync Api-Key: {}", exc)
+        return ""
+
+    os.environ["FEDERATION_SYNC_SERVER_API_KEY"] = api_key
+    logger.info("Minted federation sync export Api-Key from {}", gateway_api_base)
+    return api_key
 
 
 async def _get_json(
@@ -100,22 +179,25 @@ async def bootstrap_gateway_exports(
             )
             continue
         for doc in docs:
-            # validate document site name with peer fqdn
-            if doc.site_name != peer.fqdn:
+            if doc.site_name != peer.name:
                 logger.error(
-                    "bootstrap export failed for {} {}: site name mismatch",
-                    peer.fqdn,
+                    "bootstrap export failed for {} {}: site name mismatch "
+                    "(doc.site_name={!r}, peer.name={!r})",
+                    peer.name,
                     asset_type.value,
+                    doc.site_name,
+                    peer.name,
                 )
                 continue
 
-            indexer.apply_asset_event(
+            new_index = indexer.apply_asset_event(
                 event_at=event_at,
                 site_name=doc.site_name,
                 asset=doc,
                 asset_type=asset_type,
             )
-            indexed += 1
+            if new_index:
+                indexed += 1
     return indexed
 
 
@@ -224,6 +306,7 @@ async def run_bootstrap(
     pulled from ``/federation/export/{datasets,captures}/`` on start.
     """
     at = event_at or datetime.now(UTC)
+    await ensure_local_export_api_key(http, str(config.gateway_api_base))
     local_count = await bootstrap_local_site(http, config, indexer, event_at=at)
     peer_count = await bootstrap_all_peers(config, http, indexer, event_at=at)
     logger.info(

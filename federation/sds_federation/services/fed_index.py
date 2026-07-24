@@ -61,7 +61,7 @@ class FederatedAssetIndexer:
         site_name: str,
         asset: FederatedDatasetDoc | FederatedCaptureDoc | None,
         asset_type: AssetTypeEnum,
-    ) -> None:
+    ) -> bool:
         if asset is None:
             kind = asset_type.value
             msg = f"{kind} body required for {kind}-updated webhook"
@@ -76,7 +76,7 @@ class FederatedAssetIndexer:
             event_at,
             index_name=asset_type.index_name,
         ):
-            return
+            return False
 
         _id = doc_id(site_name, asset.uuid)
         body = asset.model_dump(mode="json")
@@ -89,3 +89,4 @@ class FederatedAssetIndexer:
         )
 
         self._mark_applied(site_name, asset.uuid, event_at)
+        return True
