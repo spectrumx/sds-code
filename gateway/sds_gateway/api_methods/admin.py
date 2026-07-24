@@ -1,6 +1,7 @@
 import json
 
 from django.contrib import admin
+from django.db.models import Count
 
 from sds_gateway.api_methods import models
 
@@ -8,25 +9,94 @@ from sds_gateway.api_methods import models
 # Register your models here.
 @admin.register(models.File)
 class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("name", "media_type", "size", "owner", "is_deleted")
+    list_display = (
+        "name",
+        "owner",
+        "media_type",
+        "size",
+        "is_public",
+        "is_deleted",
+        "expiration_date",
+        "created_at",
+        "updated_at",
+    )
     search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("owner")
 
 
 @admin.register(models.Capture)
 class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("name", "channel", "capture_type", "index_name")
+    list_display = (
+        "name",
+        "owner",
+        "capture_type",
+        "file_count",
+        "origin",
+        "channel",
+        "index_name",
+        "is_deleted",
+        "created_at",
+        "updated_at",
+    )
     search_fields = ("uuid", "name", "channel", "index_name")
     list_filter = ("channel", "capture_type", "index_name")
     ordering = ("-updated_at",)
 
+    @admin.display(description="Files")
+    def file_count(self, obj):
+        count = getattr(obj, "_file_count", 0)
+        return f"{count} files" if count else "-"
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("owner")
+            .annotate(_file_count=Count("files"))
+        )
+
 
 @admin.register(models.Dataset)
 class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("name", "doi", "get_keywords", "status", "owner")
+    list_display = (
+        "name",
+        "owner",
+        "status",
+        "capture_count",
+        "file_count",
+        "version",
+        "doi",
+        "get_keywords",
+        "license",
+        "release_date",
+        "is_deleted",
+        "created_at",
+        "updated_at",
+    )
     search_fields = ("name", "doi", "keywords__name", "owner__email")
     list_filter = ("status", "keywords")
     ordering = ("-updated_at",)
+
+    @admin.display(description="Captures")
+    def capture_count(self, obj):
+        count = getattr(obj, "_capture_count", 0)
+        return f"{count} captures" if count else "-"
+
+    @admin.display(description="Artifact Files")
+    def file_count(self, obj):
+        count = getattr(obj, "_file_count", 0)
+        return f"{count} artifact files" if count else "-"
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("owner")
+            .annotate(_capture_count=Count("captures"), _file_count=Count("files"))
+        )
 
     @admin.display(description="Keywords")
     def get_keywords(self, obj):
@@ -75,17 +145,55 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
 
 @admin.register(models.TemporaryZipFile)
 class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("uuid", "owner", "created_at", "expires_at")
+    list_display = (
+        "filename",
+        "owner",
+        "file_size",
+        "creation_status",
+        "is_downloaded",
+        "created_at",
+        "expires_at",
+    )
     search_fields = ("uuid", "owner__email")
     ordering = ("-created_at",)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("owner")
 
 
 @admin.register(models.UserSharePermission)
 class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("item_uuid", "item_type", "shared_with", "owner", "is_enabled")
+    list_display = (
+        "owner",
+        "shared_with",
+        "item_type",
+        "item_name",
+        "permission_level",
+        "notified",
+        "is_enabled",
+        "created_at",
+    )
     search_fields = ("item_uuid", "item_type", "shared_with__email", "owner__email")
     list_filter = ("item_type", "is_enabled")
     ordering = ("-updated_at",)
+
+    @admin.display(description="Item Name")
+    def item_name(self, obj):
+        """Resolve item_uuid to the actual dataset/capture name."""
+        from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
+        from sds_gateway.api_methods.models import Dataset  # noqa: PLC0415
+        from sds_gateway.api_methods.models import ItemType  # noqa: PLC0415
+
+        if obj.item_type == ItemType.DATASET:
+            item = Dataset.objects.filter(uuid=obj.item_uuid).first()
+            return item.name if item else str(obj.item_uuid)
+        if obj.item_type == ItemType.CAPTURE:
+            item = Capture.objects.filter(uuid=obj.item_uuid).first()
+            return item.name if item else str(obj.item_uuid)
+        return str(obj.item_uuid)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related("owner", "shared_with")
 
 
 @admin.register(models.DEPRECATEDPostProcessedData)
@@ -129,9 +237,21 @@ class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissing
 
 @admin.register(models.ShareGroup)
 class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
-    list_display = ("name", "owner")
+    list_display = ("name", "owner", "member_count", "created_at", "updated_at")
     search_fields = ("name", "owner__email")
     ordering = ("-updated_at",)
+
+    @admin.display(description="Members")
+    def member_count(self, obj):
+        return getattr(obj, "_member_count", "-")
+
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("owner")
+            .annotate(_member_count=Count("group_share_permissions"))
+        )
 
 
 @admin.register(models.Keyword)
