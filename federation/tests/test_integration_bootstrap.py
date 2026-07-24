@@ -113,6 +113,7 @@ async def test_push_site_hello_to_in_process_peer(
 @pytest.mark.asyncio
 async def test_run_bootstrap_pulls_exports_then_registers(
     recording_opensearch: RecordingOpenSearch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local_doc = sample_federated_dataset_doc(site_name="testsite")
     peer_doc = sample_federated_dataset_doc(site_name="peer-one")
@@ -120,8 +121,21 @@ async def test_run_bootstrap_pulls_exports_then_registers(
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
+        if request.method == "GET" and url.endswith(
+            "/users/get-federation-sync-api-key/",
+        ):
+            return httpx.Response(
+                200,
+                json={
+                    "api_key": "minted-for-bootstrap",
+                    "email": "federation-sync@internal.local",
+                },
+            )
         if request.method == "GET" and "local-gateway" in url:
             if "export/datasets" in url:
+                assert request.headers.get("Authorization") == (
+                    "Api-Key: minted-for-bootstrap"
+                )
                 return httpx.Response(
                     200,
                     json=[local_doc.model_dump(mode="json")],
@@ -161,6 +175,9 @@ async def test_run_bootstrap_pulls_exports_then_registers(
     )
     indexer = FederatedAssetIndexer(recording_opensearch)
     event_at = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
+
+    monkeypatch.delenv("FEDERATION_SYNC_SERVER_API_KEY", raising=False)
+    monkeypatch.setenv("FEDERATION_SYNC_DRF_TOKEN", "b" * 40)
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
         await run_bootstrap(config, http, indexer, event_at=event_at)

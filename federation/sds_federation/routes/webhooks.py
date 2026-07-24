@@ -51,12 +51,11 @@ async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
         )
     try:
         await asyncio.to_thread(
-            _indexer(request).apply_asset_event(
-                event_at=payload.timestamp,
-                site_name=payload.site_name,
-                asset=payload.asset,
-                asset_type=payload.asset_type,
-            )
+            _indexer(request).apply_asset_event,
+            event_at=payload.timestamp,
+            site_name=payload.site_name,
+            asset=payload.asset,
+            asset_type=payload.asset_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -73,12 +72,11 @@ async def capture_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
         )
     try:
         await asyncio.to_thread(
-            _indexer(request).apply_asset_event(
-                event_at=payload.timestamp,
-                site_name=payload.site_name,
-                asset=payload.asset,
-                asset_type=payload.asset_type,
-            )
+            _indexer(request).apply_asset_event,
+            event_at=payload.timestamp,
+            site_name=payload.site_name,
+            asset=payload.asset,
+            asset_type=payload.asset_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
