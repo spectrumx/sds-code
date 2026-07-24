@@ -1,8 +1,10 @@
 """Tests for the custom admin dashboard."""
 
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
+from django.db import OperationalError
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
@@ -224,3 +226,28 @@ def test_dashboard_context_admin_urls() -> None:
     ):
         assert isinstance(ctx[key], str)
         assert len(ctx[key]) > 0
+
+
+def test_dashboard_context_db_error_returns_fallback() -> None:
+    """When DB queries fail, _dashboard_context returns safe defaults."""
+    with patch(
+        "sds_gateway.admin.File.objects.filter",
+        side_effect=OperationalError("DB connection lost"),
+    ):
+        ctx = _dashboard_context()
+
+    assert ctx["active_file_count"] == 0
+    assert ctx["active_total_size"] == "0 B"
+    assert ctx["cleanup_file_count"] == 0
+    assert ctx["cleanup_total_size"] == "0 B"
+    assert ctx["top_users"] == []
+    assert ctx["capture_count"] == 0
+    assert ctx["dataset_count"] == 0
+    assert ctx["health_payload"] is None
+    assert ctx["recent_users"] == []
+    assert ctx["superusers"] == []
+    assert ctx["total_user_count"] == 0
+    assert ctx["file_admin_url"] == "#"
+    assert ctx["capture_admin_url"] == "#"
+    assert ctx["dataset_admin_url"] == "#"
+    assert ctx["user_admin_url"] == "#"
