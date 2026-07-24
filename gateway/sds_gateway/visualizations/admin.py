@@ -12,9 +12,11 @@ class PostProcessedDataAdmin(admin.ModelAdmin):
     list_display = (
         "processing_type",
         "capture",
+        "get_owner",
         "processing_status",
-        "processed_at",
         "pipeline_id",
+        "processed_at",
+        "has_error",
         "created_at",
     )
     list_filter = (
@@ -84,6 +86,19 @@ class PostProcessedDataAdmin(admin.ModelAdmin):
         ),
     )
 
+    @admin.display(description="Owner")
+    def get_owner(self, obj):
+        """Get owner through the capture FK."""
+        if obj.capture and obj.capture.owner:
+            return obj.capture.owner.email
+        return "-"
+
+    @admin.display(boolean=True)
+    @admin.display(description="Error")
+    def has_error(self, obj):
+        """Show if processing has an error."""
+        return obj.processing_error is not None or obj.cog_error is not None
+
     def get_queryset(self, request):
         """Optimize queryset with related fields."""
-        return super().get_queryset(request).select_related("capture")
+        return super().get_queryset(request).select_related("capture__owner")

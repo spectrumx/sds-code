@@ -43,7 +43,16 @@ class UserAdmin(auth_admin.UserAdmin):  # pyright: ignore[reportMissingTypeArgum
         ),
         (_("Important dates"), {"fields": ("last_login", "date_joined")}),
     )
-    list_display = ["email", "name", "is_superuser"]
+    list_display = [
+        "email",
+        "name",
+        "is_active",
+        "is_approved",
+        "is_staff",
+        "is_superuser",
+        "last_login",
+        "date_joined",
+    ]
     search_fields = ["name"]
     ordering = ["id"]
     add_fieldsets = (
