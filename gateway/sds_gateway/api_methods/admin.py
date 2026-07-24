@@ -12,6 +12,7 @@ from sds_gateway.api_methods.utils.disk_utils import format_file_size
 class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = (
         "name",
+        "capture_count",
         "owner",
         "media_type",
         "formatted_size",
@@ -24,18 +25,29 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
 
+    @admin.display(description="# Cap")
+    def capture_count(self, obj):
+        count = getattr(obj, "_capture_count", 0)
+        return count or "-"
+
     @admin.display(description="Size", ordering="size")
     def formatted_size(self, obj):
         return format_file_size(obj.size) if obj.size is not None else "-"
 
     def get_queryset(self, request):
-        return super().get_queryset(request).select_related("owner")
+        return (
+            super()
+            .get_queryset(request)
+            .select_related("owner")
+            .annotate(_capture_count=Count("captures"))
+        )
 
 
 @admin.register(models.Capture)
 class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = (
         "name",
+        "dataset_count",
         "owner",
         "capture_type",
         "file_count",
@@ -50,6 +62,11 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_filter = ("channel", "capture_type", "index_name")
     ordering = ("-updated_at",)
 
+    @admin.display(description="# Ds")
+    def dataset_count(self, obj):
+        count = getattr(obj, "_dataset_count", 0)
+        return count or "-"
+
     @admin.display(description="Files")
     def file_count(self, obj):
         count = getattr(obj, "_file_count", 0)
@@ -60,7 +77,7 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
             super()
             .get_queryset(request)
             .select_related("owner")
-            .annotate(_file_count=Count("files"))
+            .annotate(_dataset_count=Count("datasets"), _file_count=Count("files"))
         )
 
 
