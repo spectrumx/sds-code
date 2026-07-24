@@ -39,7 +39,7 @@ def _gateway_auth_headers(api_key: str) -> dict[str, str]:
 def _resolve_gateway_api_key(peer: PeerInfo) -> str:
     if peer.gateway_export_api_key:
         return peer.gateway_export_api_key
-    return os.environ.get("FEDERATION_GATEWAY_API_KEY", "")
+    return os.environ.get("FEDERATION_SYNC_SERVER_API_KEY", "")
 
 
 async def _get_json(
@@ -100,6 +100,15 @@ async def bootstrap_gateway_exports(
             )
             continue
         for doc in docs:
+            # validate document site name with peer fqdn
+            if doc.site_name != peer.fqdn:
+                logger.error(
+                    "bootstrap export failed for {} {}: site name mismatch",
+                    peer.fqdn,
+                    asset_type.value,
+                )
+                continue
+
             indexer.apply_asset_event(
                 event_at=event_at,
                 site_name=doc.site_name,
