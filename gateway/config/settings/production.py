@@ -1,5 +1,5 @@
 """⚠️ Setting overrides for PRODUCTION ⚠️"""
-# ruff: noqa: F405, ERA001, E402
+# ruff: noqa: F405, ERA001, E402, E501
 
 import os
 
@@ -149,6 +149,10 @@ LOGGING: dict[str, Any] = {
         "colored": {
             "()": ColoredFormatter,
         },
+        "plain": {
+            "format": "%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)s:%(module)s:%(funcName)s:%(lineno)d - %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
     },
     "handlers": {
         "mail_admins": {
@@ -161,16 +165,24 @@ LOGGING: dict[str, Any] = {
             "class": "logging.StreamHandler",
             "formatter": "colored",
         },
+        "file": {
+            "level": "INFO",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "/app/logs/gateway.log",
+            "maxBytes": 50 * 1024 * 1024,
+            "backupCount": 5,
+            "formatter": "plain",
+        },
     },
-    "root": {"level": "DEBUG", "handlers": ["console"]},
+    "root": {"level": "DEBUG", "handlers": ["console", "file"]},
     "loggers": {
         "django.request": {
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "level": "ERROR",
             "propagate": True,
         },
         "django.security.DisallowedHost": {
-            "handlers": ["console"],
+            "handlers": ["console", "file"],
             "level": "ERROR",
             "propagate": True,
         },
