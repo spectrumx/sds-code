@@ -54,6 +54,11 @@ def _load_version() -> dict[str, str]:
     return {"commit": commit, "version": commit}
 
 
+# Cache result so version.json is parsed and logged once at startup,
+# not on every request via static_cache_busting().
+_VERSION_CACHE = _load_version()
+
+
 def _latest_admin_monitoring_status() -> dict[str, Any] | None:
     try:
         from sds_gateway.monitoring.models import SystemHealthSnapshot  # noqa: PLC0415
@@ -123,5 +128,4 @@ def static_cache_busting(_request: HttpRequest) -> dict[str, Any]:
     which includes both the nearest release tag and the commit count/hash.
     Falls back to ``SDS_COMMIT_HASH`` or ``"unknown"``.
     """
-    version = _load_version()
-    return {"STATIC_CACHE_BUSTING_VERSION": version["version"]}
+    return {"STATIC_CACHE_BUSTING_VERSION": _VERSION_CACHE["version"]}

@@ -7,7 +7,9 @@ from datetime import timedelta
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.db.models import Count
+from django.db.models import Q
 from django.db.models import Sum
+from django.urls import reverse
 from django.utils import timezone
 
 from sds_gateway.api_methods.models import Capture
@@ -51,6 +53,29 @@ def _dashboard_context() -> dict[str, object]:
 
     health_payload = SystemHealthSnapshot.latest_snapshot_payload()
 
+    fourteen_days_ago = now - timedelta(days=14)
+    recent_users = list(
+        user_model.objects.filter(date_joined__gte=fourteen_days_ago)
+        .order_by("-date_joined")
+        .values("email", "name", "is_active", "is_approved", "date_joined", "pk")
+    )
+
+    superusers = list(
+        user_model.objects.filter(Q(is_staff=True) | Q(is_superuser=True))
+        .order_by("-date_joined")
+        .values(
+            "email",
+            "name",
+            "is_active",
+            "is_approved",
+            "is_staff",
+            "is_superuser",
+            "pk",
+        )
+    )
+
+    total_user_count = user_model.objects.count()
+
     return {
         "active_file_count": active_stats["count"] or 0,
         "active_total_size": (
@@ -68,19 +93,27 @@ def _dashboard_context() -> dict[str, object]:
         "capture_count": capture_count,
         "dataset_count": dataset_count,
         "health_payload": health_payload,
+        "recent_users": recent_users,
+        "superusers": superusers,
+        "total_user_count": total_user_count,
+        "file_admin_url": reverse("admin:api_methods_file_changelist"),
+        "capture_admin_url": reverse("admin:api_methods_capture_changelist"),
+        "dataset_admin_url": reverse("admin:api_methods_dataset_changelist"),
+        "user_admin_url": reverse("admin:users_user_changelist"),
     }
 
 
-def _dashboard_index(self, request, extra_context=None):
+_original_admin_index = admin.site.index
+
+
+def _dashboard_index(request, extra_context=None):
     extra_context = extra_context or {}
     extra_context["dashboard"] = _dashboard_context()
-    return self.index_view(request, extra_context=extra_context)
+    return _original_admin_index(request, extra_context=extra_context)
 
 
 # Override the default admin site index
-admin.site.index = lambda request, extra_context=None: _dashboard_index(
-    admin.site, request, extra_context
-)
+admin.site.index = _dashboard_index
 admin.site.index_template = "admin/dashboard_index.html"
 admin.site.site_header = "SDS Gateway Admin"
 admin.site.site_title = "SDS Gateway Admin"
