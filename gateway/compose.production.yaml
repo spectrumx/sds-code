@@ -19,6 +19,7 @@ volumes:
     sds-gateway-prod-temp-zips: {}
 
     # data that can be reconstructed:
+    sds-gateway-prod-app-logs: {}
     sds-gateway-prod-static: {}
     sds-gateway-prod-uv-cache: {}
     sds-gateway-prod-uv-venv-app: {}
@@ -76,10 +77,14 @@ services:
               target: /opt/uv-venv/
               type: volume
               read_only: false
+            - source: sds-gateway-prod-app-logs
+              target: /app/logs
+              type: volume
+              read_only: false
         post_start:
             - command:
                   chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
-                  /opt/uv-venv/
+                  /opt/uv-venv/ /app/logs/
               user: root
         env_file:
             - ./.envs/production/django.env
@@ -363,10 +368,14 @@ services:
               target: /opt/uv-venv/
               type: volume
               read_only: false
+            - source: sds-gateway-prod-app-logs
+              target: /app/logs
+              type: volume
+              read_only: false
         post_start:
             - command:
                   chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
-                  /opt/uv-venv/
+                  /opt/uv-venv/ /app/logs/
               user: root
         env_file:
             - ./.envs/production/django.env
@@ -420,10 +429,14 @@ services:
               target: /opt/uv-venv/
               type: volume
               read_only: false
+            - source: sds-gateway-prod-app-logs
+              target: /app/logs
+              type: volume
+              read_only: false
         post_start:
             - command:
                   chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
-                  /opt/uv-venv/
+                  /opt/uv-venv/ /app/logs/
               user: root
         env_file:
             - ./.envs/production/django.env
@@ -472,10 +485,14 @@ services:
               target: /opt/uv-venv/
               type: volume
               read_only: false
+            - source: sds-gateway-prod-app-logs
+              target: /app/logs
+              type: volume
+              read_only: false
         post_start:
             - command:
                   chown -R django:django /app/sds_gateway/media/ /opt/uv-cache/
-                  /opt/uv-venv/
+                  /opt/uv-venv/ /app/logs/
               user: root
         env_file:
             - ./.envs/production/django.env
