@@ -9,7 +9,7 @@ from sds_gateway.api_methods import models
 @admin.register(models.File)
 class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = ("name", "media_type", "size", "owner", "is_deleted")
-    search_fields = ("checksum", "name", "media_type", "owner")
+    search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
 
 
@@ -76,14 +76,14 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
 @admin.register(models.TemporaryZipFile)
 class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = ("uuid", "owner", "created_at", "expires_at")
-    search_fields = ("uuid", "owner")
+    search_fields = ("uuid", "owner__email")
     ordering = ("-created_at",)
 
 
 @admin.register(models.UserSharePermission)
 class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = ("item_uuid", "item_type", "shared_with", "owner", "is_enabled")
-    search_fields = ("item_uuid", "item_type", "shared_with", "owner")
+    search_fields = ("item_uuid", "item_type", "shared_with__email", "owner__email")
     list_filter = ("item_type", "is_enabled")
     ordering = ("-updated_at",)
 
@@ -130,7 +130,7 @@ class PostProcessedDataAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissing
 @admin.register(models.ShareGroup)
 class ShareGroupAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     list_display = ("name", "owner")
-    search_fields = ("name", "owner")
+    search_fields = ("name", "owner__email")
     ordering = ("-updated_at",)
 
 
