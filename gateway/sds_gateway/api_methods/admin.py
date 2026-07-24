@@ -4,6 +4,7 @@ from django.contrib import admin
 from django.db.models import Count
 
 from sds_gateway.api_methods import models
+from sds_gateway.api_methods.utils.disk_utils import format_file_size
 
 
 # Register your models here.
@@ -13,7 +14,7 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
         "name",
         "owner",
         "media_type",
-        "size",
+        "formatted_size",
         "is_public",
         "is_deleted",
         "expiration_date",
@@ -22,6 +23,10 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     )
     search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
+
+    @admin.display(description="Size", ordering="size")
+    def formatted_size(self, obj):
+        return format_file_size(obj.size) if obj.size is not None else "-"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("owner")
@@ -148,7 +153,7 @@ class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingT
     list_display = (
         "filename",
         "owner",
-        "file_size",
+        "formatted_file_size",
         "creation_status",
         "is_downloaded",
         "created_at",
@@ -156,6 +161,10 @@ class TemporaryZipFileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingT
     )
     search_fields = ("uuid", "owner__email")
     ordering = ("-created_at",)
+
+    @admin.display(description="File Size", ordering="file_size")
+    def formatted_file_size(self, obj):
+        return format_file_size(obj.file_size) if obj.file_size is not None else "-"
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("owner")
