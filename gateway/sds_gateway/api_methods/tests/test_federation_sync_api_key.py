@@ -70,5 +70,9 @@ class TestGetFederationSyncApiKeyEndpoint:
             HTTP_AUTHORIZATION=f"Token {token.key}",
         )
         assert response.status_code == status.HTTP_200_OK
-        assert "api_key" in response.json()
-        assert response.json()["email"] == target.email
+        payload = response.json()
+        assert "api_key" in payload
+        assert payload["email"] == sync_user.email
+        key = UserAPIKey.objects.get_from_key(payload["api_key"])
+        assert key.user_id == sync_user.pk
+        assert UserAPIKey.objects.filter(user=target).exists() is False
