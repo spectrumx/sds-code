@@ -93,8 +93,7 @@ class PostProcessedDataAdmin(admin.ModelAdmin):
             return obj.capture.owner.email
         return "-"
 
-    @admin.display(boolean=True)
-    @admin.display(description="Error")
+    @admin.display(boolean=True, description="Error")
     def has_error(self, obj):
         """Show if processing has an error."""
         return obj.processing_error is not None or obj.cog_error is not None

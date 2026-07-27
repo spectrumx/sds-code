@@ -168,7 +168,7 @@
 }
 
 .dashboard-clickable:hover {
-    background: var(--selected-bg) !important;
+    background: var(--selected-bg);
 }
 
 /* Status indicator dot */

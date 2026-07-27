@@ -2,6 +2,7 @@
 # ruff: noqa: F405, ERA001, E402, E501
 
 import os
+from pathlib import Path
 
 import django_stubs_ext
 import sentry_sdk
@@ -137,6 +138,10 @@ ADMIN_URL: str = env("DJANGO_ADMIN_URL")
 # disable pesky admin emails;
 #   check ADMINS' email addresses in base.py if re-enabling this handler.
 DEFAULT_LOGGING["handlers"]["mail_admins"]["class"] = "logging.NullHandler"
+
+# Ensure log directory exists before RotatingFileHandler tries to write
+_LOG_DIR = Path("/app/logs/gateway.log").parent
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # https://docs.djangoproject.com/en/4.2/ref/settings/#logging
 # See https://docs.djangoproject.com/en/4.2/topics/logging for

@@ -49,7 +49,7 @@ def _load_version() -> dict[str, str]:
 
     # File missing or unparseable — try env var fallback.
     if not version_path.is_file():
-        logger.warning("version file not found at %s", version_path)
+        logger.debug("version file not found at %s (expected in dev)", version_path)
     commit = os.environ.get("SDS_COMMIT_HASH", "unknown")
     return {"commit": commit, "version": commit}
 
