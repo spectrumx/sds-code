@@ -170,8 +170,9 @@ def test_dashboard_context_query_count() -> None:
         _dashboard_context()
 
     # Expected queries: active files aggregate, cleanup files aggregate,
-    # top users, capture count, dataset count, health snapshot = 6
-    max_queries = 8
+    # capture count, dataset count, top users, recent users, superusers,
+    # total users, health snapshot = 9
+    max_queries = 9
     assert len(queries) <= max_queries
 
 
