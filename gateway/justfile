@@ -4,6 +4,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 #   Add your machine hostname to ./scripts/prod-hostnames.env
 # constants
 
+COLUMNS := "119"
 env_selection_script := "./scripts/env-selection.sh"
 snapshot_log_dir := "./logs/snapshots"
 secrets_generator := "./scripts/generate-secrets.sh"
