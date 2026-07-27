@@ -198,7 +198,10 @@ class TestFederationCaptureSignals(TestCase):
             federation_capture_changed(sender=Capture, instance=capture)
         mock_reindex.assert_not_called()
 
-    @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.publish_federation_event",
+        new=MagicMock(),
+    )
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
     @patch(
         "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
@@ -215,7 +218,6 @@ class TestFederationCaptureSignals(TestCase):
     def test_deleted_capture_reindexes_with_is_deleted(
         self,
         mock_indexer_cls: MagicMock,
-        _mock_publish: MagicMock,
     ) -> None:
         mock_indexer = mock_indexer_cls.return_value
         capture = CaptureFactory(is_deleted=True)
@@ -231,7 +233,10 @@ class TestFederationCaptureSignals(TestCase):
     FEDERATION_OPERATIONAL_OVERRIDE=True,
 )
 class TestDatasetDisconnectReindex(TestCase):
-    @patch("sds_gateway.api_methods.federation.reindex.publish_federation_event")
+    @patch(
+        "sds_gateway.api_methods.federation.reindex.publish_federation_event",
+        new=MagicMock(),
+    )
     @patch("sds_gateway.api_methods.federation.reindex.LocalFederatedIndexer")
     @patch(
         "sds_gateway.api_methods.federation.reindex.get_opensearch_client",
@@ -244,7 +249,6 @@ class TestDatasetDisconnectReindex(TestCase):
     def test_disconnect_captures_reindexes_orphans(
         self,
         mock_indexer_cls: MagicMock,
-        _mock_publish: MagicMock,
     ) -> None:
         mock_indexer = mock_indexer_cls.return_value
         dataset = DatasetFactory(status=DatasetStatus.FINAL, is_public=True)
