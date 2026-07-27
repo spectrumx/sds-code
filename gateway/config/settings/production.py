@@ -173,7 +173,7 @@ LOGGING: dict[str, Any] = {
         "file": {
             "level": "INFO",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "/app/logs/gateway.log",
+            "filename": f"/app/logs/gateway-{os.environ.get('HOSTNAME', 'app')}.log",
             "maxBytes": 50 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "plain",

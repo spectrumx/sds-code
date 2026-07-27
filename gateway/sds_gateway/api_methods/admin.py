@@ -2,6 +2,8 @@ import json
 
 from django.contrib import admin
 from django.db.models import Count
+from django.db.models import OuterRef
+from django.db.models import Subquery
 
 from sds_gateway.api_methods import models
 from sds_gateway.api_methods.utils.disk_utils import format_file_size
@@ -25,10 +27,10 @@ class FileAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgument]
     search_fields = ("sum_blake3", "name", "media_type", "owner__email")
     ordering = ("-updated_at",)
 
-    @admin.display(description="# Cap", ordering="_capture_count")
+    @admin.display(description="# Cap")
     def capture_count(self, obj):
-        count = getattr(obj, "_capture_count", 0)
-        return count or "-"
+        count = getattr(obj, "_capture_count", None)
+        return count if count is not None else "-"
 
     @admin.display(description="Size", ordering="size")
     def formatted_size(self, obj):
@@ -62,22 +64,40 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_filter = ("channel", "capture_type", "index_name")
     ordering = ("-updated_at",)
 
-    @admin.display(description="# Ds", ordering="_dataset_count")
+    @admin.display(description="# Ds")
     def dataset_count(self, obj):
-        count = getattr(obj, "_dataset_count", 0)
-        return count or "-"
+        return getattr(obj, "_dataset_count", None)
 
-    @admin.display(description="Files", ordering="_file_count")
+    @admin.display(description="Files")
     def file_count(self, obj):
-        count = getattr(obj, "_file_count", 0)
-        return f"{count} files" if count else "-"
+        count = getattr(obj, "_file_count", None)
+        return f"{count} files" if count is not None else "-"
 
     def get_queryset(self, request):
         return (
             super()
             .get_queryset(request)
             .select_related("owner")
-            .annotate(_dataset_count=Count("datasets"), _file_count=Count("files"))
+            .annotate(
+                _dataset_count=Subquery(
+                    models.Capture.datasets.through.objects.filter(
+                        capture_id=OuterRef("pk")
+                    )
+                    .values("capture_id")
+                    .annotate(cnt=Count("id"))
+                    .values("cnt")[:1],
+                    output_field=models.PositiveIntegerField(),
+                ),
+                _file_count=Subquery(
+                    models.Capture.files.through.objects.filter(
+                        capture_id=OuterRef("pk")
+                    )
+                    .values("capture_id")
+                    .annotate(cnt=Count("id"))
+                    .values("cnt")[:1],
+                    output_field=models.PositiveIntegerField(),
+                ),
+            )
         )
 
 
@@ -102,22 +122,41 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
     list_filter = ("status", "keywords")
     ordering = ("-updated_at",)
 
-    @admin.display(description="# Cap", ordering="_capture_count")
+    @admin.display(description="# Cap")
     def capture_count(self, obj):
-        count = getattr(obj, "_capture_count", 0)
-        return f"{count} captures" if count else "-"
+        count = getattr(obj, "_capture_count", None)
+        return f"{count} captures" if count is not None else "-"
 
-    @admin.display(description="Artifact Files", ordering="_file_count")
+    @admin.display(description="Artifact Files")
     def file_count(self, obj):
-        count = getattr(obj, "_file_count", 0)
-        return f"{count} artifact files" if count else "-"
+        count = getattr(obj, "_file_count", None)
+        return f"{count} artifact files" if count is not None else "-"
 
     def get_queryset(self, request):
         return (
             super()
             .get_queryset(request)
             .select_related("owner")
-            .annotate(_capture_count=Count("captures"), _file_count=Count("files"))
+            .annotate(
+                _capture_count=Subquery(
+                    models.Dataset.captures.through.objects.filter(
+                        dataset_id=OuterRef("pk")
+                    )
+                    .values("dataset_id")
+                    .annotate(cnt=Count("id"))
+                    .values("cnt")[:1],
+                    output_field=models.PositiveIntegerField(),
+                ),
+                _file_count=Subquery(
+                    models.Dataset.files.through.objects.filter(
+                        dataset_id=OuterRef("pk")
+                    )
+                    .values("dataset_id")
+                    .annotate(cnt=Count("id"))
+                    .values("cnt")[:1],
+                    output_field=models.PositiveIntegerField(),
+                ),
+            )
         )
 
     @admin.display(description="Keywords")
