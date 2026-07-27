@@ -257,6 +257,7 @@
         # "-o",
         # "log_cli=true",
         "--tb=short",
+        "--durations=10",
         # "--tb=long",    # more verbose
         # "--capture=no", # more verbose
     ]
