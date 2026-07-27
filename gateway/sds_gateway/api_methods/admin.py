@@ -205,7 +205,12 @@ class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissi
 
     @admin.display(description="Item Name")
     def item_name(self, obj):
-        """Resolve item_uuid to the actual dataset/capture name."""
+        """Resolve item_uuid to the actual dataset/capture name.
+
+        Note: UserSharePermission uses item_type + item_uuid (UUID polymorphic),
+        not FK relations, so Prefetch/select_related can't batch-load items.
+        Consider denormalizing item_name onto the model if N+1 becomes a problem.
+        """
         from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
         from sds_gateway.api_methods.models import Dataset  # noqa: PLC0415
         from sds_gateway.api_methods.models import ItemType  # noqa: PLC0415
