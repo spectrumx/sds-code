@@ -61,14 +61,16 @@ class TestGetFederationSyncApiKeyEndpoint:
     def test_mint_via_http(self) -> None:
         sync_email = settings.FEDERATION_SYNC_USER_EMAIL
         sync_user = User.objects.get(email=sync_email)
-        target = User.objects.create(email="mint-target@example.com", is_approved=True)
         token = Token.objects.get(user=sync_user)
         client = APIClient()
         url = reverse("users:get_federation_sync_api_key")
         response = client.get(
-            f"{url}?email={target.email}",
+            url,
             HTTP_AUTHORIZATION=f"Token {token.key}",
         )
         assert response.status_code == status.HTTP_200_OK
-        assert "api_key" in response.json()
-        assert response.json()["email"] == target.email
+        raw_key = response.json()["api_key"]
+        assert response.json()["email"] == sync_user.email
+        key = UserAPIKey.objects.get_from_key(raw_key)
+        assert key.user_id == sync_user.pk
+        assert key.source == KeySources.FederationSync
