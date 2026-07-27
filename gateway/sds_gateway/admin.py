@@ -90,7 +90,7 @@ def _user_stats() -> dict[str, object]:
     now = timezone.now()
     fourteen_days_ago = now - timedelta(days=14)
 
-    top_users = (
+    top_users = list(
         user_model.objects.filter(files__is_deleted=False)
         .annotate(
             total_size=Sum("files__size", default=0),
