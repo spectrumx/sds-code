@@ -309,11 +309,22 @@ test *args:
         just test-js
     fi
 
+# ensures federation-shared.env exists (copies from example if missing)
+[group('qa')]
+ensure-federation-shared-env:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ ! -f "{{ git_root }}/federation-shared.env" ]; then
+        echo "Creating federation-shared.env from example"
+        cp "{{ git_root }}/federation-shared.example.env" "{{ git_root }}/federation-shared.env"
+    fi
+
 # validates templates and runs pytest inside the app container
 [group('qa')]
 test-py *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    just ensure-federation-shared-env
     echo "Validating templates"
     {{ uv_runner }} manage.py validate_templates
     echo "Running Python tests"
