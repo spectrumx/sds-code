@@ -11,6 +11,7 @@ from opensearchpy.exceptions import RequestError
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.utils.metadata_schemas import get_mapping_by_capture_type
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+from sds_gateway.api_methods.utils.retry import retry_on_opensearch_error
 
 
 class Command(BaseCommand):
@@ -21,6 +22,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options) -> None:
         """Execute the command."""
+        retry_on_opensearch_error(self._init_indices)
+
+    def _init_indices(self) -> None:
+        """Run the full index initialization flow."""
         self.client: OpenSearch = get_opensearch_client()
 
         # Reset any API-set cluster blocks that prevent index creation.
@@ -59,7 +64,7 @@ class Command(BaseCommand):
                 )
             except Exception as e:
                 log.error(
-                    f"Failed to initialize/update index '{index_name}': {format(e)}",
+                    f"Failed to initialize/update index '{index_name}': {e}",
                 )
                 raise
 
@@ -117,7 +122,7 @@ class Command(BaseCommand):
                 "Cannot update mapping for "
                 f"'{index_name}'. Some fields are "
                 "incompatible with existing mapping. "
-                f"Error: {format(e)}",
+                f"Error: {e}",
             )
 
     def make_index_writeable(

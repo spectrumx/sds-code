@@ -85,6 +85,15 @@ function install_project() {
     echo "${fingerprint}" > "${SYNC_STAMP_FILE}"
 }
 
+function validate_port() {
+    local var_name="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^[0-9]+$ ]]; then
+        echo >&2 "$(date) | Error: $var_name must be a numeric port, got '$value'"
+        exit 1
+    fi
+}
+
 function validate_postgres_vars() {
     local required_vars=("POSTGRES_USER" "POSTGRES_PASSWORD" "POSTGRES_HOST" "POSTGRES_PORT" "POSTGRES_DB")
     local missing_vars=()
@@ -102,37 +111,34 @@ function validate_postgres_vars() {
         done
         exit 1
     fi
+
+    validate_port "POSTGRES_PORT" "${POSTGRES_PORT}"
 }
 
-function wait_for_postgres() {
-    if [ "${SKIP_POSTGRES_WAIT:-0}" = "1" ]; then
-        echo "$(date) | Skipping PostgreSQL wait (SKIP_POSTGRES_WAIT=1)"
+function _run_with_retry() {
+    local service_name="$1"
+    local skip_var="$2"
+    local python_snippet="$3"
+
+    if [ "${!skip_var:-0}" = "1" ]; then
+        echo "$(date) | Skipping ${service_name} wait (${skip_var}=1)"
         return 0
     fi
 
-    echo "Waiting for PostgreSQL to become available..."
-    uv run --no-sync python <<END
+    echo "Waiting for ${service_name} to become available..."
+    eval "uv run --no-sync python" <<END
 import sys
 import time
-
-import psycopg
 
 suggest_unrecoverable_after = 30
 start = time.time()
 
 while True:
     try:
-        conn = psycopg.connect(
-            dbname="${POSTGRES_DB}",
-            user="${POSTGRES_USER}",
-            password="${POSTGRES_PASSWORD}",
-            host="${POSTGRES_HOST}",
-            port="${POSTGRES_PORT}",
-        )
-        conn.close()
+${python_snippet}
         break
-    except psycopg.OperationalError as error:
-        sys.stderr.write("Waiting for PostgreSQL to become available...\n")
+    except Exception as error:
+        sys.stderr.write("Waiting for ${service_name} to become available...\n")
         sys.stderr.write(f"  error: {error}\n")
         if time.time() - start > suggest_unrecoverable_after:
             sys.stderr.write("  This is taking longer than expected. The following exception may be indicative of an unrecoverable error: '{}'\n".format(error))
@@ -140,7 +146,64 @@ while True:
         time.sleep(1)
 END
 
-    echo >&2 "$(date) | PostgreSQL is available"
+    echo >&2 "$(date) | ${service_name} is available"
+}
+
+function wait_for_postgres() {
+    _run_with_retry "PostgreSQL" "SKIP_POSTGRES_WAIT" "        import psycopg
+        conn = psycopg.connect(
+            dbname=\"${POSTGRES_DB}\",
+            user=\"${POSTGRES_USER}\",
+            password=\"${POSTGRES_PASSWORD}\",
+            host=\"${POSTGRES_HOST}\",
+            port=\"${POSTGRES_PORT}\",
+        )
+        conn.close()"
+}
+
+function wait_for_opensearch() {
+    _run_with_retry "OpenSearch" "SKIP_OPENSEARCH_WAIT" "        from opensearchpy import OpenSearch
+        scheme = \"https\" if \"${OPENSEARCH_USE_SSL:-true}\".strip().lower() == \"true\" else \"http\"
+        client = OpenSearch(
+            hosts=[{\"host\": \"${OPENSEARCH_HOST}\", \"port\": ${OPENSEARCH_PORT}}],
+            http_auth=(\"${OPENSEARCH_USER}\", \"${OPENSEARCH_PASSWORD}\"),
+            use_ssl=scheme == \"https\",
+            verify_certs=scheme == \"https\",
+        )
+        client.cluster.health()"
+}
+
+function validate_opensearch_vars() {
+    local required_vars=("OPENSEARCH_HOST" "OPENSEARCH_PORT" "OPENSEARCH_USER" "OPENSEARCH_PASSWORD")
+    local missing_vars=()
+
+    for var in "${required_vars[@]}"; do
+        if [ -z "${!var:-}" ]; then
+            missing_vars+=("$var")
+        fi
+    done
+
+    if [ ${#missing_vars[@]} -gt 0 ]; then
+        echo >&2 "$(date) | Error: The following required OpenSearch variables are not set:"
+        for var in "${missing_vars[@]}"; do
+            echo >&2 "  - $var"
+        done
+        exit 1
+    fi
+
+    validate_port "OPENSEARCH_PORT" "${OPENSEARCH_PORT}"
+}
+
+function wait_for_opensearch() {
+    _run_with_retry "OpenSearch" "SKIP_OPENSEARCH_WAIT" "        from opensearchpy import OpenSearch
+        scheme = \"https\" if \"${OPENSEARCH_USE_SSL:-true}\".strip().lower() == \"true\" else \"http\"
+        client = OpenSearch(
+            hosts=[{\"host\": \"${OPENSEARCH_HOST}\", \"port\": ${OPENSEARCH_PORT}}],
+            http_auth=(\"${OPENSEARCH_USER}\", \"${OPENSEARCH_PASSWORD}\"),
+            use_ssl=scheme == \"https\",
+            verify_certs=scheme == \"https\",
+        )
+        client.cluster.health()"
 }
 
 function main() {
@@ -159,6 +222,14 @@ function main() {
     }
     wait_for_postgres || {
         echo >&2 "$(date) | PostgreSQL did not become available, exiting."
+        exit 1
+    }
+    validate_opensearch_vars || {
+        echo >&2 "$(date) | OpenSearch validation failed, exiting."
+        exit 1
+    }
+    wait_for_opensearch || {
+        echo >&2 "$(date) | OpenSearch did not become available, exiting."
         exit 1
     }
     echo "$(date) | Running main command..."
