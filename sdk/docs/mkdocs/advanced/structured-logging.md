@@ -3,6 +3,42 @@
 The SDK writes structured JSONL logs to `~/.local/state/spectrumx/logs/YYYY-MM-DD.jsonl`.
 Each line is a JSON object with fields like `ts`, `pid`, `lvl`, `cat`, and `msg`.
 
+## Custom log file location
+
+By default, logs are written to `~/.local/state/spectrumx/logs/`. Use `log_file` to
+redirect them to a project-specific path — useful for isolating logs per project,
+running multiple SDK instances, or keeping logs alongside your data:
+
+```python
+from spectrumx import Client
+from pathlib import Path
+
+# Log next to your data files
+sds = Client(
+    host=SDS_HOST,
+    log_file=Path("my_spectrum_files") / "sdk.log",
+)
+
+# Per-project logs in a dedicated directory
+sds = Client(
+    host=SDS_HOST,
+    log_file=Path("logs") / "spectrumx.log",
+)
+
+# Combine with other client options
+sds = Client(
+    host=SDS_HOST,
+    env_file=Path(".env"),            # default
+    env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
+    log_file=Path("my_spectrum_files") / "sdk.log",
+)
+```
+
+!!! note
+    The `log_file` parameter accepts any `Path` or string path. Parent directories
+    are created automatically if they don't exist. The file is opened in append
+    mode, so logs accumulate across restarts.
+
 ## Filtering with jq
 
 Use [`jq`](https://jqlang.org/) to filter and analyze log files on the command line.
