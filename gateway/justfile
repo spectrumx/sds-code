@@ -51,7 +51,7 @@ clean:
     #!/usr/bin/env bash
     set -euo pipefail
     declare -a recursive_directories
-    recursive_directories=('__pycache__' '.pytest_cache' '.ruff_cache' 'node_modules')
+    recursive_directories=('__pycache__' '.pytest_cache' '.ruff_cache' 'node_modules' '.mypy_cache')
     for dir in "${recursive_directories[@]}"; do
         find . -type d -name "${dir}" -prune -exec rm -rfv {} +
     done

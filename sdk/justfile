@@ -136,7 +136,7 @@ test python=python_version *pytest_args:
             --cov-report=term-missing:skip-covered \
             --cov-report=html \
             --cov-report=html:tests/htmlcov \
-            --cov-fail-under=75 \
+            --cov-fail-under=95 \
             --no-cov-on-fail \
             {{ pytest_args }} \
             tests
