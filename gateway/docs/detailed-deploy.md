@@ -279,8 +279,9 @@ rsync -aP ./.envs/example/ ./.envs/production
   (or this path under your own domain).
     + **Copy the generated key to that env file**. The key is not stored in the
       database, so you will only see it at creation time.
-+ In `django.env`, configure OAuth in Auth0's dashboard and **set the `CLIENT_ID` and
-  `CLIENT_SECRET`** accordingly.
++ In `django.env`, configure OAuth by following the [OAuth (Auth0) setup
+  guide](./oauth-setup.md). Set the `AUTH0_DOMAIN` environment variable and create the
+  `SocialApp` in Django admin with the **`CLIENT_ID`** and **`CLIENT_SECRET`**.
 + In `postgres.env`, don't forget to **set `DATABASE_URL` to match the user, password,
   and database name** in that file.
 + If using the Spectrum Visualization Interface (SVI) component:

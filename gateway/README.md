@@ -224,6 +224,8 @@ Available recipes:
     + [Detailed production deploy
       instructions](./docs/detailed-deploy.md#production-deploy)
     + [Production backups](./docs/dev-notes.md#production-backups)
++ Authentication
+    + [OAuth (Auth0) setup](./docs/oauth-setup.md)
 + Others
     + [OpenSearch Query Tips](./docs/detailed-deploy.md#opensearch-query-tips)
     + [Handling migration conflicts](./docs/dev-notes.md#handling-migration-conflicts)
