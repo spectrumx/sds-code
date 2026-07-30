@@ -7,8 +7,8 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from loguru import logger
+from sds_opensearch_query.client import build_opensearch_client
 
-from common.sds_opensearch_query.client import build_opensearch_client
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
 from sds_federation.routes.webhooks import webhooks_router
@@ -31,8 +31,9 @@ def _bootstrap_enabled() -> bool:
     )
 
 
-def get_setting(key: str) -> str:
-    return os.environ.get(key, "")
+def get_setting(key: str, default: str = "") -> str:
+    return os.environ.get(key, default)
+
 
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
@@ -45,13 +46,13 @@ async def lifespan(app: FastAPI):
     http = build_gateway_http_client()
 
     os_client = build_opensearch_client(
-        host=get_setting("OPENSEARCH_HOST"),
-        port=get_setting("OPENSEARCH_PORT"),
+        host=get_setting("OPENSEARCH_HOST", "opensearch"),
+        port=int(get_setting("OPENSEARCH_PORT", "9200")),
         user=get_setting("OPENSEARCH_USER"),
         password=get_setting("OPENSEARCH_PASSWORD"),
-        use_ssl=get_setting("OPENSEARCH_USE_SSL"),
+        use_ssl=get_setting("OPENSEARCH_USE_SSL").lower() in ("1", "true", "yes"),
         verify_certs=get_setting("OPENSEARCH_VERIFY_CERTS") == "true",
-        ca_certs=get_setting("OPENSEARCH_CA_CERTS"),
+        ca_certs=get_setting("OPENSEARCH_CA_CERTS") or None,
     )
     try:
         ensure_fed_indices(os_client)

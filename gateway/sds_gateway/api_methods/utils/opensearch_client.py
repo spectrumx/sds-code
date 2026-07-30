@@ -1,6 +1,5 @@
 from django.conf import settings
-
-from common.sds_opensearch_query.client import build_opensearch_client
+from sds_opensearch_query.client import build_opensearch_client
 
 
 def get_opensearch_client():
