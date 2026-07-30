@@ -181,6 +181,7 @@
             "pytest-cov",                 # coverage plugin in tests
             "pytest-sugar",               # better progress output for pytest
             "python-slugify",             # provides the slugify import
+            "requests",                   # used by sds-opensearch-query OpenSearch client
             "ruff",                       # linter used in ci
             "uvicorn-worker",             # uvicorn worker class for gunicorn
             "uvicorn",                    # asgi server used in dev
