@@ -37,7 +37,7 @@ async def push_asset_updated_to_peers(
     registry: PeerRegistry | None = None,
 ) -> None:
     body = payload.model_dump(mode="json")
-    path = payload.asset_type.webhook_path
+    path = payload.asset_type.webhook_updated_path
     for peer in config.peers:
         outbound = peer_for_outbound(peer, registry)
         url = peer_webhook_url(outbound, path)

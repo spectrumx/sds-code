@@ -18,7 +18,11 @@ class AssetTypeEnum(StrEnum):
         return f"/federation/export/{self.value}s/"
 
     @property
-    def webhook_path(self) -> str:
+    def webhook_list_path(self) -> str:
+        return f"/webhook/list-{self.value}s/"
+
+    @property
+    def webhook_updated_path(self) -> str:
         return f"/webhook/{self.value}-updated"
 
     @property

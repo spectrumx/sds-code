@@ -46,12 +46,17 @@ def build_webhook_app(
     config: FederationConfig,
     indexer: FederatedAssetIndexer,
     registry: PeerRegistry | RecordingPeerRegistry | None = None,
+    *,
+    http: httpx.AsyncClient | None = None,
+    opensearch: RecordingOpenSearch | None = None,
 ) -> FastAPI:
     reg = registry or PeerRegistry()
     sync_app = FastAPI()
     sync_app.state.config = config
     sync_app.state.fed_indexer = indexer
     sync_app.state.peer_registry = reg
+    sync_app.state.http = http
+    sync_app.state.opensearch_client = opensearch
     sync_app.include_router(webhooks_router, prefix=API_PREFIX)
     root = FastAPI()
     root.mount("/sync", sync_app)

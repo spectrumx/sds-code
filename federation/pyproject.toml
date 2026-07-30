@@ -154,7 +154,7 @@ dev = [
     search-path      = ["sds_federation"]
 
     python-platform = "linux"
-    python-version  = "3.13"
+    python-version  = "3.14"
 
     ignore-errors-in-generated-code = true
 

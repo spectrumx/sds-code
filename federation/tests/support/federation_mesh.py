@@ -72,16 +72,19 @@ def build_sync_app(
     config: FederationConfig,
     indexer: FederatedAssetIndexer,
     registry: RecordingPeerRegistry | None = None,
-) -> FastAPI:
-    """Outer app mounts sync routes at /sync (matches production Traefik path)."""
+    *,
+    opensearch: RecordingOpenSearch | None = None,
+) -> tuple[FastAPI, FastAPI]:
+    """Return (root app with /sync mount, inner sync app that owns webhook state)."""
     sync_app = FastAPI()
     sync_app.state.config = config
     sync_app.state.fed_indexer = indexer
     sync_app.state.peer_registry = registry or RecordingPeerRegistry()
+    sync_app.state.opensearch_client = opensearch
     sync_app.include_router(webhooks_router, prefix=API_PREFIX)
     root = FastAPI()
     root.mount("/sync", sync_app)
-    return root
+    return root, sync_app
 
 
 @dataclass
@@ -89,6 +92,7 @@ class SyncSite:
     name: str
     config: FederationConfig
     app: FastAPI
+    sync_app: FastAPI
     opensearch: RecordingOpenSearch
     registry: RecordingPeerRegistry
 
@@ -161,28 +165,39 @@ def build_federation_mesh(
     catalog = GatewayExportCatalog()
     sites: dict[str, SyncSite] = {}
     sync_apps: dict[str, FastAPI] = {}
+    sync_inners: list[FastAPI] = []
 
     for name, config in configs.items():
         opensearch = RecordingOpenSearch()
         registry = RecordingPeerRegistry()
         indexer = FederatedAssetIndexer(opensearch)
-        app = build_sync_app(config, indexer, registry)
+        root, sync_app = build_sync_app(
+            config,
+            indexer,
+            registry,
+            opensearch=opensearch,
+        )
+        sync_inners.append(sync_app)
         sites[name] = SyncSite(
             name=name,
             config=config,
-            app=app,
+            app=root,
+            sync_app=sync_app,
             opensearch=opensearch,
             registry=registry,
         )
         sync_host = httpx.URL(str(config.sync_service_url)).host
         if sync_host:
-            sync_apps[sync_host] = app
+            sync_apps[sync_host] = root
 
     transport = FederationMeshTransport(sync_apps, catalog, recorded)
     http = httpx.AsyncClient(
         transport=transport,
         timeout=httpx.Timeout(10.0),
     )
+    for sync_app in sync_inners:
+        sync_app.state.http = http
+
     return FederationMesh(
         sites=sites,
         http=http,
