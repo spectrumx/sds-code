@@ -149,7 +149,22 @@ async def run_federation_subscriber(
     resolved_channel = channel or resolve_federation_events_channel(
         site_name=config.site.name,
         env_override=os.environ.get("FEDERATION_EVENTS_CHANNEL"),
+        gateway_site_name=os.environ.get("FEDERATION_SITE_NAME"),
     )
+    gateway_site = (os.environ.get("FEDERATION_SITE_NAME") or "").strip()
+    if (
+        not channel
+        and not (os.environ.get("FEDERATION_EVENTS_CHANNEL") or "").strip()
+        and gateway_site
+        and gateway_site != config.site.name
+    ):
+        log.warning(
+            "FEDERATION_SITE_NAME={!r} differs from federation.toml site.name={!r}; "
+            "subscribing on federation:events:{} to match gateway publish",
+            gateway_site,
+            config.site.name,
+            gateway_site,
+        )
     client = aioredis.from_url(redis_url)
     pubsub = client.pubsub()
     await pubsub.subscribe(resolved_channel)

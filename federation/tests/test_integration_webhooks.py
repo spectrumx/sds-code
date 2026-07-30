@@ -161,16 +161,23 @@ async def test_site_hello_backfills_peer_exports(
     config = make_peer_config()
     doc = sample_federated_dataset_doc(site_name="testsite")
     export_hits = {"datasets": 0, "captures": 0}
+    # Intentionally differs from federation.toml peer sync URL.
+    hello_sync_url = "http://dynamic-testsite.test/sync"
 
     def handler(request: httpx.Request) -> httpx.Response:
         url = str(request.url)
         assert "Authorization" not in request.headers
-        if request.method == "GET" and url.rstrip("/").endswith("/webhook/list-datasets/"):
+        if request.method == "GET" and url.rstrip("/").endswith(
+            "/webhook/list-datasets"
+        ):
             export_hits["datasets"] += 1
-            assert "testsite.test" in url
+            assert url.startswith(hello_sync_url)
             return httpx.Response(200, json=[doc.model_dump(mode="json")])
-        if request.method == "GET" and url.rstrip("/").endswith("/webhook/list-captures/"):
+        if request.method == "GET" and url.rstrip("/").endswith(
+            "/webhook/list-captures"
+        ):
             export_hits["captures"] += 1
+            assert url.startswith(hello_sync_url)
             return httpx.Response(200, json=[])
         return httpx.Response(404)
 
@@ -190,7 +197,7 @@ async def test_site_hello_backfills_peer_exports(
                     "site_name": "testsite",
                     "fqdn": "localhost",
                     "display_name": "Originating test site",
-                    "sync_service_url": "http://testsite.test/sync",
+                    "sync_service_url": hello_sync_url,
                 },
             )
 

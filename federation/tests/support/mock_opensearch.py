@@ -12,6 +12,7 @@ class RecordingOpenSearch:
         self.index_calls: list[dict[str, Any]] = []
         self.update_calls: list[dict[str, Any]] = []
         self._docs: dict[tuple[str, str], dict[str, Any]] = {}
+        self.search_calls: list[dict[str, Any]] = []
 
     def index(self, **kwargs: Any) -> dict[str, str]:
         self.index_calls.append(kwargs)
@@ -42,17 +43,40 @@ class RecordingOpenSearch:
             )
         return {"_index": index, "_id": doc_id_value, "_source": self._docs[key]}
 
-    def search(self, *, index: str, body: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+    def search(
+        self, *, index: str, body: dict[str, Any] | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         _ = kwargs
-        site_name = _site_name_from_search_body(body or {})
-        hits: list[dict[str, Any]] = []
+        body = body or {}
+        self.search_calls.append({"index": index, "body": body})
+        site_name = _site_name_from_search_body(body)
+        size = int(body.get("size") or len(self._docs))
+        search_after = body.get("search_after")
+        after_id = None
+        if isinstance(search_after, list) and search_after:
+            after_id = str(search_after[0])
+
+        matched: list[tuple[str, dict[str, Any]]] = []
         for (doc_index, doc_id), source in self._docs.items():
             if doc_index != index:
                 continue
             if site_name is not None and source.get("site_name") != site_name:
                 continue
-            hits.append({"_index": doc_index, "_id": doc_id, "_source": source})
-        return {"hits": {"hits": hits, "total": {"value": len(hits)}}}
+            matched.append((doc_id, source))
+        matched.sort(key=lambda item: item[0])
+        if after_id is not None:
+            matched = [item for item in matched if item[0] > after_id]
+        page = matched[:size]
+        hits = [
+            {
+                "_index": index,
+                "_id": doc_id,
+                "_source": source,
+                "sort": [doc_id],
+            }
+            for doc_id, source in page
+        ]
+        return {"hits": {"hits": hits, "total": {"value": len(matched)}}}
 
     def ping(self) -> bool:
         return True
