@@ -155,6 +155,56 @@ async def test_site_hello_registers_known_peer(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_site_hello_backfills_peer_exports(
+    recording_opensearch: RecordingOpenSearch,
+) -> None:
+    config = make_peer_config()
+    doc = sample_federated_dataset_doc(site_name="testsite")
+    export_hits = {"datasets": 0, "captures": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        url = str(request.url)
+        assert "Authorization" not in request.headers
+        if request.method == "GET" and url.rstrip("/").endswith("/webhook/list-datasets/"):
+            export_hits["datasets"] += 1
+            assert "testsite.test" in url
+            return httpx.Response(200, json=[doc.model_dump(mode="json")])
+        if request.method == "GET" and url.rstrip("/").endswith("/webhook/list-captures/"):
+            export_hits["captures"] += 1
+            return httpx.Response(200, json=[])
+        return httpx.Response(404)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
+        app = build_webhook_app(
+            config,
+            FederatedAssetIndexer(recording_opensearch),
+            http=http,
+        )
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test",
+        ) as client:
+            response = await client.post(
+                f"{SYNC_API_PREFIX}/webhook/site-hello",
+                json={
+                    "site_name": "testsite",
+                    "fqdn": "localhost",
+                    "display_name": "Originating test site",
+                    "sync_service_url": "http://testsite.test/sync",
+                },
+            )
+
+    assert response.status_code == 200
+    assert export_hits == {"datasets": 1, "captures": 1}
+    assert len(recording_opensearch.index_calls) == 1
+    assert recording_opensearch.index_calls[0]["id"] == doc_id(
+        "testsite",
+        TEST_DATASET_UUID,
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_site_hello_rejects_unknown_site(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:

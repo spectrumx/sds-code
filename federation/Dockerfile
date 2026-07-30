@@ -6,9 +6,9 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
 COPY sds_federation ./sds_federation
-RUN uv sync --no-dev
+RUN uv sync --frozen --no-dev
 
 
 EXPOSE 8000

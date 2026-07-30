@@ -7,8 +7,9 @@ from datetime import UTC
 from datetime import datetime
 
 import pytest
+from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
-from sds_federation.services.bootstrap import bootstrap_gateway_exports
+from sds_federation.services.bootstrap import bootstrap_peer_sync_list
 from sds_federation.services.bootstrap import push_site_hello_to_peer
 from sds_federation.services.bootstrap import register_with_peers
 from sds_federation.services.fed_index import FederatedAssetIndexer
@@ -18,7 +19,6 @@ from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
-from tests.support.federation_mesh import TESTSITE_GATEWAY_HOST
 from tests.support.federation_mesh import FederationMesh
 
 
@@ -77,6 +77,36 @@ async def test_mesh_site_hello_registers_on_peer_registry(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_mesh_site_hello_backfills_caller_exports(
+    two_site_mesh: FederationMesh,
+) -> None:
+    mesh = two_site_mesh
+    doc = sample_federated_dataset_doc(site_name="testsite")
+    caller = mesh.site("testsite")
+    peer = mesh.site("peer-one")
+    FederatedAssetIndexer(caller.opensearch).apply_asset_event(
+        event_at=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
+        site_name="testsite",
+        asset=doc,
+        asset_type=AssetTypeEnum.DATASET,
+    )
+
+    result = await push_site_hello_to_peer(
+        mesh.http,
+        caller.config.peers[0],
+        caller.config,
+    )
+
+    assert result["status"] == "registered"
+    assert peer.registry.get("testsite") is not None
+    assert any(
+        call["id"] == doc_id("testsite", TEST_DATASET_UUID)
+        for call in peer.opensearch.index_calls
+    )
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_mesh_register_with_peers_both_directions(
     two_site_mesh: FederationMesh,
 ) -> None:
@@ -89,23 +119,29 @@ async def test_mesh_register_with_peers_both_directions(
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_mesh_bootstrap_pulls_gateway_export_catalog(
+async def test_mesh_bootstrap_pulls_peer_sync_list(
     two_site_mesh: FederationMesh,
 ) -> None:
     mesh = two_site_mesh
     doc = sample_federated_dataset_doc(site_name="testsite")
-    mesh.gateway_catalog.set_datasets(TESTSITE_GATEWAY_HOST, [doc])
+    caller = mesh.site("testsite")
+    FederatedAssetIndexer(caller.opensearch).apply_asset_event(
+        event_at=datetime(2026, 6, 11, 11, 0, 0, tzinfo=UTC),
+        site_name="testsite",
+        asset=doc,
+        asset_type=AssetTypeEnum.DATASET,
+    )
     peer = mesh.site("peer-one")
     indexer = FederatedAssetIndexer(peer.opensearch)
     event_at = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
-    count = await bootstrap_gateway_exports(
+    count = await bootstrap_peer_sync_list(
         mesh.http,
         peer.config.peers[0],
         indexer,
         event_at=event_at,
     )
     assert count == 1
-    assert peer.opensearch.index_calls[0]["id"] == doc_id(
+    assert peer.opensearch.index_calls[-1]["id"] == doc_id(
         "testsite",
         TEST_DATASET_UUID,
     )

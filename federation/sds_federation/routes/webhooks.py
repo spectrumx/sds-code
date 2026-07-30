@@ -1,18 +1,40 @@
 import asyncio
 from datetime import UTC
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Request
+from loguru import logger
 
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import SiteHelloWebhook
+from sds_federation.services.bootstrap import backfill_peer_on_hello
+from sds_federation.services.bootstrap import peer_by_name
 from sds_federation.services.fed_index import FederatedAssetIndexer
+from sds_federation.services.fed_search import alist_federated_assets_for_site
 from sds_federation.services.peer_registry import PeerRegistry
 
+if TYPE_CHECKING:
+    import httpx
+
 webhooks_router = APIRouter(tags=["webhooks"])
+
+
+def _opensearch(request: Request):
+    client = getattr(request.app.state, "opensearch_client", None)
+    if client is None:
+        raise HTTPException(status_code=503, detail="OpenSearch not ready")
+    return client
+
+
+def _local_site_name(request: Request) -> str:
+    config = getattr(request.app.state, "config", None)
+    if config is None:
+        raise HTTPException(status_code=503, detail="Config not ready")
+    return config.site.name
 
 
 def _indexer(request: Request) -> FederatedAssetIndexer:
@@ -29,6 +51,10 @@ def _peer_registry(request: Request) -> PeerRegistry:
     return registry
 
 
+def _http_client(request: Request) -> httpx.AsyncClient | None:
+    return getattr(request.app.state, "http", None)
+
+
 def _allowed_origin_sites(request: Request, payload: AssetUpdatedWebhook) -> None:
     config = request.app.state.config
     if payload.site_name == config.site.name:
@@ -43,6 +69,10 @@ def _allowed_origin_sites(request: Request, payload: AssetUpdatedWebhook) -> Non
 
 @webhooks_router.post("/webhook/dataset-updated")
 async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dict:
+    """
+    Handle dataset-updated webhook from another site.
+    Index the dataset in the local site's OpenSearch.
+    """
     _allowed_origin_sites(request, payload)
     if payload.asset is None or payload.asset_type is not AssetTypeEnum.DATASET:
         raise HTTPException(
@@ -64,6 +94,10 @@ async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
 
 @webhooks_router.post("/webhook/capture-updated")
 async def capture_updated(payload: AssetUpdatedWebhook, request: Request) -> dict:
+    """
+    Handle capture-updated webhook from another site.
+    Index the capture in the local site's OpenSearch.
+    """
     _allowed_origin_sites(request, payload)
     if payload.asset is None or payload.asset_type is not AssetTypeEnum.CAPTURE:
         raise HTTPException(
@@ -83,6 +117,32 @@ async def capture_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
     return {"status": "accepted"}
 
 
+@webhooks_router.get("/webhook/list-datasets/")
+async def list_datasets(request: Request) -> list[dict]:
+    """
+    List all datasets for the local site to new peer on bootstrap.
+    """
+    docs = await alist_federated_assets_for_site(
+        _opensearch(request),
+        site_name=_local_site_name(request),
+        asset_type=AssetTypeEnum.DATASET,
+    )
+    return [doc.model_dump(mode="json") for doc in docs]
+
+
+@webhooks_router.get("/webhook/list-captures/")
+async def list_captures(request: Request) -> list[dict]:
+    """
+    List all captures for the local site to new peer on bootstrap.
+    """
+    docs = await alist_federated_assets_for_site(
+        _opensearch(request),
+        site_name=_local_site_name(request),
+        asset_type=AssetTypeEnum.CAPTURE,
+    )
+    return [doc.model_dump(mode="json") for doc in docs]
+
+
 @webhooks_router.post("/webhook/site-hello")
 async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
     config = request.app.state.config
@@ -100,4 +160,33 @@ async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
         hello = hello.model_copy(update={"timestamp": datetime.now(UTC)})
 
     _peer_registry(request).register(hello)
+
+    peer = peer_by_name(config, hello.site_name)
+    http = _http_client(request)
+    if peer is None:
+        logger.error(
+            "site-hello from {}: peer missing from config after allowlist check",
+            hello.site_name,
+        )
+    elif http is None:
+        logger.warning(
+            "site-hello from {}: no HTTP client on app state; skipping export backfill",
+            hello.site_name,
+        )
+    else:
+        try:
+            indexed = await backfill_peer_on_hello(
+                http,
+                peer,
+                _indexer(request),
+                event_at=hello.timestamp or datetime.now(UTC),
+            )
+            logger.info(
+                "site-hello backfill indexed {} document(s) from {}",
+                indexed,
+                peer.name,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("site-hello backfill failed for {}: {}", peer.name, exc)
+
     return {"status": "registered", "site_name": hello.site_name}

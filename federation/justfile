@@ -97,5 +97,8 @@ logs +args='':
     {{ docker_compose }} logs --tail 1000 -f {{ args }}
 
 [group('docker')]
+redeploy: build down up logs
+
+[group('docker')]
 dc +args='':
     {{ docker_compose }} {{ args }}

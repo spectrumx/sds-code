@@ -31,6 +31,10 @@ def _export_list_url(peer: PeerInfo, asset_type: AssetTypeEnum) -> str:
     return f"{base}{asset_type.export_path}"
 
 
+def _webhook_list_url(peer: PeerInfo, asset_type: AssetTypeEnum) -> str:
+    return peer_webhook_url(peer, asset_type.webhook_list_path)
+
+
 def _gateway_origin(gateway_api_base: str) -> str:
     """Strip ``/api/v1`` (or ``/api/<version>``) so non-API routes resolve."""
     base = str(gateway_api_base).rstrip("/")
@@ -53,9 +57,8 @@ def _gateway_auth_headers(api_key: str) -> dict[str, str]:
     return {"Authorization": f"Api-Key: {api_key}"}
 
 
-def _resolve_gateway_api_key(peer: PeerInfo) -> str:
-    if peer.gateway_export_api_key:
-        return peer.gateway_export_api_key
+def _resolve_local_gateway_api_key() -> str:
+    """Api-Key for this site's gateway export only (never for remote peers)."""
     return os.environ.get("FEDERATION_SYNC_SERVER_API_KEY", "").strip()
 
 
@@ -138,13 +141,15 @@ async def _get_json(
     return resp.json()
 
 
-async def fetch_peer_export_list(
+async def fetch_gateway_export_list(
     http: httpx.AsyncClient,
     peer: PeerInfo,
     asset_type: AssetTypeEnum,
+    *,
+    api_key: str,
 ) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
+    """Pull public export list from local site gateway (postgres)."""
     url = _export_list_url(peer, asset_type)
-    api_key = _resolve_gateway_api_key(peer)
     data = await _get_json(
         http,
         url,
@@ -158,6 +163,58 @@ async def fetch_peer_export_list(
     return [doc_class.model_validate(item) for item in data]
 
 
+async def fetch_peer_sync_list(
+    http: httpx.AsyncClient,
+    peer: PeerInfo,
+    asset_type: AssetTypeEnum,
+) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
+    """Pull peer-owned docs from the peer sync service (fed-* OpenSearch export)."""
+    url = _webhook_list_url(peer, asset_type)
+    data = await _get_json(
+        http,
+        url,
+        api_key="",
+        verify=peer.ca_cert_path or True,
+    )
+    if not isinstance(data, list):
+        msg = f"expected list from {url}, got {type(data).__name__}"
+        raise TypeError(msg)
+    doc_class = asset_doc_class(asset_type)
+    return [doc_class.model_validate(item) for item in data]
+
+
+def _index_export_docs(
+    indexer: FederatedAssetIndexer,
+    peer: PeerInfo,
+    asset_type: AssetTypeEnum,
+    docs: list[FederatedDatasetDoc | FederatedCaptureDoc],
+    *,
+    event_at: datetime,
+) -> int:
+    indexed = 0
+    for doc in docs:
+        if doc.site_name != peer.name:
+            logger.error(
+                "bootstrap export failed for {} {}: site name mismatch "
+                "(doc.site_name={!r}, peer.name={!r})",
+                peer.name,
+                asset_type.value,
+                doc.site_name,
+                peer.name,
+            )
+            continue
+
+        new_index = indexer.apply_asset_event(
+            event_at=event_at,
+            site_name=doc.site_name,
+            asset=doc,
+            asset_type=asset_type,
+        )
+        if new_index:
+            indexed += 1
+    return indexed
+
+
 async def bootstrap_gateway_exports(
     http: httpx.AsyncClient,
     peer: PeerInfo,
@@ -165,39 +222,66 @@ async def bootstrap_gateway_exports(
     *,
     event_at: datetime,
 ) -> int:
-    """Pull all export lists for one gateway (local or remote). Returns doc count."""
+    """Pull gateway export lists for the local site. Returns newly indexed count."""
+    api_key = (
+        peer.gateway_export_api_key.strip()
+        if peer.gateway_export_api_key
+        else _resolve_local_gateway_api_key()
+    )
     indexed = 0
     for asset_type in AssetTypeEnum:
         try:
-            docs = await fetch_peer_export_list(http, peer, asset_type)
+            docs = await fetch_gateway_export_list(
+                http,
+                peer,
+                asset_type,
+                api_key=api_key,
+            )
         except httpx.HTTPError as exc:
             logger.error(
-                "bootstrap export failed for {} {}: {}",
+                "bootstrap gateway export failed for {} {}: {}",
                 peer.name,
                 asset_type.value,
                 exc,
             )
             continue
-        for doc in docs:
-            if doc.site_name != peer.name:
-                logger.error(
-                    "bootstrap export failed for {} {}: site name mismatch "
-                    "(doc.site_name={!r}, peer.name={!r})",
-                    peer.name,
-                    asset_type.value,
-                    doc.site_name,
-                    peer.name,
-                )
-                continue
+        indexed += _index_export_docs(
+            indexer,
+            peer,
+            asset_type,
+            docs,
+            event_at=event_at,
+        )
+    return indexed
 
-            new_index = indexer.apply_asset_event(
-                event_at=event_at,
-                site_name=doc.site_name,
-                asset=doc,
-                asset_type=asset_type,
+
+async def bootstrap_peer_sync_list(
+    http: httpx.AsyncClient,
+    peer: PeerInfo,
+    indexer: FederatedAssetIndexer,
+    *,
+    event_at: datetime,
+) -> int:
+    """Pull peer metadata from peer sync ``/webhook/list-*`` (OpenSearch)."""
+    indexed = 0
+    for asset_type in AssetTypeEnum:
+        try:
+            docs = await fetch_peer_sync_list(http, peer, asset_type)
+        except httpx.HTTPError as exc:
+            logger.error(
+                "bootstrap peer sync export failed for {} {}: {}",
+                peer.name,
+                asset_type.value,
+                exc,
             )
-            if new_index:
-                indexed += 1
+            continue
+        indexed += _index_export_docs(
+            indexer,
+            peer,
+            asset_type,
+            docs,
+            event_at=event_at,
+        )
     return indexed
 
 
@@ -232,14 +316,42 @@ async def bootstrap_all_peers(
 ) -> int:
     total = 0
     for peer in config.peers:
-        logger.info("Bootstrapping peer {} from {}", peer.name, peer.gateway_api_base)
-        total += await bootstrap_gateway_exports(
+        logger.info(
+            "Bootstrapping peer {} from sync {}",
+            peer.name,
+            peer.sync_service_url,
+        )
+        total += await bootstrap_peer_sync_list(
             http,
             peer,
             indexer,
             event_at=event_at,
         )
     return total
+
+
+def peer_by_name(config: FederationConfig, site_name: str) -> PeerInfo | None:
+    for peer in config.peers:
+        if peer.name == site_name:
+            return peer
+    return None
+
+
+async def backfill_peer_on_hello(
+    http: httpx.AsyncClient,
+    peer: PeerInfo,
+    indexer: FederatedAssetIndexer,
+    *,
+    event_at: datetime | None = None,
+) -> int:
+    """Pull a registering peer's fed-* docs via their sync list API."""
+    at = event_at or datetime.now(UTC)
+    logger.info(
+        "site-hello backfill: pulling sync list for {} from {}",
+        peer.name,
+        peer.sync_service_url,
+    )
+    return await bootstrap_peer_sync_list(http, peer, indexer, event_at=at)
 
 
 def _site_hello_payload(config: FederationConfig) -> SiteHelloWebhook:
