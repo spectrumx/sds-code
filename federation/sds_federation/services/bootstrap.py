@@ -183,13 +183,31 @@ async def fetch_peer_sync_list(
     return [doc_class.model_validate(item) for item in data]
 
 
+def _parse_doc_event_at(
+    doc: FederatedDatasetDoc | FederatedCaptureDoc,
+    *,
+    fallback: datetime,
+) -> datetime:
+    """Prefer asset updated_at so bootstrap does not stamp a shared 'now'."""
+    for raw in (doc.updated_at, doc.created_at):
+        if isinstance(raw, datetime):
+            return raw if raw.tzinfo else raw.replace(tzinfo=UTC)
+        if isinstance(raw, str) and raw.strip():
+            try:
+                parsed = datetime.fromisoformat(raw)
+            except ValueError:
+                continue
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+    return fallback
+
+
 def _index_export_docs(
     indexer: FederatedAssetIndexer,
     peer: PeerInfo,
     asset_type: AssetTypeEnum,
     docs: list[FederatedDatasetDoc | FederatedCaptureDoc],
     *,
-    event_at: datetime,
+    fallback_event_at: datetime,
 ) -> int:
     indexed = 0
     for doc in docs:
@@ -204,6 +222,7 @@ def _index_export_docs(
             )
             continue
 
+        event_at = _parse_doc_event_at(doc, fallback=fallback_event_at)
         new_index = indexer.apply_asset_event(
             event_at=event_at,
             site_name=doc.site_name,
@@ -220,7 +239,7 @@ async def bootstrap_gateway_exports(
     peer: PeerInfo,
     indexer: FederatedAssetIndexer,
     *,
-    event_at: datetime,
+    event_at: datetime | None = None,
 ) -> int:
     """Pull gateway export lists for the local site. Returns newly indexed count."""
     api_key = (
@@ -228,6 +247,7 @@ async def bootstrap_gateway_exports(
         if peer.gateway_export_api_key
         else _resolve_local_gateway_api_key()
     )
+    fallback = event_at or datetime.now(UTC)
     indexed = 0
     for asset_type in AssetTypeEnum:
         try:
@@ -250,7 +270,7 @@ async def bootstrap_gateway_exports(
             peer,
             asset_type,
             docs,
-            event_at=event_at,
+            fallback_event_at=fallback,
         )
     return indexed
 
@@ -260,9 +280,10 @@ async def bootstrap_peer_sync_list(
     peer: PeerInfo,
     indexer: FederatedAssetIndexer,
     *,
-    event_at: datetime,
+    event_at: datetime | None = None,
 ) -> int:
     """Pull peer metadata from peer sync ``/webhook/list-*`` (OpenSearch)."""
+    fallback = event_at or datetime.now(UTC)
     indexed = 0
     for asset_type in AssetTypeEnum:
         try:
@@ -280,7 +301,7 @@ async def bootstrap_peer_sync_list(
             peer,
             asset_type,
             docs,
-            event_at=event_at,
+            fallback_event_at=fallback,
         )
     return indexed
 
@@ -300,7 +321,7 @@ async def bootstrap_local_site(
     config: FederationConfig,
     indexer: FederatedAssetIndexer,
     *,
-    event_at: datetime,
+    event_at: datetime | None = None,
 ) -> int:
     peer = _local_export_peer(config)
     logger.info("Bootstrapping local public metadata from {}", peer.gateway_api_base)
@@ -312,7 +333,7 @@ async def bootstrap_all_peers(
     http: httpx.AsyncClient,
     indexer: FederatedAssetIndexer,
     *,
-    event_at: datetime,
+    event_at: datetime | None = None,
 ) -> int:
     total = 0
     for peer in config.peers:
@@ -345,13 +366,12 @@ async def backfill_peer_on_hello(
     event_at: datetime | None = None,
 ) -> int:
     """Pull a registering peer's fed-* docs via their sync list API."""
-    at = event_at or datetime.now(UTC)
     logger.info(
         "site-hello backfill: pulling sync list for {} from {}",
         peer.name,
         peer.sync_service_url,
     )
-    return await bootstrap_peer_sync_list(http, peer, indexer, event_at=at)
+    return await bootstrap_peer_sync_list(http, peer, indexer, event_at=event_at)
 
 
 def _site_hello_payload(config: FederationConfig) -> SiteHelloWebhook:

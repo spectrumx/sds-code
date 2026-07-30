@@ -39,6 +39,7 @@ def main() -> int:
     channel = resolve_federation_events_channel(
         site_name=config.site.name,
         env_override=os.environ.get("FEDERATION_EVENTS_CHANNEL"),
+        gateway_site_name=os.environ.get("FEDERATION_SITE_NAME"),
     )
     payload = simulated_dataset_redis_payload(
         uuid=UUID(args.uuid),

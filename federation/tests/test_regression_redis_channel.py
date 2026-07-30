@@ -20,8 +20,19 @@ def test_resolve_prefers_env_override() -> None:
         resolve_federation_events_channel(
             site_name="crc",
             env_override="custom:channel",
+            gateway_site_name="other",
         )
         == "custom:channel"
+    )
+
+
+def test_resolve_prefers_gateway_site_name_over_toml() -> None:
+    assert (
+        resolve_federation_events_channel(
+            site_name="toml-name",
+            gateway_site_name="gateway-name",
+        )
+        == "federation:events:gateway-name"
     )
 
 

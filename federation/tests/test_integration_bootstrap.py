@@ -132,7 +132,7 @@ async def test_run_bootstrap_pulls_exports_then_registers(
                 },
             )
         if request.method == "GET" and "local-gateway" in url:
-            if "/federation/webhook/list-datasets/" in url:
+            if "/federation/export/datasets" in url:
                 assert request.headers.get("Authorization") == (
                     "Api-Key: minted-for-bootstrap"
                 )
@@ -140,16 +140,16 @@ async def test_run_bootstrap_pulls_exports_then_registers(
                     200,
                     json=[local_doc.model_dump(mode="json")],
                 )
-            if "/federation/webhook/list-captures/" in url:
+            if "/federation/export/captures" in url:
                 return httpx.Response(200, json=[])
         if request.method == "GET" and "peer-sync.test" in url:
             assert "Authorization" not in request.headers
-            if url.rstrip("/").endswith("/webhook/list-datasets/"):
+            if url.rstrip("/").endswith("/webhook/list-datasets"):
                 return httpx.Response(
                     200,
                     json=[peer_doc.model_dump(mode="json")],
                 )
-            if url.rstrip("/").endswith("/webhook/list-captures/"):
+            if url.rstrip("/").endswith("/webhook/list-captures"):
                 return httpx.Response(200, json=[])
         if request.method == "POST" and "site-hello" in url:
             hello_posts.append(url)

@@ -16,6 +16,7 @@ from sds_federation.services.bootstrap import peer_by_name
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_search import alist_federated_assets_for_site
 from sds_federation.services.peer_registry import PeerRegistry
+from sds_federation.services.peer_sync import peer_for_outbound
 
 if TYPE_CHECKING:
     import httpx
@@ -174,19 +175,20 @@ async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
             hello.site_name,
         )
     else:
+        outbound = peer_for_outbound(peer, _peer_registry(request))
         try:
             indexed = await backfill_peer_on_hello(
                 http,
-                peer,
+                outbound,
                 _indexer(request),
-                event_at=hello.timestamp or datetime.now(UTC),
             )
             logger.info(
-                "site-hello backfill indexed {} document(s) from {}",
+                "site-hello backfill indexed {} document(s) from {} ({})",
                 indexed,
-                peer.name,
+                outbound.name,
+                outbound.sync_service_url,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("site-hello backfill failed for {}: {}", peer.name, exc)
+            logger.error("site-hello backfill failed for {}: {}", outbound.name, exc)
 
     return {"status": "registered", "site_name": hello.site_name}

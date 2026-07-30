@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import TYPE_CHECKING
+from typing import Any
 
 from opensearchpy.exceptions import NotFoundError
 
@@ -65,37 +66,59 @@ def load_federated_asset(
     return _parse_hit(source, asset_type)
 
 
+def _site_owned_query(site_name: str) -> dict[str, Any]:
+    return {
+        "bool": {
+            "should": [
+                {"term": {"site_name.keyword": site_name}},
+                {"term": {"site_name": site_name}},
+            ],
+            "minimum_should_match": 1,
+        }
+    }
+
+
 def list_federated_assets_for_site(
     client: OpenSearch,
     *,
     site_name: str,
     asset_type: AssetTypeEnum,
 ) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
-    """Return all fed-* docs owned by ``site_name`` (for peer sync export)."""
-    body = {
-        "size": _LIST_PAGE_SIZE,
-        "query": {
-            "bool": {
-                "should": [
-                    {"term": {"site_name.keyword": site_name}},
-                    {"term": {"site_name": site_name}},
-                ],
-                "minimum_should_match": 1,
-            }
-        },
-    }
-    response = client.search(index=asset_type.index_name, body=body)
-    hits = (response.get("hits") or {}).get("hits") or []
+    """Return all fed-* docs owned by ``site_name`` (paginated search_after)."""
     docs: list[FederatedDatasetDoc | FederatedCaptureDoc] = []
-    for hit in hits:
-        source = hit.get("_source")
-        if not isinstance(source, dict):
-            continue
-        if source.get("site_name") != site_name:
-            continue
-        parsed = _parse_hit(source, asset_type)
-        if parsed is not None:
-            docs.append(parsed)
+    search_after: list[Any] | None = None
+
+    while True:
+        body: dict[str, Any] = {
+            "size": _LIST_PAGE_SIZE,
+            "sort": [{"_id": "asc"}],
+            "query": _site_owned_query(site_name),
+        }
+        if search_after is not None:
+            body["search_after"] = search_after
+
+        response = client.search(index=asset_type.index_name, body=body)
+        hits = (response.get("hits") or {}).get("hits") or []
+        if not hits:
+            break
+
+        for hit in hits:
+            source = hit.get("_source")
+            if not isinstance(source, dict):
+                continue
+            if source.get("site_name") != site_name:
+                continue
+            parsed = _parse_hit(source, asset_type)
+            if parsed is not None:
+                docs.append(parsed)
+
+        if len(hits) < _LIST_PAGE_SIZE:
+            break
+        last_sort = hits[-1].get("sort")
+        if not isinstance(last_sort, list) or not last_sort:
+            break
+        search_after = last_sort
+
     return docs
 
 
