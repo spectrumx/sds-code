@@ -569,6 +569,7 @@
             "S101",                                                    # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",                                                    # Possible binding to all interfaces
             "SIM102",                                                  # sometimes it's better to nest
+            "PLC0415",                                                 # import not at top-level (false positives in Django signal handlers)
         ]
         select              = [
             # RULE SETS: https://docs.astral.sh/ruff/rules/

@@ -101,7 +101,7 @@ def into_human_bool(value: str | int | bool) -> bool:  # noqa: FBT001
 def is_running_in_notebook() -> bool:
     """Check if the current environment is a Jupyter notebook."""
     try:
-        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # noqa: PLC0415 # pyrefly: ignore[missing-import]
+        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # pyrefly: ignore[missing-import]
             get_ipython,  # pyright: ignore[reportPrivateImportUsage]
         )
 

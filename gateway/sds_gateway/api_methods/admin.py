@@ -250,9 +250,9 @@ class UserSharePermissionAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissi
         not FK relations, so Prefetch/select_related can't batch-load items.
         Consider denormalizing item_name onto the model if N+1 becomes a problem.
         """
-        from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-        from sds_gateway.api_methods.models import Dataset  # noqa: PLC0415
-        from sds_gateway.api_methods.models import ItemType  # noqa: PLC0415
+        from sds_gateway.api_methods.models import Capture
+        from sds_gateway.api_methods.models import Dataset
+        from sds_gateway.api_methods.models import ItemType
 
         if obj.item_type == ItemType.DATASET:
             item = Dataset.objects.filter(uuid=obj.item_uuid).first()

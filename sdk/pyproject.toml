@@ -324,6 +324,7 @@
             "S101",    # Use of assert detected https://docs.astral.sh/ruff/rules/assert/
             "S104",    # Possible binding to all interfaces
             "SIM102",  # sometimes it's better to nest
+            "PLC0415", # import not at top-level (false positives in Django signal handlers)
             # TODO: re-enable UP046 when support for 3.11 is dropped
             "UP046",
             # TODO: re-enable UP047 when support for 3.11 is dropped

@@ -61,7 +61,7 @@ _VERSION_CACHE = _load_version()
 
 def _latest_admin_monitoring_status() -> dict[str, Any] | None:
     try:
-        from sds_gateway.monitoring.models import SystemHealthSnapshot  # noqa: PLC0415
+        from sds_gateway.monitoring.models import SystemHealthSnapshot
 
         return SystemHealthSnapshot.latest_snapshot_payload()
     except (ImportError, LookupError, OperationalError, ProgrammingError):

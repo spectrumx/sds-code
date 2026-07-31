@@ -277,7 +277,7 @@ def raise_if_file_deletion_is_blocked(instance: File) -> None:
     Raises:
         ProtectedError if the file is associated with a capture or dataset.
     """
-    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+    from sds_gateway.api_methods.utils.asset_access_control import (
         get_connected_asset_ids,
     )
 
@@ -396,9 +396,7 @@ class Capture(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
-        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
-            disconnect_assets,
-        )
+        from sds_gateway.api_methods.utils.asset_access_control import disconnect_assets
 
         raise_if_capture_deletion_is_blocked(instance=self)
         disconnect_assets(item=self, item_type=ItemType.CAPTURE)
@@ -493,9 +491,7 @@ class Capture(BaseModel):
 
     def get_drf_data_files_queryset(self) -> QuerySet[File]:
         """DRF data files (rf@*.h5) for this capture (M2M + FK)."""
-        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
-            get_capture_files,
-        )
+        from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
         if self.capture_type != CaptureType.DigitalRF:
             log.warning(f"Capture {self.uuid} is not a DigitalRF capture")
@@ -531,9 +527,7 @@ class Capture(BaseModel):
         if hasattr(self, "_capture_files_stats_cache"):
             return self._capture_files_stats_cache
 
-        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
-            get_capture_files,
-        )
+        from sds_gateway.api_methods.utils.relationship_utils import get_capture_files
 
         qs = get_capture_files(self, include_deleted=False)
         agg = qs.aggregate(total_count=Count("pk"), total_size=Sum("size"))
@@ -860,7 +854,7 @@ def raise_if_capture_deletion_is_blocked(instance: Capture) -> None:
     Raises:
         ProtectedError if the capture is associated with a dataset.
     """
-    from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
+    from sds_gateway.api_methods.utils.asset_access_control import (
         get_connected_asset_ids,
     )
 
@@ -1113,9 +1107,7 @@ class Dataset(BaseModel):
 
     def soft_delete(self) -> None:
         """Soft delete this record after checking for blockers."""
-        from sds_gateway.api_methods.utils.asset_access_control import (  # noqa: PLC0415
-            disconnect_assets,
-        )
+        from sds_gateway.api_methods.utils.asset_access_control import disconnect_assets
 
         disconnect_assets(item=self, item_type=ItemType.DATASET)
         return super().soft_delete()
@@ -1140,7 +1132,7 @@ class Dataset(BaseModel):
         if hasattr(self, "_dataset_file_statistics_cache"):
             return self._dataset_file_statistics_cache
 
-        from sds_gateway.api_methods.utils.relationship_utils import (  # noqa: PLC0415
+        from sds_gateway.api_methods.utils.relationship_utils import (
             get_dataset_files_including_captures,
         )
 

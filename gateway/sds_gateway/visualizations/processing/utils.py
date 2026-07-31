@@ -379,8 +379,8 @@ def store_processed_data(
     Returns:
         None
     """
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.api_methods.models import Capture
+    from sds_gateway.visualizations.models import PostProcessedData
 
     logger.info(f"Storing {processing_type} file for capture {capture_uuid}")
 

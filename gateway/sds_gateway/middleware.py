@@ -41,7 +41,7 @@ class SocialAccountFallbackMiddleware:
     ) -> HttpResponse | None:
         """Intercept SocialApp.DoesNotExist exceptions and redirect gracefully."""
         if isinstance(exception, SocialApp.DoesNotExist):
-            log.warning(
+            log.exception(
                 "social provider not configured, redirecting to password login",
                 path=request.path,
                 user=self._get_user_identifier(request.user),

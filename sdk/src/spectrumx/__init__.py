@@ -75,11 +75,11 @@ def enable_logging() -> None:
                 }
             ]
         )
-        from spectrumx.utils import LogCategory  # noqa: PLC0415
+        from spectrumx.utils import LogCategory
 
         log.bind(cat=LogCategory.CONFIG).info(f"Enabled logging for '{LIB_NAME}'")  # pyright: ignore[reportPossiblyUnboundVariable]
     except NameError:
-        import logging  # noqa: PLC0415
+        import logging
 
         logger = logging.getLogger(__name__)
 

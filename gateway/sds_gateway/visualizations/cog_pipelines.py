@@ -127,8 +127,8 @@ def setup_post_processing_cog(
     """
 
     # imports to run when the app is ready
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.api_methods.models import CaptureType  # noqa: PLC0415
+    from sds_gateway.api_methods.models import Capture
+    from sds_gateway.api_methods.models import CaptureType
 
     try:
         logger.info(
@@ -205,9 +205,7 @@ def setup_post_processing_cog(
 
 def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
     """Process waterfall JSON data and return result."""
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        reconstruct_drf_files,
-    )
+    from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
 
     capture_files = capture.files.filter(is_deleted=False)
     reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
@@ -220,10 +218,8 @@ def _process_waterfall_json_data(capture, processed_data_obj, temp_path):
 
 def _store_waterfall_json_file(capture_uuid, waterfall_result):
     """Store waterfall JSON file and return result."""
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        store_processed_data,
-    )
+    from sds_gateway.visualizations.models import ProcessingType
+    from sds_gateway.visualizations.processing.utils import store_processed_data
 
     with tempfile.NamedTemporaryFile(
         mode="w", suffix=".json", delete=False
@@ -263,7 +259,7 @@ def process_waterfall_data_cog(
     Returns:
         None
     """
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingType
 
     if ProcessingType.Waterfall.value not in processing_config:
         logger.info(
@@ -271,8 +267,8 @@ def process_waterfall_data_cog(
         )
         return
 
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
+    from sds_gateway.api_methods.models import Capture
+    from sds_gateway.visualizations.models import PostProcessedData
 
     capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
@@ -331,7 +327,7 @@ def process_spectrogram_data_cog(
     Returns:
         None
     """
-    from sds_gateway.visualizations.models import ProcessingType  # noqa: PLC0415
+    from sds_gateway.visualizations.models import ProcessingType
 
     # Check if spectrogram processing is requested
     if ProcessingType.Spectrogram.value not in processing_config:
@@ -341,14 +337,10 @@ def process_spectrogram_data_cog(
         )
         return
 
-    from sds_gateway.api_methods.models import Capture  # noqa: PLC0415
-    from sds_gateway.visualizations.models import PostProcessedData  # noqa: PLC0415
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        reconstruct_drf_files,
-    )
-    from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-        store_processed_data,
-    )
+    from sds_gateway.api_methods.models import Capture
+    from sds_gateway.visualizations.models import PostProcessedData
+    from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
+    from sds_gateway.visualizations.processing.utils import store_processed_data
 
     logger.info(f"Processing spectrogram data for capture {capture_uuid}")
 
@@ -383,15 +375,13 @@ def process_spectrogram_data_cog(
         temp_path = Path(temp_dir)
 
         # Reconstruct the DigitalRF files for processing
-        from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-            reconstruct_drf_files,
-        )
+        from sds_gateway.visualizations.processing.utils import reconstruct_drf_files
 
         capture_files = capture.files.filter(is_deleted=False)
         reconstructed_path = reconstruct_drf_files(capture, capture_files, temp_path)
 
         # Generate spectrogram
-        from sds_gateway.visualizations.processing.spectrogram import (  # noqa: PLC0415
+        from sds_gateway.visualizations.processing.spectrogram import (
             generate_spectrogram_from_drf,
         )
 
@@ -402,9 +392,7 @@ def process_spectrogram_data_cog(
         )
 
         # Store the spectrogram image
-        from sds_gateway.visualizations.processing.utils import (  # noqa: PLC0415
-            store_processed_data,
-        )
+        from sds_gateway.visualizations.processing.utils import store_processed_data
 
         store_processed_data(
             capture_uuid,
@@ -459,12 +447,8 @@ def visualization_error_handler(error, task_run=None):
                 )
 
                 # Import models here to avoid Django app registry issues
-                from sds_gateway.visualizations.models import (  # noqa: PLC0415
-                    PostProcessedData,
-                )
-                from sds_gateway.visualizations.models import (  # noqa: PLC0415
-                    ProcessingStatus,
-                )
+                from sds_gateway.visualizations.models import PostProcessedData
+                from sds_gateway.visualizations.models import ProcessingStatus
 
                 # Find any PostProcessedData records for this capture that are pending
                 # or processing
@@ -485,7 +469,7 @@ def visualization_error_handler(error, task_run=None):
 
                 for record in failed_records:
                     # Create a CogError record for detailed error tracking
-                    from django_cog.models import CogError  # noqa: PLC0415
+                    from django_cog.models import CogError
 
                     error_type = type(error).__name__
                     error_info = "".join(

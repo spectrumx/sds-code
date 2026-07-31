@@ -43,9 +43,7 @@ def launch_visualization_processing(
         capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
 
         # Get the appropriate pipeline from the database
-        from sds_gateway.visualizations.models import (  # noqa: PLC0415
-            get_latest_pipeline_by_base_name,
-        )
+        from sds_gateway.visualizations.models import get_latest_pipeline_by_base_name
 
         # Always use the visualization pipeline - individual cogs will check if they
         # should run

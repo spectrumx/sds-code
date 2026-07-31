@@ -35,8 +35,6 @@ from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
-# ruff: noqa: PLC0415
-
 
 def cleanup_orphaned_zips() -> int:
     """

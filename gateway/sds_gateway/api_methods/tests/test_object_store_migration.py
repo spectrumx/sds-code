@@ -386,9 +386,9 @@ def test_dual_store_storage_module_imports_without_type_error() -> None:
     ``config.settings.base`` (which does not call the monkeypatch) exercises
     the true cold-import path.
     """
-    import subprocess  # noqa: PLC0415
-    import sys  # noqa: PLC0415
-    from pathlib import Path  # noqa: PLC0415
+    import subprocess
+    import sys
+    from pathlib import Path
 
     project_root = Path(__file__).resolve().parent.parent.parent.parent
     settings_module = (

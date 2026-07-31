@@ -107,8 +107,8 @@ class Client:
         log_file: Path | None = None,
     ) -> None:
         # avoids circular imports
-        from spectrumx.api import sds_files as _sds_files_api  # noqa: PLC0415
-        from spectrumx.api import uploads as _uploads_api  # noqa: PLC0415
+        from spectrumx.api import sds_files as _sds_files_api
+        from spectrumx.api import uploads as _uploads_api
 
         self._sds_files = _sds_files_api
         self._uploads = _uploads_api
