@@ -1,8 +1,8 @@
 import asyncio
 from datetime import UTC
 from datetime import datetime
-from typing import TYPE_CHECKING
 
+import httpx
 from fastapi import APIRouter
 from fastapi import HTTPException
 from fastapi import Request
@@ -17,9 +17,6 @@ from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_search import alist_federated_assets_for_site
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import peer_for_outbound
-
-if TYPE_CHECKING:
-    import httpx
 
 webhooks_router = APIRouter(tags=["webhooks"])
 

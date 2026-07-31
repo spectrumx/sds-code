@@ -119,7 +119,7 @@ async def test_run_bootstrap_pulls_exports_then_registers(
     peer_doc = sample_federated_dataset_doc(site_name="peer-one")
     hello_posts: list[str] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:  # noqa: PLR0911
         url = str(request.url)
         if request.method == "GET" and url.endswith(
             "/users/get-federation-sync-api-key/",

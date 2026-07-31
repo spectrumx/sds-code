@@ -138,7 +138,7 @@ repos:
             files: ^gateway/sds_gateway/static/js/.*\.js$
           - id: pyrefly-federation
             name: pyrefly (federation)
-            entry: bash -c "cd federation && uv run pyrefly check -c pyproject.toml"
+            entry: bash -c "cd federation && uv run --extra dev pyrefly check -c pyproject.toml"
             language: system
             pass_filenames: false
             files: ^federation/.*\.py$

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from datetime import UTC
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
@@ -19,7 +20,8 @@ from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
-from tests.support.federation_mesh import FederationMesh
+if TYPE_CHECKING:
+    from tests.support.federation_mesh import FederationMesh
 
 
 @pytest.mark.integration
