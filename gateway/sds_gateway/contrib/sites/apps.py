@@ -1,5 +1,5 @@
-from django.apps import AppConfig
 from django.conf import settings
+from django.contrib.sites.apps import SitesConfig as DjangoSitesConfig
 from django.db.models.signals import post_migrate
 
 
@@ -50,10 +50,7 @@ def ensure_site_record(sender, **kwargs):
                 )
 
 
-class SitesConfig(AppConfig):
-    default_auto_field = "django.db.models.BigAutoField"
-    name = "sds_gateway.contrib.sites"
-    label = "sds_gateway_sites"
-
+class SitesConfig(DjangoSitesConfig):
     def ready(self):
+        super().ready()
         post_migrate.connect(ensure_site_record, sender=self)
