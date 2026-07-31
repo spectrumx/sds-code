@@ -126,7 +126,7 @@ repos:
       hooks:
           - id: deptry
             name: deptry
-            entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry .; cd ../federation && uv run deptry ."
+            entry: bash -c "cd sdk && uv run deptry .; cd ../gateway && uv run deptry .; cd ../federation && uv run --extra dev deptry ."
             language: system
             pass_filenames: false # run once per commit, not per file
             types: [python]
@@ -138,7 +138,7 @@ repos:
             files: ^gateway/sds_gateway/static/js/.*\.js$
           - id: pyrefly-federation
             name: pyrefly (federation)
-            entry: bash -c "cd federation && uv run pyrefly check -c pyproject.toml"
+            entry: bash -c "cd federation && uv run --extra dev pyrefly check -c pyproject.toml"
             language: system
             pass_filenames: false
             files: ^federation/.*\.py$

@@ -52,7 +52,10 @@ async def test_ensure_mints_when_env_key_missing(
         assert request.headers["Authorization"] == f"Token {'a' * 40}"
         return httpx.Response(
             200,
-            json={"api_key": "minted.key.value", "email": "federation-sync@internal.local"},
+            json={
+                "api_key": "minted.key.value",
+                "email": "federation-sync@internal.local",
+            },
         )
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http:
@@ -73,5 +76,5 @@ async def test_mint_local_export_api_key_rejects_empty_body() -> None:
             await mint_local_export_api_key(
                 http,
                 "http://gateway:8000/api/v1",
-                drf_token="tok",
+                drf_token="tok",  # noqa: S106
             )
