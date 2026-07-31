@@ -169,6 +169,7 @@ function wait_for_opensearch() {
             http_auth=(\"${OPENSEARCH_USER}\", \"${OPENSEARCH_PASSWORD}\"),
             use_ssl=scheme == \"https\",
             verify_certs=scheme == \"https\",
+            ca_certs=\"/app/opensearch/data/certs/root-ca.pem\"
         )
         client.cluster.health()"
 }
@@ -192,18 +193,6 @@ function validate_opensearch_vars() {
     fi
 
     validate_port "OPENSEARCH_PORT" "${OPENSEARCH_PORT}"
-}
-
-function wait_for_opensearch() {
-    _run_with_retry "OpenSearch" "SKIP_OPENSEARCH_WAIT" "        from opensearchpy import OpenSearch
-        scheme = \"https\" if \"${OPENSEARCH_USE_SSL:-true}\".strip().lower() == \"true\" else \"http\"
-        client = OpenSearch(
-            hosts=[{\"host\": \"${OPENSEARCH_HOST}\", \"port\": ${OPENSEARCH_PORT}}],
-            http_auth=(\"${OPENSEARCH_USER}\", \"${OPENSEARCH_PASSWORD}\"),
-            use_ssl=scheme == \"https\",
-            verify_certs=scheme == \"https\",
-        )
-        client.cluster.health()"
 }
 
 function main() {
