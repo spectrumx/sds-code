@@ -323,6 +323,7 @@ LOCAL_APPS: list[str] = [
     "sds_gateway.api_methods",
     "sds_gateway.visualizations",
     "sds_gateway.monitoring",
+    "sds_gateway.contrib.sites",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/4.2/ref/settings/#installed-apps
