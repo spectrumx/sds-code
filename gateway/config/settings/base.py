@@ -289,7 +289,7 @@ DJANGO_APPS: list[str] = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
-    "django.contrib.sites",
+    "sds_gateway.contrib.sites.apps.SitesConfig",
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.humanize",  # handy template tags used in allauth
@@ -323,7 +323,6 @@ LOCAL_APPS: list[str] = [
     "sds_gateway.api_methods",
     "sds_gateway.visualizations",
     "sds_gateway.monitoring",
-    "sds_gateway.contrib.sites",
     # Your stuff: custom apps go here
 ]
 # https://docs.djangoproject.com/en/4.2/ref/settings/#installed-apps
