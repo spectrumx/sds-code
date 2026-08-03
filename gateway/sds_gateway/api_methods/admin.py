@@ -3,6 +3,7 @@ import json
 from django.contrib import admin
 from django.db.models import Count
 from django.db.models import OuterRef
+from django.db.models import PositiveIntegerField
 from django.db.models import Subquery
 
 from sds_gateway.api_methods import models
@@ -86,7 +87,7 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
                     .values("capture_id")
                     .annotate(cnt=Count("id"))
                     .values("cnt")[:1],
-                    output_field=models.PositiveIntegerField(),
+                    output_field=PositiveIntegerField(),
                 ),
                 _file_count=Subquery(
                     models.Capture.files.through.objects.filter(
@@ -95,7 +96,7 @@ class CaptureAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
                     .values("capture_id")
                     .annotate(cnt=Count("id"))
                     .values("cnt")[:1],
-                    output_field=models.PositiveIntegerField(),
+                    output_field=PositiveIntegerField(),
                 ),
             )
         )
@@ -145,7 +146,7 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
                     .values("dataset_id")
                     .annotate(cnt=Count("id"))
                     .values("cnt")[:1],
-                    output_field=models.PositiveIntegerField(),
+                    output_field=PositiveIntegerField(),
                 ),
                 _file_count=Subquery(
                     models.Dataset.files.through.objects.filter(
@@ -154,7 +155,7 @@ class DatasetAdmin(admin.ModelAdmin):  # pyright: ignore[reportMissingTypeArgume
                     .values("dataset_id")
                     .annotate(cnt=Count("id"))
                     .values("cnt")[:1],
-                    output_field=models.PositiveIntegerField(),
+                    output_field=PositiveIntegerField(),
                 ),
             )
         )
