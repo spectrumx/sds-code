@@ -6,11 +6,11 @@ WORKDIR /app/federation
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY ../common/sds_opensearch_query /app/common/sds_opensearch_query
-COPY pyproject.toml uv.lock ./
-COPY sds_federation ./sds_federation
+# Build context is repo root (compose: context: ..).
+COPY common /app/common
+COPY federation/pyproject.toml federation/uv.lock ./
+COPY federation/sds_federation ./sds_federation
 RUN uv sync --frozen --no-dev
-
 
 EXPOSE 8000
 CMD ["uv", "run", "uvicorn", "sds_federation.main:app", "--host", "0.0.0.0", "--port", "8000"]

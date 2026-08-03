@@ -1,0 +1,40 @@
+# Monorepo-root build context (gateway + federation Dockerfiles).
+# Keep gateway/ and federation/ and common/ available for COPY.
+
+**/.git
+**/.venv
+**/venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/build
+**/*.pyc
+
+# Secrets / local env
+**/.envs/
+federation-shared.env
+
+# Unreadable / bulky OpenSearch host data
+**/opensearch/data/
+
+# Other monorepo trees not needed for gateway/federation images
+sdk/
+jupyter/
+seaweedfs/
+docs/
+.cursor/
+
+# Gateway local noise (mirrored from gateway/.dockerignore intent)
+gateway/.editorconfig
+gateway/.gitattributes
+gateway/.github
+gateway/.idea
+gateway/.pre-commit-config.yaml
+gateway/.readthedocs.yaml
+gateway/.readthedocs.yml
+gateway/.travis.yaml
+gateway/.travis.yml
+gateway/.gitlab-ci.yaml
+gateway/.gitlab-ci.yml

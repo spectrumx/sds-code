@@ -6,11 +6,12 @@ RUN pnpm runtime set node 24 -g && cp /pnpm/bin/node /usr/local/bin/node && rm /
 ARG APP_HOME=/app
 WORKDIR ${APP_HOME}
 
-COPY ./package.json ${APP_HOME}
-COPY ./pnpm-lock.yaml ${APP_HOME}
-COPY ./pnpm-workspace.yaml ${APP_HOME}
+# Build context is the monorepo root (compose: context: ..).
+COPY gateway/package.json ${APP_HOME}
+COPY gateway/pnpm-lock.yaml ${APP_HOME}
+COPY gateway/pnpm-workspace.yaml ${APP_HOME}
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-COPY . ${APP_HOME}
+COPY gateway/ ${APP_HOME}
 RUN pnpm run build
 
 # https://hub.docker.com/_/python/tags?name=3.13
@@ -64,22 +65,25 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/uv-venv/
 
 RUN mkdir -p /opt/uv-cache/ /opt/uv-venv/ /opt/uv-venv-seed/
 
+# Path dep ../common from /app → /common
+COPY common /common
+
 # Bake third-party dependencies, then the project, into a seed virtualenv.
-COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
+COPY gateway/pyproject.toml gateway/uv.lock ${APP_HOME}/
 RUN UV_PROJECT_ENVIRONMENT=${UV_PROJECT_SEED} uv sync --frozen --no-install-project --extra ${BUILD_ENVIRONMENT}
 
 # "entrypoint" only has a production version
-COPY ./compose/production/django/entrypoint         /entrypoint
+COPY gateway/compose/production/django/entrypoint         /entrypoint
 
 # copy command scripts and set exec flag
-COPY ./compose/local/django/start                   /start
-COPY ./compose/local/django/celery/flower-start     /flower-start
-COPY ./compose/local/django/celery/worker-start     /worker-start
-COPY ./compose/local/django/celery/beat-start       /beat-start
+COPY gateway/compose/local/django/start                   /start
+COPY gateway/compose/local/django/celery/flower-start     /flower-start
+COPY gateway/compose/local/django/celery/worker-start     /worker-start
+COPY gateway/compose/local/django/celery/beat-start       /beat-start
 RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
 # copy application code to WORKDIR
-COPY . ${APP_HOME}
+COPY gateway/ ${APP_HOME}
 RUN UV_PROJECT_ENVIRONMENT=${UV_PROJECT_SEED} uv sync --frozen --extra ${BUILD_ENVIRONMENT}
 
 # Generate version.json with baked-in commit hash (passed as build ARG)

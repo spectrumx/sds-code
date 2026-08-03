@@ -166,9 +166,16 @@ async def run_federation_subscriber(
             config.site.name,
             gateway_site,
         )
-    client = aioredis.from_url(redis_url)
+    # socket_timeout=None: idle pubsub.listen() must not raise TimeoutError and
+    # kill the subscriber task (that fails /sync/health redis_subscriber check).
+    client = aioredis.from_url(
+        redis_url,
+        socket_timeout=None,
+        socket_connect_timeout=5.0,
+    )
     pubsub = client.pubsub()
     await pubsub.subscribe(resolved_channel)
+    log.info(f"Subscribed to federation Redis channel {resolved_channel}")
     try:
         async for message in pubsub.listen():
             if stop.is_set():

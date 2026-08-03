@@ -14,7 +14,6 @@ services:
     image: sds-federation-prod-sync
     container_name: sds-federation-prod-sync
     env_file:
-      - .envs/production/sync.env
       - ../gateway/.envs/production/opensearch.env
       - ../federation-shared.env
     environment:

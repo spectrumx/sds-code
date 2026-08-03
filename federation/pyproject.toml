@@ -168,4 +168,4 @@ markers = [
 ]
 
 [tool.uv.sources]
-sds-opensearch-query = { path = "../common/sds_opensearch_query" }
+sds-opensearch-query = { path = "../common" }
