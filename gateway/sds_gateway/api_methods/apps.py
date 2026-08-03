@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import sys
 
@@ -17,6 +18,14 @@ def _skip_federation_init_in_ready() -> bool:
         "sqlmigrate",
         "flush",
     }
+
+
+def _in_async_context() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
 
 
 class ApiMethodsConfig(AppConfig):
@@ -42,7 +51,7 @@ class ApiMethodsConfig(AppConfig):
             dispatch_uid="api_methods_federation_operational_init",
         )
 
-        if not _skip_federation_init_in_ready():
+        if not _skip_federation_init_in_ready() and not _in_async_context():
             initialize_federation_operational_state()
 
         silence_unwanted_logs()

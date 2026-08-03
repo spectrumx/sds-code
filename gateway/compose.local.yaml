@@ -39,8 +39,8 @@ networks:
 services:
     sds-gateway-local-app:
         build:
-            context: .
-            dockerfile: ./compose/local/django/Dockerfile
+            context: ..
+            dockerfile: gateway/compose/local/django/Dockerfile
             args:
                 GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
@@ -262,8 +262,8 @@ services:
     # Celery services for background tasks
     celery-worker:
         build:
-            context: .
-            dockerfile: ./compose/local/django/Dockerfile
+            context: ..
+            dockerfile: gateway/compose/local/django/Dockerfile
             args:
                 GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app
@@ -323,8 +323,8 @@ services:
     celery-beat:
         # Celery Beat scheduler for periodic tasks
         build:
-            context: .
-            dockerfile: ./compose/local/django/Dockerfile
+            context: ..
+            dockerfile: gateway/compose/local/django/Dockerfile
             args:
                 GIT_COMMIT: ${GIT_COMMIT:-none}
         image: sds-gateway-local-app

@@ -7,6 +7,7 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from loguru import logger
+from redis.exceptions import TimeoutError as RedisTimeoutError
 from sds_opensearch_query.client import build_opensearch_client
 
 from sds_federation.models import load_federation_config
@@ -105,7 +106,8 @@ async def lifespan(app: FastAPI):
 
     stop.set()
     sub_task.cancel()
-    with suppress(asyncio.CancelledError):
+    # Pubsub listen may surface TimeoutError while cancelling the blocked read.
+    with suppress(asyncio.CancelledError, TimeoutError, RedisTimeoutError):
         await sub_task
     await http.aclose()
 

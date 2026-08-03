@@ -161,7 +161,7 @@ async def test_site_hello_backfills_peer_exports(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:
     config = make_peer_config()
-    doc = sample_federated_dataset_doc(site_name="testsite")
+    doc = sample_federated_dataset_doc(site_name="localhost")
     export_hits = {"datasets": 0, "captures": 0}
     # Intentionally differs from federation.toml peer sync URL.
     hello_sync_url = "http://dynamic-testsite.test/sync"
@@ -196,7 +196,7 @@ async def test_site_hello_backfills_peer_exports(
             response = await client.post(
                 f"{SYNC_API_PREFIX}/webhook/site-hello",
                 json={
-                    "site_name": "testsite",
+                    "site_name": "localhost",
                     "fqdn": "localhost",
                     "display_name": "Originating test site",
                     "sync_service_url": hello_sync_url,
