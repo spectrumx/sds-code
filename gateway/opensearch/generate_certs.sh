@@ -34,7 +34,9 @@ function generate_certs() {
     openssl genrsa -out "${ROOT_CA_KEY_PEM}" 2048
     openssl req -new -x509 -sha256 -key "${ROOT_CA_KEY_PEM}" \
         -subj "/C=US/ST=INDIANA/L=SOUTH BEND/O=UNIVERSITY OF NOTRE DAME/OU=CRC/CN=${OPEN_SEARCH_CONTAINER_NAME}" \
-        -out "${ROOT_CA_PEM}" -days 730
+        -out "${ROOT_CA_PEM}" -days 730 \
+        -addext "keyUsage=critical,keyCertSign,cRLSign" \
+        -addext "basicConstraints=critical,CA:TRUE"
 
     # Admin cert
     openssl genrsa -out admin-key-temp.pem 2048

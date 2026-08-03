@@ -164,12 +164,14 @@ function wait_for_postgres() {
 function wait_for_opensearch() {
     _run_with_retry "OpenSearch" "SKIP_OPENSEARCH_WAIT" "        from opensearchpy import OpenSearch
         scheme = \"https\" if \"${OPENSEARCH_USE_SSL:-true}\".strip().lower() == \"true\" else \"http\"
+        verify = scheme == \"https\" and \"${OPENSEARCH_VERIFY_CERTS:-true}\".strip().lower() == \"true\"
+        ca = \"/app/opensearch/data/certs/root-ca.pem\" if verify else None
         client = OpenSearch(
             hosts=[{\"host\": \"${OPENSEARCH_HOST}\", \"port\": ${OPENSEARCH_PORT}}],
             http_auth=(\"${OPENSEARCH_USER}\", \"${OPENSEARCH_PASSWORD}\"),
             use_ssl=scheme == \"https\",
-            verify_certs=scheme == \"https\",
-            ca_certs=\"/app/opensearch/data/certs/root-ca.pem\"
+            verify_certs=verify,
+            ca_certs=ca
         )
         client.cluster.health()"
 }
