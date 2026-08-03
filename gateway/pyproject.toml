@@ -666,4 +666,4 @@
     exclude-newer = "1 week"
 
 [tool.uv.sources]
-sds-opensearch-query = { path = "../common/sds_opensearch_query" }
+sds-opensearch-query = { path = "../common" }

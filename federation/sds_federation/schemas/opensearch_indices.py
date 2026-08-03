@@ -10,10 +10,22 @@ from __future__ import annotations
 from typing import Any
 
 from sds_opensearch_query.mapping import FED_INDEX_SETTINGS
+from sds_opensearch_query.mapping import RFC_FED_CAPTURE_PROPERTIES
+from sds_opensearch_query.mapping import RFC_FED_DATASET_PROPERTIES
 from sds_opensearch_query.mapping import fed_capture_mappings
 from sds_opensearch_query.mapping import fed_dataset_mappings
 
 from sds_federation.schemas.webhooks import AssetTypeEnum
+
+__all__ = [
+    "FED_INDEX_SETTINGS",
+    "RFC_FED_CAPTURE_PROPERTIES",
+    "RFC_FED_DATASET_PROPERTIES",
+    "fed_capture_mappings",
+    "fed_dataset_mappings",
+    "index_body_for_asset",
+    "index_body_for_index_name",
+]
 
 
 def index_body_for_asset(asset_type: AssetTypeEnum) -> dict[str, Any]:

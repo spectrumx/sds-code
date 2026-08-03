@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.13.*"
 
 [options]
-exclude-newer = "2026-07-23T16:20:34.903318Z"
+exclude-newer = "2026-07-23T18:25:15.89876Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -2222,7 +2222,7 @@ requires-dist = [
     { name = "rich", marker = "extra == 'local'", specifier = ">=13.9.3" },
     { name = "ruff", marker = "extra == 'local'", specifier = ">=0.7" },
     { name = "scipy", specifier = ">=1.16.1" },
-    { name = "sds-opensearch-query", directory = "../common/sds_opensearch_query" },
+    { name = "sds-opensearch-query", directory = "../common" },
     { name = "sentry-sdk", extras = ["django"], specifier = ">=2.25.1" },
     { name = "uvicorn", specifier = ">=0.32.0" },
     { name = "uvicorn-worker", specifier = ">=0.2.0" },
@@ -2235,7 +2235,7 @@ provides-extras = ["local", "production"]
 [[package]]
 name = "sds-opensearch-query"
 version = "0.1.0"
-source = { directory = "../common/sds_opensearch_query" }
+source = { directory = "../common" }
 dependencies = [
     { name = "opensearch-py" },
     { name = "requests" },

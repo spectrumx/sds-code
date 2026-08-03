@@ -144,7 +144,7 @@ jobs:
             - name: Build and push
               uses: docker/build-push-action@v7
               with:
-                  context: gateway
+                  context: .
                   file: gateway/compose/production/django/Dockerfile
                   push: true
                   tags: ${{ steps.meta.outputs.tags }}

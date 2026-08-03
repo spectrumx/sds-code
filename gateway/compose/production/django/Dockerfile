@@ -6,11 +6,12 @@ RUN pnpm runtime set node 24 -g && cp /pnpm/bin/node /usr/local/bin/node && rm /
 ARG APP_HOME=/app
 WORKDIR ${APP_HOME}
 
-COPY ./package.json ${APP_HOME}
-COPY ./pnpm-lock.yaml ${APP_HOME}
-COPY ./pnpm-workspace.yaml ${APP_HOME}
+# Build context is the monorepo root (compose/CI: context: .. / .).
+COPY gateway/package.json ${APP_HOME}
+COPY gateway/pnpm-lock.yaml ${APP_HOME}
+COPY gateway/pnpm-workspace.yaml ${APP_HOME}
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
-COPY . ${APP_HOME}
+COPY gateway/ ${APP_HOME}
 RUN pnpm run build
 
 # https://hub.docker.com/_/python/tags?name=3.13
@@ -67,16 +68,19 @@ RUN mkdir -p /opt/uv-cache/ /opt/uv-venv/ /opt/uv-venv-seed/
 RUN addgroup --system django \
     && adduser --system --ingroup django django
 
+# Path dep ../common from /app → /common
+COPY common /common
+
 # Bake third-party dependencies first; install the project after app code is copied.
-COPY ./pyproject.toml ./uv.lock ${APP_HOME}/
+COPY gateway/pyproject.toml gateway/uv.lock ${APP_HOME}/
 RUN UV_PROJECT_ENVIRONMENT=${UV_PROJECT_SEED} uv sync --frozen --no-install-project --extra ${BUILD_ENVIRONMENT}
 
 # copy command scripts and set exec flag
-COPY --chown=django:django ./compose/production/django/entrypoint           /entrypoint
-COPY --chown=django:django ./compose/production/django/start                /start
-COPY --chown=django:django ./compose/production/django/celery/worker-start  /worker-start
-COPY --chown=django:django ./compose/production/django/celery/flower-start  /flower-start
-COPY --chown=django:django ./compose/production/django/celery/beat-start    /beat-start
+COPY --chown=django:django gateway/compose/production/django/entrypoint           /entrypoint
+COPY --chown=django:django gateway/compose/production/django/start                /start
+COPY --chown=django:django gateway/compose/production/django/celery/worker-start  /worker-start
+COPY --chown=django:django gateway/compose/production/django/celery/flower-start  /flower-start
+COPY --chown=django:django gateway/compose/production/django/celery/beat-start    /beat-start
 
 RUN chmod +x /entrypoint /start /worker-start /flower-start /beat-start
 
