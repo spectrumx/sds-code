@@ -403,6 +403,18 @@ class PublishedDatasetSearchForm(forms.Form):
         ),
         help_text="Search across dataset name, abstract, description, and authors",
     )
+    site_name = forms.CharField(
+        label="Site",
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control",
+                "id": "search-site-name",
+                "placeholder": "e.g. sds.example.com",
+            }
+        ),
+        help_text="Filter by site FQDN (leave blank for all sites)",
+    )
     keywords = forms.CharField(
         label="Keywords",
         required=False,

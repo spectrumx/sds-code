@@ -7,7 +7,6 @@ from django.views import View
 from django.views.generic import TemplateView
 from loguru import logger as log
 
-from sds_gateway.api_methods.helpers.list_helpers import serialize_datasets_for_user
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import KeySources
@@ -16,9 +15,12 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.forms import PublishedDatasetSearchForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.models import UserAPIKey
+from sds_gateway.users.views.datasets import build_published_dataset_list_rows
 
 from .api_keys import MAX_API_KEY_COUNT
 from .api_keys import get_active_api_key_count
+
+_HOME_LATEST_DATASET_COUNT = 5
 
 
 class HomePageView(TemplateView):
@@ -27,32 +29,14 @@ class HomePageView(TemplateView):
     template_name = "pages/home.html"
 
     def get_context_data(self, **kwargs):
-        """Add search form and latest 5 public datasets to context."""
+        """Add search form and latest public datasets (local + peer) to context."""
         context = super().get_context_data(**kwargs)
 
-        # Get latest 5 public published datasets (is_public=True only)
-        latest_datasets = (
-            Dataset.objects.filter(
-                is_public=True,
-                is_deleted=False,
-            )
-            .select_related("owner")
-            .prefetch_related("keywords")
-            .distinct()
-            .order_by("-created_at")[:5]
-        )
-
-        user = (
-            self.request.user if self.request.user.is_authenticated else None
-        )
-        serialized_datasets = serialize_datasets_for_user(
-            latest_datasets,
-            user,
-            include_actions=False,
-        )
-
+        user = self.request.user if self.request.user.is_authenticated else None
         context["search_form"] = PublishedDatasetSearchForm()
-        context["latest_datasets"] = serialized_datasets
+        context["latest_datasets"] = build_published_dataset_list_rows(user)[
+            :_HOME_LATEST_DATASET_COUNT
+        ]
         return context
 
 

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from typing import TYPE_CHECKING
 from typing import Any
 
-from opensearchpy import OpenSearch
 from sds_opensearch_query import bool_must_search_body
 from sds_opensearch_query import build_metadata_filter_clauses
 from sds_opensearch_query import federation_not_deleted_clause
@@ -19,6 +18,11 @@ from sds_opensearch_query.query import DEFAULT_SEARCH_SIZE
 
 from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
 from sds_gateway.api_methods.federation.fed_index import FED_DATASETS_INDEX
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
+    from opensearchpy import OpenSearch
 
 FED_DATASET_TEXT_FIELDS = [
     "name^2",
