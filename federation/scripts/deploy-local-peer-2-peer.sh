@@ -123,4 +123,4 @@ curl -sS "${LOCAL_SYNC_URL}"
 echo
 curl -sS "${PEER_SYNC_URL}"
 echo
-info "Done. Seed peer OpenSearch if testing peer-owned docs; publish local assets for crc→peer."
+info "Done. Next: just seed-peer (peer-owned docs), then docker restart sds-federation-local-sync; publish local assets for crc→peer."
