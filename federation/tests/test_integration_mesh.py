@@ -16,11 +16,11 @@ from sds_federation.services.bootstrap import register_with_peers
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import doc_id
 from sds_federation.services.local_events import dispatch_federation_redis_payload
-from sds_federation.tests.support.federation_mesh import PEER_ONE_FQDN
-from sds_federation.tests.support.federation_mesh import TESTSITE_FQDN
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
+from sds_federation.tests.support.federation_mesh import PEER_ONE_FQDN
+from sds_federation.tests.support.federation_mesh import TESTSITE_FQDN
 
 if TYPE_CHECKING:
     from tests.support.federation_mesh import FederationMesh

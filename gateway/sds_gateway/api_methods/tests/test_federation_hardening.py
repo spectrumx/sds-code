@@ -52,6 +52,7 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
@@ -63,6 +64,7 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
     )
@@ -74,7 +76,9 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
+        FEDERATION_SKIP_SYNC_HEALTH_PROBE=False,
         FEDERATION_SYNC_HEALTH_URL="http://sync.test/health",
         FEDERATION_SKIP_REDIS_PROBE=True,
     )
@@ -93,7 +97,9 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
+        FEDERATION_SKIP_SYNC_HEALTH_PROBE=False,
         FEDERATION_SYNC_HEALTH_URL="http://sync.test/health",
         FEDERATION_SKIP_REDIS_PROBE=True,
     )
@@ -134,6 +140,7 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,
@@ -146,6 +153,20 @@ class TestFederationAvailability:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="",
+        FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
+        FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
+        FEDERATION_SKIP_REDIS_PROBE=True,
+    )
+    def test_fails_without_site_fqdn(self) -> None:
+        ok, reason = evaluate_federation_operational()
+        assert ok is False
+        assert "SDS_SITE_FQDN" in reason
+
+    @override_settings(
+        FEDERATION_ENABLED=True,
+        FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_SKIP_SYNC_API_KEY_CHECK=True,
         FEDERATION_SKIP_SYNC_HEALTH_PROBE=True,
         FEDERATION_SKIP_REDIS_PROBE=True,

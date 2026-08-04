@@ -17,6 +17,12 @@ services:
     ports:
       - "9201:9200"
     networks: [peer-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
 
   sds-federation-peer-redis:
     image: redis:6
@@ -50,8 +56,10 @@ services:
     ports:
       - "8002:8000"
     depends_on:
-      - sds-federation-peer-opensearch
-      - sds-federation-peer-redis
+      sds-federation-peer-opensearch:
+        condition: service_healthy
+      sds-federation-peer-redis:
+        condition: service_started
     networks:
       - sds-network-local
       - peer-internal

@@ -207,7 +207,7 @@ async def test_site_hello_backfills_peer_exports(
     assert export_hits == {"datasets": 1, "captures": 1}
     assert len(recording_opensearch.index_calls) == 1
     assert recording_opensearch.index_calls[0]["id"] == doc_id(
-        "testsite",
+        "localhost",
         TEST_DATASET_UUID,
     )
 
