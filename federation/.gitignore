@@ -5,4 +5,5 @@ __pycache__/
 federation.toml
 federation.peer.toml
 
-scripts/local_e2e/
+# Local live-test secrets only (keep README + env.example tracked)
+scripts/local_e2e/.env

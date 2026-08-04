@@ -1,0 +1,16 @@
+# Copy to federation.peer.toml on the peer host (gitignored if using that name).
+# Replace hostnames with values reachable from the main gateway/sync server.
+
+[site]
+name = "peer"
+fqdn = "peer.example.com"
+display_name = "Remote Peer (sync-only)"
+
+[[peers]]
+name = "crc"
+fqdn = "sds.example.com"
+display_name = "Main SDS"
+gateway_api_base = "https://sds.example.com/api/v1"
+# Main federation sync base (must end with /sync)
+sync_service_url = "https://sds.example.com/sync"
+# ca_cert_path = "/etc/sds/certs/main-ca.pem"

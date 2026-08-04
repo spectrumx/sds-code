@@ -33,7 +33,7 @@ dev = [
 ]
 
 [tool.deptry]
-    extend_exclude = ["docs/", "scripts/local_e2e/"]
+    extend_exclude = ["docs/"]
 
     [tool.deptry.per_rule_ignores]
         DEP002 = [
