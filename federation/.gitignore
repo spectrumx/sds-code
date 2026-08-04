@@ -3,7 +3,6 @@
 __pycache__/
 
 federation.toml
+federation.peer.toml
 
-.envs/*
-!/.envs/example
-scripts/local_e2e/.env
+scripts/local_e2e/

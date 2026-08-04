@@ -142,6 +142,10 @@ def evaluate_federation_operational() -> tuple[bool, str]:
     if not site_name:
         return False, "FEDERATION_SITE_NAME must be set when federation is enabled"
 
+    site_fqdn = (_setting("SDS_SITE_FQDN", default="") or "").strip()
+    if not site_fqdn:
+        return False, "SDS_SITE_FQDN must be set when federation is enabled"
+
     for check in (_sync_api_key_present, _redis_ok, _sync_health_ok):
         ok, reason = check()
         if not ok:

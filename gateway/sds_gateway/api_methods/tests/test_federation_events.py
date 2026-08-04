@@ -99,6 +99,7 @@ class TestFederationSignals:
     @override_settings(
         FEDERATION_ENABLED=True,
         FEDERATION_SITE_NAME="crc",
+        SDS_SITE_FQDN="sds.localhost",
         FEDERATION_OPERATIONAL_OVERRIDE=True,
         FEDERATION_EVENTS_CHANNEL="federation:events:crc",
     )
@@ -127,7 +128,7 @@ class TestFederationSignals:
 
         mock_indexer.apply_local_event.assert_called_once()
         call = mock_indexer.apply_local_event.call_args.kwargs
-        assert call["site_name"] == "crc"
+        assert call["site_name"] == "sds.localhost"
         assert call["item_type"] == ItemType.DATASET
         assert call["uuid"] == dataset.uuid
         mock_publish.assert_called_once_with(

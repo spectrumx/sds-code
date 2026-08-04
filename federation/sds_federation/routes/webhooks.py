@@ -4,10 +4,12 @@ from datetime import datetime
 
 import httpx
 from fastapi import APIRouter
+from fastapi import BackgroundTasks
 from fastapi import HTTPException
 from fastapi import Request
 from loguru import logger
 
+from sds_federation.models import PeerInfo
 from sds_federation.models import allowed_federated_origin_fqdns
 from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
@@ -144,8 +146,30 @@ async def list_captures(request: Request) -> list[dict]:
     return [doc.model_dump(mode="json") for doc in docs]
 
 
+async def _run_site_hello_backfill(
+    http: httpx.AsyncClient,
+    peer: PeerInfo,
+    indexer: FederatedAssetIndexer,
+) -> None:
+    """Background: pull registering peer's list-* exports (with retries)."""
+    try:
+        indexed = await backfill_peer_on_hello(http, peer, indexer)
+        logger.info(
+            "site-hello backfill indexed {} document(s) from {} ({})",
+            indexed,
+            peer.name,
+            peer.sync_service_url,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("site-hello backfill failed for {}: {}", peer.name, exc)
+
+
 @webhooks_router.post("/webhook/site-hello")
-async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
+async def site_hello(
+    payload: SiteHelloWebhook,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict:
     config = request.app.state.config
     if payload.site_name == site_name_for_federation(config.site):
         raise HTTPException(
@@ -176,19 +200,13 @@ async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
         )
     else:
         outbound = peer_for_outbound(peer, _peer_registry(request))
-        try:
-            indexed = await backfill_peer_on_hello(
-                http,
-                outbound,
-                _indexer(request),
-            )
-            logger.info(
-                "site-hello backfill indexed {} document(s) from {} ({})",
-                indexed,
-                outbound.name,
-                outbound.sync_service_url,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("site-hello backfill failed for {}: {}", outbound.name, exc)
+        # Return registered immediately; backfill retries while the peer finishes
+        # binding so mutual startup races do not fail the hello handshake.
+        background_tasks.add_task(
+            _run_site_hello_backfill,
+            http,
+            outbound,
+            _indexer(request),
+        )
 
     return {"status": "registered", "site_name": hello.site_name}

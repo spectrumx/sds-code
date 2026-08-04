@@ -14,10 +14,10 @@ class _IndicesStub:
         self.existing: set[str] = set()
         self.create_calls: list[dict[str, Any]] = []
 
-    def exists(self, *, index: str, **kwargs: Any) -> bool:  # noqa: ARG002
+    def exists(self, *, index: str, **kwargs: Any) -> bool:
         return index in self.existing
 
-    def create(self, *, index: str, body: dict[str, Any], **kwargs: Any) -> dict:  # noqa: ARG002
+    def create(self, *, index: str, body: dict[str, Any], **kwargs: Any) -> dict:
         self.create_calls.append({"index": index, "body": body})
         self.existing.add(index)
         return {"acknowledged": True}
