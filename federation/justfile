@@ -83,12 +83,22 @@ simulate-redis +args='':
 
 [group('dev')]
 verify-federation-live +args='':
-    uv run python scripts/local_e2e/verify_federation_live.py {{ args }}
+    uv run python scripts/verify_federation_live.py {{ args }}
 
-#deploy local and peer federation stacks
+# Deploy local + peer federation stacks (checks gateway, builds, waits for health)
 [group('dev')]
 deploy-local-peer-2-peer:
     ./scripts/deploy-local-peer-2-peer.sh
+
+# Seed dummy peer.local docs into peer OpenSearch (:9201)
+[group('dev')]
+seed-peer +args='':
+    uv run python scripts/seed_peer_opensearch.py --opensearch-url http://localhost:9201 --site-name peer.local {{ args }}
+
+# Tear down local + peer compose stacks together
+[group('dev')]
+down-peer-2-peer +args='':
+    docker compose -f compose.local.yaml -f compose.peer.local.yaml down {{ args }}
 
 [group('docker')]
 build +args='':
