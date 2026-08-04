@@ -1080,6 +1080,37 @@ def get_published_datasets() -> QuerySet[Dataset]:
     )
 
 
+def build_published_dataset_list_rows(
+    user: User | None,
+    *,
+    datasets: QuerySet[Dataset] | None = None,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    """Merge local published datasets with peer federated rows (discovery UI).
+
+    Local rows come from Postgres; peer rows from OpenSearch ``fed-datasets``
+    (same-site fed docs skipped). Sorted by ``created_at`` descending.
+
+    When ``site`` is set, only rows whose ``site_name`` matches are returned
+    (local FQDN keeps Postgres rows; other FQDNs keep peer OpenSearch rows).
+    """
+    if datasets is None:
+        datasets = get_published_datasets()
+    site_filter = (site or "").strip() or None
+    local_rows = serialize_datasets_for_user(
+        datasets,
+        user,
+        include_actions=False,
+    )
+    if site_filter:
+        local_rows = [
+            row for row in local_rows if (row.get("site_name") or "") == site_filter
+        ]
+    federated_rows = _federated_published_dataset_rows(query=query, site=site_filter)
+    return merge_dataset_list_rows(local_rows, federated_rows)
+
+
 def apply_search_filters(
     datasets: QuerySet[Dataset],
     form_data: dict[str, Any],
@@ -1128,7 +1159,7 @@ class SearchPublishedDatasetsView(View):
         form = PublishedDatasetSearchForm(request.GET)
         datasets = get_published_datasets()
         query: str | None = None
-        site = request.GET.get("site")
+        site: str | None = None
 
         # Apply search filters
         if form.is_valid():
@@ -1137,16 +1168,16 @@ class SearchPublishedDatasetsView(View):
                 form.cleaned_data,
             )
             query = (form.cleaned_data.get("query") or "").strip() or None
+            site = (form.cleaned_data.get("site_name") or "").strip() or None
 
         user = request.user if request.user.is_authenticated else None
         # Published search is read-only discovery; skip action dropdowns.
-        local_rows = serialize_datasets_for_user(
-            datasets,
+        serialized_datasets = build_published_dataset_list_rows(
             user,
-            include_actions=False,
+            datasets=datasets,
+            query=query,
+            site=site,
         )
-        federated_rows = _federated_published_dataset_rows(query=query, site=site)
-        serialized_datasets = merge_dataset_list_rows(local_rows, federated_rows)
 
         # Paginate results
         paginator = Paginator(serialized_datasets, per_page=15)
@@ -1156,12 +1187,18 @@ class SearchPublishedDatasetsView(View):
         except (PageNotAnInteger, EmptyPage):
             page_obj = paginator.get_page(1)
 
+        # Preserve filters across pagination (everything except page).
+        params = request.GET.copy()
+        params.pop("page", None)
+        search_querystring = params.urlencode()
+
         return render(
             request,
             template_name=self.template_name,
             context={
                 "search_form": form,
                 "page_obj": page_obj,
+                "search_querystring": search_querystring,
             },
         )
 

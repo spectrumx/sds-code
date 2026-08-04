@@ -34,17 +34,16 @@ def _parse_datetime(value: Any) -> datetime | None:
     if value is None or value == "":
         return None
     if isinstance(value, datetime):
-        if timezone.is_naive(value):
-            return timezone.make_aware(value, timezone.get_current_timezone())
-        return value
-    if isinstance(value, str):
+        parsed: datetime | None = value
+    elif isinstance(value, str):
         parsed = dateparse.parse_datetime(value)
-        if parsed is None:
-            return None
-        if timezone.is_naive(parsed):
-            return timezone.make_aware(parsed, timezone.get_current_timezone())
-        return parsed
-    return None
+    else:
+        return None
+    if parsed is None:
+        return None
+    if timezone.is_naive(parsed):
+        return timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
 
 
 def dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
@@ -157,9 +156,7 @@ def dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]
 
 def _keyword_names(dataset: Dataset) -> list[str]:
     return [
-        kw.name
-        for kw in dataset.keywords.all()
-        if not getattr(kw, "is_deleted", False)
+        kw.name for kw in dataset.keywords.all() if not getattr(kw, "is_deleted", False)
     ]
 
 

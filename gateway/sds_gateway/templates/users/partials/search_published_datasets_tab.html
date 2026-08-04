@@ -19,7 +19,7 @@
                 <div class="alert alert-info" role="alert">
                     <h4 class="alert-heading">No datasets found</h4>
                     <p>
-                        {% if search_form.query.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
+                        {% if search_form.query.value or search_form.site_name.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
                             Try adjusting your search criteria or <a href="{% url 'users:search_datasets' %}" class="alert-link">clear the filters</a> to see all published datasets.
                         {% else %}
                             There are no published datasets available yet.
@@ -160,11 +160,11 @@
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page=1{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">First</a>
+                       href="?page=1{% if search_querystring %}&{{ search_querystring }}{% endif %}">First</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.previous_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Previous</a>
+                       href="?page={{ page_obj.previous_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Previous</a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
@@ -180,11 +180,11 @@
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.next_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Next</a>
+                       href="?page={{ page_obj.next_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Next</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.paginator.num_pages }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Last</a>
+                       href="?page={{ page_obj.paginator.num_pages }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Last</a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
