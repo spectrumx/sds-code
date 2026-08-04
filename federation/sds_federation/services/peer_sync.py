@@ -21,10 +21,14 @@ def peer_for_outbound(
     peer: PeerInfo,
     registry: PeerRegistry | None,
 ) -> PeerInfo:
-    """Return peer with sync_service_url overlaid from site-hello when present."""
+    """Return peer with sync_service_url overlaid from site-hello when present.
+
+    ``site-hello`` registers under RFC ``site_name`` (FQDN). Look up by fqdn first,
+    then short ``peer.name``, so toml name/fqdn mismatches still resolve.
+    """
     if registry is None:
         return peer
-    hello = registry.get(peer.name)
+    hello = registry.get(peer.fqdn) or registry.get(peer.name)
     if hello is None:
         return peer
     return peer.model_copy(update={"sync_service_url": hello.sync_service_url})

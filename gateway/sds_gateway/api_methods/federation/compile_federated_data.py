@@ -31,7 +31,11 @@ if TYPE_CHECKING:
 
 
 def federation_site_name() -> str:
-    return getattr(settings, "FEDERATION_SITE_NAME", "").strip()
+    """FQDN written to export/OpenSearch ``site_name`` (RFC §6 / toml ``[site].fqdn``).
+
+    Uses ``SDS_SITE_FQDN`.
+    """
+    return str(getattr(settings, "SDS_SITE_FQDN", "") or "").strip()
 
 
 def capture_in_published_dataset(capture: Capture) -> bool:

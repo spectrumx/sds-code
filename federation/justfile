@@ -60,12 +60,12 @@ test +args='':
 test-q:
     uv run pytest -q
 
-# Run federation pre-commit hooks from repo root (requires gateway dev deps / pre-commit install)
+# Run federation pre-commit hooks (prek walks up to repo-root .pre-commit-config.yaml)
 [group('qa')]
 pre-commit +args='':
-    cd .. && uv run --directory gateway --extra local pre-commit run ruff-check-federation --all-files {{ args }}
-    cd .. && uv run --directory gateway --extra local pre-commit run ruff-format-federation --all-files {{ args }}
-    cd .. && uv run --directory gateway --extra local pre-commit run pyrefly-federation --all-files {{ args }}
+    uv run --extra dev prek run ruff-check-federation --all-files {{ args }}
+    uv run --extra dev prek run ruff-format-federation --all-files {{ args }}
+    uv run --extra dev prek run pyrefly-federation --all-files {{ args }}
 
 # dev PKI for mTLS experiments (see docs/mtls-certificates.md)
 [group('setup')]
@@ -85,37 +85,10 @@ simulate-redis +args='':
 verify-federation-live +args='':
     uv run python scripts/local_e2e/verify_federation_live.py {{ args }}
 
+#deploy local and peer federation stacks
 [group('dev')]
-local-e2e-env:
-    @if [ ! -f scripts/local_e2e/.env ]; then cp scripts/local_e2e/env.example scripts/local_e2e/.env; fi
-    @echo "Edit federation/scripts/local_e2e/.env (SDS_SECRET_TOKEN, LOCAL_SDS_SECRET_TOKEN, …)"
-
-# Download from CRC (SDK env); run `just local-e2e-env` first
-[group('dev')]
-download-crc-dataset dataset_uuid to='../federation/data/downloaded_dataset' +args='':
-    #!/usr/bin/env bash
-    set -eu -o pipefail
-    env_file="scripts/local_e2e/.env"
-    if [[ ! -f "$env_file" ]]; then
-      echo "Missing $env_file — run: just local-e2e-env" >&2
-      exit 1
-    fi
-    set -a && source "$env_file" && set +a
-    cd ../sdk && uv run python ../federation/scripts/local_e2e/download_crc_dataset.py \
-        --dataset-uuid {{ dataset_uuid }} --to {{ to }} {{ args }}
-
-[group('dev')]
-upload-capture-local local_path sds_path='federation-fixture/sample' +args='':
-    #!/usr/bin/env bash
-    set -eu -o pipefail
-    env_file="scripts/local_e2e/.env"
-    if [[ ! -f "$env_file" ]]; then
-      echo "Missing $env_file — run: just local-e2e-env" >&2
-      exit 1
-    fi
-    set -a && source "$env_file" && set +a
-    cd ../sdk && uv run python ../federation/scripts/local_e2e/upload_capture_to_local.py \
-        --local-path {{ local_path }} --sds-path {{ sds_path }} {{ args }}
+deploy-local-peer-2-peer:
+    ./scripts/deploy-local-peer-2-peer.sh
 
 [group('docker')]
 build +args='':

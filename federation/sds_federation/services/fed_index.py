@@ -1,18 +1,21 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
+from typing import Any
 
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import NotFoundError
 
+from sds_federation.schemas.opensearch_indices import index_body_for_asset
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.schemas.webhooks import asset_doc_class
-from sds_federation.schemas.opensearch_indices import index_body_for_asset
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 def ensure_fed_indices(client: OpenSearch) -> None:
@@ -45,7 +48,6 @@ def _strip_federation_meta(source: dict) -> dict:
     return {
         key: value for key, value in source.items() if key not in _FEDERATION_META_KEYS
     }
-
 
 
 _LIST_PAGE_SIZE = 1000
@@ -102,8 +104,6 @@ async def aload_federated_asset(
         uuid=uuid,
         asset_type=asset_type,
     )
-
-
 
 
 def _site_owned_query(site_name: str) -> dict[str, Any]:
