@@ -347,11 +347,11 @@ class DatasetFederationSerializer(DatasetPublicSerializer):
 
     site_name = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
-        format="iso-8601", # ISO 8601 format for OpenSearch schema
+        format="iso-8601",  # ISO 8601 format for OpenSearch schema
         read_only=True,
     )
     updated_at = serializers.DateTimeField(
-        format="iso-8601", # ISO 8601 format for OpenSearch schema
+        format="iso-8601",  # ISO 8601 format for OpenSearch schema
         read_only=True,
     )
     size = serializers.SerializerMethodField()

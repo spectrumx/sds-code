@@ -44,9 +44,7 @@ class Command(BaseCommand):
                     uuid__in=[UUID(str(u)) for u in capture_uuids],
                     is_deleted=False,
                 )
-                missing = set(capture_uuids) - {
-                    str(c.uuid) for c in captures
-                }
+                missing = set(capture_uuids) - {str(c.uuid) for c in captures}
                 if missing:
                     msg = f"Captures not found: {sorted(missing)}"
                     raise CommandError(msg)

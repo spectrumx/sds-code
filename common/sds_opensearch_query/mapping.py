@@ -3,7 +3,6 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-
 FED_INDEX_SETTINGS: dict[str, Any] = {
     "index": {
         "number_of_shards": 1,

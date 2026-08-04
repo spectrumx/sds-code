@@ -9,14 +9,21 @@
               action="{% url 'users:search_datasets' %}"
               class="flex-grow-1 d-flex flex-column mt-5">
             <div class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label for="{{ search_form.query.id_for_label }}" class="form-label">{{ search_form.query.label }}</label>
                     {{ search_form.query }}
                     {% if search_form.query.help_text %}
                         <small class="form-text text-muted">{{ search_form.query.help_text }}</small>
                     {% endif %}
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
+                    <label for="{{ search_form.site_name.id_for_label }}" class="form-label">{{ search_form.site_name.label }}</label>
+                    {{ search_form.site_name }}
+                    {% if search_form.site_name.help_text %}
+                        <small class="form-text text-muted">{{ search_form.site_name.help_text }}</small>
+                    {% endif %}
+                </div>
+                <div class="col-md-4">
                     <label for="{{ search_form.keywords.id_for_label }}" class="form-label">{{ search_form.keywords.label }}</label>
                     <div class="keyword-chips-container position-relative">
                         <div class="keyword-chips-wrapper d-flex flex-wrap align-items-center gap-1 p-2 border rounded form-control">
