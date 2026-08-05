@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from typing import TYPE_CHECKING
 from typing import Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 FED_INDEX_SETTINGS: dict[str, Any] = {
     "index": {

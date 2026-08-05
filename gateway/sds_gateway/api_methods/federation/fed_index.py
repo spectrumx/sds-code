@@ -5,6 +5,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Any
 
+from sds_opensearch_query.index_write import FED_CAPTURES_INDEX
+from sds_opensearch_query.index_write import FED_DATASETS_INDEX
+from sds_opensearch_query.index_write import federated_doc_id
+from sds_opensearch_query.index_write import index_federated_document
+
 from sds_gateway.api_methods.models import ItemType
 
 if TYPE_CHECKING:
@@ -13,12 +18,13 @@ if TYPE_CHECKING:
 
     from opensearchpy import OpenSearch
 
-FED_DATASETS_INDEX = "fed-datasets"
-FED_CAPTURES_INDEX = "fed-captures"
-
-
-def federated_doc_id(site_name: str, uuid: UUID) -> str:
-    return f"{site_name}:{uuid}"
+__all__ = [
+    "FED_CAPTURES_INDEX",
+    "FED_DATASETS_INDEX",
+    "LocalFederatedIndexer",
+    "federated_doc_id",
+    "index_for_item_type",
+]
 
 
 def index_for_item_type(item_type: ItemType) -> str:
@@ -45,15 +51,11 @@ class LocalFederatedIndexer:
         uuid: UUID,
         body: dict[str, Any],
     ) -> None:
-        index_name = index_for_item_type(item_type)
-        doc_id = federated_doc_id(site_name, uuid)
-        doc = {
-            **body,
-            "federation_event_at": event_at.isoformat(),
-        }
-        self._client.index(
-            index=index_name,
-            id=doc_id,
-            body=doc,
-            refresh="wait_for",
+        index_federated_document(
+            self._client,
+            index_name=index_for_item_type(item_type),
+            site_name=site_name,
+            uuid=uuid,
+            body=body,
+            event_at=event_at,
         )

@@ -18,6 +18,7 @@ from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import aload_federated_asset
+from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
 from sds_federation.services.redis_channel import resolve_federation_events_channel
@@ -26,6 +27,9 @@ type AssetLoader = Callable[
     [OpenSearch, FederationConfig, UUID, AssetTypeEnum],
     Awaitable[FederatedDatasetDoc | FederatedCaptureDoc | None],
 ]
+
+# Backwards-compatible alias for main.py / older call sites.
+build_gateway_http_client = build_peer_http_client
 
 
 def parse_redis_event_payload(
@@ -195,12 +199,3 @@ async def run_federation_subscriber(
     finally:
         await pubsub.unsubscribe(resolved_channel)
         await client.aclose()
-
-
-def build_peer_http_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=30.0)
-
-
-def build_gateway_http_client() -> httpx.AsyncClient:
-    """Deprecated alias for peer webhook HTTP client."""
-    return build_peer_http_client()
