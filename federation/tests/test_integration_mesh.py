@@ -19,8 +19,9 @@ from sds_federation.services.local_events import dispatch_federation_redis_paylo
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
-from sds_federation.tests.support.federation_mesh import PEER_ONE_FQDN
-from sds_federation.tests.support.federation_mesh import TESTSITE_FQDN
+
+from tests.support.federation_mesh import PEER_ONE_FQDN
+from tests.support.federation_mesh import TESTSITE_FQDN
 
 if TYPE_CHECKING:
     from tests.support.federation_mesh import FederationMesh

@@ -5,6 +5,8 @@ from typing import TYPE_CHECKING
 import httpx
 from loguru import logger
 
+from sds_federation.services.peer_http import peer_request
+
 if TYPE_CHECKING:
     from sds_federation.models import FederationConfig
     from sds_federation.models import PeerInfo
@@ -46,14 +48,13 @@ async def push_asset_updated_to_peers(
         outbound = peer_for_outbound(peer, registry)
         url = peer_webhook_url(outbound, path)
         try:
-            if peer.ca_cert_path:
-                async with httpx.AsyncClient(
-                    verify=peer.ca_cert_path,
-                    timeout=http.timeout,
-                ) as tls_client:
-                    resp = await tls_client.post(url, json=body)
-            else:
-                resp = await http.post(url, json=body)
+            resp = await peer_request(
+                http,
+                "POST",
+                url,
+                ca_cert_path=peer.ca_cert_path,
+                json=body,
+            )
             resp.raise_for_status()
         except httpx.HTTPError as exc:
             logger.error("webhook to {} failed: {}", peer.name, exc)

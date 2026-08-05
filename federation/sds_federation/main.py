@@ -16,8 +16,8 @@ from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import ensure_fed_indices
-from sds_federation.services.local_events import build_gateway_http_client
 from sds_federation.services.local_events import run_federation_subscriber
+from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
 
 API_PREFIX = "/api/v1"
@@ -44,7 +44,7 @@ sync_app.include_router(webhooks_router, prefix=API_PREFIX)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = load_federation_config()
-    http = build_gateway_http_client()
+    http = build_peer_http_client()
 
     os_client = build_opensearch_client(
         host=get_setting("OPENSEARCH_HOST", "opensearch"),
