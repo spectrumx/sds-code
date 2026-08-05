@@ -57,7 +57,7 @@ class FederatedDatasetDoc(BaseModel):
     is_public: bool = False
     owner_name: str = ""
     updated_at: str | None = None
-    site_name: str
+    site_name: str  # peer site FQDN (RFC §6), not federation.toml [site].name
     size: int = 0
     capture_count: int = 0
     capture_file_count: int = 0
@@ -79,7 +79,7 @@ class FederatedCaptureDoc(BaseModel):
     top_level_dir: str = ""
     created_at: str | None = None
     updated_at: str | None = None
-    site_name: str
+    site_name: str  # peer site FQDN (RFC §6), not federation.toml [site].name
     file_count: int = 0
     size: int = 0
     capture_props: dict[str, Any] = Field(default_factory=dict)
@@ -108,7 +108,7 @@ class SiteHelloWebhook(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    site_name: str
+    site_name: str  # registering peer FQDN (same as fqdn)
     fqdn: str
     display_name: str = ""
     sync_service_url: AnyHttpUrl

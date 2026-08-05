@@ -753,7 +753,9 @@ SDS_PROGRAMMATIC_SITE_NAME: str = env.str("SDS_PROGRAMMATIC_SITE_NAME", default=
 SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 
 # Federation peer short name (RFC [site].name, e.g. crc, haystack);
-# not SDS_PROGRAMMATIC_SITE_NAME.
+# used for Redis channel ``federation:events:{name}``, not OpenSearch site_name.
+# Export/OpenSearch ``site_name`` uses SDS_SITE_FQDN
+# (matches federation.toml [site].fqdn).
 FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
@@ -774,7 +776,7 @@ FEDERATION_SYNC_USER_EMAIL: str = env.str(
 FEDERATION_SYNC_DRF_TOKEN: str = env.str("FEDERATION_SYNC_DRF_TOKEN", default="")
 FEDERATION_SYNC_HEALTH_URL: str = env.str(
     "FEDERATION_SYNC_HEALTH_URL",
-    default="http://federation-sync:8000/sync/health",
+    default="http://federation-local-sync:8000/sync/health",
 )
 FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT: float = env.float(
     "FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT",

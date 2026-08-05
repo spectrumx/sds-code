@@ -11,12 +11,14 @@ from loguru import logger as log
 from opensearchpy import OpenSearch
 
 from sds_federation.models import FederationConfig
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import aload_federated_asset
+from sds_federation.services.fed_index import aload_federated_asset
+from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import push_asset_updated_to_peers
 from sds_federation.services.redis_channel import resolve_federation_events_channel
@@ -25,6 +27,9 @@ type AssetLoader = Callable[
     [OpenSearch, FederationConfig, UUID, AssetTypeEnum],
     Awaitable[FederatedDatasetDoc | FederatedCaptureDoc | None],
 ]
+
+# Backwards-compatible alias for main.py / older call sites.
+build_gateway_http_client = build_peer_http_client
 
 
 def parse_redis_event_payload(
@@ -48,7 +53,7 @@ async def _default_load_asset(
 ) -> FederatedDatasetDoc | FederatedCaptureDoc | None:
     return await aload_federated_asset(
         os_client,
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         uuid=uuid,
         asset_type=asset_type,
     )
@@ -95,7 +100,7 @@ async def handle_redis_asset_event(
 
     payload = AssetUpdatedWebhook(
         timestamp=timestamp,
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         asset=asset,
         asset_type=asset_type,
     )
@@ -165,9 +170,16 @@ async def run_federation_subscriber(
             config.site.name,
             gateway_site,
         )
-    client = aioredis.from_url(redis_url)
+    # socket_timeout=None: idle pubsub.listen() must not raise TimeoutError and
+    # kill the subscriber task (that fails /sync/health redis_subscriber check).
+    client = aioredis.from_url(
+        redis_url,
+        socket_timeout=None,
+        socket_connect_timeout=5.0,
+    )
     pubsub = client.pubsub()
     await pubsub.subscribe(resolved_channel)
+    log.info(f"Subscribed to federation Redis channel {resolved_channel}")
     try:
         async for message in pubsub.listen():
             if stop.is_set():
@@ -187,12 +199,3 @@ async def run_federation_subscriber(
     finally:
         await pubsub.unsubscribe(resolved_channel)
         await client.aclose()
-
-
-def build_peer_http_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(timeout=30.0)
-
-
-def build_gateway_http_client() -> httpx.AsyncClient:
-    """Deprecated alias for peer webhook HTTP client."""
-    return build_peer_http_client()

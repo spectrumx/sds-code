@@ -39,7 +39,7 @@ def test_peer_for_outbound_overlays_site_hello_url() -> None:
     registry = PeerRegistry()
     registry.register(
         SiteHelloWebhook(
-            site_name="peer-one",
+            site_name="peer.test",  # RFC: FQDN
             fqdn="peer.test",
             display_name="Peer",
             sync_service_url="http://live-sync.test/sync",

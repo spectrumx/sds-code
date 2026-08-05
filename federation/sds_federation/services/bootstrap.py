@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import UTC
 from datetime import datetime
@@ -12,11 +13,13 @@ from loguru import logger
 
 from sds_federation.models import FederationConfig
 from sds_federation.models import PeerInfo
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.schemas.webhooks import asset_doc_class
+from sds_federation.services.peer_http import peer_request
 from sds_federation.services.peer_sync import peer_webhook_url
 
 if TYPE_CHECKING:
@@ -24,6 +27,10 @@ if TYPE_CHECKING:
 
 SITE_HELLO_PATH = "/webhook/site-hello"
 _MINT_PATH = "/users/get-federation-sync-api-key/"
+# Peer sync often receives site-hello while the peer process is still binding.
+_PEER_LIST_ATTEMPTS = 5
+_PEER_LIST_BACKOFF_SECS = 0.5
+_HTTP_INTERNAL_ERROR = 500
 
 
 def _export_list_url(peer: PeerInfo, asset_type: AssetTypeEnum) -> str:
@@ -129,14 +136,16 @@ async def _get_json(
     url: str,
     *,
     api_key: str,
-    verify: str | bool = True,
+    ca_cert_path: str = "",
 ) -> list | dict:
     headers = _gateway_auth_headers(api_key)
-    if verify is not True and verify:
-        async with httpx.AsyncClient(verify=verify, timeout=http.timeout) as client:
-            resp = await client.get(url, headers=headers)
-    else:
-        resp = await http.get(url, headers=headers)
+    resp = await peer_request(
+        http,
+        "GET",
+        url,
+        ca_cert_path=ca_cert_path,
+        headers=headers,
+    )
     resp.raise_for_status()
     return resp.json()
 
@@ -154,33 +163,79 @@ async def fetch_gateway_export_list(
         http,
         url,
         api_key=api_key,
-        verify=peer.ca_cert_path or True,
+        ca_cert_path=peer.ca_cert_path,
     )
     if not isinstance(data, list):
         msg = f"expected list from {url}, got {type(data).__name__}"
         raise TypeError(msg)
     doc_class = asset_doc_class(asset_type)
     return [doc_class.model_validate(item) for item in data]
+
+
+def _is_retryable_peer_list_error(exc: BaseException) -> bool:
+    """True for transient connect/read failures while a peer sync is starting."""
+    if isinstance(
+        exc,
+        (
+            httpx.ConnectError,
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.WriteTimeout,
+            httpx.PoolTimeout,
+            httpx.RemoteProtocolError,
+        ),
+    ):
+        return True
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code >= _HTTP_INTERNAL_ERROR
+    return False
 
 
 async def fetch_peer_sync_list(
     http: httpx.AsyncClient,
     peer: PeerInfo,
     asset_type: AssetTypeEnum,
+    *,
+    attempts: int = _PEER_LIST_ATTEMPTS,
+    backoff_secs: float = _PEER_LIST_BACKOFF_SECS,
 ) -> list[FederatedDatasetDoc | FederatedCaptureDoc]:
-    """Pull peer-owned docs from the peer sync service (fed-* OpenSearch export)."""
+    """Pull peer-owned docs from the peer sync service (fed-* OpenSearch export).
+
+    Retries transient connection/5xx errors so site-hello backfill survives peer
+    startup races.
+    """
     url = _webhook_list_url(peer, asset_type)
-    data = await _get_json(
-        http,
-        url,
-        api_key="",
-        verify=peer.ca_cert_path or True,
-    )
-    if not isinstance(data, list):
-        msg = f"expected list from {url}, got {type(data).__name__}"
-        raise TypeError(msg)
-    doc_class = asset_doc_class(asset_type)
-    return [doc_class.model_validate(item) for item in data]
+    last_exc: httpx.HTTPError | None = None
+    tries = max(1, attempts)
+    for attempt in range(1, tries + 1):
+        try:
+            data = await _get_json(
+                http,
+                url,
+                api_key="",
+                ca_cert_path=peer.ca_cert_path,
+            )
+            if not isinstance(data, list):
+                msg = f"expected list from {url}, got {type(data).__name__}"
+                raise TypeError(msg)
+            doc_class = asset_doc_class(asset_type)
+            return [doc_class.model_validate(item) for item in data]
+        except httpx.HTTPError as exc:
+            last_exc = exc
+            if not _is_retryable_peer_list_error(exc) or attempt >= tries:
+                raise
+            logger.warning(
+                "peer sync list {} {} attempt {}/{} failed ({}); retrying in {:.1f}s",
+                peer.name,
+                asset_type.value,
+                attempt,
+                tries,
+                exc,
+                backoff_secs * attempt,
+            )
+            await asyncio.sleep(backoff_secs * attempt)
+    assert last_exc is not None
+    raise last_exc
 
 
 def _parse_doc_event_at(
@@ -211,14 +266,15 @@ def _index_export_docs(
 ) -> int:
     indexed = 0
     for doc in docs:
-        if doc.site_name != peer.name:
+        if doc.site_name not in {peer.name, peer.fqdn}:
             logger.error(
                 "bootstrap export failed for {} {}: site name mismatch "
-                "(doc.site_name={!r}, peer.name={!r})",
+                "(doc.site_name={!r}, peer.name={!r}, peer.fqdn={!r})",
                 peer.name,
                 asset_type.value,
                 doc.site_name,
                 peer.name,
+                peer.fqdn,
             )
             continue
 
@@ -353,7 +409,7 @@ async def bootstrap_all_peers(
 
 def peer_by_name(config: FederationConfig, site_name: str) -> PeerInfo | None:
     for peer in config.peers:
-        if peer.name == site_name:
+        if site_name in (peer.name, peer.fqdn):
             return peer
     return None
 
@@ -376,7 +432,7 @@ async def backfill_peer_on_hello(
 
 def _site_hello_payload(config: FederationConfig) -> SiteHelloWebhook:
     return SiteHelloWebhook(
-        site_name=config.site.name,
+        site_name=site_name_for_federation(config.site),
         fqdn=config.site.fqdn,
         display_name=config.site.display_name,
         sync_service_url=config.sync_service_url,
@@ -391,14 +447,13 @@ async def push_site_hello_to_peer(
 ) -> dict:
     url = peer_webhook_url(peer, SITE_HELLO_PATH)
     body = _site_hello_payload(config).model_dump(mode="json")
-    if peer.ca_cert_path:
-        async with httpx.AsyncClient(
-            verify=peer.ca_cert_path,
-            timeout=http.timeout,
-        ) as tls_client:
-            resp = await tls_client.post(url, json=body)
-    else:
-        resp = await http.post(url, json=body)
+    resp = await peer_request(
+        http,
+        "POST",
+        url,
+        ca_cert_path=peer.ca_cert_path,
+        json=body,
+    )
     resp.raise_for_status()
     data = resp.json()
     if not isinstance(data, dict):

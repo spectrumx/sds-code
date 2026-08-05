@@ -16,6 +16,7 @@ module-root = ""
         "httpx>=0.28.1",
         "loguru>=0.7.2",
         "opensearch-py>=2.8.0",
+        "sds-opensearch-query",
         "pydantic>=2.11.0",
         "redis>=5.2.1",
         "uvicorn[standard]>=0.34.0",
@@ -24,6 +25,7 @@ module-root = ""
 [project.optional-dependencies]
 dev = [
     "deptry>=0.24.0",
+    "prek>=0.3.4",
     "pyrefly>=0.42.1",
     "pytest>=8.3.0",
     "pytest-asyncio>=0.25.0",
@@ -36,6 +38,7 @@ dev = [
     [tool.deptry.per_rule_ignores]
         DEP002 = [
             "deptry",
+            "prek",
             "pyrefly",
             "pytest",
             "pytest-asyncio",
@@ -165,3 +168,6 @@ markers = [
     "integration: tests that exercise FastAPI routes or multi-step pipeline",
     "regression: contract and indexer behavior guards",
 ]
+
+[tool.uv.sources]
+sds-opensearch-query = { path = "../common" }

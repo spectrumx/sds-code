@@ -20,6 +20,9 @@ from tests.support.mock_peer_registry import RecordingPeerRegistry
 
 API_PREFIX = "/api/v1"
 
+TESTSITE_FQDN = "localhost"
+PEER_ONE_FQDN = "peer.test"
+
 TESTSITE_SYNC_ORIGIN = "http://testsite.test"
 PEER_ONE_SYNC_ORIGIN = "http://peer-one.test"
 TESTSITE_GATEWAY_HOST = "testsite-gateway.test"

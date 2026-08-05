@@ -19,7 +19,7 @@
                 <div class="alert alert-info" role="alert">
                     <h4 class="alert-heading">No datasets found</h4>
                     <p>
-                        {% if search_form.query.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
+                        {% if search_form.query.value or search_form.site_name.value or search_form.keywords.value or search_form.min_frequency.value or search_form.max_frequency.value %}
                             Try adjusting your search criteria or <a href="{% url 'users:search_datasets' %}" class="alert-link">clear the filters</a> to see all published datasets.
                         {% else %}
                             There are no published datasets available yet.
@@ -53,8 +53,12 @@
                                        class="dataset-name-link"
                                        data-dataset-uuid="{{ dataset.uuid }}"
                                        data-item-uuid="{{ dataset.uuid }}"
+                                       data-item-type="dataset"
+                                       {% if dataset.is_federated %}data-is-federated="true" data-site-name="{{ dataset.site_name }}"{% endif %}
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
-                                    {% if dataset.is_public %}
+                                    {% if dataset.is_federated %}
+                                        <span class="ms-2 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>
+                                    {% elif dataset.is_public %}
                                         <i class="bi bi-globe me-1 text-primary" title="Public"></i>
                                     {% endif %}
                                 </td>
@@ -98,18 +102,18 @@
                                     {% endif %}
                                 </td>
                                 <td class="text-nowrap">
-                                    {% if dataset.dataset.created_at %}
+                                    {% if dataset.created_at %}
                                         {% localtime on %}
                                         <div class="d-flex align-items-center gap-2">
-                                            <span class="bg-transparent pe-2">{{ dataset.dataset.created_at|date:"Y-m-d" }}</span>
-                                            <span class="text-muted bg-transparent">{{ dataset.dataset.created_at|date:"H:i:s T" }}</span>
+                                            <span class="bg-transparent pe-2">{{ dataset.created_at|date:"Y-m-d" }}</span>
+                                            <span class="text-muted bg-transparent">{{ dataset.created_at|date:"H:i:s T" }}</span>
                                         </div>
                                     {% endlocaltime %}
                                 {% else %}
                                     -
                                 {% endif %}
                             </td>
-                            {% if user.is_authenticated %}
+                            {% if user.is_authenticated and not dataset.is_federated %}
                                 <td class="text-center">
                                     <div class="dropdown">
                                         <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
@@ -139,6 +143,8 @@
                                         </ul>
                                     </div>
                                 </td>
+                            {% elif user.is_authenticated %}
+                                <td class="text-center text-muted">—</td>
                             {% endif %}
                         </tr>
                     {% endfor %}
@@ -154,11 +160,11 @@
             {% if page_obj.has_previous %}
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page=1{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">First</a>
+                       href="?page=1{% if search_querystring %}&{{ search_querystring }}{% endif %}">First</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.previous_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Previous</a>
+                       href="?page={{ page_obj.previous_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Previous</a>
                 </li>
             {% else %}
                 <li class="page-item disabled">
@@ -174,11 +180,11 @@
             {% if page_obj.has_next %}
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.next_page_number }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Next</a>
+                       href="?page={{ page_obj.next_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Next</a>
                 </li>
                 <li class="page-item">
                     <a class="page-link"
-                       href="?page={{ page_obj.paginator.num_pages }}{% if search_form.query.value %}&query={{ search_form.query.value|urlencode }}{% endif %}{% if search_form.keywords.value %}&keywords={{ search_form.keywords.value|urlencode }}{% endif %}{% if search_form.min_frequency.value %}&min_frequency={{ search_form.min_frequency.value }}{% endif %}{% if search_form.max_frequency.value %}&max_frequency={{ search_form.max_frequency.value }}{% endif %}">Last</a>
+                       href="?page={{ page_obj.paginator.num_pages }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Last</a>
                 </li>
             {% else %}
                 <li class="page-item disabled">

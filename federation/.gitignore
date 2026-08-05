@@ -3,6 +3,7 @@
 __pycache__/
 
 federation.toml
+federation.peer.toml
 
-.envs/*
-!/.envs/example
+# Local live-test secrets only (keep README + env.example tracked)
+scripts/local_e2e/.env

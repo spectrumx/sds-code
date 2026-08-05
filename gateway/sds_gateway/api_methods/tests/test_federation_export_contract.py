@@ -49,7 +49,7 @@ def test_dataset_export_field_names_match_pydantic() -> None:
     )
     serializer = DatasetFederationSerializer(
         dataset,
-        context={"site_name": "crc"},
+        context={"site_name": "sds.crc.nd.edu"},
     )
     assert_field_names_match(
         serializer,
@@ -64,7 +64,7 @@ def test_capture_export_field_names_match_pydantic() -> None:
     capture = CaptureFactory(owner=owner, is_public=True)
     serializer = CaptureFederationSerializer(
         capture,
-        context={"site_name": "crc"},
+        context={"site_name": "sds.crc.nd.edu"},
     )
     assert_field_names_match(
         serializer,

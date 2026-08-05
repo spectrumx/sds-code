@@ -31,7 +31,7 @@ def simulated_dataset_redis_payload(
 def sample_federated_dataset_doc(
     *,
     uuid: UUID = TEST_DATASET_UUID,
-    site_name: str = "testsite",
+    site_name: str = "localhost",
 ) -> FederatedDatasetDoc:
     return FederatedDatasetDoc(
         uuid=uuid,
@@ -47,7 +47,7 @@ def sample_federated_dataset_doc(
 def sample_federated_capture_doc(
     *,
     uuid: UUID = TEST_CAPTURE_UUID,
-    site_name: str = "testsite",
+    site_name: str = "localhost",
 ) -> FederatedCaptureDoc:
     return FederatedCaptureDoc(
         uuid=uuid,

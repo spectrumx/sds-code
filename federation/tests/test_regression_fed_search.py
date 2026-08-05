@@ -1,4 +1,4 @@
-"""Regression tests for fed_search OpenSearch reads."""
+"""Regression tests for fed_* OpenSearch document reads."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from datetime import datetime
 
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import load_federated_asset
+from sds_federation.services.fed_index import load_federated_asset
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
@@ -16,7 +16,7 @@ from tests.support.mock_opensearch import RecordingOpenSearch
 
 def test_load_federated_asset_returns_indexed_doc() -> None:
     opensearch = RecordingOpenSearch()
-    site = "testsite"
+    site = "localhost"
     doc = sample_federated_dataset_doc(site_name=site)
     FederatedAssetIndexer(opensearch).apply_asset_event(
         event_at=datetime.now(UTC),
@@ -42,7 +42,7 @@ def test_load_federated_asset_missing_returns_none() -> None:
     assert (
         load_federated_asset(
             opensearch,
-            site_name="testsite",
+            site_name="localhost",
             uuid=TEST_DATASET_UUID,
             asset_type=AssetTypeEnum.DATASET,
         )

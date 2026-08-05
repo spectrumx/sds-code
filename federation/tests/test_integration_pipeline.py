@@ -13,6 +13,7 @@ from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import simulated_dataset_redis_payload
 
 from tests.conftest import PEER_SYNC_BASE
+from tests.support.federation_mesh import TESTSITE_FQDN
 from tests.support.mock_opensearch import RecordingOpenSearch
 
 
@@ -45,7 +46,7 @@ async def test_redis_simulation_end_to_end_indexes_on_peer(
     assert len(local_opensearch.index_calls) == local_calls_before
     assert len(recording_opensearch.index_calls) == 1
     assert recording_opensearch.index_calls[0]["id"] == doc_id(
-        "testsite",
+        TESTSITE_FQDN,
         TEST_DATASET_UUID,
     )
     assert (

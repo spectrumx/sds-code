@@ -12,9 +12,9 @@ import pytest
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.services.bootstrap import _index_export_docs
 from sds_federation.services.bootstrap import _parse_doc_event_at
+from sds_federation.services.fed_index import _LIST_PAGE_SIZE
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import _LIST_PAGE_SIZE
-from sds_federation.services.fed_search import list_federated_assets_for_site
+from sds_federation.services.fed_index import list_federated_assets_for_site
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
 from tests.support.federation_mesh import peer_one_config

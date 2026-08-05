@@ -1,0 +1,103 @@
+# Workflow to run pre-commit checks and pytest for the Federation app
+# GitHub Action Workflow validator: https://rhysd.github.io/actionlint/
+name: federation-checks
+
+on:
+    workflow_dispatch:
+        # To manually trigger the workflow
+        # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#workflow_dispatch
+    push:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - federation/**
+            - .pre-commit-config.yaml
+            - .github/workflows/fed-code-quality.yaml
+        branches:
+            - main
+            - master
+    pull_request:
+        paths:
+            # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
+            - federation/**
+            - .pre-commit-config.yaml
+            - .github/workflows/fed-code-quality.yaml
+        branches:
+            - main
+            - master
+        types:
+            # https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#pull_request
+            - ready_for_review
+            - synchronize
+
+env:
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
+
+jobs:
+    # Federation hooks live in the repo-root .pre-commit-config.yaml;
+    # prek is a federation --extra dev dependency.
+    fed-pre-commit:
+        runs-on: ubuntu-latest
+        env:
+            UV_LINK_MODE: copy
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Cache prek hooks
+              id: cache-prek
+              uses: actions/cache@v6
+              # https://github.com/actions/cache/blob/main/examples.md#python---pip
+              with:
+                  key: prek-federation-${{ hashFiles('.pre-commit-config.yaml') }}
+                  path: ~/.cache/prek/
+
+            - name: Sync federation dependencies
+              working-directory: ./federation
+              # pyrefly-federation runs: cd federation && uv run --extra dev pyrefly check
+              run: uv sync --extra dev
+
+            - name: Install hooks
+              working-directory: ./federation
+              run: uv run --extra dev prek install --install-hooks
+
+            - name: Run federation prek hooks
+              working-directory: ./federation
+              # Only federation-scoped hooks (no biome / djLint / JS).
+              # prek walks up to the repo-root .pre-commit-config.yaml.
+              run: |
+                  uv run --extra dev prek run ruff-check-federation --all-files
+                  uv run --extra dev prek run ruff-format-federation --all-files
+                  uv run --extra dev prek run pyrefly-federation --all-files
+
+    # Run federation pytest (mocked deps — no Docker stack required)
+    fed-tests:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                # uv will take care of installing other python versions,
+                # so we don't need a python-version matrix here.
+                platform: [ubuntu-latest]
+        steps:
+            - uses: actions/checkout@v7
+
+            - name: Install uv
+              uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3 # v8.3.0
+              # https://github.com/marketplace/actions/astral-sh-setup-uv
+
+            - name: Install just on ubuntu
+              if: matrix.platform == 'ubuntu-latest'
+              working-directory: ./federation
+              run: |
+                  npm install -g rust-just
+
+            - name: Sync federation dependencies
+              working-directory: ./federation
+              run: uv sync --extra dev
+
+            - name: Run tests
+              working-directory: ./federation
+              run: just test

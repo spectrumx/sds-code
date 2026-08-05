@@ -14,13 +14,17 @@ from sds_federation.services.fed_index import doc_id
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
+from tests.support.federation_mesh import TESTSITE_FQDN
+
 if TYPE_CHECKING:
     from tests.support.mock_opensearch import RecordingOpenSearch
 
 
 @pytest.mark.regression
 def test_doc_id_format() -> None:
-    assert doc_id("crc", TEST_DATASET_UUID) == f"crc:{TEST_DATASET_UUID}"
+    assert doc_id("sds.crc.nd.edu", TEST_DATASET_UUID) == (
+        f"sds.crc.nd.edu:{TEST_DATASET_UUID}"
+    )
 
 
 @pytest.mark.regression
@@ -29,11 +33,11 @@ def test_indexer_writes_dataset_document(
 ) -> None:
     indexer = FederatedAssetIndexer(recording_opensearch)
     event_at = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
-    asset = sample_federated_dataset_doc(site_name="testsite")
+    asset = sample_federated_dataset_doc(site_name=TESTSITE_FQDN)
 
     indexer.apply_asset_event(
         event_at=event_at,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -41,7 +45,7 @@ def test_indexer_writes_dataset_document(
     assert len(recording_opensearch.index_calls) == 1
     call = recording_opensearch.index_calls[0]
     assert call["index"] == AssetTypeEnum.DATASET.index_name
-    assert call["id"] == doc_id("testsite", TEST_DATASET_UUID)
+    assert call["id"] == doc_id(TESTSITE_FQDN, TEST_DATASET_UUID)
     assert call["body"]["federation_event_at"] == event_at.isoformat()
     assert call["body"]["name"] == "Simulated public dataset"
     assert call["body"]["is_deleted"] is False
@@ -53,13 +57,13 @@ def test_indexer_writes_deleted_flag_from_asset_body(
 ) -> None:
     indexer = FederatedAssetIndexer(recording_opensearch)
     event_at = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
-    asset = sample_federated_dataset_doc(site_name="testsite").model_copy(
+    asset = sample_federated_dataset_doc(site_name=TESTSITE_FQDN).model_copy(
         update={"is_deleted": True},
     )
 
     indexer.apply_asset_event(
         event_at=event_at,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -72,19 +76,19 @@ def test_indexer_writes_deleted_flag_from_asset_body(
 @pytest.mark.regression
 def test_indexer_skips_stale_events(recording_opensearch: RecordingOpenSearch) -> None:
     indexer = FederatedAssetIndexer(recording_opensearch)
-    asset = sample_federated_dataset_doc(site_name="testsite")
+    asset = sample_federated_dataset_doc(site_name=TESTSITE_FQDN)
     t1 = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
     t0 = t1 - timedelta(seconds=1)
 
     indexer.apply_asset_event(
         event_at=t1,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
     indexer.apply_asset_event(
         event_at=t0,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -96,20 +100,20 @@ def test_indexer_skips_stale_events(recording_opensearch: RecordingOpenSearch) -
 def test_indexer_skips_stale_events_after_restart(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:
-    asset = sample_federated_dataset_doc(site_name="testsite")
+    asset = sample_federated_dataset_doc(site_name=TESTSITE_FQDN)
     t1 = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
     t0 = t1 - timedelta(seconds=1)
 
     FederatedAssetIndexer(recording_opensearch).apply_asset_event(
         event_at=t1,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
     # New process: empty in-memory map; persisted federation_event_at must win.
     FederatedAssetIndexer(recording_opensearch).apply_asset_event(
         event_at=t0,
-        site_name="testsite",
+        site_name=TESTSITE_FQDN,
         asset=asset,
         asset_type=AssetTypeEnum.DATASET,
     )
@@ -127,7 +131,7 @@ def test_indexer_rejects_site_name_mismatch(
     with pytest.raises(ValueError, match="site_name must match"):
         indexer.apply_asset_event(
             event_at=datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC),
-            site_name="testsite",
+            site_name=TESTSITE_FQDN,
             asset=asset,
             asset_type=AssetTypeEnum.DATASET,
         )

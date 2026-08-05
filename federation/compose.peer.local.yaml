@@ -1,0 +1,65 @@
+networks:
+  sds-network-local:
+    external: true
+    name: sds-network-local
+  peer-internal:
+    driver: bridge
+
+services:
+  sds-federation-peer-opensearch:
+    image: opensearchproject/opensearch:2
+    container_name: sds-federation-peer-opensearch
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    ports:
+      - "9201:9200"
+    networks: [peer-internal]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  sds-federation-peer-redis:
+    image: redis:6
+    container_name: sds-federation-peer-redis
+    ports:
+      - "6380:6379"
+    networks: [peer-internal]
+
+  sds-federation-peer-sync:
+    build:
+      context: ..
+      dockerfile: federation/Dockerfile
+    image: sds-federation-local-sync
+    container_name: sds-federation-peer-sync
+    environment:
+      FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
+      FEDERATION_SYNC_SERVICE_URL: http://sds-federation-peer-sync:8000/sync
+      # Dummy gateway — local export bootstrap will fail; that's OK
+      GATEWAY_INTERNAL_BASE_URL: http://127.0.0.1:9/api/v1
+      REDIS_URL: redis://sds-federation-peer-redis:6379/0
+      OPENSEARCH_HOST: sds-federation-peer-opensearch
+      OPENSEARCH_PORT: "9200"
+      OPENSEARCH_USER: ""
+      OPENSEARCH_PASSWORD: ""
+      OPENSEARCH_USE_SSL: "false"
+      OPENSEARCH_VERIFY_CERTS: "false"
+      # No mint: leave FEDERATION_SYNC_* unset
+      FEDERATION_SITE_NAME: peer
+    volumes:
+      - ./federation.peer.toml:/etc/sds/federation.toml:ro
+    ports:
+      - "8002:8000"
+    depends_on:
+      sds-federation-peer-opensearch:
+        condition: service_healthy
+      sds-federation-peer-redis:
+        condition: service_started
+    networks:
+      - sds-network-local
+      - peer-internal

@@ -49,14 +49,8 @@ function get_target_value() {
 		local) value='sds-federation-local-sync' ;;
 		esac
 		;;
-	env_file)
-		case "${env_type}" in
-		production) value='.envs/production/sync.env' ;;
-		local) value='.envs/local/sync.env' ;;
-		esac
-		;;
 	*)
-		printf 'unsupported target: %s (use env, compose_file, sync_container, or env_file)\n' "${target}" >&2
+		printf 'unsupported target: %s (use env, compose_file, or sync_container)\n' "${target}" >&2
 		exit 1
 		;;
 	esac
@@ -71,7 +65,7 @@ function get_target_value() {
 
 function main() {
 	if [[ $# -ne 1 ]]; then
-		printf 'usage: %s <env|compose_file|sync_container|env_file>\n' "${0}" >&2
+		printf 'usage: %s <env|compose_file|sync_container>\n' "${0}" >&2
 		exit 1
 	fi
 

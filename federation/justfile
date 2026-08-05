@@ -9,9 +9,9 @@ env_selection_script := "./scripts/env-selection.sh"
 
 compose_file := shell(env_selection_script + ' $1', "compose_file")
 env := shell(env_selection_script + ' $1', "env")
-env_file := shell(env_selection_script + ' $1', "env_file")
 sync_container := shell(env_selection_script + ' $1', "sync_container")
-docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose --env-file " + env_file
+# Service env comes from compose env_file (gateway opensearch.env + federation-shared.env).
+docker_compose := "COMPOSE_FILE=" + compose_file + " docker compose"
 
 alias run := up
 
@@ -24,7 +24,6 @@ env:
     #!/usr/bin/env bash
     echo -e "\nSelected env:\n"
     echo -e "\tEnvironment: \e[34m             '{{ env }}'\e[0m"
-    echo -e "\tEnvironment file: \e[34m        '{{ env_file }}'\e[0m"
     echo -e "\tCompose file: \e[34m            '{{ compose_file }}'\e[0m"
     echo -e "\tSync container: \e[34m          '{{ sync_container }}'\e[0m"
     echo -e "\tDocker compose command: \e[34m  '{{ docker_compose }}'\e[0m"
@@ -33,9 +32,11 @@ env:
         echo -e "\n\e[31mError:\e[0m Compose file '{{ compose_file }}' does not exist."
         exit 1
     fi
-    if ! [ -f "{{ env_file }}" ]; then
-        echo -e "\n\e[33mWarning:\e[0m Env file '{{ env_file }}' does not exist."
-        echo -e "Copy from .envs/example/sync.env if needed."
+    if ! [ -f "../federation-shared.env" ]; then
+        echo -e "\n\e[33mWarning:\e[0m ../federation-shared.env missing — run gateway generate-secrets."
+    fi
+    if ! [ -f "../gateway/.envs/{{ env }}/opensearch.env" ]; then
+        echo -e "\n\e[33mWarning:\e[0m ../gateway/.envs/{{ env }}/opensearch.env missing."
     fi
 
 # install runtime + dev deps (pytest)
@@ -59,12 +60,12 @@ test +args='':
 test-q:
     uv run pytest -q
 
-# Run federation pre-commit hooks from repo root (requires gateway dev deps / pre-commit install)
+# Run federation pre-commit hooks (prek walks up to repo-root .pre-commit-config.yaml)
 [group('qa')]
 pre-commit +args='':
-    cd .. && uv run --directory gateway --extra local pre-commit run ruff-check-federation --all-files {{ args }}
-    cd .. && uv run --directory gateway --extra local pre-commit run ruff-format-federation --all-files {{ args }}
-    cd .. && uv run --directory gateway --extra local pre-commit run pyrefly-federation --all-files {{ args }}
+    uv run --extra dev prek run ruff-check-federation --all-files {{ args }}
+    uv run --extra dev prek run ruff-format-federation --all-files {{ args }}
+    uv run --extra dev prek run pyrefly-federation --all-files {{ args }}
 
 # dev PKI for mTLS experiments (see docs/mtls-certificates.md)
 [group('setup')]
@@ -79,6 +80,25 @@ gen-certs-ca:
 [group('dev')]
 simulate-redis +args='':
     REDIS_URL="${REDIS_URL:-redis://localhost:6379/0}" uv run python scripts/simulate_redis_event.py {{ args }}
+
+[group('dev')]
+verify-federation-live +args='':
+    uv run python scripts/verify_federation_live.py {{ args }}
+
+# Deploy local + peer federation stacks (checks gateway, builds, waits for health)
+[group('dev')]
+deploy-local-peer-2-peer:
+    ./scripts/deploy-local-peer-2-peer.sh
+
+# Seed dummy peer.local docs into peer OpenSearch (:9201)
+[group('dev')]
+seed-peer +args='':
+    uv run python scripts/seed_peer_opensearch.py --opensearch-url http://localhost:9201 --site-name peer.local {{ args }}
+
+# Tear down local + peer compose stacks together
+[group('dev')]
+down-peer-2-peer +args='':
+    docker compose -f compose.local.yaml -f compose.peer.local.yaml down {{ args }}
 
 [group('docker')]
 build +args='':

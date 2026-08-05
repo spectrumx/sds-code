@@ -56,6 +56,7 @@
         "redis>=5.2.0",
         "requests>=2.32.5",
         "rich>=13.9.3",
+        "sds-opensearch-query",
         "scipy>=1.16.1",
         "sentry-sdk[django]>=2.25.1",
         "uvicorn>=0.32.0",
@@ -180,6 +181,7 @@
             "pytest-cov",                 # coverage plugin in tests
             "pytest-sugar",               # better progress output for pytest
             "python-slugify",             # provides the slugify import
+            "requests",                   # used by sds-opensearch-query OpenSearch client
             "ruff",                       # linter used in ci
             "uvicorn-worker",             # uvicorn worker class for gunicorn
             "uvicorn",                    # asgi server used in dev
@@ -662,3 +664,6 @@
 [tool.uv]
     # https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns
     exclude-newer = "1 week"
+
+[tool.uv.sources]
+sds-opensearch-query = { path = "../common" }

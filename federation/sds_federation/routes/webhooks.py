@@ -4,17 +4,21 @@ from datetime import datetime
 
 import httpx
 from fastapi import APIRouter
+from fastapi import BackgroundTasks
 from fastapi import HTTPException
 from fastapi import Request
 from loguru import logger
 
+from sds_federation.models import PeerInfo
+from sds_federation.models import allowed_federated_origin_fqdns
+from sds_federation.models import site_name_for_federation
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.services.bootstrap import backfill_peer_on_hello
 from sds_federation.services.bootstrap import peer_by_name
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.fed_search import alist_federated_assets_for_site
+from sds_federation.services.fed_index import alist_federated_assets_for_site
 from sds_federation.services.peer_registry import PeerRegistry
 from sds_federation.services.peer_sync import peer_for_outbound
 
@@ -32,7 +36,7 @@ def _local_site_name(request: Request) -> str:
     config = getattr(request.app.state, "config", None)
     if config is None:
         raise HTTPException(status_code=503, detail="Config not ready")
-    return config.site.name
+    return site_name_for_federation(config.site)
 
 
 def _indexer(request: Request) -> FederatedAssetIndexer:
@@ -55,27 +59,31 @@ def _http_client(request: Request) -> httpx.AsyncClient | None:
 
 def _allowed_origin_sites(request: Request, payload: AssetUpdatedWebhook) -> None:
     config = request.app.state.config
-    if payload.site_name == config.site.name:
+    if payload.site_name == site_name_for_federation(config.site):
         raise HTTPException(
             status_code=403,
             detail="Local site metadata is not accepted via peer webhooks",
         )
-    allowed = {peer.name for peer in config.peers}
+
+    allowed = allowed_federated_origin_fqdns(config)
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown origin site")
 
 
-@webhooks_router.post("/webhook/dataset-updated")
-async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dict:
-    """
-    Handle dataset-updated webhook from another site.
-    Index the dataset in the local site's OpenSearch.
-    """
+async def _apply_asset_updated(
+    payload: AssetUpdatedWebhook,
+    request: Request,
+    *,
+    expected_type: AssetTypeEnum,
+) -> dict:
     _allowed_origin_sites(request, payload)
-    if payload.asset is None or payload.asset_type is not AssetTypeEnum.DATASET:
+    if payload.asset is None or payload.asset_type is not expected_type:
         raise HTTPException(
             status_code=422,
-            detail="Dataset body required for dataset-updated webhook.",
+            detail=(
+                f"{expected_type.value.capitalize()} body required for "
+                f"{expected_type.value}-updated webhook."
+            ),
         )
     try:
         await asyncio.to_thread(
@@ -88,68 +96,83 @@ async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dic
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"status": "accepted"}
+
+
+@webhooks_router.post("/webhook/dataset-updated")
+async def dataset_updated(payload: AssetUpdatedWebhook, request: Request) -> dict:
+    """Handle dataset-updated webhook from another site."""
+    return await _apply_asset_updated(
+        payload,
+        request,
+        expected_type=AssetTypeEnum.DATASET,
+    )
 
 
 @webhooks_router.post("/webhook/capture-updated")
 async def capture_updated(payload: AssetUpdatedWebhook, request: Request) -> dict:
-    """
-    Handle capture-updated webhook from another site.
-    Index the capture in the local site's OpenSearch.
-    """
-    _allowed_origin_sites(request, payload)
-    if payload.asset is None or payload.asset_type is not AssetTypeEnum.CAPTURE:
-        raise HTTPException(
-            status_code=422,
-            detail="Capture body required for capture-updated webhook.",
-        )
-    try:
-        await asyncio.to_thread(
-            _indexer(request).apply_asset_event,
-            event_at=payload.timestamp,
-            site_name=payload.site_name,
-            asset=payload.asset,
-            asset_type=payload.asset_type,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {"status": "accepted"}
+    """Handle capture-updated webhook from another site."""
+    return await _apply_asset_updated(
+        payload,
+        request,
+        expected_type=AssetTypeEnum.CAPTURE,
+    )
+
+
+async def _list_local_assets(
+    request: Request,
+    asset_type: AssetTypeEnum,
+) -> list[dict]:
+    docs = await alist_federated_assets_for_site(
+        _opensearch(request),
+        site_name=_local_site_name(request),
+        asset_type=asset_type,
+    )
+    return [doc.model_dump(mode="json") for doc in docs]
 
 
 @webhooks_router.get("/webhook/list-datasets/")
 async def list_datasets(request: Request) -> list[dict]:
-    """
-    List all datasets for the local site to new peer on bootstrap.
-    """
-    docs = await alist_federated_assets_for_site(
-        _opensearch(request),
-        site_name=_local_site_name(request),
-        asset_type=AssetTypeEnum.DATASET,
-    )
-    return [doc.model_dump(mode="json") for doc in docs]
+    """List all datasets for the local site to new peer on bootstrap."""
+    return await _list_local_assets(request, AssetTypeEnum.DATASET)
 
 
 @webhooks_router.get("/webhook/list-captures/")
 async def list_captures(request: Request) -> list[dict]:
-    """
-    List all captures for the local site to new peer on bootstrap.
-    """
-    docs = await alist_federated_assets_for_site(
-        _opensearch(request),
-        site_name=_local_site_name(request),
-        asset_type=AssetTypeEnum.CAPTURE,
-    )
-    return [doc.model_dump(mode="json") for doc in docs]
+    """List all captures for the local site to new peer on bootstrap."""
+    return await _list_local_assets(request, AssetTypeEnum.CAPTURE)
+
+
+async def _run_site_hello_backfill(
+    http: httpx.AsyncClient,
+    peer: PeerInfo,
+    indexer: FederatedAssetIndexer,
+) -> None:
+    """Background: pull registering peer's list-* exports (with retries)."""
+    try:
+        indexed = await backfill_peer_on_hello(http, peer, indexer)
+        logger.info(
+            "site-hello backfill indexed {} document(s) from {} ({})",
+            indexed,
+            peer.name,
+            peer.sync_service_url,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.error("site-hello backfill failed for {}: {}", peer.name, exc)
 
 
 @webhooks_router.post("/webhook/site-hello")
-async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
+async def site_hello(
+    payload: SiteHelloWebhook,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict:
     config = request.app.state.config
-    if payload.site_name == config.site.name:
+    if payload.site_name == site_name_for_federation(config.site):
         raise HTTPException(
             status_code=422,
             detail="Cannot register self via site-hello",
         )
-    allowed = {peer.name for peer in config.peers}
+    allowed = {peer.fqdn for peer in config.peers}
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown registering site")
 
@@ -173,19 +196,13 @@ async def site_hello(payload: SiteHelloWebhook, request: Request) -> dict:
         )
     else:
         outbound = peer_for_outbound(peer, _peer_registry(request))
-        try:
-            indexed = await backfill_peer_on_hello(
-                http,
-                outbound,
-                _indexer(request),
-            )
-            logger.info(
-                "site-hello backfill indexed {} document(s) from {} ({})",
-                indexed,
-                outbound.name,
-                outbound.sync_service_url,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("site-hello backfill failed for {}: {}", outbound.name, exc)
+        # Return registered immediately; backfill retries while the peer finishes
+        # binding so mutual startup races do not fail the hello handshake.
+        background_tasks.add_task(
+            _run_site_hello_backfill,
+            http,
+            outbound,
+            _indexer(request),
+        )
 
     return {"status": "registered", "site_name": hello.site_name}

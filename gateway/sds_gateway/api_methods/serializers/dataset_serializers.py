@@ -289,6 +289,7 @@ class DatasetPublicSerializer(serializers.ModelSerializer[Dataset]):
 
     authors = serializers.SerializerMethodField()
     keywords = serializers.SerializerMethodField()
+    institutions = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
         format=READABLE_ISO_DATE_TIME, read_only=True
     )
@@ -302,6 +303,13 @@ class DatasetPublicSerializer(serializers.ModelSerializer[Dataset]):
     def get_keywords(self, obj):
         """Return a list of keyword names for the dataset."""
         return [kw.name for kw in obj.keywords.filter(is_deleted=False)]
+
+    def get_institutions(self, obj):
+        if not obj.institutions:
+            return []
+        if isinstance(obj.institutions, list):
+            return obj.institutions
+        return []
 
     def get_owner_name(self, obj):
         """Get the owner's display name."""
@@ -338,8 +346,12 @@ class DatasetFederationSerializer(DatasetPublicSerializer):
     """Serializer for dataset data for federation export."""
 
     site_name = serializers.SerializerMethodField()
+    created_at = serializers.DateTimeField(
+        format="iso-8601",  # ISO 8601 format for OpenSearch schema
+        read_only=True,
+    )
     updated_at = serializers.DateTimeField(
-        format=READABLE_ISO_DATE_TIME,
+        format="iso-8601",  # ISO 8601 format for OpenSearch schema
         read_only=True,
     )
     size = serializers.SerializerMethodField()

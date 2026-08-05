@@ -7,15 +7,17 @@ from datetime import datetime
 
 from fastapi import FastAPI
 from loguru import logger
-from opensearchpy import OpenSearch
+from redis.exceptions import TimeoutError as RedisTimeoutError
+from sds_opensearch_query.client import build_opensearch_client
 
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
 from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
-from sds_federation.services.local_events import build_gateway_http_client
+from sds_federation.services.fed_index import ensure_fed_indices
 from sds_federation.services.local_events import run_federation_subscriber
+from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
 
 API_PREFIX = "/api/v1"
@@ -30,6 +32,10 @@ def _bootstrap_enabled() -> bool:
     )
 
 
+def get_setting(key: str, default: str = "") -> str:
+    return os.environ.get(key, default)
+
+
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
 sync_app.include_router(webhooks_router, prefix=API_PREFIX)
@@ -38,12 +44,22 @@ sync_app.include_router(webhooks_router, prefix=API_PREFIX)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = load_federation_config()
-    http = build_gateway_http_client()
+    http = build_peer_http_client()
 
-    # TODO: Create a shared OpenSearch client for both apps in a later PR.
-    os_host = os.environ.get("OPENSEARCH_HOST", "opensearch")
-    os_port = os.environ.get("OPENSEARCH_PORT", "9200")
-    os_client = OpenSearch(hosts=[{"host": os_host, "port": int(os_port)}])
+    os_client = build_opensearch_client(
+        host=get_setting("OPENSEARCH_HOST", "opensearch"),
+        port=int(get_setting("OPENSEARCH_PORT", "9200")),
+        user=get_setting("OPENSEARCH_USER"),
+        password=get_setting("OPENSEARCH_PASSWORD"),
+        use_ssl=get_setting("OPENSEARCH_USE_SSL").lower() in ("1", "true", "yes"),
+        verify_certs=get_setting("OPENSEARCH_VERIFY_CERTS") == "true",
+        ca_certs=get_setting("OPENSEARCH_CA_CERTS") or None,
+    )
+    try:
+        ensure_fed_indices(os_client)
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to ensure fed-* OpenSearch indices: {}", exc)
+
     peer_registry = PeerRegistry()
     fed_indexer = FederatedAssetIndexer(os_client)
 
@@ -90,7 +106,8 @@ async def lifespan(app: FastAPI):
 
     stop.set()
     sub_task.cancel()
-    with suppress(asyncio.CancelledError):
+    # Pubsub listen may surface TimeoutError while cancelling the blocked read.
+    with suppress(asyncio.CancelledError, TimeoutError, RedisTimeoutError):
         await sub_task
     await http.aclose()
 

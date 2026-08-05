@@ -1,9 +1,7 @@
 import json
 import uuid
 from pathlib import Path
-from typing import TYPE_CHECKING
 from typing import Any
-from typing import cast
 from uuid import UUID
 
 from django.contrib import messages
@@ -31,6 +29,12 @@ from django.views import View
 from django.views.generic import TemplateView
 from loguru import logger as log
 
+from sds_gateway.api_methods.federation.availability import is_federation_operational
+from sds_gateway.api_methods.federation.search_helpers import search_federated_datasets
+from sds_gateway.api_methods.helpers.list_helpers import local_site_name
+from sds_gateway.api_methods.helpers.list_helpers import merge_dataset_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import serialize_datasets_for_user
+from sds_gateway.api_methods.helpers.list_helpers import serialize_federated_dataset_row
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
@@ -42,10 +46,10 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_shared_users_for_item
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.dataset_serializers import (
     get_dataset_serializer,
 )
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm
@@ -58,9 +62,6 @@ from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
 
 from .captures import _apply_frequency_filters_to_list
-
-if TYPE_CHECKING:
-    from rest_framework.utils.serializer_helpers import ReturnDict
 
 
 class GroupCapturesView(
@@ -1035,151 +1036,33 @@ def filter_by_frequency_range(
     return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
-def _dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build dropdown_menu.html items for a serialized dataset list row."""
-    uuid = str(row.get("uuid") or "")
-    if not uuid:
+def _federated_published_dataset_rows(
+    *,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch federated dataset docs and map them to list-row dicts."""
+    if not is_federation_operational():
         return []
 
-    is_owner = row.get("is_owner")
-    permission_level = row.get("permission_level")
-    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
-    is_co_owner = permission_level == PermissionLevel.CO_OWNER
-    dataset_published = row.get("status") == DatasetStatus.FINAL and row.get(
-        "is_public"
-    )
+    try:
+        client = get_opensearch_client()
+        result = search_federated_datasets(client, q=query, site=site)
+    except Exception:  # noqa: BLE001
+        log.exception("Federated dataset search failed; returning local results only")
+        return []
 
-    items: list[dict[str, Any]] = []
-    if is_owner or is_contributor or is_co_owner:
-        # Share button
-        items.extend(
-            (
-                {
-                    "label": "Share",
-                    "icon": "person-plus",
-                    "type": "button",
-                    "modal_toggle": True,
-                    "modal_target": f"#shareModal-{uuid}",
-                    "data_attrs": {},
-                },
-            )
-        )
-
-        if not dataset_published:
-            # Edit button
-            items.append(
-                {
-                    "label": "Edit",
-                    "icon": "pencil",
-                    "type": "link",
-                    "href": f"{reverse('users:group_captures')}?dataset_uuid={uuid}",
-                    "data_attrs": {},
-                }
-            )
-
-    if is_owner or is_co_owner:
-        # Create new version button
-        items.append(
-            {
-                "label": "Create New Version",
-                "icon": "folder-symlink",
-                "type": "button",
-                "modal_toggle": True,
-                "modal_target": f"#versioningModal-{uuid}",
-                "data_attrs": {},
-            }
-        )
-        # Publish button
-        if not dataset_published:
-            items.append(
-                {
-                    "label": "Publish",
-                    "icon": "globe",
-                    "type": "button",
-                    "modal_toggle": True,
-                    "modal_target": f"#publish-dataset-modal-{uuid}",
-                    "data_attrs": {"dataset-uuid": uuid},
-                    "extra_class": "publish-dataset-btn",
-                }
-            )
-
-    status = row.get("status")
-    is_public = bool(row.get("is_public"))
-    is_deletable_dataset = status == DatasetStatus.DRAFT and not is_public
-    if is_owner and is_deletable_dataset:
-        dataset_name = str(row.get("name") or "").strip() or "Dataset"
-        items.append(
-            {
-                "label": "Delete",
-                "icon": "trash",
-                "type": "button",
-                "extra_class": "delete-asset-btn",
-                "data_attrs": {
-                    "asset-type": "dataset",
-                    "asset-uuid": uuid,
-                    "asset-name": dataset_name[:200],
-                    **({"asset-shared": "true"} if row.get("is_shared") else {}),
-                },
-            }
-        )
-
-    # Web download button
-    items.append(
-        {
-            "label": "Web Download",
-            "icon": "download",
-            "type": "button",
-            "modal_toggle": True,
-            "modal_target": f"#webDownloadModal-{uuid}",
-            "data_attrs": {},
-        }
-    )
-
-    # SDK download instructions button
-    items.append(
-        {
-            "label": "SDK Instructions",
-            "icon": "code-slash",
-            "type": "button",
-            "modal_toggle": True,
-            "modal_target": f"#sdkDownloadModal-{uuid}",
-            "data_attrs": {},
-        }
-    )
-    return items
-
-
-def serialize_datasets_for_user(
-    datasets: QuerySet[Dataset], user: User | None
-) -> list[dict[str, Any]]:
-    """Serialize datasets for display with user context.
-
-    Args:
-        datasets: QuerySet of Dataset objects to serialize
-        user: User object or None for anonymous users
-
-    Returns:
-        List of serialized dataset dictionaries
-    """
-    serialized_datasets = []
-    for dataset in datasets:
-        # Create a mock request object for the serializer context
-        context_req = {
-            "request": type(
-                "Request",
-                (),
-                {"user": user if user and user.is_authenticated else None},
-            )()
-        }
-        dataset_data = cast(
-            "ReturnDict", DatasetGetSerializer(dataset, context=context_req).data
-        )
-        dataset_data["dataset"] = dataset
-        dataset_data["dropdown_menu_items"] = _dataset_list_dropdown_menu_items(
-            dataset_data
-        )
-        serialized_datasets.append(dataset_data)
-    return serialized_datasets
+    local_site = local_site_name()
+    rows: list[dict[str, Any]] = []
+    for hit in result.get("hits") or []:
+        source = hit.get("source") if isinstance(hit, dict) else None
+        if not isinstance(source, dict):
+            continue
+        # Local public datasets come from Postgres; skip same-site fed docs.
+        if local_site and source.get("site_name") == local_site:
+            continue
+        rows.append(serialize_federated_dataset_row(source))
+    return rows
 
 
 def get_published_datasets() -> QuerySet[Dataset]:
@@ -1190,10 +1073,42 @@ def get_published_datasets() -> QuerySet[Dataset]:
             is_public=True,
             is_deleted=False,
         )
-        .prefetch_related("keywords", "owner")
+        .select_related("owner")
+        .prefetch_related("keywords")
         .distinct()
         .order_by("-created_at")
     )
+
+
+def build_published_dataset_list_rows(
+    user: User | None,
+    *,
+    datasets: QuerySet[Dataset] | None = None,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    """Merge local published datasets with peer federated rows (discovery UI).
+
+    Local rows come from Postgres; peer rows from OpenSearch ``fed-datasets``
+    (same-site fed docs skipped). Sorted by ``created_at`` descending.
+
+    When ``site`` is set, only rows whose ``site_name`` matches are returned
+    (local FQDN keeps Postgres rows; other FQDNs keep peer OpenSearch rows).
+    """
+    if datasets is None:
+        datasets = get_published_datasets()
+    site_filter = (site or "").strip() or None
+    local_rows = serialize_datasets_for_user(
+        datasets,
+        user,
+        include_actions=False,
+    )
+    if site_filter:
+        local_rows = [
+            row for row in local_rows if (row.get("site_name") or "") == site_filter
+        ]
+    federated_rows = _federated_published_dataset_rows(query=query, site=site_filter)
+    return merge_dataset_list_rows(local_rows, federated_rows)
 
 
 def apply_search_filters(
@@ -1243,6 +1158,8 @@ class SearchPublishedDatasetsView(View):
         """Handle GET request for dataset search."""
         form = PublishedDatasetSearchForm(request.GET)
         datasets = get_published_datasets()
+        query: str | None = None
+        site: str | None = None
 
         # Apply search filters
         if form.is_valid():
@@ -1250,10 +1167,16 @@ class SearchPublishedDatasetsView(View):
                 datasets,
                 form.cleaned_data,
             )
+            query = (form.cleaned_data.get("query") or "").strip() or None
+            site = (form.cleaned_data.get("site_name") or "").strip() or None
 
-        # Serialize datasets
-        serialized_datasets = serialize_datasets_for_user(
-            datasets, request.user if request.user.is_authenticated else None
+        user = request.user if request.user.is_authenticated else None
+        # Published search is read-only discovery; skip action dropdowns.
+        serialized_datasets = build_published_dataset_list_rows(
+            user,
+            datasets=datasets,
+            query=query,
+            site=site,
         )
 
         # Paginate results
@@ -1264,12 +1187,18 @@ class SearchPublishedDatasetsView(View):
         except (PageNotAnInteger, EmptyPage):
             page_obj = paginator.get_page(1)
 
+        # Preserve filters across pagination (everything except page).
+        params = request.GET.copy()
+        params.pop("page", None)
+        search_querystring = params.urlencode()
+
         return render(
             request,
             template_name=self.template_name,
             context={
                 "search_form": form,
                 "page_obj": page_obj,
+                "search_querystring": search_querystring,
             },
         )
 
@@ -1373,6 +1302,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         """Get datasets owned by the user."""
         return (
             user.datasets.filter(is_deleted=False)
+            .select_related("owner")
             .prefetch_related("keywords")
             .order_by(order_by)
         )
@@ -1390,6 +1320,7 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         return (
             Dataset.objects.filter(uuid__in=shared_dataset_uuids, is_deleted=False)
             .exclude(owner=user)
+            .select_related("owner")
             .prefetch_related("keywords")
             .order_by(order_by)
         )

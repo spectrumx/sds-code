@@ -37,6 +37,7 @@ def _federation_on_commit():
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
+    SDS_SITE_FQDN="sds.localhost",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
 )
 class TestFederationDatasetSignals(TestCase):
@@ -149,6 +150,7 @@ class TestFederationDatasetSignals(TestCase):
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
+    SDS_SITE_FQDN="sds.localhost",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
 )
 class TestFederationCaptureSignals(TestCase):
@@ -230,6 +232,7 @@ class TestFederationCaptureSignals(TestCase):
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
+    SDS_SITE_FQDN="sds.localhost",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
 )
 class TestDatasetDisconnectReindex(TestCase):
@@ -293,6 +296,7 @@ class TestDatasetDisconnectReindex(TestCase):
 @override_settings(
     FEDERATION_ENABLED=True,
     FEDERATION_SITE_NAME="crc",
+    SDS_SITE_FQDN="sds.localhost",
     FEDERATION_OPERATIONAL_OVERRIDE=True,
 )
 class TestFederationReindexOnCommit(TestCase):
