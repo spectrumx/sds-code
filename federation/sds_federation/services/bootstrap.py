@@ -19,6 +19,7 @@ from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
 from sds_federation.schemas.webhooks import SiteHelloWebhook
 from sds_federation.schemas.webhooks import asset_doc_class
+from sds_federation.services.peer_http import peer_request
 from sds_federation.services.peer_sync import peer_webhook_url
 
 if TYPE_CHECKING:
@@ -135,14 +136,16 @@ async def _get_json(
     url: str,
     *,
     api_key: str,
-    verify: str | bool = True,
+    ca_cert_path: str = "",
 ) -> list | dict:
     headers = _gateway_auth_headers(api_key)
-    if verify is not True and verify:
-        async with httpx.AsyncClient(verify=verify, timeout=http.timeout) as client:
-            resp = await client.get(url, headers=headers)
-    else:
-        resp = await http.get(url, headers=headers)
+    resp = await peer_request(
+        http,
+        "GET",
+        url,
+        ca_cert_path=ca_cert_path,
+        headers=headers,
+    )
     resp.raise_for_status()
     return resp.json()
 
@@ -160,7 +163,7 @@ async def fetch_gateway_export_list(
         http,
         url,
         api_key=api_key,
-        verify=peer.ca_cert_path or True,
+        ca_cert_path=peer.ca_cert_path,
     )
     if not isinstance(data, list):
         msg = f"expected list from {url}, got {type(data).__name__}"
@@ -210,7 +213,7 @@ async def fetch_peer_sync_list(
                 http,
                 url,
                 api_key="",
-                verify=peer.ca_cert_path or True,
+                ca_cert_path=peer.ca_cert_path,
             )
             if not isinstance(data, list):
                 msg = f"expected list from {url}, got {type(data).__name__}"
@@ -444,14 +447,13 @@ async def push_site_hello_to_peer(
 ) -> dict:
     url = peer_webhook_url(peer, SITE_HELLO_PATH)
     body = _site_hello_payload(config).model_dump(mode="json")
-    if peer.ca_cert_path:
-        async with httpx.AsyncClient(
-            verify=peer.ca_cert_path,
-            timeout=http.timeout,
-        ) as tls_client:
-            resp = await tls_client.post(url, json=body)
-    else:
-        resp = await http.post(url, json=body)
+    resp = await peer_request(
+        http,
+        "POST",
+        url,
+        ca_cert_path=peer.ca_cert_path,
+        json=body,
+    )
     resp.raise_for_status()
     data = resp.json()
     if not isinstance(data, dict):

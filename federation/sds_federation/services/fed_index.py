@@ -7,6 +7,8 @@ from typing import Any
 
 from opensearchpy import OpenSearch
 from opensearchpy.exceptions import NotFoundError
+from sds_opensearch_query.index_write import federated_doc_id
+from sds_opensearch_query.index_write import index_federated_document
 
 from sds_federation.schemas.opensearch_indices import index_body_for_asset
 from sds_federation.schemas.webhooks import AssetTypeEnum
@@ -16,6 +18,9 @@ from sds_federation.schemas.webhooks import asset_doc_class
 
 if TYPE_CHECKING:
     from uuid import UUID
+
+# Backwards-compatible alias used throughout federation tests/scripts.
+doc_id = federated_doc_id
 
 
 def ensure_fed_indices(client: OpenSearch) -> None:
@@ -27,10 +32,6 @@ def ensure_fed_indices(client: OpenSearch) -> None:
             index=index_name,
             body=index_body_for_asset(asset_type),
         )
-
-
-def doc_id(site_name: str, uuid: UUID) -> str:
-    return f"{site_name}:{uuid}"
 
 
 def _parse_event_at(value: object) -> datetime | None:
@@ -75,7 +76,8 @@ def load_federated_asset(
     def _get() -> dict | None:
         try:
             response = client.get(
-                index=asset_type.index_name, id=doc_id(site_name, uuid)
+                index=asset_type.index_name,
+                id=federated_doc_id(site_name, uuid),
             )
         except NotFoundError:
             return None
@@ -198,7 +200,7 @@ class FederatedAssetIndexer:
         *,
         index_name: str,
     ) -> bool:
-        key = doc_id(site_name, uuid)
+        key = federated_doc_id(site_name, uuid)
         prev = self._last_event.get(key)
         if prev is None:
             prev = self._stored_event_at(index_name, key)
@@ -207,7 +209,7 @@ class FederatedAssetIndexer:
         return bool(prev is not None and event_at <= prev)
 
     def _mark_applied(self, site_name: str, uuid: UUID, event_at: datetime) -> None:
-        self._last_event[doc_id(site_name, uuid)] = event_at
+        self._last_event[federated_doc_id(site_name, uuid)] = event_at
 
     def apply_asset_event(
         self,
@@ -233,14 +235,13 @@ class FederatedAssetIndexer:
         ):
             return False
 
-        _id = doc_id(site_name, asset.uuid)
-        body = asset.model_dump(mode="json")
-        body["federation_event_at"] = event_at.isoformat()
-        self._client.index(
-            index=asset_type.index_name,
-            id=_id,
-            body=body,
-            refresh="wait_for",
+        index_federated_document(
+            self._client,
+            index_name=asset_type.index_name,
+            site_name=site_name,
+            uuid=asset.uuid,
+            body=asset.model_dump(mode="json"),
+            event_at=event_at,
         )
 
         self._mark_applied(site_name, asset.uuid, event_at)

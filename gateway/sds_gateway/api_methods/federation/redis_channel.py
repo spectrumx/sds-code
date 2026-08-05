@@ -1,22 +1,16 @@
-"""Redis pub/sub channel naming for federation change events (RFC §8)."""
+"""Redis pub/sub channel naming for federation change events.
+
+Re-exports the shared helpers from ``sds_opensearch_query``.
+"""
 
 from __future__ import annotations
 
+from sds_opensearch_query.redis_channel import FEDERATION_EVENTS_CHANNEL_PREFIX
+from sds_opensearch_query.redis_channel import federation_events_channel
+from sds_opensearch_query.redis_channel import resolve_federation_events_channel
 
-def resolve_federation_events_channel(
-    *,
-    site_name: str = "",
-    channel_override: str = "",
-) -> str:
-    """Return the Redis channel for local federation events.
-
-    Override ``channel_override`` when set (``FEDERATION_EVENTS_CHANNEL`` env).
-    Otherwise use ``federation:events:{site_name}`` when ``site_name`` is set.
-    """
-    override = (channel_override or "").strip()
-    if override:
-        return override
-    site = (site_name or "").strip()
-    if site:
-        return f"federation:events:{site}"
-    return ""
+__all__ = [
+    "FEDERATION_EVENTS_CHANNEL_PREFIX",
+    "federation_events_channel",
+    "resolve_federation_events_channel",
+]

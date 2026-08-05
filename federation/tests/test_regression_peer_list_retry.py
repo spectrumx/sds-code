@@ -80,12 +80,12 @@ async def test_fetch_peer_sync_list_exhausts_retries() -> None:
             new=AsyncMock(side_effect=httpx.ConnectError("down")),
         ),
         patch("sds_federation.services.bootstrap.asyncio.sleep", new=AsyncMock()),
+        pytest.raises(httpx.ConnectError),
     ):
-        with pytest.raises(httpx.ConnectError):
-            await fetch_peer_sync_list(
-                httpx.AsyncClient(),
-                _peer(),
-                AssetTypeEnum.DATASET,
-                attempts=3,
-                backoff_secs=0.01,
-            )
+        await fetch_peer_sync_list(
+            httpx.AsyncClient(),
+            _peer(),
+            AssetTypeEnum.DATASET,
+            attempts=3,
+            backoff_secs=0.01,
+        )

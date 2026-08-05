@@ -10,6 +10,8 @@ import sys
 
 import httpx
 
+HTTP_OK = 200
+
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -43,7 +45,7 @@ def main() -> int:
     with httpx.Client(timeout=30.0) as client:
         health = client.get(f"{base}/health")
         print(f"health {health.status_code}: {health.text[:200]}")
-        if health.status_code != 200:
+        if health.status_code != HTTP_OK:
             return 1
 
         headers = {}
@@ -51,7 +53,7 @@ def main() -> int:
             headers["Authorization"] = f"Api-Key: {args.api_key}"
         export = client.get(args.gateway_export, headers=headers)
         print(f"gateway export {export.status_code}")
-        if export.status_code == 200:
+        if export.status_code == HTTP_OK:
             data = export.json()
             print(f"  export datasets: {len(data)}")
             if data:
@@ -65,7 +67,7 @@ def main() -> int:
             params=params,
         )
         print(f"search datasets {search.status_code}")
-        if search.status_code == 200:
+        if search.status_code == HTTP_OK:
             body = search.json()
             print(json.dumps(body, indent=2)[:1500])
         else:
