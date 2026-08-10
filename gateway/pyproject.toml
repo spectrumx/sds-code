@@ -14,7 +14,7 @@
         "crispy-bootstrap5>=2024.10",
         "deptry>=0.24.0",
         "digital-rf>=2.6.11",
-        "django~=4.2",                                                                   # TODO: upgrade from 4.2 LTS -> 5.2 LTS
+        "django~=5.2",                                                                   # TODO: upgrade from 4.2 LTS -> 5.2 LTS
         "django-allauth>=65.1",
         "django-allauth[socialaccount]>=64.2.1",
         "django-celery-beat==2.8.1",
