@@ -64,10 +64,10 @@ def test_bootstrap_index_uses_doc_updated_at_not_shared_now(
 ) -> None:
     updated = datetime(2026, 6, 1, 12, 0, 0, tzinfo=UTC)
     shared_now = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
-    doc = sample_federated_dataset_doc(site_name="testsite").model_copy(
+    doc = sample_federated_dataset_doc(site_name="localhost").model_copy(
         update={"updated_at": updated.isoformat()},
     )
-    peer = peer_one_config().peers[0].model_copy(update={"name": "testsite"})
+    peer = peer_one_config().peers[0]
     indexer = FederatedAssetIndexer(recording_opensearch)
 
     count = _index_export_docs(
@@ -88,7 +88,7 @@ def test_bootstrap_index_uses_doc_updated_at_not_shared_now(
     assert (
         indexer.apply_asset_event(
             event_at=updated + timedelta(seconds=1),
-            site_name="testsite",
+            site_name="localhost",
             asset=doc.model_copy(update={"name": "newer"}),
             asset_type=AssetTypeEnum.DATASET,
         )
