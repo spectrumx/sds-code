@@ -29,11 +29,6 @@ def _parse_args() -> argparse.Namespace:
         default=os.environ.get("FEDERATION_SYNC_URL", "http://localhost:8001"),
     )
     parser.add_argument(
-        "--site-fqdn",
-        default=os.environ.get("LOCAL_SITE_FQDN", "localhost"),
-    )
-    parser.add_argument("--q", default="")
-    parser.add_argument(
         "--gateway-export",
         default=os.environ.get(
             "GATEWAY_EXPORT_URL",
