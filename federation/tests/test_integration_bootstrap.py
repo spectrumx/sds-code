@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 async def test_bootstrap_gateway_exports_indexes_documents(
     recording_opensearch: RecordingOpenSearch,
 ) -> None:
-    doc = sample_federated_dataset_doc(site_name="remote")
+    doc = sample_federated_dataset_doc(site_name="remote.test")
     export_body = json.dumps([doc.model_dump(mode="json")])
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -62,7 +62,7 @@ async def test_bootstrap_gateway_exports_indexes_documents(
     assert count == 1
     assert len(recording_opensearch.index_calls) == 1
     assert recording_opensearch.index_calls[0]["id"] == doc_id(
-        "remote",
+        "remote.test",
         TEST_DATASET_UUID,
     )
 
