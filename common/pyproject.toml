@@ -12,6 +12,7 @@ version = "0.1.0"
 description = "Shared OpenSearch and federation helpers for SDS gateway and sync"
 requires-python = ">=3.13,<3.15"
 dependencies = [
+    "loguru>=0.7.2",
     "opensearch-py>=2.7.1",
     "requests>=2.32.0",
 ]

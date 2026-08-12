@@ -39,7 +39,7 @@ RFC_FED_CAPTURE_PROPERTIES: dict[str, dict[str, Any]] = {
     "sample_rate": {"type": "double"},
     "start_time": {"type": "long"},
     "end_time": {"type": "long"},
-    "dataset_ids": {"type": "keyword"},
+    "public_dataset_ids": {"type": "keyword"},
     "url": {"type": "keyword"},
 }
 
