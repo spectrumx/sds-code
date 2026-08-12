@@ -266,15 +266,14 @@ def _index_export_docs(
 ) -> int:
     indexed = 0
     for doc in docs:
-        if doc.site_name not in {peer.name, peer.fqdn}:
+        if doc.site_name != site_name_for_federation(peer):
             logger.error(
-                "bootstrap export failed for {} {}: site name mismatch "
-                "(doc.site_name={!r}, peer.name={!r}, peer.fqdn={!r})",
+                "bootstrap export failed for {} {}: site name (FQDN) mismatch "
+                "(doc.site_name={!r}, peer.fqdn={!r})",
                 peer.name,
                 asset_type.value,
                 doc.site_name,
-                peer.name,
-                peer.fqdn,
+                site_name_for_federation(peer),
             )
             continue
 

@@ -28,11 +28,10 @@ def build_opensearch_client(
     if verify_certs:
         if not ca_certs:
             msg = (
-                "OPENSEARCH_VERIFY_CERTS is True but OPENSEARCH_CA_CERTS is not set."
-                "Not using SSL."
+                "OPENSEARCH_VERIFY_CERTS is True but OPENSEARCH_CA_CERTS is not set. "
+                "Provide a CA bundle path or set OPENSEARCH_VERIFY_CERTS to False."
             )
-            log.warning(msg)
-        else:
-            log.info("OPENSEARCH_VERIFY_CERTS is True. Verifying certificates.")
-            payload["ca_certs"] = ca_certs
+            raise ValueError(msg)
+        log.info("OPENSEARCH_VERIFY_CERTS is True. Verifying certificates.")
+        payload["ca_certs"] = ca_certs
     return OpenSearch(**payload)
