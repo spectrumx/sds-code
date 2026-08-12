@@ -11,6 +11,15 @@ import sys
 import httpx
 
 HTTP_OK = 200
+SYNC_PREFIX = "/sync"
+
+
+def _normalize_sync_base(url: str) -> str:
+    """Ensure sync URLs include the mounted /sync prefix."""
+    base = url.rstrip("/")
+    if not base.endswith(SYNC_PREFIX):
+        base = f"{base}{SYNC_PREFIX}"
+    return base
 
 
 def _parse_args() -> argparse.Namespace:
@@ -40,7 +49,7 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    base = args.sync_base.rstrip("/")
+    base = _normalize_sync_base(args.sync_base)
 
     with httpx.Client(timeout=30.0) as client:
         health = client.get(f"{base}/health")
@@ -59,19 +68,15 @@ def main() -> int:
             if data:
                 print(f"  first site_name: {data[0].get('site_name')}")
 
-        params = {"site": args.site_fqdn}
-        if args.q:
-            params["q"] = args.q
-        search = client.get(
-            f"{base}/api/v1/search/datasets",
-            params=params,
+        listed = client.get(
+            f"{base}/api/v1/webhook/list-datasets/",
         )
-        print(f"search datasets {search.status_code}")
-        if search.status_code == HTTP_OK:
-            body = search.json()
+        print(f"listed datasets {listed.status_code}")
+        if listed.status_code == HTTP_OK:
+            body = listed.json()
             print(json.dumps(body, indent=2)[:1500])
         else:
-            print(search.text, file=sys.stderr)
+            print(listed.text, file=sys.stderr)
             return 2
 
     return 0
