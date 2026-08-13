@@ -78,13 +78,12 @@ curl -s 'http://localhost:9200/fed-datasets/_search' \
 ```bash
 cd federation
 set -a && source scripts/local_e2e/.env && set +a
-just verify-federation-live --q <search-term>
+just verify-federation-live
 ```
 
 Or:
 
 ```bash
-curl -s "http://localhost:8001/api/v1/search/datasets?site=${LOCAL_SITE_FQDN}&q=<search-term>" | jq .
 curl -s http://localhost:8000/api/v1/federation/export/datasets/ \
   -H "Authorization: Api-Key: $FEDERATION_GATEWAY_API_KEY" | jq 'length'
 curl -s http://localhost:8001/sync/api/v1/webhook/list-datasets/ | jq 'length'

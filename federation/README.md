@@ -152,7 +152,7 @@ cd federation
 just                          # list recipes
 just deploy-local-peer-2-peer # local + peer stacks
 just seed-peer                # seed peer OpenSearch (:9201, site peer.local)
-just verify-federation-live --q fixture
+just verify-federation-live
 just simulate-redis --event-type updated --item-type dataset --uuid <uuid>
 just test / just test-regression / just test-integration
 ```

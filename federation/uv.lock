@@ -616,12 +616,14 @@ name = "sds-opensearch-query"
 version = "0.1.0"
 source = { directory = "../common" }
 dependencies = [
+    { name = "loguru" },
     { name = "opensearch-py" },
     { name = "requests" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "loguru", specifier = ">=0.7.2" },
     { name = "opensearch-py", specifier = ">=2.7.1" },
     { name = "requests", specifier = ">=2.32.0" },
 ]

@@ -33,7 +33,7 @@ class AssetTypeEnum(StrEnum):
 class FederatedDatasetDoc(BaseModel):
     """Must match gateway DatasetFederationSerializer output keys exactly."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     uuid: UUID
     name: str
@@ -69,7 +69,7 @@ class FederatedDatasetDoc(BaseModel):
 class FederatedCaptureDoc(BaseModel):
     """Must match gateway CaptureFederationSerializer output keys exactly."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     uuid: UUID
     name: str = ""
@@ -83,6 +83,7 @@ class FederatedCaptureDoc(BaseModel):
     file_count: int = 0
     size: int = 0
     capture_props: dict[str, Any] = Field(default_factory=dict)
+    search_props: dict[str, Any] = Field(default_factory=dict)
     public_dataset_ids: list[str] = Field(default_factory=list)
     is_deleted: bool = False
     deleted_at: str | None = None

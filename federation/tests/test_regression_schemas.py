@@ -18,11 +18,18 @@ from sds_federation.testing.sample_data import sample_federated_dataset_doc
 
 
 @pytest.mark.regression
-def test_federated_dataset_doc_rejects_unknown_fields() -> None:
-    base = sample_federated_dataset_doc().model_dump()
-    base["extra_gateway_field"] = "nope"
-    with pytest.raises(Exception):
-        FederatedDatasetDoc.model_validate(base)
+def test_federated_docs_allow_unknown_fields() -> None:
+    dataset = sample_federated_dataset_doc().model_dump()
+    dataset["extra_gateway_field"] = "ok"
+    parsed_dataset = FederatedDatasetDoc.model_validate(dataset)
+    assert (parsed_dataset.model_extra or {})["extra_gateway_field"] == "ok"
+
+    capture = sample_federated_capture_doc().model_dump()
+    capture["extra_gateway_field"] = "ok"
+    parsed_capture = FederatedCaptureDoc.model_validate(capture)
+    assert (parsed_capture.model_extra or {})["extra_gateway_field"] == "ok"
+    assert parsed_capture.capture_props == {}
+    assert parsed_capture.search_props == {}
 
 
 CRC_FQDN = "sds.crc.nd.edu"
