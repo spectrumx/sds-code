@@ -36,6 +36,10 @@ def get_setting(key: str, default: str = "") -> str:
     return os.environ.get(key, default)
 
 
+def _env_flag(key: str) -> bool:
+    return get_setting(key).strip().lower() in ("1", "true", "yes")
+
+
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
 sync_app.include_router(webhooks_router, prefix=API_PREFIX)
@@ -51,8 +55,8 @@ async def lifespan(app: FastAPI):
         port=int(get_setting("OPENSEARCH_PORT", "9200")),
         user=get_setting("OPENSEARCH_USER"),
         password=get_setting("OPENSEARCH_PASSWORD"),
-        use_ssl=get_setting("OPENSEARCH_USE_SSL").lower() in ("1", "true", "yes"),
-        verify_certs=get_setting("OPENSEARCH_VERIFY_CERTS") == "true",
+        use_ssl=_env_flag("OPENSEARCH_USE_SSL"),
+        verify_certs=_env_flag("OPENSEARCH_VERIFY_CERTS"),
         ca_certs=get_setting("OPENSEARCH_CA_CERTS") or None,
     )
     try:
