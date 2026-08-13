@@ -14,11 +14,6 @@ class SiteInfo(BaseModel):
     sync_service_url: AnyHttpUrl | None = None
 
 
-def site_name_for_federation(site: SiteInfo) -> str:
-    """FQDN stored in export docs and OpenSearch ``site_name`` (RFC §6)."""
-    return site.fqdn
-
-
 class PeerInfo(BaseModel):
     name: str
     fqdn: str
@@ -27,6 +22,11 @@ class PeerInfo(BaseModel):
     sync_service_url: AnyHttpUrl
     ca_cert_path: str = ""
     gateway_export_api_key: str = ""
+
+
+def site_name_for_federation(site: SiteInfo | PeerInfo) -> str:
+    """FQDN stored in export docs and OpenSearch ``site_name`` (RFC §6)."""
+    return site.fqdn
 
 
 class FederationConfig(BaseModel):
