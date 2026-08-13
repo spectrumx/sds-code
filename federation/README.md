@@ -13,8 +13,17 @@ On startup (unless `FEDERATION_BOOTSTRAP_ON_START=false`):
 5. Register with peers via `POST .../webhook/site-hello`
 6. Subscribe to Redis `federation:events:{site}` for incremental updates
 
-Local HTTP: sync on **host port 8001** → container `:8000`.
+Local HTTP (this machine only, not the peer path): host **8001** → container `:8000`.
 Health: `http://localhost:8001/sync/health`.
+
+Peer sync is **HTTPS :443** via Traefik `PathPrefix(/sync)` (prefix is **not** stripped):
+
+- sds-dev: `https://sds-dev.crc.nd.edu/sync/health`
+- sds-fed1: `https://sds-fed1.crc.nd.edu/sync/health`
+- prod: `https://sds.crc.nd.edu/sync/health`
+
+Advertise that HTTPS URL in `[site].sync_service_url` / `FEDERATION_SYNC_SERVICE_URL`
+(not `:8001`). Prod compose sets `FEDERATION_SYNC_SERVICE_URL=https://sds.crc.nd.edu/sync`.
 
 See also:
 

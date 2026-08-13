@@ -2,6 +2,9 @@
 name = "your-site"
 fqdn = "your-site.domain"
 display_name = "Your Site"
+# Advertised in site-hello. Use the Traefik HTTPS /sync URL (not host :8001).
+# Defaults to http://{fqdn}/sync/ if unset.
+# sync_service_url = "https://your-site.domain/sync"
 
 [[peers]]
 # Notre Dame SDS site is the original site deployment

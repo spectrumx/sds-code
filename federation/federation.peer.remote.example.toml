@@ -1,16 +1,16 @@
-# Copy to federation.peer.toml on the peer host (gitignored if using that name).
-# Replace hostnames with values reachable from the main gateway/sync server.
+# Copy to federation.peer.toml on sds-fed1 (gitignored if using that name).
 
 [site]
-name = "peer"
-fqdn = "peer.example.com"
-display_name = "Remote Peer (sync-only)"
+name = "fed1"
+fqdn = "sds-fed1.crc.nd.edu"
+display_name = "Fed1 test peer (sync-only)"
+sync_service_url = "https://sds-fed1.crc.nd.edu/sync"
 
 [[peers]]
 name = "crc"
-fqdn = "sds.example.com"
-display_name = "Main SDS"
-gateway_api_base = "https://sds.example.com/api/v1"
-# Main federation sync base (must end with /sync)
-sync_service_url = "https://sds.example.com/sync"
+fqdn = "sds-dev.crc.nd.edu"
+display_name = "SDS Dev"
+gateway_api_base = "https://sds-dev.crc.nd.edu/api/v1"
+sync_service_url = "https://sds-dev.crc.nd.edu/sync"
+# Leave unset so httpx uses the system CA (Let's Encrypt on sds-dev).
 # ca_cert_path = "/etc/sds/certs/main-ca.pem"

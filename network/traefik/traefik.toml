@@ -145,19 +145,47 @@
         [http.routers.sds-gateway-prod-nginx.tls]
             certResolver = "letsencrypt"
 
-            # TIP: if you are debugging Traefik config, it might be useful to enable the
-            # 'whoami' service below, which simply prints out the request information it
-            # receives. You can then point a router to it and see if the requests are
-            # reaching it as expected.
+    # LOCAL federation sync (do not strip /sync — FastAPI is mounted there)
+    # More specific than the catch-all Host router for sds-gateway-local-app
+    [http.routers.sds-federation-local-sync]
+        entryPoints = ["web", "web-secure"]
+        rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/sync`)"
+        service     = "sds-federation-local-sync"
 
-            # The whoami service is defined in network/compose.yaml
+        [http.routers.sds-federation-local-sync.tls]
+            certResolver = "letsencrypt"
 
-            # [http.routers.whoami]
-            #     entryPoints = ["web", "web-secure"]
-            #     rule    = "Host(`sds-dev.crc.nd.edu`)"
-            #     service = "whoami"
-            #     [http.routers.whoami.tls]
-            #         certResolver = "letsencrypt"
+    # ⚠️ PROD federation sync
+    [http.routers.sds-federation-prod-sync]
+        entryPoints = ["web", "web-secure"]
+        rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/sync`)"
+        service     = "sds-federation-prod-sync"
+
+        [http.routers.sds-federation-prod-sync.tls]
+            certResolver = "letsencrypt"
+
+    # Sync-only test peer (federation/compose.peer.remote.yaml on sds-fed1)
+    [http.routers.sds-federation-peer-sync]
+        entryPoints = ["web", "web-secure"]
+        rule        = "Host(`sds-fed1.crc.nd.edu`) && PathPrefix(`/sync`)"
+        service     = "sds-federation-peer-sync"
+
+        [http.routers.sds-federation-peer-sync.tls]
+            certResolver = "letsencrypt"
+
+    # TIP: if you are debugging Traefik config, it might be useful to enable the
+    # 'whoami' service below, which simply prints out the request information it
+    # receives. You can then point a router to it and see if the requests are
+    # reaching it as expected.
+    #
+    # The whoami service is defined in network/compose.yaml
+    #
+    # [http.routers.whoami]
+    #     entryPoints = ["web", "web-secure"]
+    #     rule    = "Host(`sds-dev.crc.nd.edu`)"
+    #     service = "whoami"
+    #     [http.routers.whoami.tls]
+    #         certResolver = "letsencrypt"
 
 [http.middlewares]
     [http.middlewares.csrf]
@@ -210,6 +238,20 @@
     # URL matches the service name and port in compose.production.yaml
     [[http.services.sds-gateway-prod-nginx.loadBalancer.servers]]
         url = "http://sds-gateway-prod-nginx:80"
+
+        # ------------- FEDERATION SYNC
+
+    # LOCAL service — federation/compose.local.yaml (container port 8000, not host 8001)
+    [[http.services.sds-federation-local-sync.loadBalancer.servers]]
+        url = "http://sds-federation-local-sync:8000"
+
+    # ⚠️ PROD service — federation/compose.production.yaml
+    [[http.services.sds-federation-prod-sync.loadBalancer.servers]]
+        url = "http://sds-federation-prod-sync:8000"
+
+    # Test peer — federation/compose.peer.remote.yaml (sds-fed1)
+    [[http.services.sds-federation-peer-sync.loadBalancer.servers]]
+        url = "http://sds-federation-peer-sync:8000"
 
         # ------------- NETWORK STACK / DEBUGGING
 
