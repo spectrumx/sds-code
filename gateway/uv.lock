@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.13.*"
 
 [options]
-exclude-newer = "2026-07-23T18:25:15.89876Z"
+exclude-newer = "2026-08-06T13:57:40.197413Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -2237,12 +2237,14 @@ name = "sds-opensearch-query"
 version = "0.1.0"
 source = { directory = "../common" }
 dependencies = [
+    { name = "loguru" },
     { name = "opensearch-py" },
     { name = "requests" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "loguru", specifier = ">=0.7.2" },
     { name = "opensearch-py", specifier = ">=2.7.1" },
     { name = "requests", specifier = ">=2.32.0" },
 ]
