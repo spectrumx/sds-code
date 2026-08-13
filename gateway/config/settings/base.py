@@ -776,7 +776,7 @@ FEDERATION_SYNC_USER_EMAIL: str = env.str(
 FEDERATION_SYNC_DRF_TOKEN: str = env.str("FEDERATION_SYNC_DRF_TOKEN", default="")
 FEDERATION_SYNC_HEALTH_URL: str = env.str(
     "FEDERATION_SYNC_HEALTH_URL",
-    default="http://federation-local-sync:8000/sync/health",
+    default="http://sds-federation-local-sync:8000/sync/health",
 )
 FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT: float = env.float(
     "FEDERATION_SYNC_HEALTH_PROBE_TIMEOUT",

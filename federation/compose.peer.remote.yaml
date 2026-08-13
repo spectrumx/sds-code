@@ -1,16 +1,21 @@
 # Sync-only peer on a remote host (no gateway / Postgres).
 # Pair with federation.peer.remote.toml and docs/peer-remote-test.md.
 #
-# On the peer machine:
+# On the peer machine (sds-fed1):
+#   cd ../network && just up    # Traefik + sds-network-local
+#   cd ../federation
 #   cp federation.peer.remote.example.toml federation.peer.toml
-#   cp env.peer.example .env.peer   # optional overrides
+#   cp env.peer.example .env.peer
 #   docker compose -f compose.peer.remote.yaml --env-file .env.peer up -d --build
 #
-# Main site must list this peer's public sync URL in federation.toml [[peers]].
+# Main site (sds-dev) must list this peer's public sync URL in federation.toml [[peers]].
 
 networks:
   peer-internal:
     driver: bridge
+  sds-network-local:
+    external: true
+    name: sds-network-local
 
 services:
   sds-federation-peer-opensearch:
@@ -22,7 +27,8 @@ services:
       OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
       DISABLE_INSTALL_DEMO_CONFIG: "true"
     ports:
-      - "${PEER_OPENSEARCH_PORT:-9200}:9200"
+      # Host loopback only — seed_peer_opensearch.py. Not for peer sync.
+      - "127.0.0.1:${PEER_OPENSEARCH_PORT:-9200}:9200"
     networks: [peer-internal]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health || exit 1"]
@@ -34,8 +40,6 @@ services:
   sds-federation-peer-redis:
     image: redis:6
     container_name: sds-federation-peer-redis
-    ports:
-      - "${PEER_REDIS_PORT:-6379}:6379"
     networks: [peer-internal]
 
   sds-federation-peer-sync:
@@ -47,7 +51,7 @@ services:
     environment:
       FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
       # Must be reachable by the main site (set in toml sync_service_url too).
-      FEDERATION_SYNC_SERVICE_URL: ${PEER_SYNC_PUBLIC_URL:-http://0.0.0.0:8000/sync}
+      FEDERATION_SYNC_SERVICE_URL: ${PEER_SYNC_PUBLIC_URL:-https://sds-fed1.crc.nd.edu/sync}
       # Intentional: sync-only peer has no gateway export.
       GATEWAY_INTERNAL_BASE_URL: http://127.0.0.1:9/api/v1
       REDIS_URL: redis://sds-federation-peer-redis:6379/0
@@ -57,13 +61,11 @@ services:
       OPENSEARCH_PASSWORD: ""
       OPENSEARCH_USE_SSL: "false"
       OPENSEARCH_VERIFY_CERTS: "false"
-      FEDERATION_SITE_NAME: ${PEER_SITE_NAME:-peer}
+      FEDERATION_SITE_NAME: ${PEER_SITE_NAME:-fed1}
       FEDERATION_BOOTSTRAP_ON_START: ${FEDERATION_BOOTSTRAP_ON_START:-true}
     volumes:
       - ./federation.peer.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro
-    ports:
-      - "${PEER_SYNC_PORT:-8000}:8000"
     depends_on:
       sds-federation-peer-opensearch:
         condition: service_healthy
@@ -71,4 +73,4 @@ services:
         condition: service_started
     networks:
       - peer-internal
-    # Attach an extra external network / reverse-proxy in front for TLS in real deploys.
+      - sds-network-local
