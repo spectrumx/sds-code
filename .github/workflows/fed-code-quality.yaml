@@ -10,6 +10,7 @@ on:
         paths:
             # https://docs.github.com/en/actions/writing-workflows/workflow-syntax-for-github-actions#filter-pattern-cheat-sheet
             - federation/**
+            - common/** # Cover common/ changes too
             - .pre-commit-config.yaml
             - .github/workflows/fed-code-quality.yaml
         branches:
