@@ -29,16 +29,16 @@ RFC_FED_DATASET_PROPERTIES: dict[str, dict[str, Any]] = {
     "url": {"type": "keyword"},
 }
 
-# RFC §6 — fed-captures search fields
+# fed-captures: identity fields plus local capture OpenSearch prop dicts
+# To see the full list of capture props and search props, see:
+#   gateway/sds_gateway/api_methods/utils/metadata_schemas.py
 RFC_FED_CAPTURE_PROPERTIES: dict[str, dict[str, Any]] = {
     "uuid": {"type": "keyword"},
     "site_name": {"type": "keyword"},  # peer FQDN (federation.toml [site].fqdn)
     "capture_type": {"type": "keyword"},
     "channel": {"type": "keyword"},
-    "center_frequency": {"type": "double"},
-    "sample_rate": {"type": "double"},
-    "start_time": {"type": "long"},
-    "end_time": {"type": "long"},
+    "capture_props": {"type": "nested", "dynamic": True},
+    "search_props": {"type": "nested", "dynamic": True},
     "public_dataset_ids": {"type": "keyword"},
     "url": {"type": "keyword"},
 }

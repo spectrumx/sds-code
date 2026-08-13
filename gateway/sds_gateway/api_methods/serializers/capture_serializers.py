@@ -12,6 +12,7 @@ from rest_framework import serializers
 from rest_framework.utils.serializer_helpers import ReturnList
 
 from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_metadata
+from sds_gateway.api_methods.helpers.index_handling import retrieve_indexed_prop_dicts
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import DEPRECATEDPostProcessedData
@@ -892,6 +893,7 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
     file_count = serializers.SerializerMethodField()
     size = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
+    search_props = serializers.SerializerMethodField()
     public_dataset_ids = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
         format="%Y-%m-%d %H:%M:%S%z",
@@ -919,6 +921,7 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
             "file_count",
             "size",
             "capture_props",
+            "search_props",
             "public_dataset_ids",
             "created_at",
             "updated_at",
@@ -935,8 +938,21 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
     def get_size(self, obj: Capture) -> int:
         return int(obj.get_files_summary()["total_size"])
 
+    def _indexed_prop_dicts(self, obj: Capture) -> dict[str, dict[str, Any]]:
+        cache = getattr(self, "_indexed_prop_dicts_cache", None)
+        if cache is None:
+            cache = {}
+            self._indexed_prop_dicts_cache = cache
+        key = str(obj.uuid)
+        if key not in cache:
+            cache[key] = retrieve_indexed_prop_dicts(obj)
+        return cache[key]
+
     def get_capture_props(self, obj: Capture) -> dict[str, Any]:
-        return obj.get_opensearch_metadata() or {}
+        return self._indexed_prop_dicts(obj)["capture_props"]
+
+    def get_search_props(self, obj: Capture) -> dict[str, Any]:
+        return self._indexed_prop_dicts(obj)["search_props"]
 
     def get_public_dataset_ids(self, obj: Capture) -> list[str]:
         qs = obj.datasets.federation_exportable()

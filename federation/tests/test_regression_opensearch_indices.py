@@ -1,4 +1,6 @@
-"""Regression: OpenSearch fed-* mappings include RFC §6 search fields."""
+"""Regression: OpenSearch fed-* mappings include identity fields plus
+local capture ``capture_props`` / ``search_props`` (dynamic nested).
+"""
 
 from __future__ import annotations
 
@@ -31,11 +33,9 @@ RFC_CAPTURE_FIELDS = frozenset(
         "site_name",
         "capture_type",
         "channel",
-        "center_frequency",
-        "sample_rate",
-        "start_time",
-        "end_time",
-        "dataset_ids",
+        "capture_props",
+        "search_props",
+        "public_dataset_ids",
         "url",
     },
 )

@@ -76,6 +76,35 @@ def index_capture_metadata(capture: Capture, capture_props: dict[str, Any]) -> N
         raise
 
 
+def _props_from_source(source: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    src = source or {}
+    capture_props = src.get("capture_props") or {}
+    search_props = src.get("search_props") or {}
+    return {
+        "capture_props": capture_props if isinstance(capture_props, dict) else {},
+        "search_props": search_props if isinstance(search_props, dict) else {},
+    }
+
+
+def retrieve_indexed_prop_dicts(capture: Capture) -> dict[str, dict[str, Any]]:
+    """Return local-index ``capture_props`` and ``search_props`` for one capture."""
+    empty = _props_from_source(None)
+    try:
+        os_client = get_opensearch_client()
+        response = os_client.get(
+            index=capture.index_name,
+            id=capture.uuid,
+        )
+        return _props_from_source(response.get("_source"))
+    except os_exceptions.NotFoundError:
+        msg = "Document(s) or index not found in OpenSearch for metadata retrieval"
+        log.warning(msg)
+        return empty
+    except os_exceptions.OpenSearchException:
+        log.exception("Failed to retrieve capture OpenSearch props for federation")
+        return empty
+
+
 def retrieve_indexed_metadata(
     capture_or_captures: Capture | list[Capture],
 ) -> dict[str, Any]:
@@ -98,7 +127,7 @@ def retrieve_indexed_metadata(
                 index=capture_or_captures.index_name,
                 id=capture_or_captures.uuid,
             )
-            return response["_source"]["capture_props"]
+            return _props_from_source(response.get("_source"))["capture_props"]
 
         # we know it's a list here
         captures_list = capture_or_captures
