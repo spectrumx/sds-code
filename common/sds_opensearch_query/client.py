@@ -16,15 +16,13 @@ def build_opensearch_client(
 ) -> OpenSearch:
     payload = {
         "hosts": [{"host": host, "port": port}],
-        "http_auth": HTTPBasicAuth(
-            user,
-            password,
-        ),
         "use_ssl": use_ssl,
         "verify_certs": verify_certs,
         "ssl_show_warn": False,
         "connection_class": RequestsHttpConnection,
     }
+    if user:
+        payload["http_auth"] = HTTPBasicAuth(user, password)
     if verify_certs:
         if not ca_certs:
             msg = (

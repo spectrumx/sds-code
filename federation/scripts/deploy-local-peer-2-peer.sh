@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Bring up local + peer federation sync stacks for p2p testing.
 # Prereq: gateway local stack can be started from ../gateway.
+# Does not require Traefik; creates sds-network-local if missing.
 set -euo pipefail
 
 FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,6 +24,17 @@ info() { printf '==> %s\n' "$*"; }
 
 require_file() {
   [[ -f "$1" ]] || die "missing $1"
+}
+
+# Gateway/federation compose mark this external (Traefik creates it in real
+# deploys). Local p2p does not need Traefik — create the net if missing.
+ensure_docker_network() {
+  local name=$1
+  if docker network inspect "${name}" >/dev/null 2>&1; then
+    return 0
+  fi
+  info "Creating docker network ${name}"
+  docker network create --driver bridge "${name}" >/dev/null
 }
 
 wait_http_ok() {
@@ -82,6 +94,7 @@ fi
 # --- gateway ---
 info "Ensuring gateway local stack is running"
 require_file "${GATEWAY_COMPOSE}"
+ensure_docker_network sds-network-local
 (
   cd "${GATEWAY_ROOT}"
   # Start if missing; no-op if already up
@@ -91,9 +104,6 @@ require_file "${GATEWAY_COMPOSE}"
     up -d --remove-orphans
 )
 
-# External nets required by federation compose
-docker network inspect sds-network-local >/dev/null 2>&1 \
-  || die "network sds-network-local missing (gateway compose should create it)"
 docker network inspect sds-gateway-local-opensearch-net >/dev/null 2>&1 \
   || die "network sds-gateway-local-opensearch-net missing"
 

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 from sds_opensearch_query import bool_must_search_body
 from sds_opensearch_query import build_metadata_filter_clauses
 from sds_opensearch_query import nested_query_clause
+from sds_opensearch_query.client import build_opensearch_client
 
 pytest.importorskip("sds_opensearch_query")
 
@@ -47,3 +50,25 @@ def test_build_metadata_filter_clauses_term_and_nested() -> None:
 def test_bool_must_search_body() -> None:
     body = bool_must_search_body({"term": {"site_name": "crc"}})
     assert body["query"]["bool"]["must"] == [{"term": {"site_name": "crc"}}]
+
+
+@pytest.mark.regression
+def test_build_opensearch_client_omits_http_auth_when_user_blank() -> None:
+    with patch("sds_opensearch_query.client.OpenSearch") as mock_os:
+        build_opensearch_client(host="opensearch", port=9200, user="", password="")
+    kwargs = mock_os.call_args.kwargs
+    assert "http_auth" not in kwargs
+
+
+@pytest.mark.regression
+def test_build_opensearch_client_sets_http_auth_when_user_set() -> None:
+    with patch("sds_opensearch_query.client.OpenSearch") as mock_os:
+        build_opensearch_client(
+            host="opensearch",
+            port=9200,
+            user="admin",
+            password="secret",
+        )
+    auth = mock_os.call_args.kwargs["http_auth"]
+    assert auth.username == "admin"
+    assert auth.password == "secret"
