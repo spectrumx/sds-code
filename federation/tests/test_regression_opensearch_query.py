@@ -62,13 +62,15 @@ def test_build_opensearch_client_omits_http_auth_when_user_blank() -> None:
 
 @pytest.mark.regression
 def test_build_opensearch_client_sets_http_auth_when_user_set() -> None:
+    user = "admin"
+    cred = "test-only-credential"
     with patch("sds_opensearch_query.client.OpenSearch") as mock_os:
         build_opensearch_client(
             host="opensearch",
             port=9200,
-            user="admin",
-            password="secret",
+            user=user,
+            password=cred,
         )
     auth = mock_os.call_args.kwargs["http_auth"]
-    assert auth.username == "admin"
-    assert auth.password == "secret"
+    assert auth.username == user
+    assert auth.password == cred
