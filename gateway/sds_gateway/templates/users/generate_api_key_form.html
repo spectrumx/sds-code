@@ -17,6 +17,20 @@
                         <i class="bi bi-key"></i> View API Keys
                     </a>
                 </div>
+                <!-- SDK Documentation Banner -->
+                <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+                    <i class="bi bi-code-slash me-2"></i>
+                    <div>
+                        <a href="https://sds.crc.nd.edu/sdk/getting-started/"
+                           class="alert-link"
+                           target="_blank"
+                           rel="noopener">Use your API key with the Python SDK</a>
+                        — see the <a href="https://sds.crc.nd.edu/sdk/faq/#how-to-generate-a-secret-token"
+    class="alert-link"
+    target="_blank"
+    rel="noopener">FAQ for token generation</a>.
+                    </div>
+                </div>
                 <hr />
                 <div class="col-lg-12 mx-auto">
                     <form method="post" action="{% url 'users:view_api_key' %}">

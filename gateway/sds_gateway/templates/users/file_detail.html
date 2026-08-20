@@ -10,6 +10,15 @@
     <div>
         <a href="{% url 'users:files' %}?page={{ returning_page|default:1 }}"
            class="btn btn-primary mt-3">Back to File List</a>
+        <div class="alert alert-info d-flex align-items-center my-3" role="alert">
+            <i class="bi bi-code-slash me-2"></i>
+            <div>
+                <a href="https://sds.crc.nd.edu/sdk/api/sds_files/"
+                   class="alert-link"
+                   target="_blank"
+                   rel="noopener">Manage files via the Python SDK</a>.
+            </div>
+        </div>
         <h2>
             File <code>{{ file.name }}</code>
         </h2>
