@@ -35,7 +35,18 @@
                             </strong>
                         </div>
                         <div class="col-9">
-                            {% if key == "directory" or key == "sum_blake3" or key == "uuid" %}
+                            {% if key == "uuid" %}
+                                <code>{{ value }}</code>
+                                <button type="button"
+                                        class="copy-uuid-btn btn btn-link p-0 border-0 ms-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        title="Copy UUID"
+                                        data-uuid="{{ value }}"
+                                        aria-label="Copy file UUID">
+                                    <i class="bi bi-clipboard"></i> Copy UUID
+                                </button>
+                            {% elif key == "directory" or key == "sum_blake3" %}
                                 <code>{{ value }}</code>
                             {% elif key == "owner" %}
                                 {{ request.user.name }}
@@ -62,3 +73,14 @@
         {% endfor %}
     </ul>
 {% endblock content %}
+{% block javascript %}
+    <script src="{% static 'js/actions/DetailsActionManager.js' %}"></script>
+    <script>
+        (function() {
+            var btn = document.querySelector(".copy-uuid-btn");
+            if (btn && btn.dataset.uuid) {
+                DetailsActionManager.attachUuidCopyButton(document, btn.dataset.uuid);
+            }
+        })();
+    </script>
+{% endblock javascript %}

@@ -62,6 +62,19 @@ Capture details modal body — rendered server-side for ModalManager injection.
         <span class="fw-medium text-muted">{{ channel_label }}:</span>
         <span class="ms-2">{{ channel_value }}</span>
     </div>
+    <div class="mb-2">
+        <span class="fw-medium text-muted">UUID:</span>
+        <code class="ms-2">{{ capture_uuid }}</code>
+        <button type="button"
+                class="copy-uuid-btn btn btn-link p-0 border-0 ms-2"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Copy Capture UUID"
+                data-uuid="{{ capture_uuid }}"
+                aria-label="Copy capture UUID">
+            <i class="bi bi-clipboard"></i> Copy UUID
+        </button>
+    </div>
 </div>
 <div class="mb-4">
     <div class="d-flex align-items-center mb-3">

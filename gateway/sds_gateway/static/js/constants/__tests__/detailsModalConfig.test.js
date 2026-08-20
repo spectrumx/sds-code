@@ -67,6 +67,17 @@ describe("detailsModalConfig", () => {
         )
     })
 
+    test("capture afterInject wires attachUuidCopyButton on modal", () => {
+        const attachUuidCopyButton = jest.fn()
+        window.DetailsActionManager = { attachUuidCopyButton }
+        window.CaptureDetailsModalBehavior = {
+            afterInject: jest.fn(),
+        }
+        const modal = document.getElementById("asset-details-modal")
+        registry().capture.afterInject({ modal, meta: { uuid: "cap-42" } })
+        expect(attachUuidCopyButton).toHaveBeenCalledWith(modal, "cap-42")
+    })
+
     test("dataset afterInject wires uuid copy on modal", () => {
         const attachUuidCopyButton = jest.fn()
         window.DetailsActionManager = { attachUuidCopyButton }

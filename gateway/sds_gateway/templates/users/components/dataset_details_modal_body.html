@@ -16,16 +16,20 @@
                                 <label class="fw-bold text-muted mb-0">Dataset Name:</label>
                                 <div class="d-flex align-items-center gap-2">
                                     <p class="mb-0 dataset-details-name">{{ dataset.name }} (v{{ dataset.version }})</p>
-                                    <button type="button"
-                                            class="copy-uuid-btn btn btn-link p-0 border-0"
-                                            data-bs-toggle="tooltip"
-                                            data-bs-placement="top"
-                                            title="Copy Dataset UUID"
-                                            data-uuid="{{ dataset_uuid }}"
-                                            aria-label="Copy dataset UUID">
-                                        <i class="bi bi-clipboard"></i>
-                                    </button>
                                 </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="fw-bold text-muted">UUID:</label>
+                                <code class="ms-2">{{ dataset_uuid }}</code>
+                                <button type="button"
+                                        class="copy-uuid-btn btn btn-link p-0 border-0 ms-2"
+                                        data-bs-toggle="tooltip"
+                                        data-bs-placement="top"
+                                        title="Copy Dataset UUID"
+                                        data-uuid="{{ dataset_uuid }}"
+                                        aria-label="Copy dataset UUID">
+                                    <i class="bi bi-clipboard"></i> Copy UUID
+                                </button>
                             </div>
                             <div class="mb-3">
                                 <label class="fw-bold text-muted">Author(s):</label>

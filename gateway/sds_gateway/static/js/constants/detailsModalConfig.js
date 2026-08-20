@@ -43,6 +43,12 @@
             if (window.CaptureDetailsModalBehavior?.afterInject) {
                 window.CaptureDetailsModalBehavior.afterInject(ctx)
             }
+            if (window.DetailsActionManager?.attachUuidCopyButton) {
+                window.DetailsActionManager.attachUuidCopyButton(
+                    ctx.modal,
+                    ctx.meta?.uuid,
+                )
+            }
         },
         loadingTitle: "Loading capture details...",
     }
