@@ -77,7 +77,7 @@ def user_has_access_to_file(user, file: File) -> bool:
 
     # Check if file's captures are accessible (directly shared, owned by user)
     user_has_access_to_capture = any(
-        capture.owner == user or capture.uuid in shared_captures
+        capture.owner == user or capture.uuid in shared_captures or capture.is_public
         for capture in file_captures
     )
 
@@ -88,7 +88,9 @@ def user_has_access_to_file(user, file: File) -> bool:
                 capture, include_deleted=False
             )
             if any(
-                dataset.owner == user or dataset.uuid in shared_datasets
+                dataset.owner == user
+                or dataset.uuid in shared_datasets
+                or dataset.is_public
                 for dataset in capture_datasets
             ):
                 user_has_access_to_capture = True
@@ -97,7 +99,7 @@ def user_has_access_to_file(user, file: File) -> bool:
     # Use centralized function to get datasets (handles both M2M and FK)
     file_datasets = relationship_utils.get_file_datasets(file, include_deleted=False)
     user_has_access_to_dataset = any(
-        dataset.owner == user or dataset.uuid in shared_datasets
+        dataset.owner == user or dataset.uuid in shared_datasets or dataset.is_public
         for dataset in file_datasets
     )
 
