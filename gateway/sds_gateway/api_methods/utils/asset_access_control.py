@@ -42,7 +42,7 @@ def user_has_access_to_capture(user, capture: Capture) -> bool:
 
     # Check if any dataset is owned by user or in shared_datasets
     user_has_access_to_dataset = any(
-        dataset.owner == user or dataset.uuid in shared_datasets
+        dataset.owner == user or dataset.uuid in shared_datasets or dataset.is_public
         for dataset in capture_datasets
     )
 
