@@ -153,6 +153,7 @@ def get_accessible_files_queryset(user):
                 |
                 # Capture directly shared with user
                 Q(captures__uuid__in=captures_shared_with_user)
+                | Q(captures__is_public=True)
                 |
                 # Capture part of dataset that is shared with user (via M2M)
                 Q(
@@ -164,6 +165,7 @@ def get_accessible_files_queryset(user):
                     |
                     # Dataset directly shared with user
                     Q(captures__datasets__uuid__in=datasets_shared_with_user)
+                    | Q(captures__datasets__is_public=True)
                 )
             )
         )
@@ -202,6 +204,7 @@ def get_accessible_files_queryset(user):
                 |
                 # Dataset directly shared with user
                 Q(datasets__uuid__in=datasets_shared_with_user)
+                | Q(datasets__is_public=True)
             )
         )
         |
@@ -268,6 +271,7 @@ def get_accessible_captures_queryset(user):
                 |
                 # Dataset directly shared with user
                 Q(datasets__uuid__in=datasets_shared_with_user)
+                | Q(datasets__is_public=True)
             )
         )
         |
