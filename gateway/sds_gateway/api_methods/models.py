@@ -1455,6 +1455,12 @@ class UserSharePermission(BaseModel):
         if permission:
             return permission.permission_level
 
+        # if we get to here then check if the item is public
+        if item_type in item_models:
+            model_class = item_models[ItemType(item_type)]
+            if model_class.objects.filter(uuid=item_uuid).exists():
+                return PermissionLevel.VIEWER
+
         return None
 
     @classmethod
