@@ -324,6 +324,61 @@ class AssetAccessControlTestCase(TestCase):
         assert file1 not in other_files
         assert file2 in other_files  # File owner always has access
 
+    def test_public_m2m_assets_are_in_accessible_querysets(self):
+        """Public M2M relationships grant access without an explicit share."""
+        # Generated test via Cursor
+        public_dataset = Dataset.objects.create(
+            name="Public Dataset",
+            owner=self.owner,
+            description="Public test dataset",
+            is_public=True,
+        )
+        public_capture = Capture.objects.create(
+            name="Public Capture",
+            owner=self.owner,
+            capture_type=CaptureType.RadioHound,
+            index_name="public-captures-rh",
+            top_level_dir="public-capture-dir",
+            is_public=True,
+        )
+        capture_in_public_dataset = Capture.objects.create(
+            name="Capture in Public Dataset",
+            owner=self.owner,
+            capture_type=CaptureType.RadioHound,
+            index_name="public-dataset-captures-rh",
+            top_level_dir="public-dataset-capture-dir",
+        )
+        capture_in_public_dataset.datasets.add(public_dataset)
+
+        file_in_public_capture = File.objects.create(
+            name="public-capture-file.h5",
+            owner=self.owner,
+            size=1000,
+        )
+        file_in_public_capture.captures.add(public_capture)
+
+        file_in_capture_in_public_dataset = File.objects.create(
+            name="public-dataset-capture-file.h5",
+            owner=self.owner,
+            size=1000,
+        )
+        file_in_capture_in_public_dataset.captures.add(capture_in_public_dataset)
+
+        file_in_public_dataset = File.objects.create(
+            name="public-dataset-file.h5",
+            owner=self.owner,
+            size=1000,
+        )
+        file_in_public_dataset.datasets.add(public_dataset)
+
+        accessible_files = get_accessible_files_queryset(self.other_user)
+        accessible_captures = get_accessible_captures_queryset(self.other_user)
+
+        assert file_in_public_capture in accessible_files
+        assert file_in_capture_in_public_dataset in accessible_files
+        assert file_in_public_dataset in accessible_files
+        assert capture_in_public_dataset in accessible_captures
+
     # Queryset tests with both FK and M2M
     def test_get_accessible_files_queryset_via_both_relationships(self):
         """Test get_accessible_files_queryset with both FK and M2M relationships."""
