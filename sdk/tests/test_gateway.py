@@ -539,6 +539,7 @@ def test_list_captures_sends_page_params() -> None:
     gw.list_captures(page=2, page_size=50)
     assert len(responses.calls) == 1
     request_url = responses.calls[0].request.url
+    assert request_url is not None
     assert "page=2" in request_url
     assert "page_size=50" in request_url
 
