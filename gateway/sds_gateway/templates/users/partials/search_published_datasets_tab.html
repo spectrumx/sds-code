@@ -104,97 +104,97 @@
                                 <td class="text-nowrap">
                                     {% if dataset.created_at %}
                                         {% localtime on %}
-                                        <div class="d-flex align-items-center gap-2">
-                                            <span class="bg-transparent pe-2">{{ dataset.created_at|date:"Y-m-d" }}</span>
-                                            <span class="text-muted bg-transparent">{{ dataset.created_at|date:"H:i:s T" }}</span>
-                                        </div>
-                                    {% endlocaltime %}
-                                {% else %}
-                                    -
-                                {% endif %}
-                            </td>
-                            {% if user.is_authenticated and not dataset.is_federated %}
-                                <td class="text-center">
-                                    <div class="dropdown">
-                                        <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                                type="button"
-                                                data-bs-toggle="dropdown"
-                                                data-bs-boundary="viewport"
-                                                aria-expanded="false"
-                                                aria-label="Actions for {{ dataset.name }}">
-                                            <i class="bi bi-three-dots-vertical"></i>
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li>
-                                                <button class="dropdown-item web-download-btn"
-                                                        type="button"
-                                                        data-dataset-uuid="{{ dataset.uuid }}"
-                                                        data-dataset-name="{{ dataset.name }}">
-                                                    <i class="bi bi-download me-2"></i>Web Download
-                                                </button>
-                                            </li>
-                                            <li>
-                                                <button class="dropdown-item sdk-download-btn"
-                                                        type="button"
-                                                        data-dataset-uuid="{{ dataset.uuid }}">
-                                                    <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
-                                                </button>
-                                            </li>
-                                        </ul>
-                                    </div>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <span class="bg-transparent pe-2">{{ dataset.created_at|date:"Y-m-d" }}</span>
+                                                <span class="text-muted bg-transparent">{{ dataset.created_at|date:"H:i:s T" }}</span>
+                                            </div>
+                                        {% endlocaltime %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
                                 </td>
-                            {% elif user.is_authenticated %}
-                                <td class="text-center text-muted">—</td>
-                            {% endif %}
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% endif %}
+                                {% if user.is_authenticated and not dataset.is_federated %}
+                                    <td class="text-center">
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown"
+                                                    data-bs-boundary="viewport"
+                                                    aria-expanded="false"
+                                                    aria-label="Actions for {{ dataset.name }}">
+                                                <i class="bi bi-three-dots-vertical"></i>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <button class="dropdown-item web-download-btn"
+                                                            type="button"
+                                                            data-dataset-uuid="{{ dataset.uuid }}"
+                                                            data-dataset-name="{{ dataset.name }}">
+                                                        <i class="bi bi-download me-2"></i>Web Download
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item sdk-download-btn"
+                                                            type="button"
+                                                            data-dataset-uuid="{{ dataset.uuid }}">
+                                                        <i class="bi bi-code-slash me-2"></i>SDK Download Instructions
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                {% elif user.is_authenticated %}
+                                    <td class="text-center text-muted">—</td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
+        </div>
     </div>
-</div>
-<!-- Pagination for Search Results -->
-{% if page_obj and page_obj.has_other_pages %}
-    <nav aria-label="Search results pagination" class="mt-4">
-        <ul class="pagination justify-content-center">
-            {% if page_obj.has_previous %}
-                <li class="page-item">
-                    <a class="page-link"
-                       href="?page=1{% if search_querystring %}&{{ search_querystring }}{% endif %}">First</a>
+    <!-- Pagination for Search Results -->
+    {% if page_obj and page_obj.has_other_pages %}
+        <nav aria-label="Search results pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page=1{% if search_querystring %}&{{ search_querystring }}{% endif %}">First</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.previous_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Previous</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">First</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Previous</span>
+                    </li>
+                {% endif %}
+                <li class="page-item active">
+                    <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
                 </li>
-                <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ page_obj.previous_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Previous</a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">First</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">Previous</span>
-                </li>
-            {% endif %}
-            <li class="page-item active">
-                <span class="page-link">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
-            </li>
-            {% if page_obj.has_next %}
-                <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ page_obj.next_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Next</a>
-                </li>
-                <li class="page-item">
-                    <a class="page-link"
-                       href="?page={{ page_obj.paginator.num_pages }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Last</a>
-                </li>
-            {% else %}
-                <li class="page-item disabled">
-                    <span class="page-link">Next</span>
-                </li>
-                <li class="page-item disabled">
-                    <span class="page-link">Last</span>
-                </li>
-            {% endif %}
-        </ul>
-    </nav>
-{% endif %}
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.next_page_number }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Next</a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link"
+                           href="?page={{ page_obj.paginator.num_pages }}{% if search_querystring %}&{{ search_querystring }}{% endif %}">Last</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link">Next</span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link">Last</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
 </div>

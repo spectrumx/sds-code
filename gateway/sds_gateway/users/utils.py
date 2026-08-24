@@ -44,7 +44,7 @@ def deduplicate_composite_captures(captures: list[Capture]) -> list[Capture]:
     for top_level_dir, group_captures in composite_groups.items():
         if top_level_dir not in seen_top_level_dirs:
             # Sort by created_at to get the base capture (first one)
-            base_capture = sorted(group_captures, key=lambda c: c.created_at)[0]
+            base_capture = min(group_captures, key=lambda c: c.created_at)
             unique_captures.append(base_capture)
             seen_top_level_dirs.add(top_level_dir)
 

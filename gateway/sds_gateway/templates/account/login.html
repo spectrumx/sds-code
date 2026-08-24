@@ -15,12 +15,12 @@
         {% if not SOCIALACCOUNT_ONLY %}
             {% setvar link %}
             <a href="{{ signup_url }}">
-            {% endsetvar %}
-            {% setvar end_link %}
-        </a>
-    {% endsetvar %}
-    {% element p %}
-    {% blocktranslate %}New here? {{ link }}Create an account{{ end_link }}.{% endblocktranslate %}
+        {% endsetvar %}
+        {% setvar end_link %}
+    </a>
+{% endsetvar %}
+{% element p %}
+{% blocktranslate %}New here? {{ link }}Create an account{{ end_link }}.{% endblocktranslate %}
 {% endelement %}
 {% url 'account_login' as login_url %}
 {% element form form=form method="post" action=login_url tags="entrance,login" %}

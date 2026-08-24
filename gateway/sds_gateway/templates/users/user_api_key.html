@@ -89,132 +89,132 @@
                                                 <td class="text-nowrap">
                                                     {% if key.created %}
                                                         {% localtime on %}
-                                                        <span class="bg-transparent pe-2">{{ key.created|date:"Y-m-d" }}</span>
-                                                        <span class="text-muted bg-transparent">{{ key.created|date:"H:i:s T" }}</span>
-                                                    {% endlocaltime %}
-                                                {% else %}
-                                                    -
-                                                {% endif %}
-                                            </td>
-                                            <td class="text-nowrap">
-                                                {% if key.expiry_date %}
-                                                    {% localtime on %}
-                                                    <span class="bg-transparent pe-2">{{ key.expiry_date|date:"Y-m-d" }}</span>
-                                                    <span class="text-muted bg-transparent">{{ key.expiry_date|date:"H:i:s T" }}</span>
-                                                {% endlocaltime %}
-                                            {% else %}
-                                                Does not expire
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if key.revoked %}
-                                                <span class="text-danger">Yes</span>
-                                            {% else %}
-                                                <span class="text-success">No</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if key.revoked %}
-                                                <button class="btn btn-sm btn-light btn-icon-dropdown disabled"
-                                                        type="button"
-                                                        disabled
-                                                        aria-label="No actions available for revoked key"
-                                                        title="No actions available for revoked key">
-                                                    <i class="bi bi-three-dots-vertical text-muted"></i>
-                                                </button>
-                                            {% else %}
-                                                <div class="dropdown">
-                                                    <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
-                                                            type="button"
-                                                            id="actionDropdown{{ key.id }}"
-                                                            data-bs-toggle="dropdown"
-                                                            aria-expanded="false">
-                                                        <i class="bi bi-three-dots-vertical"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
-                                                        <li>
-                                                            <button type="button"
-                                                                    class="dropdown-item text-danger"
-                                                                    onclick="showApiKeyModal('revoke', '{{ key.id }}')">
-                                                                Revoke
+                                                            <span class="bg-transparent pe-2">{{ key.created|date:"Y-m-d" }}</span>
+                                                            <span class="text-muted bg-transparent">{{ key.created|date:"H:i:s T" }}</span>
+                                                        {% endlocaltime %}
+                                                    {% else %}
+                                                        -
+                                                    {% endif %}
+                                                </td>
+                                                <td class="text-nowrap">
+                                                    {% if key.expiry_date %}
+                                                        {% localtime on %}
+                                                            <span class="bg-transparent pe-2">{{ key.expiry_date|date:"Y-m-d" }}</span>
+                                                            <span class="text-muted bg-transparent">{{ key.expiry_date|date:"H:i:s T" }}</span>
+                                                        {% endlocaltime %}
+                                                    {% else %}
+                                                        Does not expire
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.revoked %}
+                                                        <span class="text-danger">Yes</span>
+                                                    {% else %}
+                                                        <span class="text-success">No</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    {% if key.revoked %}
+                                                        <button class="btn btn-sm btn-light btn-icon-dropdown disabled"
+                                                                type="button"
+                                                                disabled
+                                                                aria-label="No actions available for revoked key"
+                                                                title="No actions available for revoked key">
+                                                            <i class="bi bi-three-dots-vertical text-muted"></i>
+                                                        </button>
+                                                    {% else %}
+                                                        <div class="dropdown">
+                                                            <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown"
+                                                                    type="button"
+                                                                    id="actionDropdown{{ key.id }}"
+                                                                    data-bs-toggle="dropdown"
+                                                                    aria-expanded="false">
+                                                                <i class="bi bi-three-dots-vertical"></i>
                                                             </button>
-                                                        </li>
-                                                    </ul>
-                                                </div>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0 text-center py-5">
-                            <p>You currently do not have any API Keys.</p>
+                                                            <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
+                                                                <li>
+                                                                    <button type="button"
+                                                                            class="dropdown-item text-danger"
+                                                                            onclick="showApiKeyModal('revoke', '{{ key.id }}')">
+                                                                        Revoke
+                                                                    </button>
+                                                                </li>
+                                                            </ul>
+                                                        </div>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <div class="col-lg-6 offset-lg-3 col-md-8 offset-md-2 col-sm-12 offset-sm-0 text-center py-5">
+                                    <p>You currently do not have any API Keys.</p>
+                                </div>
+                            {% endif %}
+                            <div class="text-center">
+                                <a type="button" class="capture-link" href="#current-api-keys-section">Back to Top</a>
+                            </div>
                         </div>
-                    {% endif %}
-                    <div class="text-center">
-                        <a type="button" class="capture-link" href="#current-api-keys-section">Back to Top</a>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
-</div>
-<!-- Custom Modal for Delete/Revoke API Key -->
-<div class="custom-modal"
-     id="apiKeyModal"
-     tabindex="-1"
-     aria-labelledby="apiKeyModalLabel"
-     aria-hidden="true">
-    <div class="custom-modal-backdrop"
-         onclick="closeCustomModal('apiKeyModal')"></div>
-    <div class="custom-modal-dialog">
-        <div class="custom-modal-content">
-            <div class="custom-modal-header">
-                <h5 class="custom-modal-title" id="apiKeyModalLabel">Confirm Action</h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal"
-                        aria-label="Close"
-                        onclick="closeCustomModal('apiKeyModal')"></button>
-            </div>
-            <form id="apiKeyModalForm" method="post">
-                {% csrf_token %}
-                <input type="hidden" name="key_id" id="apiKeyModalKeyId" value="" />
-                <div class="custom-modal-body">
-                    <p id="apiKeyModalMessage">Are you sure you want to perform this action?</p>
-                </div>
-                <div class="custom-modal-footer">
+    <!-- Custom Modal for Delete/Revoke API Key -->
+    <div class="custom-modal"
+         id="apiKeyModal"
+         tabindex="-1"
+         aria-labelledby="apiKeyModalLabel"
+         aria-hidden="true">
+        <div class="custom-modal-backdrop"
+             onclick="closeCustomModal('apiKeyModal')"></div>
+        <div class="custom-modal-dialog">
+            <div class="custom-modal-content">
+                <div class="custom-modal-header">
+                    <h5 class="custom-modal-title" id="apiKeyModalLabel">Confirm Action</h5>
                     <button type="button"
-                            class="btn btn-secondary"
-                            onclick="closeCustomModal('apiKeyModal')">Cancel</button>
-                    <button type="submit" class="btn btn-primary" id="apiKeyModalConfirmBtn">Confirm</button>
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Close"
+                            onclick="closeCustomModal('apiKeyModal')"></button>
                 </div>
-            </form>
+                <form id="apiKeyModalForm" method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="key_id" id="apiKeyModalKeyId" value="" />
+                    <div class="custom-modal-body">
+                        <p id="apiKeyModalMessage">Are you sure you want to perform this action?</p>
+                    </div>
+                    <div class="custom-modal-footer">
+                        <button type="button"
+                                class="btn btn-secondary"
+                                onclick="closeCustomModal('apiKeyModal')">Cancel</button>
+                        <button type="submit" class="btn btn-primary" id="apiKeyModalConfirmBtn">Confirm</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
-<script>
-    function showApiKeyModal(action, keyId) {
-        var modal = document.getElementById('apiKeyModal');
-        var form = document.getElementById('apiKeyModalForm');
-        var message = document.getElementById('apiKeyModalMessage');
-        var confirmBtn = document.getElementById('apiKeyModalConfirmBtn');
-        var keyInput = document.getElementById('apiKeyModalKeyId');
-        keyInput.value = keyId;
-        if (action === 'revoke') {
-            form.action = "{% url 'users:revoke_api_key' %}";
-            message.textContent = 'Are you sure you want to revoke this API Key? This cannot be undone.';
-            confirmBtn.textContent = 'Revoke';
-            confirmBtn.className = 'btn btn-danger';
+    <script>
+        function showApiKeyModal(action, keyId) {
+            var modal = document.getElementById('apiKeyModal');
+            var form = document.getElementById('apiKeyModalForm');
+            var message = document.getElementById('apiKeyModalMessage');
+            var confirmBtn = document.getElementById('apiKeyModalConfirmBtn');
+            var keyInput = document.getElementById('apiKeyModalKeyId');
+            keyInput.value = keyId;
+            if (action === 'revoke') {
+                form.action = "{% url 'users:revoke_api_key' %}";
+                message.textContent = 'Are you sure you want to revoke this API Key? This cannot be undone.';
+                confirmBtn.textContent = 'Revoke';
+                confirmBtn.className = 'btn btn-danger';
+            }
+            modal.style.display = 'block';
         }
-        modal.style.display = 'block';
-    }
 
-    function closeCustomModal(modalId) {
-        var modal = document.getElementById(modalId);
-        modal.style.display = 'none';
-    }
-</script>
+        function closeCustomModal(modalId) {
+            var modal = document.getElementById(modalId);
+            modal.style.display = 'none';
+        }
+    </script>
 {% endblock content %}

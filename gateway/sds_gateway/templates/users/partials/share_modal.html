@@ -263,17 +263,17 @@
                                                                     </ul>
                                                                 </div>
                                                             {% endif %}
-                                                        </div>
-                                                    {% else %}
-                                                        <!-- Show permission level as static badge for users who can't manage permissions -->
-                                                        <span class="badge {{ user.permission_level|permission_badge_class }} access-level-badge">
-                                                            <i class="bi {{ user.permission_level|permission_icon }} me-1"></i>{{ user.permission_level|title }}
-                                                        </span>
-                                                    {% endif %}
+                                                            </div>
+                                                        {% else %}
+                                                            <!-- Show permission level as static badge for users who can't manage permissions -->
+                                                            <span class="badge {{ user.permission_level|permission_badge_class }} access-level-badge">
+                                                                <i class="bi {{ user.permission_level|permission_icon }} me-1"></i>{{ user.permission_level|title }}
+                                                            </span>
+                                                        {% endif %}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                    </tr>
+                                            </td>
+                                        </tr>
                                 {% endif %}
                             {% endfor %}
                         </tbody>

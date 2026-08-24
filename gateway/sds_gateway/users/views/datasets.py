@@ -907,8 +907,10 @@ class GroupCapturesView(
                         "success": False,
                         "errors": {
                             "non_field_errors": [
-                                f"Capture {capture_id} not found or you don't have "
-                                "permission to add it to a dataset.",
+                                (
+                                    f"Capture {capture_id} not found or you don't have "
+                                    "permission to add it to a dataset."
+                                ),
                             ],
                         },
                     },
