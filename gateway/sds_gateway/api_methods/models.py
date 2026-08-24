@@ -690,8 +690,8 @@ class Capture(BaseModel):
             "sample_rate": sample_rate,
             "frequency_min": search_props.get("frequency_min"),
             "frequency_max": search_props.get("frequency_max"),
-            "start_time": search_props.get("start_time", None),
-            "end_time": search_props.get("end_time", None),
+            "start_time": _safe_epoch_float(search_props.get("start_time", None)),
+            "end_time": _safe_epoch_float(search_props.get("end_time", None)),
             "file_cadence": file_cadence,
         }
 
@@ -1841,8 +1841,8 @@ def _extract_bulk_frequency_data(
         "sample_rate": sample_rate,
         "frequency_min": search_props.get("frequency_min"),
         "frequency_max": search_props.get("frequency_max"),
-        "start_time": search_props.get("start_time"),
-        "end_time": search_props.get("end_time"),
+        "start_time": _safe_epoch_float(search_props.get("start_time")),
+        "end_time": _safe_epoch_float(search_props.get("end_time")),
         "file_cadence": None,  # requires per-capture file count; skip in bulk
     }
 
