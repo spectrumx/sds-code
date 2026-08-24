@@ -47,6 +47,17 @@ def _clear_request_cache(sender, **kwargs):
 
 request_started.connect(_clear_request_cache, weak=False)
 
+
+def _safe_epoch_float(val: Any) -> float | None:
+    """Coerce an epoch value that may be str|int|float to float, or None."""
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 DRF_RF_FILENAME_REGEX_STR = r"^rf@\d+\.\d+\.h5$"
 
 
@@ -689,8 +700,8 @@ class Capture(BaseModel):
     ) -> int | None:
         """Extract file cadence (in milliseconds) from OpenSearch source data."""
         count = self.get_drf_data_files_stats()["total_count"]
-        start_time = search_props.get("start_time")
-        end_time = search_props.get("end_time")
+        start_time = _safe_epoch_float(search_props.get("start_time"))
+        end_time = _safe_epoch_float(search_props.get("end_time"))
 
         if start_time is None or end_time is None:
             log.warning(f"Start or end time not found for DRF capture {self.uuid}")

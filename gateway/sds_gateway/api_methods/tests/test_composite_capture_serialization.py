@@ -195,3 +195,45 @@ class CompositeCaptureSerializationTests(TestCase):
         assert out["capture_start_epoch_sec"] == 1_800_000_000
         assert out["capture_end_iso_utc"] == _epoch_sec_to_iso_utc_z(1_800_000_030)
         assert out["length_of_capture_ms"] == 30_000
+
+
+def test_channel_row_bounds_from_os_meta_string_times():
+    """start_time/end_time as strings (from OpenSearch) must not crash."""
+    from sds_gateway.api_methods.serializers.capture_serializers import (
+        _channel_row_bounds_from_os_meta,
+    )
+
+    meta = {
+        "start_time": "1700000000",
+        "end_time": "1700000100",
+        "file_cadence": 1000,
+    }
+    result = _channel_row_bounds_from_os_meta(meta)
+    assert result["length_of_capture_ms"] == 100_000.0
+    assert result["capture_start_epoch_sec"] == 1700000000.0
+    assert result["capture_end_epoch_sec"] == 1700000100.0
+
+
+def test_channel_row_bounds_from_os_meta_mixed_types():
+    """One string, one int — must not crash."""
+    from sds_gateway.api_methods.serializers.capture_serializers import (
+        _channel_row_bounds_from_os_meta,
+    )
+
+    meta = {
+        "start_time": "1700000000",
+        "end_time": 1700000100,
+    }
+    result = _channel_row_bounds_from_os_meta(meta)
+    assert result["length_of_capture_ms"] == 100_000.0
+
+
+def test_channel_row_bounds_from_os_meta_none_values():
+    """None start/end must return None length."""
+    from sds_gateway.api_methods.serializers.capture_serializers import (
+        _channel_row_bounds_from_os_meta,
+    )
+
+    meta = {"start_time": None, "end_time": 1700000100}
+    result = _channel_row_bounds_from_os_meta(meta)
+    assert result["length_of_capture_ms"] is None

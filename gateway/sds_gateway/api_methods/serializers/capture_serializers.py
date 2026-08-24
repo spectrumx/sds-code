@@ -47,11 +47,21 @@ def _epoch_sec_to_local_display(epoch_sec: int) -> str:
     return django_timezone.localtime(dt).strftime("%m/%d/%Y %I:%M:%S %p")
 
 
+def _safe_epoch_float(val: Any) -> float | None:
+    """Coerce an epoch value that may be str|int|float to float, or None."""
+    if val is None:
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def _channel_row_bounds_from_os_meta(meta: dict[str, Any]) -> dict[str, Any]:
     """Map OpenSearch metadata to composite channel serializer fields."""
     entry: dict[str, Any] = {}
-    start_sec = meta.get("start_time")
-    end_sec = meta.get("end_time")
+    start_sec = _safe_epoch_float(meta.get("start_time"))
+    end_sec = _safe_epoch_float(meta.get("end_time"))
     entry["capture_start_epoch_sec"] = start_sec
     entry["capture_end_epoch_sec"] = end_sec
     entry["capture_start_iso_utc"] = (
