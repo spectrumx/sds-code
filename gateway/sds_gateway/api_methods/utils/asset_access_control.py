@@ -103,7 +103,12 @@ def user_has_access_to_file(user, file: File) -> bool:
         for dataset in file_datasets
     )
 
-    return user_owns_file or user_has_access_to_capture or user_has_access_to_dataset
+    return (
+        user_owns_file
+        or user_has_access_to_capture
+        or user_has_access_to_dataset
+        or file.is_public
+    )
 
 
 def get_accessible_files_queryset(user):
