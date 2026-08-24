@@ -158,8 +158,8 @@ class GatewayClient:
         self,
         *,
         endpoint: Endpoints,
-        asset_id: None | str = None,
-        endpoint_args: None | dict[str, Any] = None,
+        asset_id: str | None = None,
+        endpoint_args: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         endpoint_fmt = (
             endpoint.value.format(**endpoint_args) if endpoint_args else endpoint.value
@@ -187,10 +187,10 @@ class GatewayClient:
         method: HTTPMethods,
         endpoint: Endpoints,
         *,
-        asset_id: None | str = None,
-        endpoint_args: None | dict[str, Any] = None,
+        asset_id: str | None = None,
+        endpoint_args: dict[str, Any] | None = None,
         stream: bool = False,
-        timeout: None | int = None,
+        timeout: int | None = None,
         verbose: bool = False,
         **kwargs,
     ) -> requests.Response:

@@ -99,7 +99,7 @@ UnsetT = TypeVar("UnsetT", bound="Unset")
 class Unset:
     """A placeholder for unset values and allow None to be a valid value."""
 
-    _instance: None | Self = None
+    _instance: Self | None = None
 
     def __new__(cls, *args, **kwargs) -> "Self":
         if cls._instance is None:

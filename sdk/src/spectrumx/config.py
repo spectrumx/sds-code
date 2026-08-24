@@ -73,7 +73,7 @@ class DeprecatedOption:
 class SDSConfig:
     """Configuration for the SpectrumX Data System."""
 
-    sds_host: None | str = None
+    sds_host: str | None = None
     api_key: str = ""
     dry_run: bool = True  # safer default
     timeout: int = DEFAULT_HTTP_TIMEOUT
@@ -88,7 +88,7 @@ class SDSConfig:
         *,
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
-        sds_host: None | str = None,
+        sds_host: str | None = None,
         verbose: bool = False,
         log_file: Path | None = None,
     ) -> None:
@@ -107,7 +107,7 @@ class SDSConfig:
     def init_config(
         self,
         *,
-        env_file: Path | None | type[Unset] = Unset,
+        env_file: Path | type[Unset] | None = Unset,
         env_config: Mapping[str, Any] | None,
         verbose: bool,
     ) -> None:

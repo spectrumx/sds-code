@@ -99,7 +99,7 @@ class Client:
 
     def __init__(
         self,
-        host: None | str,
+        host: str | None,
         *,
         env_file: Path | None = None,
         env_config: Mapping[str, Any] | None = None,
