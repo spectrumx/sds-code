@@ -280,7 +280,8 @@ def test_listing_captures_with_type_filter(
     mocked_listing_response = {"results": [sample_capture_data], "next": None}
 
     # Build the URL with query parameter
-    url = f"{get_captures_endpoint(client)}?capture_type={capture_type.value}"
+    params = f"capture_type={capture_type.value}&page=1&page_size=30"
+    url = f"{get_captures_endpoint(client)}?{params}"
 
     responses.add(
         method=responses.GET,
@@ -1463,20 +1464,124 @@ def test_create_capture_verbose_logging(
 # ── Listing method edge cases ───────────────────────────────────────────────
 
 
-def test_listing_captures_has_more_warning(
+def test_listing_fetches_all_pages_with_next(
     loguru_caplog: io.StringIO,
 ) -> None:
-    """Warning logged when 'next' has a non-empty URL (has_more=True)."""
-    payload = _build_drf_capture_payload()
-    payload["next"] = "http://example.com/next"
-    gateway = _GatewayStub(payload=payload)
-    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+    """Listing fetches all pages when 'next' is non-empty."""
+    from unittest.mock import MagicMock
+
+    page1 = {
+        "count": 3,
+        "results": [
+            _build_drf_capture_payload(name="page1-capture1"),
+            _build_drf_capture_payload(name="page1-capture2"),
+        ],
+        "next": "http://example.com/api/v1/assets/captures/?page=2",
+    }
+    page2 = {
+        "count": 3,
+        "results": [_build_drf_capture_payload(name="page2-capture1")],
+        "next": None,
+    }
+    gateway = MagicMock()
+    gateway.list_captures.side_effect = [
+        json.dumps(page1).encode("utf-8"),
+        json.dumps(page2).encode("utf-8"),
+    ]
+    api = CaptureAPI(gateway=gateway, dry_run=False)
 
     captures = api.listing()
 
-    assert len(captures) == 1
-    output = loguru_caplog.getvalue()
-    assert "Not all capture results may be listed" in output
+    assert len(captures) == 3
+    assert gateway.list_captures.call_count == 2
+    assert captures[0].name == "page1-capture1"
+    assert captures[1].name == "page1-capture2"
+    assert captures[2].name == "page2-capture1"
+
+
+def test_listing_fetches_all_pages() -> None:
+    """listing() loops through pages and returns all captures."""
+    from unittest.mock import MagicMock
+
+    page1 = {
+        "count": 4,
+        "results": [
+            _build_drf_capture_payload(name="cap1"),
+            _build_drf_capture_payload(name="cap2"),
+        ],
+        "next": "http://example.com/api/v1/assets/captures/?page=2",
+    }
+    page2 = {
+        "count": 4,
+        "results": [
+            _build_drf_capture_payload(name="cap3"),
+            _build_drf_capture_payload(name="cap4"),
+        ],
+        "next": None,
+    }
+    gateway = MagicMock()
+    gateway.list_captures.side_effect = [
+        json.dumps(page1).encode("utf-8"),
+        json.dumps(page2).encode("utf-8"),
+    ]
+    api = CaptureAPI(gateway=gateway, dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 4
+    assert gateway.list_captures.call_count == 2
+
+
+def test_listing_single_page_no_next() -> None:
+    """listing() with a single page (no 'next') returns all captures."""
+    from unittest.mock import MagicMock
+
+    page = {
+        "count": 2,
+        "results": [
+            _build_drf_capture_payload(name="only1"),
+            _build_drf_capture_payload(name="only2"),
+        ],
+        "next": None,
+    }
+    gateway = MagicMock()
+    gateway.list_captures.return_value = json.dumps(page).encode("utf-8")
+    api = CaptureAPI(gateway=gateway, dry_run=False)
+
+    captures = api.listing()
+
+    assert len(captures) == 2
+    assert gateway.list_captures.call_count == 1
+
+
+def test_listing_passes_capture_type_across_pages() -> None:
+    """capture_type is forwarded to gateway.list_captures on every page."""
+    from unittest.mock import MagicMock
+
+    capture_type = CaptureType.DigitalRF
+    page1 = {
+        "count": 2,
+        "results": [_build_drf_capture_payload()],
+        "next": "http://example.com/api/v1/assets/captures/?page=2",
+    }
+    page2 = {
+        "count": 2,
+        "results": [_build_drf_capture_payload()],
+        "next": None,
+    }
+    gateway = MagicMock()
+    gateway.list_captures.side_effect = [
+        json.dumps(page1).encode("utf-8"),
+        json.dumps(page2).encode("utf-8"),
+    ]
+    api = CaptureAPI(gateway=gateway, dry_run=False)
+
+    captures = api.listing(capture_type=capture_type)
+
+    assert len(captures) == 2
+    assert gateway.list_captures.call_count == 2
+    for call_args in gateway.list_captures.call_args_list:
+        assert call_args.kwargs.get("capture_type") == capture_type
 
 
 def test_listing_captures_verbose_logging(
@@ -1708,10 +1813,12 @@ def test_extract_page_from_payload_dict_with_next() -> None:
     """Dict result (no 'results' key) with non-empty 'next' URL."""
     payload = _build_drf_capture_payload()
     payload["next"] = "http://example.com/next"
+    payload["count"] = 5
 
-    result, has_more = extract(json.dumps(payload).encode("utf-8"))
+    result, has_more, count = extract(json.dumps(payload).encode("utf-8"))
 
     assert has_more is True  # line 423
+    assert count == 5
     assert isinstance(result, list)
     assert len(result) == 1  # line 427
     assert result[0]["uuid"] == payload["uuid"]
@@ -1721,10 +1828,12 @@ def test_extract_page_from_payload_dict_with_empty_next() -> None:
     """Dict result (no 'results' key) with empty 'next' URL."""
     payload = _build_drf_capture_payload()
     payload["next"] = ""
+    payload["count"] = 1
 
-    result, has_more = extract(json.dumps(payload).encode("utf-8"))
+    result, has_more, count = extract(json.dumps(payload).encode("utf-8"))
 
     assert has_more is False
+    assert count == 1
     assert isinstance(result, list)
     assert len(result) == 1
     assert result[0]["uuid"] == payload["uuid"]
@@ -1737,8 +1846,14 @@ class _GatewayStub:
         self._payload = payload
         self.calls = 0
 
-    def list_captures(self, capture_type: CaptureType | None = None) -> bytes:
-        del capture_type  # unused in tests
+    def list_captures(
+        self,
+        capture_type: CaptureType | None = None,
+        *,
+        page: int = 1,
+        page_size: int = 30,
+    ) -> bytes:
+        del capture_type, page, page_size  # unused in tests
         self.calls += 1
         return json.dumps(self._payload).encode("utf-8")
 

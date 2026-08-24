@@ -621,10 +621,16 @@ class GatewayClient:
         self,
         *,
         capture_type: CaptureType | None = None,
+        page: int = 1,
+        page_size: int = 30,
         verbose: bool = False,
     ) -> bytes:
         """Lists captures on the SDS API.
 
+        Args:
+            capture_type: Optional filter by capture type.
+            page:         Page number (1-indexed).
+            page_size:    Number of results per page.
         Returns:
             The response content from SDS Gateway.
         """
@@ -632,7 +638,11 @@ class GatewayClient:
             method=HTTPMethods.GET,
             endpoint=Endpoints.CAPTURES,
             verbose=verbose,
-            params={"capture_type": capture_type},
+            params={
+                "capture_type": capture_type,
+                "page": page,
+                "page_size": page_size,
+            },
         )
         network.success_or_raise(response, ContextException=CaptureError)
         content: bytes | Any = response.content

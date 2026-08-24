@@ -1,5 +1,26 @@
 # SpectrumX SDK Changelog
 
+## `0.2.2` - 2026-08-24
+
++ Features:
+    + **Paginated capture listing**: `listing()` now fetches all pages from the API
+      automatically, collecting captures across paginated results instead of returning
+      only the first page and logging a truncation warning. A new `page_size` parameter
+      (default: 30) controls how many results are requested per API call.
+    + **Pagination safety cap**: a maximum of 1,000 pages is enforced to prevent
+      infinite loops from a misbehaving API. Raises `CaptureError` on breach.
+
++ Fixes:
+    + **Guard against non-object JSON responses**: `_extract_page_from_payload` now
+      raises `CaptureError` instead of crashing with `AttributeError` when the API
+      returns a JSON array instead of the expected object.
+
++ Housekeeping:
+    + Updated `gateway.list_captures()` to accept `page` and `page_size` query
+      parameters, forwarded to the SDS API.
+    + Expanded test coverage: new pagination tests for multi-page, single-page,
+      `capture_type` forwarding, and page parameter transmission — 92 tests passing.
+
 ## `0.2.1` - 2026-07-09
 
 + Fixes:

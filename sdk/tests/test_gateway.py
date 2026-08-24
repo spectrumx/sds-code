@@ -527,6 +527,23 @@ def test_progress_file_reader_context_manager(tmp_path: Path) -> None:
 
 
 @responses.activate
+def test_list_captures_sends_page_params() -> None:
+    """list_captures includes page and page_size params in the request."""
+    gw = _make_gateway()
+    responses.add(
+        responses.GET,
+        "http://localhost:80/api/v1/assets/captures/",
+        body=b'{"results": [], "count": 0}',
+        status=200,
+    )
+    gw.list_captures(page=2, page_size=50)
+    assert len(responses.calls) == 1
+    request_url = responses.calls[0].request.url
+    assert "page=2" in request_url
+    assert "page_size=50" in request_url
+
+
+@responses.activate
 def test_list_files_with_start_end_time() -> None:
     """list_files includes start_time and end_time params when provided."""
     gw = _make_gateway()

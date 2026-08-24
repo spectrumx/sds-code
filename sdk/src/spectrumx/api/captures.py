@@ -148,14 +148,22 @@ class CaptureAPI:
             )
         return capture
 
-    def listing(self, *, capture_type: CaptureType | None = None) -> list[Capture]:
+    def listing(
+        self,
+        *,
+        capture_type: CaptureType | None = None,
+        page_size: int = 30,
+    ) -> list[Capture]:
         """Lists all RF captures in SDS under the current user.
+
+        Fetches all pages from the API, collecting captures across paginated results.
 
         Note a capture must be manually "`.create()`-d" before it can be listed, even
             if all the files are uploaded to SDS.
 
         Args:
             capture_type:   The type of capture to list. If empty, it lists everything.
+            page_size:      Number of results to request per API page (default: 30).
         Returns:
             A list of the RF captures found owned by the requesting user.
         """
@@ -175,22 +183,38 @@ class CaptureAPI:
                 )
                 for _ in range(num_captures)
             ]
-        captures_raw = self.gateway.list_captures(capture_type=capture_type)
-        captures_list_raw, has_more = _extract_page_from_payload(captures_raw)
-        if has_more:
-            log.bind(cat=LogCategory.FILESYSTEM).warning(
-                "Not all capture results may be listed. "
-            )
-            # TODO: request more pages if needed
+
+        max_pages = 1_000
         captures: list[Capture] = []
-        for captures_raw in captures_list_raw:
-            try:
-                capture = Capture.model_validate(captures_raw)
-                captures.append(capture)
-            except ValidationError as err:
-                log_user_warning(f"Validation error loading capture: {captures_raw}")
-                log.bind(cat=LogCategory.FILESYSTEM).exception(err)
-                continue
+        page = 1
+        while True:
+            page_raw = self.gateway.list_captures(
+                capture_type=capture_type,
+                page=page,
+                page_size=page_size,
+            )
+            captures_list_raw, has_more, _count = _extract_page_from_payload(page_raw)
+            for capture_data in captures_list_raw:
+                try:
+                    capture = Capture.model_validate(capture_data)
+                    captures.append(capture)
+                except ValidationError as err:
+                    log_user_warning(
+                        f"Validation error loading capture: {capture_data}"
+                    )
+                    log.bind(cat=LogCategory.FILESYSTEM).exception(err)
+                    continue
+            if not has_more:
+                break
+            page += 1
+            if page > max_pages:
+                msg = (
+                    f"Pagination exceeded {max_pages} pages — "
+                    "possible API loop or misconfigured page_size"
+                )
+                log.bind(cat=LogCategory.FILESYSTEM).error(msg)
+                raise CaptureError(msg)
+
         if self.verbose:
             log.bind(cat=LogCategory.FILESYSTEM).debug(
                 f"Listing {len(captures)} captures"
@@ -401,32 +425,41 @@ class CaptureAPI:
 
 def _extract_page_from_payload(
     capture_result_raw: bytes,
-) -> tuple[list[dict[str, Any]], bool | None]:
+) -> tuple[list[dict[str, Any]], bool | None, int | None]:
     """Extracts the page from the payload.
+
     Args:
         capture_result_raw: The raw capture result from the API.
     Returns:
         The list of captures;
-        A boolean indicating if there are more pages, or None if it can't be determined.
+        A boolean indicating if there are more pages, or None if it can't be determined;
+        The total count of captures across all pages, or None if unavailable.
     """
     captures_object = json.loads(capture_result_raw)
+    if not isinstance(captures_object, dict):
+        msg = (
+            f"Expected a JSON object from the captures API, "
+            f"got {type(captures_object).__name__}"
+        )
+        raise CaptureError(msg)
     ret_captures_list: list[dict[str, Any]] = captures_object.get(
         "results", captures_object
     )
 
-    # check if we need to request more pages
-    has_more: bool | None
-    if "next" not in ret_captures_list:
-        has_more = None
-    else:
-        next_url: str = captures_object["next"]
-        has_more = bool(next_url)
+    has_more: bool | None = None
+    if isinstance(captures_object, dict) and "next" in captures_object:
+        next_url: str | None = captures_object["next"]
+        has_more = bool(next_url) if next_url is not None else False
+
+    count: int | None = None
+    if isinstance(captures_object, dict) and "count" in captures_object:
+        count = captures_object["count"]
 
     # if result looks like a single capture, make sure it's a list
     if isinstance(ret_captures_list, dict):
         ret_captures_list = [ret_captures_list]
 
-    return ret_captures_list, has_more
+    return ret_captures_list, has_more, count
 
 
 def _generate_capture(capture_type: CaptureType) -> Capture:
