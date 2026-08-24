@@ -639,9 +639,9 @@ class GatewayClient:
             endpoint=Endpoints.CAPTURES,
             verbose=verbose,
             params={
-                "capture_type": capture_type,
                 "page": page,
                 "page_size": page_size,
+                **({"capture_type": capture_type} if capture_type is not None else {}),
             },
         )
         network.success_or_raise(response, ContextException=CaptureError)

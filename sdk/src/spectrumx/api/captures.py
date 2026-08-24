@@ -167,6 +167,10 @@ class CaptureAPI:
         Returns:
             A list of the RF captures found owned by the requesting user.
         """
+        if page_size < 1:
+            msg = "page_size must be >= 1"
+            raise ValueError(msg)
+
         if self.verbose:
             log.bind(cat=LogCategory.FILESYSTEM).debug(
                 f"Listing captures of type {capture_type}"
@@ -447,12 +451,12 @@ def _extract_page_from_payload(
     )
 
     has_more: bool | None = None
-    if isinstance(captures_object, dict) and "next" in captures_object:
+    if "next" in captures_object:
         next_url: str | None = captures_object["next"]
         has_more = bool(next_url) if next_url is not None else False
 
     count: int | None = None
-    if isinstance(captures_object, dict) and "count" in captures_object:
+    if "count" in captures_object:
         count = captures_object["count"]
 
     # if result looks like a single capture, make sure it's a list

@@ -1839,6 +1839,50 @@ def test_extract_page_from_payload_dict_with_empty_next() -> None:
     assert result[0]["uuid"] == payload["uuid"]
 
 
+def test_extract_page_from_payload_non_dict_raises() -> None:
+    """A JSON array instead of object must raise CaptureError."""
+    payload = [{"uuid": str(uuid4()), "name": "x"}]
+
+    with pytest.raises(CaptureError, match="Expected a JSON object"):
+        extract(json.dumps(payload).encode("utf-8"))
+
+
+def test_listing_max_pages_overflow() -> None:
+    """listing() raises CaptureError when pagination exceeds 1000 pages."""
+    from unittest.mock import MagicMock
+
+    page_payload = {
+        "results": [_build_drf_capture_payload()],
+        "next": "http://example.com/api/v1/assets/captures/?page=2",
+    }
+    gateway = MagicMock()
+    gateway.list_captures.return_value = json.dumps(page_payload).encode("utf-8")
+    api = CaptureAPI(gateway=gateway, dry_run=False)
+
+    with pytest.raises(CaptureError, match="Pagination exceeded"):
+        api.listing()
+
+    assert gateway.list_captures.call_count == 1000
+
+
+def test_listing_page_size_zero_raises() -> None:
+    """listing() raises ValueError when page_size is zero."""
+    gateway = _GatewayStub(payload={"results": []})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    with pytest.raises(ValueError, match="page_size must be >= 1"):
+        api.listing(page_size=0)
+
+
+def test_listing_page_size_negative_raises() -> None:
+    """listing() raises ValueError when page_size is negative."""
+    gateway = _GatewayStub(payload={"results": []})
+    api = CaptureAPI(gateway=cast("GatewayClient", gateway), dry_run=False)
+
+    with pytest.raises(ValueError, match="page_size must be >= 1"):
+        api.listing(page_size=-5)
+
+
 class _GatewayStub:
     """Minimal stub that emulates the gateway list endpoint."""
 
