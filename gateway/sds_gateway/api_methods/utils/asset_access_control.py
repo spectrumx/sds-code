@@ -111,10 +111,10 @@ def get_accessible_files_queryset(user):
     Get a queryset of files that the user has access to.
 
     A user has access to files if:
-    1. They own the file directly, OR
+    1. They own the file directly, OR is_public=True OR
     2. The file is part of a capture that is shared with them, OR
     3. The file is part of a dataset that is shared with them, OR
-    4. The file is part of a capture that is part of a shared dataset
+    4. The file is part of a capture that is part of a shared dataset, OR
 
     Args:
         user: The user to check access for
@@ -141,6 +141,8 @@ def get_accessible_files_queryset(user):
     #    Actually, file owners should always see their files per
     #    test_file_owner_has_access
     access_query |= Q(owner=user)
+
+    access_query |= Q(is_public=True)
 
     # 2. Files part of captures that are shared with the user
     # EXPAND: Support both M2M (captures) and FK (capture) relationships
@@ -231,7 +233,7 @@ def get_accessible_captures_queryset(user):
 
     A user has access to captures if:
     1. They own the capture directly, OR
-    2. The capture is shared with them, OR
+    2. The capture is shared with them, OR is_public=True OR
     3. The capture is part of a dataset that is shared with them
 
     Args:
@@ -259,6 +261,8 @@ def get_accessible_captures_queryset(user):
 
     # 2. Captures directly shared with the user
     access_query |= Q(uuid__in=captures_shared_with_user)
+
+    access_query |= Q(is_public=True)
 
     # 3. Captures part of datasets that are shared with the user
     # EXPAND: Support both M2M (datasets) and FK (dataset) relationships
