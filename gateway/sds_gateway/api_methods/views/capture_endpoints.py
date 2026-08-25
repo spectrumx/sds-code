@@ -722,10 +722,8 @@ class CaptureViewSet(viewsets.ViewSet):
         # Manual pagination for composite captures
         paginator = CapturePagination()
         page_size = cast("int", paginator.get_page_size(request))
-        page_number = cast(
-            "int",
-            paginator.get_page_number(request, paginator=paginator),  # pyright: ignore[reportArgumentType]
-        )
+
+        page_number = int(paginator.get_page_number(request, paginator=paginator))  # pyright: ignore[reportArgumentType]
 
         start_index = (page_number - 1) * page_size
         end_index = start_index + page_size
