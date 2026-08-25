@@ -126,6 +126,24 @@ def test_success_or_raise_catchall_fallback() -> None:
         success_or_raise(response)
 
 
+def test_success_or_raise_non_standard_code_499() -> None:
+    """Non-standard 499 should be treated as client error, not crash."""
+    response = requests.Response()
+    response.status_code = 499
+    response._content = b'{"detail": "Client closed request"}'
+    with pytest.raises(errors.SDSError, match="Client closed request"):
+        success_or_raise(response)
+
+
+def test_success_or_raise_non_standard_code_599() -> None:
+    """Non-standard 599 should be treated as server error, not crash."""
+    response = requests.Response()
+    response.status_code = 599
+    response._content = b'{"detail": "Network connect timeout"}'
+    with pytest.raises(errors.ServiceError, match="Network connect timeout"):
+        success_or_raise(response, ContextException=errors.SDSError)
+
+
 def test_extract_error_details_from_html_no_matching_element() -> None:
     """When HTML lacks #summary/#pastebinTraceback, falls back to reason."""
     response = requests.Response()

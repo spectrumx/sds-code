@@ -16,10 +16,57 @@ if sys.version_info < (3, 12):  # noqa: UP036 # pragma: no cover
     HTTPStatus.is_server_error = property(lambda s: 500 <= s <= 599)  # noqa: PLR2004
 
 
+from dataclasses import dataclass
+
 import requests
 from loguru import logger as log
 
 from spectrumx import errors
+
+
+@dataclass(frozen=True, slots=True)
+class _SyntheticHTTPStatus:
+    """Fallback for non-standard HTTP codes that HTTPStatus rejects."""
+
+    code: int
+
+    @property
+    def is_informational(self) -> bool:
+        return 100 <= self.code <= 199  # noqa: PLR2004
+
+    @property
+    def is_success(self) -> bool:
+        return 200 <= self.code <= 299  # noqa: PLR2004
+
+    @property
+    def is_redirection(self) -> bool:
+        return 300 <= self.code <= 399  # noqa: PLR2004
+
+    @property
+    def is_client_error(self) -> bool:
+        return 400 <= self.code <= 499  # noqa: PLR2004
+
+    @property
+    def is_server_error(self) -> bool:
+        return 500 <= self.code <= 599  # noqa: PLR2004
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, _SyntheticHTTPStatus):
+            return self.code == other.code
+        if isinstance(other, HTTPStatus):
+            return self.code == other.value
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(self.code)
+
+
+def _safe_http_status(code: int) -> HTTPStatus | _SyntheticHTTPStatus:
+    """Return an HTTPStatus-like object, handling non-standard codes gracefully."""
+    try:
+        return HTTPStatus(code)
+    except ValueError:
+        return _SyntheticHTTPStatus(code=code)
 
 
 def success_or_raise(
@@ -30,7 +77,7 @@ def success_or_raise(
     code = response.status_code
     if code is None:
         raise errors.SDSError(message="No status code in response.")
-    status = HTTPStatus(code)
+    status = _safe_http_status(code)
     if status.is_success:
         return
 

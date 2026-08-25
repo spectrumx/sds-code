@@ -6,7 +6,6 @@ from collections.abc import Callable
 from collections.abc import Collection
 from collections.abc import Iterator
 from enum import StrEnum
-from http import HTTPStatus
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Annotated
@@ -21,6 +20,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
 from spectrumx.models.captures import CaptureType
+from spectrumx.ops.network import _safe_http_status
 
 from .config import DEFAULT_HTTP_TIMEOUT
 from .errors import AuthError
@@ -258,7 +258,7 @@ class GatewayClient:
         if code is None:
             msg = "No response code received from authentication request."
             raise AuthError(msg)
-        status = HTTPStatus(code)
+        status = _safe_http_status(code)
         log.bind(cat=LogCategory.NETWORK).debug(f"Authentication response: {status}")
         if status.is_success:
             return
