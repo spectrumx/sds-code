@@ -1,5 +1,11 @@
 # SpectrumX SDK Changelog
 
+## `0.2.3` - 2026-08-27
+
++ Fixes:
+    + **Handle non-standard HTTP response codes**: Non-standard HTTP response codes (e.g. 499, 599)
+    no longer crash the SDK when HTTPStatus(code) raises ValueError.
+
 ## `0.2.2` - 2026-08-24
 
 + Features:
