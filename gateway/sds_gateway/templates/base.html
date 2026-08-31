@@ -186,7 +186,13 @@
                                 {% else %}
                                     <li class="nav-item">
                                         {% comment %} URL provided by django-allauth/account/urls.py {% endcomment %}
-                                        <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                        {% if SOCIALACCOUNT_ONLY %}
+                                            <a id="log-in-nav-link" class="nav-link" href="{% url 'auth0_login' %}">{% translate "Sign In" %}</a>
+                                        {% else %}
+                                            <a id="log-in-nav-link"
+                                               class="nav-link"
+                                               href="{% url 'account_login' %}">{% translate "Sign In" %}</a>
+                                        {% endif %}
                                     </li>
                                 {% endif %}
                             </ul>
