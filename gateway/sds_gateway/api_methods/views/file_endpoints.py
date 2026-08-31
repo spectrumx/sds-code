@@ -46,6 +46,7 @@ from sds_gateway.api_methods.utils.asset_access_control import (
     get_accessible_files_queryset,
 )
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_file
+from sds_gateway.api_methods.utils.profilers import profile_memory
 from sds_gateway.api_methods.utils.relationship_utils import (
     detach_item_from_all_datasets,
 )
@@ -99,6 +100,7 @@ class FileViewSet(ViewSet):
         ],
         summary="Upload File",
     )
+    @profile_memory
     def create(self, request: Request) -> Response:
         """Uploads a file to the server."""
 
