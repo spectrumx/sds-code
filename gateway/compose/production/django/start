@@ -33,6 +33,8 @@ function main() {
     echo -e "\033[0;34mStarting Gunicorn server...\033[0m"
     exec uv run gunicorn config.asgi \
         --bind 0.0.0.0:18000 \
+        --timeout 605 \
+        --graceful-timeout 605 \
         --chdir=/app -k uvicorn_worker.UvicornWorker || {
             echo_wait_and_quit "Gunicorn server failed."
         }
