@@ -17,6 +17,21 @@
         }
     }
 
+    function federatedPeerFromTrigger(el) {
+        if (!el) return false
+        const nodes = [el]
+        const link = el.querySelector?.(".dataset-name-link")
+        if (link) nodes.push(link)
+        const closestLink = el.closest?.(".dataset-name-link")
+        if (closestLink) nodes.push(closestLink)
+        for (const node of nodes) {
+            const raw = node.getAttribute("data-federated-peer")
+            if (raw == null || raw === "") continue
+            if (/^(true|1)$/i.test(String(raw).trim())) return true
+        }
+        return false
+    }
+
     const capture = {
         assetType: "capture",
         delegateClickSelectors: [
@@ -24,7 +39,10 @@
             ".capture-link",
             ".view-capture-btn",
         ],
-        buildDetailsUrl(uuid) {
+        buildDetailsUrl(uuid, triggerEl) {
+            if (federatedPeerFromTrigger(triggerEl)) {
+                return `/users/details-modal/capture/${encodeURIComponent(uuid)}/?federated_peer=true`
+            }
             return `/users/details-modal/capture/${encodeURIComponent(uuid)}/`
         },
         resolveUuidFromTrigger(el) {
@@ -56,7 +74,10 @@
     const dataset = {
         assetType: "dataset",
         delegateClickSelectors: [".dataset-details-open"],
-        buildDetailsUrl(uuid) {
+        buildDetailsUrl(uuid, triggerEl) {
+            if (federatedPeerFromTrigger(triggerEl)) {
+                return `/users/details-modal/dataset/${encodeURIComponent(uuid)}/?federated_peer=true`
+            }
             return `/users/details-modal/dataset/${encodeURIComponent(uuid)}/`
         },
         resolveUuidFromTrigger(el) {

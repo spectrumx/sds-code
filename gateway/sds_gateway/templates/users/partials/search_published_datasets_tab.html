@@ -46,6 +46,7 @@
                                 data-dataset-uuid="{{ dataset.uuid }}"
                                 data-item-uuid="{{ dataset.uuid }}"
                                 data-item-type="dataset"
+                                data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
                                 role="button"
                                 tabindex="0">
                                 <td class="text-nowrap">
@@ -54,7 +55,7 @@
                                        data-dataset-uuid="{{ dataset.uuid }}"
                                        data-item-uuid="{{ dataset.uuid }}"
                                        data-item-type="dataset"
-                                       {% if dataset.is_federated %}data-is-federated="true" data-site-name="{{ dataset.site_name }}"{% endif %}
+                                       data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                     {% if dataset.is_federated %}
                                         <span class="ms-2 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>

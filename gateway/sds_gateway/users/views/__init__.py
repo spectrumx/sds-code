@@ -17,7 +17,6 @@ from .api_keys import validate_uuid
 
 # Capture views
 from .captures import API_CAPTURES_LIMIT
-from .captures import CapturesAPIView
 from .captures import KeywordAutocompleteAPIView
 from .captures import ListCapturesView
 from .captures import QuickAddCaptureToDatasetView
@@ -27,7 +26,6 @@ from .captures import capture_reindex_preview_view
 from .captures import keyword_autocomplete_api_view
 from .captures import quick_add_capture_to_dataset_view
 from .captures import user_capture_list_view
-from .captures import user_captures_api_view
 from .captures import user_datasets_for_quick_add_view
 
 # Dataset views
@@ -93,7 +91,6 @@ from .utilities import render_html_fragment_view
 __all__ = [
     "API_CAPTURES_LIMIT",
     "MAX_API_KEY_COUNT",
-    "CapturesAPIView",
     "CheckFileExistsView",
     "DatasetDetailsView",
     "DatasetVersioningView",
@@ -140,7 +137,6 @@ __all__ = [
     "spx_dac_dataset_alt_view",
     "user_api_key_view",
     "user_capture_list_view",
-    "user_captures_api_view",
     "user_check_file_exists_view",
     "user_dataset_details_view",
     "user_dataset_list_view",

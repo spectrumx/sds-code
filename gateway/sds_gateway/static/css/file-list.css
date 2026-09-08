@@ -355,11 +355,15 @@ body {
 }
 
 .capture-list-table .capture-col-name {
-    width: 34%;
+    width: 30%;
+}
+
+.capture-list-table .capture-col-owner {
+    width: 18%;
 }
 
 .capture-list-table .capture-col-directory {
-    width: 22%;
+    width: 18%;
 }
 
 .capture-list-table .capture-col-type {

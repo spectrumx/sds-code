@@ -13,7 +13,7 @@ FED_INDEX_SETTINGS: dict[str, Any] = {
     },
 }
 
-# RFC §6 — fed-datasets search fields
+# RFC §6 — fed-datasets search fields (aligned with FederatedDatasetDoc / export)
 RFC_FED_DATASET_PROPERTIES: dict[str, dict[str, Any]] = {
     "uuid": {"type": "keyword"},
     "site_name": {"type": "keyword"},  # peer FQDN (federation.toml [site].fqdn)
@@ -22,10 +22,19 @@ RFC_FED_DATASET_PROPERTIES: dict[str, dict[str, Any]] = {
     "abstract": {"type": "text"},
     "keywords": {"type": "keyword"},
     "owner_name": {"type": "keyword"},
+    "status": {"type": "keyword"},
+    "is_public": {"type": "boolean"},
+    "is_deleted": {"type": "boolean"},
     "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
     "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+    "federation_event_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis",
+    },
     "size": {"type": "long"},
     "capture_count": {"type": "integer"},
+    "capture_file_count": {"type": "integer"},
+    "artifact_file_count": {"type": "integer"},
     "url": {"type": "keyword"},
 }
 
@@ -35,8 +44,21 @@ RFC_FED_DATASET_PROPERTIES: dict[str, dict[str, Any]] = {
 RFC_FED_CAPTURE_PROPERTIES: dict[str, dict[str, Any]] = {
     "uuid": {"type": "keyword"},
     "site_name": {"type": "keyword"},  # peer FQDN (federation.toml [site].fqdn)
+    "name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
     "capture_type": {"type": "keyword"},
     "channel": {"type": "keyword"},
+    "scan_group": {"type": "keyword"},
+    "top_level_dir": {"type": "keyword"},
+    "owner_name": {"type": "keyword"},
+    "file_count": {"type": "integer"},
+    "size": {"type": "long"},
+    "created_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+    "updated_at": {"type": "date", "format": "strict_date_optional_time||epoch_millis"},
+    "federation_event_at": {
+        "type": "date",
+        "format": "strict_date_optional_time||epoch_millis",
+    },
+    "is_deleted": {"type": "boolean"},
     "capture_props": {"type": "nested", "dynamic": True},
     "search_props": {"type": "nested", "dynamic": True},
     "public_dataset_ids": {"type": "keyword"},

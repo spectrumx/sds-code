@@ -33,12 +33,14 @@ def federation_not_deleted_clause() -> dict[str, Any]:
 
 def bool_must_search_body(
     *must_clauses: dict[str, Any],
+    must_not_clauses: list[dict[str, Any]] | None = None,
     source_includes: list[str] | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {
         "query": {
             "bool": {
                 "must": list(must_clauses),
+                "must_not": list(must_not_clauses) if must_not_clauses else [],
             },
         },
     }

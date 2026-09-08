@@ -19,7 +19,6 @@ from .views import quick_add_capture_to_dataset_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
-from .views import user_captures_api_view
 from .views import user_dataset_details_view
 from .views import user_dataset_list_view
 from .views import user_dataset_versioning_view
@@ -50,7 +49,6 @@ urlpatterns = [
     path("new-api-key/", new_api_key_view, name="new_api_key"),
     path("files/", FilesView.as_view(), name="files"),
     path("capture-list/", ListCapturesView.as_view(), name="capture_list"),
-    path("capture-list/api/", user_captures_api_view, name="capture_list_api"),
     path(
         "file-list/",
         RedirectView.as_view(

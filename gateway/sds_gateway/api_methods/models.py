@@ -113,6 +113,10 @@ class ItemType(StrEnum):
     def pluralize(self) -> str:
         """Get the plural form of the item type."""
         return self.value + "s"
+    
+    def federated_index_name(self) -> str:
+        """Get the federated index name for this item type."""
+        return f"fed-{self.value}s"
 
 
 class ProcessingType(StrEnum):
@@ -460,6 +464,24 @@ class Capture(BaseModel):
                 return captures_in_top_level_dir > 1
             case _:
                 return False
+    
+    @property
+    def is_federated(self) -> bool:
+        """Check if this capture is federated."""
+        if not self.datasets.filter(is_public=True, is_deleted=False).exists():
+            return False
+
+        client = get_opensearch_client()
+        response = client.search(
+            index=ItemType.CAPTURE.federated_index_name(),
+            body={"query": {"match": {"uuid": self.uuid}}}
+        )
+        return response.get("hits", {}).get("total", {}).get("value", 0) > 0
+    
+    @property
+    def is_published(self) -> bool:
+        """Check if this capture is published."""
+        return self.datasets.filter(is_public=True, is_deleted=False).exists()
 
     def get_capture_type_display(self) -> str:
         """Get the display value for the capture type."""
@@ -1132,6 +1154,19 @@ class Dataset(BaseModel):
             if getattr(instance, field):
                 setattr(instance, field, json.loads(getattr(instance, field)))
         return instance
+
+    @property
+    def is_federated(self) -> bool:
+        """Check if this dataset is federated."""
+        if not self.is_public or self.is_deleted:
+            return False
+
+        client = get_opensearch_client()
+        response = client.search(
+            index=ItemType.DATASET.federated_index_name(),
+            body={"query": {"match": {"uuid": self.uuid}}}
+        )
+        return response.get("hits", {}).get("total", {}).get("value", 0) > 0
 
     def get_dataset_file_statistics(self) -> dict[str, int]:
         """

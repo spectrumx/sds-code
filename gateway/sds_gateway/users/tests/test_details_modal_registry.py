@@ -79,6 +79,7 @@ class TestCaptureDetailsHelpers:
 
     def test_owner_display(self) -> None:
         assert reg._owner_display({"owner": {"email": "a@b.com"}}) == "a@b.com"
+        assert reg._owner_display({"owner_name": "Peer Owner"}) == "Peer Owner"
         assert reg._owner_display({}) == "N/A"
 
     def test_dataset_display(self) -> None:
@@ -148,6 +149,13 @@ class TestCaptureFileSummaryFromDict:
         )
         assert count == self.FALLBACK_COUNT
         assert size == self.FALLBACK_SIZE
+
+    def test_falls_back_to_federated_file_count_and_size(self) -> None:
+        count, size = reg._capture_file_summary_from_dict(
+            {"file_count": 1, "size": 1024},
+        )
+        assert count == 1
+        assert size == 1024
 
 
 class TestFinalizeModalJson:
