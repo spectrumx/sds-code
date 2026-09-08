@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Any
 
+from django.conf import settings
+
 from sds_opensearch_query import bool_must_search_body
 from sds_opensearch_query import build_metadata_filter_clauses
 from sds_opensearch_query import federation_not_deleted_clause
@@ -70,7 +72,6 @@ def _hits_to_response(hits: list[dict[str, Any]]) -> dict[str, Any]:
 def _build_fed_must_clauses(
     *,
     q: str | None,
-    site: str | None,
     metadata_filters: list[dict[str, Any]] | None,
     rfc_properties: Mapping[str, dict[str, Any]],
     text_fields: list[str],
@@ -78,10 +79,6 @@ def _build_fed_must_clauses(
 ) -> list[dict[str, Any]]:
     known = flatten_property_paths(rfc_properties)
     must: list[dict[str, Any]] = [federation_not_deleted_clause()]
-
-    site_filter = _site_clause(site)
-    if site_filter is not None:
-        must.append(site_filter)
 
     for field, value in extra_terms or ():
         if value is not None and value != "":
@@ -100,6 +97,40 @@ def _build_fed_must_clauses(
     return must
 
 
+def _local_peer_site() -> str:
+    return str(getattr(settings, "SDS_SITE_FQDN", "") or "").strip()
+
+
+def _build_fed_must_not_clauses(
+    *,
+    exclude_site: str | None = None,
+) -> list[dict[str, Any]]:
+    must_not = [
+        term_clause("is_deleted", True),
+        term_clause("is_public", False),
+    ]
+    if exclude_site:
+        must_not.append(term_clause("site_name", exclude_site))
+    return must_not
+
+
+def _build_fed_search_body(
+    *,
+    must: list[dict[str, Any]],
+    site: str | None,
+) -> dict[str, Any]:
+    site_filter = _site_clause(site)
+    if site_filter is not None:
+        must = [*must, site_filter]
+        must_not = _build_fed_must_not_clauses(exclude_site=None)
+    else:
+        local_site = _local_peer_site()
+        must_not = _build_fed_must_not_clauses(
+            exclude_site=local_site or None,
+        )
+    return bool_must_search_body(*must, must_not_clauses=must_not)
+
+
 def search_federated_datasets(
     client: OpenSearch,
     *,
@@ -110,12 +141,11 @@ def search_federated_datasets(
 ) -> dict[str, Any]:
     must = _build_fed_must_clauses(
         q=q,
-        site=site,
         metadata_filters=metadata_filters,
         rfc_properties=RFC_FED_DATASET_PROPERTIES,
         text_fields=FED_DATASET_TEXT_FIELDS,
     )
-    body = bool_must_search_body(*must)
+    body = _build_fed_search_body(must=must, site=site)
     hits = run_search(
         client,
         index=FED_DATASETS_INDEX,
@@ -136,13 +166,12 @@ def search_federated_captures(
 ) -> dict[str, Any]:
     must = _build_fed_must_clauses(
         q=q,
-        site=site,
         metadata_filters=metadata_filters,
         rfc_properties=RFC_FED_CAPTURE_PROPERTIES,
         text_fields=FED_CAPTURE_TEXT_FIELDS,
         extra_terms=[("capture_type", capture_type)],
     )
-    body = bool_must_search_body(*must)
+    body = _build_fed_search_body(must=must, site=site)
     hits = run_search(
         client,
         index=FED_CAPTURES_INDEX,

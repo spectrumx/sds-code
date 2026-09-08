@@ -82,7 +82,7 @@ class AssetDetailsModalLoader {
         }
 
         try {
-            const response = await fetch(cfg.buildDetailsUrl(uuid), {
+            const response = await fetch(cfg.buildDetailsUrl(uuid, target), {
                 credentials: "same-origin",
                 headers: { Accept: "application/json" },
             })

@@ -15,7 +15,7 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.users.forms import PublishedDatasetSearchForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.models import UserAPIKey
-from sds_gateway.users.views.datasets import build_published_dataset_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import build_published_dataset_list_rows
 
 from .api_keys import MAX_API_KEY_COUNT
 from .api_keys import get_active_api_key_count

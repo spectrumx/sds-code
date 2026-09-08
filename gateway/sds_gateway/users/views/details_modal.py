@@ -30,13 +30,14 @@ class DetailsModalFragmentView(Auth0LoginRequiredMixin, View):
     def get(
         self, request, asset_type: str, uuid: UUID, *args, **kwargs
     ) -> JsonResponse:
+        federated_peer = request.GET.get("federated_peer", "false") == "true"
         builder = DETAILS_MODAL_REGISTRY.get(asset_type)
         json_builder = DETAILS_MODAL_JSON_BUILDERS.get(asset_type)
         if builder is None or json_builder is None:
             _unknown_asset_type = "Unknown asset type"
             raise Http404(_unknown_asset_type)
 
-        ctx = builder(request, uuid)
+        ctx = builder(request, uuid, federated_peer=federated_peer)
         if ctx is None:
             _builder_not_found = "Not found"
             raise Http404(_builder_not_found)

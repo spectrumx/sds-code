@@ -1,7 +1,8 @@
-"""Lightweight list-row adapters for local and federated dataset UI lists."""
+"""Lightweight list-row adapters for local and federated asset UI lists."""
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 from typing import Any
@@ -11,10 +12,18 @@ from django.urls import reverse
 from django.utils import dateparse
 from django.utils import timezone
 
+from sds_gateway.api_methods.federation.availability import is_federation_operational
+from sds_gateway.api_methods.federation.search_helpers import search_federated_captures
+from sds_gateway.api_methods.federation.search_helpers import search_federated_datasets
+from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+
+log = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -23,6 +32,16 @@ if TYPE_CHECKING:
 
     from sds_gateway.api_methods.models import Dataset
     from sds_gateway.users.models import User
+
+
+BASE_ASSET_DICT = {
+    "is_federated": False,
+    "is_owner": False,
+    "is_shared": False,
+    "is_shared_with_me": False,
+    "permission_level": None,
+    "dropdown_menu_items": [], 
+}
 
 
 def local_site_name() -> str:
@@ -46,19 +65,142 @@ def _parse_datetime(value: Any) -> datetime | None:
     return parsed
 
 
-def dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build dropdown_menu.html items for a serialized dataset list row."""
-    if row.get("is_federated"):
-        return []
+def _capture_display_name(row: dict[str, Any]) -> str:
+    return (
+        str(row.get("name") or "").strip()
+        or str(row.get("top_level_dir") or "").strip()
+        or "Capture"
+    )
 
+
+def asset_list_dropdown_menu_items(
+    row: dict[str, Any],
+    *,
+    asset_type: ItemType,
+) -> list[dict[str, Any]]:
+    """Build dropdown_menu.html items for a capture or dataset list row."""
     uuid = str(row.get("uuid") or "")
     if not uuid:
         return []
 
-    is_owner = row.get("is_owner")
+    is_owner = bool(row.get("is_owner"))
     permission_level = row.get("permission_level")
     is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
     is_co_owner = permission_level == PermissionLevel.CO_OWNER
+
+    if asset_type == ItemType.CAPTURE:
+        return _capture_list_dropdown_menu_items(
+            uuid=uuid,
+            row=row,
+            is_owner=is_owner,
+            is_contributor=is_contributor,
+            is_co_owner=is_co_owner,
+        )
+
+    return _dataset_list_dropdown_menu_items(
+        uuid=uuid,
+        row=row,
+        is_owner=is_owner,
+        is_contributor=is_contributor,
+        is_co_owner=is_co_owner,
+    )
+
+
+def dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    if row.get("is_federated"):
+        return []
+    return asset_list_dropdown_menu_items(row, asset_type=ItemType.DATASET)
+
+
+def capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
+    return asset_list_dropdown_menu_items(row, asset_type=ItemType.CAPTURE)
+
+
+def _capture_list_dropdown_menu_items(
+    *,
+    uuid: str,
+    row: dict[str, Any],
+    is_owner: bool,
+    is_contributor: bool,
+    is_co_owner: bool,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if is_owner:
+        display_name = _capture_display_name(row)
+        items.append(
+            {
+                "label": "Add to dataset",
+                "icon": "folder-plus",
+                "type": "button",
+                "extra_class": "add-to-dataset-btn",
+                "data_attrs": {
+                    "capture-uuid": uuid,
+                    "capture-name": display_name[:200],
+                },
+            }
+        )
+        top_level = str(row.get("top_level_dir") or "").strip()
+        items.append(
+            {
+                "label": "Reindex",
+                "icon": "arrow-repeat",
+                "type": "button",
+                "extra_class": "reindex-capture-btn",
+                "data_attrs": {
+                    "capture-uuid": uuid,
+                    "capture-name": display_name[:200],
+                    "top-level-dir": top_level[:500],
+                },
+            }
+        )
+        items.append(
+            {
+                "label": "Delete",
+                "icon": "trash",
+                "type": "button",
+                "extra_class": "delete-asset-btn",
+                "data_attrs": {
+                    "asset-type": "capture",
+                    "asset-uuid": uuid,
+                    "asset-name": display_name[:200],
+                    **({"asset-shared": "true"} if row.get("is_shared") else {}),
+                },
+            }
+        )
+
+    if is_owner or is_contributor or is_co_owner:
+        items.append(
+            {
+                "label": "Share",
+                "icon": "person-plus",
+                "type": "button",
+                "modal_toggle": True,
+                "modal_target": f"#shareModal-{uuid}",
+                "data_attrs": {},
+            }
+        )
+
+    items.append(
+        {
+            "label": "Download",
+            "icon": "download",
+            "type": "button",
+            "modal_toggle": True,
+            "modal_target": f"#webDownloadModal-{uuid}",
+            "data_attrs": {},
+        }
+    )
+    return items
+
+
+def _dataset_list_dropdown_menu_items(
+    *,
+    uuid: str,
+    row: dict[str, Any],
+    is_owner: bool,
+    is_contributor: bool,
+    is_co_owner: bool,
+) -> list[dict[str, Any]]:
     dataset_published = row.get("status") == DatasetStatus.FINAL and row.get(
         "is_public"
     )
@@ -123,7 +265,7 @@ def dataset_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]
                 "type": "button",
                 "extra_class": "delete-asset-btn",
                 "data_attrs": {
-                    "asset-type": "dataset",
+                    "asset-type": ItemType.DATASET,
                     "asset-uuid": uuid,
                     "asset-name": dataset_name[:200],
                     **({"asset-shared": "true"} if row.get("is_shared") else {}),
@@ -160,19 +302,103 @@ def _keyword_names(dataset: Dataset) -> list[str]:
     ]
 
 
+_LIST_ROW_DATETIME_FIELDS = frozenset({"created_at", "updated_at"})
+
+# ORM / OpenSearch field names populated on list rows (beyond BASE_ASSET_DICT).
+_DATASET_LIST_FIELDS: tuple[str, ...] = (
+    "uuid",
+    "name",
+    "version",
+    "authors",
+    "keywords",
+    "created_at",
+    "updated_at",
+    "is_public",
+    "status",
+    "status_display",
+    "owner_name",
+    "site_name",
+    "abstract",
+    "description",
+)
+
+_CAPTURE_LIST_FIELDS: tuple[str, ...] = (
+    "uuid",
+    "name",
+    "top_level_dir",
+    "capture_type",
+    "capture_type_display",
+    "channel",
+    "scan_group",
+    "file_count",
+    "size",
+    "capture_props",
+    "search_props",
+    "created_at",
+    "updated_at",
+    "owner_name",
+    "site_name",
+    "is_public",
+)
+
+
+def _list_fields_for_type(asset_type: ItemType) -> tuple[str, ...]:
+    if asset_type == ItemType.DATASET:
+        return _DATASET_LIST_FIELDS
+    if asset_type == ItemType.CAPTURE:
+        return _CAPTURE_LIST_FIELDS
+    msg = f"Invalid asset type: {asset_type}"
+    raise ValueError(msg)
+
+
+def _local_list_field_value(
+    asset: Dataset | Capture,
+    field: str,
+    *,
+    asset_type: ItemType,
+) -> Any:
+    if field == "keywords" and isinstance(asset, Dataset):
+        return _keyword_names(asset)
+    if field == "authors" and isinstance(asset, Dataset):
+        return asset.get_authors_display()
+    if field == "status_display" and isinstance(asset, Dataset):
+        return asset.get_status_display()
+    if field == "capture_type_display" and isinstance(asset, Capture):
+        return asset.get_capture_type_display()
+    if field == "owner_name":
+        return asset.owner.name if asset.owner else "Owner"
+    if field == "site_name":
+        return local_site_name()
+    if field in {"capture_props", "search_props"} and isinstance(asset, Capture):
+        return {}
+    if field in {"file_count", "size"} and isinstance(asset, Capture):
+        return 0
+    return getattr(asset, field)
+
+
+def _apply_peer_doc_to_row(row: dict[str, Any], doc: dict[str, Any]) -> None:
+    for key, value in doc.items():
+        if key in _LIST_ROW_DATETIME_FIELDS:
+            row[key] = _parse_datetime(value)
+        else:
+            row[key] = value
+
+
 def _permission_maps_for_user(
-    datasets: list[Dataset],
+    assets: list[Dataset | Capture],
     user: User | None,
+    *,
+    item_type: ItemType,
 ) -> tuple[dict[Any, str], set[Any], set[Any]]:
     """Batch-load permission_level, is_shared, is_shared_with_me maps."""
-    uuids = [ds.uuid for ds in datasets]
+    uuids = [asset.uuid for asset in assets]
     if not uuids:
         return {}, set(), set()
 
     shared_uuids = set(
         UserSharePermission.objects.filter(
             item_uuid__in=uuids,
-            item_type=ItemType.DATASET,
+            item_type=item_type,
             is_deleted=False,
             is_enabled=True,
         ).values_list("item_uuid", flat=True)
@@ -181,13 +407,13 @@ def _permission_maps_for_user(
     perm_by_uuid: dict[Any, str] = {}
     shared_with_me: set[Any] = set()
     if user is not None and getattr(user, "is_authenticated", False):
-        for ds in datasets:
-            if ds.owner_id == user.id:
-                perm_by_uuid[ds.uuid] = PermissionLevel.OWNER
+        for asset in assets:
+            if asset.owner_id == user.id:
+                perm_by_uuid[asset.uuid] = PermissionLevel.OWNER
 
         user_perms = UserSharePermission.objects.filter(
             item_uuid__in=uuids,
-            item_type=ItemType.DATASET,
+            item_type=item_type,
             shared_with=user,
             is_deleted=False,
             is_enabled=True,
@@ -200,77 +426,105 @@ def _permission_maps_for_user(
     return perm_by_uuid, shared_uuids, shared_with_me
 
 
-def serialize_local_dataset_row(
-    dataset: Dataset,
-    user: User | None = None,
+def capture_permission_maps_for_user(
+    captures: list[Capture],
+    user: User | None,
+) -> tuple[dict[Any, str], set[Any], set[Any]]:
+    return _permission_maps_for_user(captures, user, item_type=ItemType.CAPTURE)
+
+
+def serialize_local_asset(
+    asset: Dataset | Capture,
+    user: User | None,
+    asset_type: ItemType,
     *,
     permission_level: str | None = None,
     is_shared: bool = False,
     is_shared_with_me: bool = False,
     include_actions: bool = True,
+    row_extras: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a lightweight list-row dict for a local Dataset ORM instance."""
+    """Build a list-row dict from a local ORM asset using shared field specs."""
     is_owner = bool(
         user is not None
         and getattr(user, "is_authenticated", False)
-        and dataset.owner_id == user.id
+        and asset.owner_id == user.id
     )
     if permission_level is None and is_owner:
         permission_level = PermissionLevel.OWNER
 
-    row: dict[str, Any] = {
-        "uuid": dataset.uuid,
-        "name": dataset.name,
-        "version": dataset.version,
-        "authors": dataset.get_authors_display(),
-        "keywords": _keyword_names(dataset),
-        "created_at": dataset.created_at,
-        "updated_at": dataset.updated_at,
-        "site_name": local_site_name(),
-        "is_federated": False,
-        "is_public": dataset.is_public,
-        "status": dataset.status,
-        "status_display": dataset.get_status_display(),
-        "owner_name": dataset.owner.name if dataset.owner else "Owner",
-        "is_owner": is_owner,
-        "is_shared": is_shared,
-        "is_shared_with_me": is_shared_with_me and not is_owner,
-        "permission_level": permission_level,
-        # Keep ORM for existing list modals that still read ``row.dataset``.
-        "dataset": dataset,
-    }
+    row: dict[str, Any] = BASE_ASSET_DICT.copy()
+    row["is_owner"] = is_owner
+    row["permission_level"] = permission_level
+    row["is_shared"] = is_shared
+    row["is_shared_with_me"] = is_shared_with_me and not is_owner
+    row["is_federated"] = False
+    row["site_name"] = local_site_name()
+    row["owner_name"] = asset.owner.name if asset.owner else "Owner"
+
+    for field in _list_fields_for_type(asset_type):
+        row[field] = _local_list_field_value(asset, field, asset_type=asset_type)
+
+    if asset_type == ItemType.DATASET:
+        row["dataset"] = asset
+    elif asset_type == ItemType.CAPTURE:
+        row["capture"] = asset
+
+    if row_extras:
+        row.update(row_extras)
+
     row["dropdown_menu_items"] = (
-        dataset_list_dropdown_menu_items(row) if include_actions else []
+        asset_list_dropdown_menu_items(row, asset_type=asset_type)
+        if include_actions
+        else []
     )
     return row
 
 
-def serialize_federated_dataset_row(doc: dict[str, Any]) -> dict[str, Any]:
-    """Normalize a fed-datasets OpenSearch ``_source`` into a list-row dict."""
-    return {
-        "uuid": doc.get("uuid"),
-        "name": doc.get("name") or "",
-        "version": doc.get("version", 1),
-        "authors": doc.get("authors") or [],
-        "keywords": doc.get("keywords") or [],
-        "created_at": _parse_datetime(doc.get("created_at")),
-        "updated_at": _parse_datetime(doc.get("updated_at")),
-        "site_name": doc.get("site_name") or "",
-        "is_federated": True,
-        "is_public": bool(doc.get("is_public", True)),
-        "status": doc.get("status") or DatasetStatus.FINAL,
-        "status_display": doc.get("status_display") or "Final",
-        "owner_name": doc.get("owner_name") or "",
-        "abstract": doc.get("abstract") or "",
-        "description": doc.get("description") or "",
-        "is_owner": False,
-        "is_shared": False,
-        "is_shared_with_me": False,
-        "permission_level": None,
-        "can_edit": False,
-        "can_share": False,
-        "dropdown_menu_items": [],
-    }
+def serialize_peer_asset(doc: dict[str, Any], asset_type: ItemType) -> dict[str, Any]:
+    """Build a list-row dict from a federated OpenSearch ``_source`` document."""
+    row: dict[str, Any] = BASE_ASSET_DICT.copy()
+    row["is_federated"] = True
+    row["can_edit"] = False
+    row["can_share"] = False
+    row["is_owner"] = False
+    row["is_shared"] = False
+    row["is_shared_with_me"] = False
+    row["permission_level"] = None
+    _apply_peer_doc_to_row(row, doc)
+    row["dropdown_menu_items"] = []
+    if asset_type == ItemType.CAPTURE:
+        row.setdefault("is_public_discovery", False)
+        row.setdefault("is_published_discovery", False)
+    return row
+
+
+def serialize_assets_for_user(
+    assets: QuerySet[Dataset | Capture] | Iterable[Dataset | Capture],
+    user: User | None,
+    *,
+    asset_type: ItemType,
+    include_actions: bool = True,
+) -> list[dict[str, Any]]:
+    """Serialize local assets into list-row dicts."""
+    asset_list = list(assets)
+    perm_by_uuid, shared_uuids, shared_with_me = _permission_maps_for_user(
+        asset_list,
+        user,
+        item_type=asset_type,
+    )
+    return [
+        serialize_local_asset(
+            asset=asset,
+            user=user,
+            asset_type=asset_type,
+            permission_level=perm_by_uuid.get(asset.uuid),
+            is_shared=asset.uuid in shared_uuids,
+            is_shared_with_me=asset.uuid in shared_with_me,
+            include_actions=include_actions,
+        )
+        for asset in asset_list
+    ]
 
 
 def serialize_datasets_for_user(
@@ -279,42 +533,263 @@ def serialize_datasets_for_user(
     *,
     include_actions: bool = True,
 ) -> list[dict[str, Any]]:
-    """Serialize local datasets into list-row dicts (no heavy API serializer)."""
-    dataset_list = list(datasets)
-    perm_by_uuid, shared_uuids, shared_with_me = _permission_maps_for_user(
-        dataset_list,
+    return serialize_assets_for_user(
+        datasets,
         user,
+        asset_type=ItemType.DATASET,
+        include_actions=include_actions,
     )
-    return [
-        serialize_local_dataset_row(
-            dataset,
-            user,
-            permission_level=perm_by_uuid.get(dataset.uuid),
-            is_shared=dataset.uuid in shared_uuids,
-            is_shared_with_me=dataset.uuid in shared_with_me,
-            include_actions=include_actions,
-        )
-        for dataset in dataset_list
+
+
+def build_user_dataset_list_rows(
+    user: User,
+    owned_datasets: QuerySet[Dataset] | Iterable[Dataset],
+    shared_datasets: QuerySet[Dataset] | Iterable[Dataset],
+    *,
+    sort_by: str = "created_at",
+    descending: bool = True,
+    query: str | None = None,
+) -> list[dict[str, Any]]:
+    """Owned, shared, public-on-host, and federated dataset list rows."""
+    owned_list = list(owned_datasets)
+    shared_list = list(shared_datasets)
+    owned_shared = [*owned_list, *shared_list]
+    public_extra = published_datasets_excluding(
+        owned_shared,
+        get_published_datasets().select_related("owner").prefetch_related("keywords"),
+    )
+    local_rows = [
+        *serialize_datasets_for_user(owned_list, user),
+        *serialize_datasets_for_user(shared_list, user),
+        *serialize_datasets_for_user(public_extra, user),
     ]
+    return merge_dataset_list_rows(
+        local_rows,
+        query=query,
+        sort_by=sort_by,
+        descending=descending,
+    )
+
+
+def published_captures_excluding(
+    captures: Iterable[Capture],
+    published_qs: QuerySet[Capture],
+) -> list[Capture]:
+    seen = {capture.uuid for capture in captures}
+    return [capture for capture in published_qs if capture.uuid not in seen]
+
+
+def published_datasets_excluding(
+    datasets: Iterable[Dataset],
+    published_qs: QuerySet[Dataset],
+) -> list[Dataset]:
+    seen = {dataset.uuid for dataset in datasets}
+    return [dataset for dataset in published_qs if dataset.uuid not in seen]
+
+
+def annotate_capture_list_display(row: dict[str, Any]) -> None:
+    """Mutually exclusive display flags: owned / shared / public / federated."""
+    if row.get("is_federated"):
+        row["is_owner"] = False
+        row["is_shared_with_me"] = False
+        row["is_public_discovery"] = False
+        return
+    if row.get("is_owner"):
+        row["is_shared_with_me"] = False
+        row["is_public_discovery"] = False
+        return
+    if row.get("is_shared_with_me"):
+        row["is_public_discovery"] = False
+        return
+    if not row.get("is_public_discovery"):
+        row["is_public_discovery"] = bool(row.get("is_published_discovery"))
 
 
 def _sort_key_value(row: dict[str, Any], key: str) -> tuple[bool, Any]:
-    value = row.get(key)
-    # None sorts after real values when ascending; reverse flips that.
+    value = _parse_datetime(row.get(key))
     return (value is None, value)
 
 
-def merge_dataset_list_rows(
+def merge_asset_list_rows(
     local_rows: list[dict[str, Any]],
     federated_rows: list[dict[str, Any]],
     *,
     sort_by: str = "created_at",
     descending: bool = True,
 ) -> list[dict[str, Any]]:
-    """Merge local + federated list rows and sort by a shared field."""
     merged = [*local_rows, *federated_rows]
     merged.sort(
         key=lambda row: _sort_key_value(row, sort_by),
         reverse=descending,
     )
+    return merged
+
+
+def merge_dataset_list_rows(
+    local_rows: list[dict[str, Any]],
+    *,
+    query: str | None = None,
+    sort_by: str = "created_at",
+    descending: bool = True,
+) -> list[dict[str, Any]]:
+    federated_rows = federated_published_dataset_rows(query=query)
+    seen = {str(row.get("uuid")) for row in local_rows if row.get("uuid")}
+    merged = list(local_rows)
+    for fed_row in federated_rows:
+        fed_uuid = str(fed_row.get("uuid") or "")
+        if fed_uuid and fed_uuid not in seen:
+            merged.append(fed_row)
+            seen.add(fed_uuid)
+    merged.sort(
+        key=lambda row: _sort_key_value(row, sort_by),
+        reverse=descending,
+    )
+    return merged
+
+
+def _serialize_peer_asset_rows(
+    result: dict[str, Any],
+    asset_type: ItemType,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for hit in result.get("hits") or []:
+        source = hit.get("source") if isinstance(hit, dict) else None
+        if not isinstance(source, dict):
+            continue
+        peer_row = serialize_peer_asset(source, asset_type)
+        if asset_type == ItemType.CAPTURE:
+            annotate_capture_list_display(peer_row)
+        rows.append(peer_row)
+    return rows
+
+
+def _get_peer_asset_rows(
+    *,
+    query: str | None = None,
+    site: str | None = None,
+    asset_type: ItemType,
+) -> list[dict[str, Any]]:
+    if not is_federation_operational():
+        return []
+
+    search_func = (
+        search_federated_datasets
+        if asset_type == ItemType.DATASET
+        else search_federated_captures
+    )
+    try:
+        client = get_opensearch_client()
+        result = search_func(client, q=query, site=site)
+    except Exception:  # noqa: BLE001
+        log.exception(
+            "Federated %s search failed; returning local results only",
+            asset_type.value,
+        )
+        return []
+
+    return _serialize_peer_asset_rows(result, asset_type=asset_type)
+
+
+def get_published_datasets() -> QuerySet[Dataset]:
+    return Dataset.objects.filter(status=DatasetStatus.FINAL, is_public=True)
+
+
+def get_published_captures() -> QuerySet[Capture]:
+    return Capture.objects.filter(
+        is_deleted=False,
+        datasets__is_public=True,
+        datasets__is_deleted=False,
+    ).distinct()
+
+
+def build_published_asset_list_rows(
+    user: User | None,
+    *,
+    assets: QuerySet[Dataset | Capture] | None = None,
+    asset_type: ItemType,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    if assets is None:
+        if asset_type == ItemType.DATASET:
+            assets = get_published_datasets()
+        elif asset_type == ItemType.CAPTURE:
+            assets = get_published_captures()
+        else:
+            raise ValueError(f"Invalid asset type: {asset_type}")
+    site_filter = (site or "").strip() or None
+    local_rows = serialize_assets_for_user(
+        assets,
+        user,
+        asset_type=asset_type,
+        include_actions=False,
+    )
+    if site_filter:
+        local_rows = [
+            row for row in local_rows if (row.get("site_name") or "") == site_filter
+        ]
+    federated_rows = _get_peer_asset_rows(
+        query=query,
+        site=site_filter,
+        asset_type=asset_type,
+    )
+    return merge_asset_list_rows(local_rows, federated_rows)
+
+
+def build_published_dataset_list_rows(
+    user: User | None,
+    *,
+    datasets: QuerySet[Dataset] | None = None,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    return build_published_asset_list_rows(
+        user,
+        assets=datasets,
+        asset_type=ItemType.DATASET,
+        query=query,
+        site=site,
+    )
+
+
+def federated_published_capture_rows(
+    *,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    return _get_peer_asset_rows(
+        query=query,
+        site=site,
+        asset_type=ItemType.CAPTURE,
+    )
+
+
+def federated_published_dataset_rows(
+    *,
+    query: str | None = None,
+    site: str | None = None,
+) -> list[dict[str, Any]]:
+    return _get_peer_asset_rows(
+        query=query,
+        site=site,
+        asset_type=ItemType.DATASET,
+    )
+
+
+def merge_capture_list_rows(
+    local_rows: list[dict[str, Any]],
+    *,
+    query: str | None = None,
+    sort_by: str = "created_at",
+    descending: bool = True,
+) -> list[dict[str, Any]]:
+    federated_rows = federated_published_capture_rows(query=query)
+    seen = {str(row.get("uuid")) for row in local_rows if row.get("uuid")}
+    merged = list(local_rows)
+    for fed_row in federated_rows:
+        fed_uuid = str(fed_row.get("uuid") or "")
+        if fed_uuid and fed_uuid not in seen:
+            merged.append(fed_row)
+            seen.add(fed_uuid)
+    merged.sort(key=lambda row: _sort_key_value(row, sort_by), reverse=descending)
     return merged

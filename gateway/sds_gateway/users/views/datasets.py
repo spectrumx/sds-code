@@ -29,12 +29,9 @@ from django.views import View
 from django.views.generic import TemplateView
 from loguru import logger as log
 
-from sds_gateway.api_methods.federation.availability import is_federation_operational
-from sds_gateway.api_methods.federation.search_helpers import search_federated_datasets
-from sds_gateway.api_methods.helpers.list_helpers import local_site_name
-from sds_gateway.api_methods.helpers.list_helpers import merge_dataset_list_rows
-from sds_gateway.api_methods.helpers.list_helpers import serialize_datasets_for_user
-from sds_gateway.api_methods.helpers.list_helpers import serialize_federated_dataset_row
+from sds_gateway.api_methods.helpers.list_helpers import build_published_dataset_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import build_user_dataset_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import get_published_datasets
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
@@ -60,6 +57,7 @@ from sds_gateway.users.mixins import FileTreeMixin
 from sds_gateway.users.mixins import FormSearchMixin
 from sds_gateway.users.models import User
 from sds_gateway.users.utils import deduplicate_composite_captures
+from sds_gateway.users.views.details_modal_registry import load_dataset_details_bundle
 
 from .captures import _apply_frequency_filters_to_list
 
@@ -1038,81 +1036,6 @@ def filter_by_frequency_range(
     return datasets.filter(uuid__in=matching_dataset_uuids)
 
 
-def _federated_published_dataset_rows(
-    *,
-    query: str | None = None,
-    site: str | None = None,
-) -> list[dict[str, Any]]:
-    """Fetch federated dataset docs and map them to list-row dicts."""
-    if not is_federation_operational():
-        return []
-
-    try:
-        client = get_opensearch_client()
-        result = search_federated_datasets(client, q=query, site=site)
-    except Exception:  # noqa: BLE001
-        log.exception("Federated dataset search failed; returning local results only")
-        return []
-
-    local_site = local_site_name()
-    rows: list[dict[str, Any]] = []
-    for hit in result.get("hits") or []:
-        source = hit.get("source") if isinstance(hit, dict) else None
-        if not isinstance(source, dict):
-            continue
-        # Local public datasets come from Postgres; skip same-site fed docs.
-        if local_site and source.get("site_name") == local_site:
-            continue
-        rows.append(serialize_federated_dataset_row(source))
-    return rows
-
-
-def get_published_datasets() -> QuerySet[Dataset]:
-    """Get all published datasets (status=FINAL or is_public=True)."""
-    return (
-        Dataset.objects.filter(
-            status=DatasetStatus.FINAL,
-            is_public=True,
-            is_deleted=False,
-        )
-        .select_related("owner")
-        .prefetch_related("keywords")
-        .distinct()
-        .order_by("-created_at")
-    )
-
-
-def build_published_dataset_list_rows(
-    user: User | None,
-    *,
-    datasets: QuerySet[Dataset] | None = None,
-    query: str | None = None,
-    site: str | None = None,
-) -> list[dict[str, Any]]:
-    """Merge local published datasets with peer federated rows (discovery UI).
-
-    Local rows come from Postgres; peer rows from OpenSearch ``fed-datasets``
-    (same-site fed docs skipped). Sorted by ``created_at`` descending.
-
-    When ``site`` is set, only rows whose ``site_name`` matches are returned
-    (local FQDN keeps Postgres rows; other FQDNs keep peer OpenSearch rows).
-    """
-    if datasets is None:
-        datasets = get_published_datasets()
-    site_filter = (site or "").strip() or None
-    local_rows = serialize_datasets_for_user(
-        datasets,
-        user,
-        include_actions=False,
-    )
-    if site_filter:
-        local_rows = [
-            row for row in local_rows if (row.get("site_name") or "") == site_filter
-        ]
-    federated_rows = _federated_published_dataset_rows(query=query, site=site_filter)
-    return merge_dataset_list_rows(local_rows, federated_rows)
-
-
 def apply_search_filters(
     datasets: QuerySet[Dataset],
     form_data: dict[str, Any],
@@ -1230,12 +1153,12 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
         owned_datasets = self._get_owned_datasets(request.user, order_by)
         shared_datasets = self._get_shared_datasets(request.user, order_by)
 
-        datasets_with_shared_users: list[dict] = []  # pyright: ignore[reportMissingTypeArgument]
-        datasets_with_shared_users.extend(
-            serialize_datasets_for_user(owned_datasets, request.user)
-        )
-        datasets_with_shared_users.extend(
-            serialize_datasets_for_user(shared_datasets, request.user)
+        datasets_with_shared_users = build_user_dataset_list_rows(
+            request.user,
+            owned_datasets,
+            shared_datasets,
+            sort_by=sort_by,
+            descending=sort_order == "desc",
         )
         page_obj = self._paginate_datasets(datasets_with_shared_users, request)
 
@@ -1339,47 +1262,6 @@ class ListDatasetsView(Auth0LoginRequiredMixin, View):
 user_dataset_list_view = ListDatasetsView.as_view()
 
 
-def load_dataset_details_bundle(
-    request: HttpRequest,
-    dataset_uuid: UUID,
-) -> dict[str, Any] | None:
-    """
-    Build dataset details payload (dataset dict and file statistics).
-
-    Returns None if the dataset does not exist or is not visible to the request user.
-    On success, includes ``dataset_orm`` for server-rendered templates (omit from JSON).
-    """
-    try:
-        dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
-    except Dataset.DoesNotExist:
-        return None
-
-    has_public_access = dataset.is_public and dataset.status == DatasetStatus.FINAL
-    has_user_access = request.user.is_authenticated and user_has_access_to_item(
-        request.user, dataset_uuid, ItemType.DATASET
-    )
-
-    if not (has_public_access or has_user_access):
-        return None
-
-    serializer_context: dict[str, Any] = {"exclude_files": True}
-    if request.user.is_authenticated:
-        serializer_context["request"] = request
-
-    dataset_data = get_dataset_serializer(
-        dataset,
-        has_user_access=has_user_access,
-        context=serializer_context,
-    )
-    statistics = dataset.get_dataset_file_statistics()
-
-    return {
-        "dataset": dataset_data,
-        "statistics": statistics,
-        "dataset_orm": dataset,
-    }
-
-
 class DatasetDetailsView(View):
     """View to handle dataset details JSON (metadata + file statistics)."""
 
@@ -1406,7 +1288,7 @@ class DatasetDetailsView(View):
                 return JsonResponse(
                     {"error": "Dataset not found or access denied"}, status=404
                 )
-            safe = {k: v for k, v in bundle.items() if k != "dataset_orm"}
+            safe = {k: v for k, v in bundle.items() if k != "updated_at"}
             return JsonResponse(safe)
         except Exception:  # noqa: BLE001
             log.exception("Error retrieving dataset details")

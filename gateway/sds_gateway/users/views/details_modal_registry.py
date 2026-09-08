@@ -12,14 +12,21 @@ from uuid import UUID
 from django.http import HttpRequest
 from django.template.loader import render_to_string
 
+from sds_opensearch_query.query import run_search
+
+from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
+from sds_gateway.api_methods.federation.fed_index import FED_DATASETS_INDEX
 from sds_gateway.api_methods.models import Capture
+from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
+from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
-from sds_gateway.api_methods.utils.asset_access_control import (
-    user_has_access_to_capture,
-)
-from sds_gateway.users.views.datasets import load_dataset_details_bundle
+from sds_gateway.api_methods.serializers.dataset_serializers import get_dataset_serializer
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
+from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_item
+from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 
 TIME_METADATA_FIELDS = frozenset(
     {
@@ -84,10 +91,13 @@ def _format_bool_or_str_text(value: object) -> str:
     """Format a boolean or string value to display text."""
     if isinstance(value, bool):
         return "Yes" if value else "No"
-    if value.lower() == "true":
-        return "Yes"
-    if value.lower() == "false":
-        return "No"
+    if isinstance(value, str):
+        lowered = value.lower()
+        if lowered == "true":
+            return "Yes"
+        if lowered == "false":
+            return "No"
+        return value
     return str(value)
 
 
@@ -143,7 +153,12 @@ def build_channel_metadata_rows(
 def _owner_display(capture_dict: dict[str, Any]) -> str:
     owner = capture_dict.get("owner") or {}
     if isinstance(owner, dict):
-        return str(owner.get("email") or owner.get("name") or "N/A")
+        label = owner.get("email") or owner.get("name")
+        if label:
+            return str(label)
+    owner_name = capture_dict.get("owner_name")
+    if owner_name:
+        return str(owner_name)
     return "N/A"
 
 
@@ -214,17 +229,40 @@ def _capture_file_summary_from_dict(capture_dict: dict[str, Any]) -> tuple[int, 
     """Read file count and total size from serialized capture (no file list)."""
     files_count = capture_dict.get("total_file_count")
     if files_count is None:
-        info = capture_dict.get("data_files_info") or {}
-        files_count = info.get("total_count", info.get("count", 0))
+        info = capture_dict.get("data_files_info")
+        if isinstance(info, dict) and ("total_count" in info or "count" in info):
+            files_count = info.get("total_count", info.get("count"))
+    if files_count is None:
+        files_count = capture_dict.get("file_count")
+
     total_size = capture_dict.get("total_file_size")
     if total_size is None:
-        info = capture_dict.get("data_files_info") or {}
-        total_size = info.get("total_size", 0)
+        info = capture_dict.get("data_files_info")
+        if isinstance(info, dict) and "total_size" in info:
+            total_size = info.get("total_size")
+    if total_size is None:
+        total_size = capture_dict.get("size")
+
     return int(files_count or 0), int(total_size or 0)
 
 
+def _run_search_for_fed_asset(index: str, body: dict[str, Any]) -> dict[str, Any] | None:
+    client = get_opensearch_client()
+    hits = run_search(
+        client=client,
+        index=index,
+        body=body,
+        size=1,
+    )
+    if not hits:
+        return None
+    return hits[0].get("_source") or None
+
+
 def build_capture_details_modal_context(
-    request: HttpRequest, capture_uuid: UUID
+    request: HttpRequest,
+    capture_uuid: UUID,
+    federated_peer: bool = False,
 ) -> dict[str, Any] | None:
     """
     Build template context for capture details modal body.
@@ -232,20 +270,37 @@ def build_capture_details_modal_context(
     Returns None if capture not found or user cannot access it.
     """
     try:
-        capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+        if federated_peer:
+            body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"uuid": str(capture_uuid)}},
+                            {"term": {"is_deleted": False}},
+                            {"exists": {"field": "public_dataset_ids"}},
+                        ],
+                    },
+                },
+            }
+            capture_dict = _run_search_for_fed_asset(FED_CAPTURES_INDEX, body)
+            if capture_dict is None:
+                return None
+        else:
+            if not request.user.is_authenticated:
+                return None
+
+            capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
+            
+            if not user_has_access_to_capture(request.user, capture):
+                return None
+
+            capture_dict = serialize_capture_or_composite(
+                capture,
+                context={"request": request, "exclude_files": True},
+            )
     except Capture.DoesNotExist:
         return None
 
-    if not request.user.is_authenticated:
-        return None
-
-    if not user_has_access_to_capture(request.user, capture):
-        return None
-
-    capture_dict = serialize_capture_or_composite(
-        capture,
-        context={"request": request, "exclude_files": True},
-    )
     uuid_str = str(capture_dict.get("uuid", capture_uuid))
 
     files_count, total_size = _capture_file_summary_from_dict(capture_dict)
@@ -258,7 +313,7 @@ def build_capture_details_modal_context(
         "channel_label": _channel_summary_label(capture_dict),
         "channel_value": _channel_summary_value(capture_dict),
         "accordion_channels": _accordion_channels(capture_dict),
-        "is_public_yesno": "Yes" if capture_dict.get("is_public") else "No",
+        "is_public_yesno": "Yes" if capture_dict.get("is_public") or federated_peer else "No",
         "dataset_display": _dataset_display(capture_dict),
         "files_count": files_count,
         "total_size": total_size,
@@ -296,21 +351,93 @@ def finalize_capture_modal_json(ctx: dict[str, Any], html: str) -> dict[str, Any
     }
 
 
-def build_dataset_details_modal_context(
-    request: HttpRequest, dataset_uuid: UUID
+def load_dataset_details_bundle(
+    request: HttpRequest,
+    dataset_uuid: UUID,
+    federated_peer: bool = False,
 ) -> dict[str, Any] | None:
-    bundle = load_dataset_details_bundle(request, dataset_uuid)
+    """
+    Build dataset details payload (dataset dict and file statistics).
+
+    Returns None if the dataset does not exist or is not visible to the request user.
+    On success, includes ``dataset_orm`` for server-rendered templates (omit from JSON).
+    """
+    try:
+        if federated_peer:
+            body = {
+                "query": {
+                    "bool": {
+                        "must": [
+                            {"term": {"uuid": str(dataset_uuid)}},
+                            {"term": {"is_deleted": False}},
+                            {"term": {"is_public": True}},
+                        ],
+                    },
+                },
+            }
+            dataset_data = _run_search_for_fed_asset(FED_DATASETS_INDEX, body)
+            if dataset_data is None:
+                return None
+            capture_file_count = dataset_data.get("capture_file_count", 0)
+            artifact_file_count = dataset_data.get("artifact_file_count", 0)
+            total_size = dataset_data.get("size", 0)
+            statistics = {
+                "total_files": capture_file_count + artifact_file_count,
+                "captures": capture_file_count,
+                "artifacts": artifact_file_count,
+                "total_size": total_size,
+            }
+            updated_at = dataset_data.get("updated_at", None)
+        else:
+            dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
+            
+            has_public_access = dataset.is_public and dataset.status == DatasetStatus.FINAL
+            has_user_access = request.user.is_authenticated and user_has_access_to_item(
+                request.user, dataset_uuid, ItemType.DATASET
+            )
+
+            if not (has_public_access or has_user_access):
+                return None
+            
+            serializer_context: dict[str, Any] = {"exclude_files": True}
+            if request.user.is_authenticated:
+                serializer_context["request"] = request
+
+            dataset_data = get_dataset_serializer(
+                dataset,
+                has_user_access=has_user_access,
+                context=serializer_context,
+            )
+            statistics = dataset.get_dataset_file_statistics()
+            updated_at = dataset.updated_at
+    except Dataset.DoesNotExist:
+        return None
+
+    return {
+        "dataset": dataset_data,
+        "statistics": statistics,
+        "updated_at": updated_at,
+    }
+
+
+def build_dataset_details_modal_context(
+    request: HttpRequest, dataset_uuid: UUID, federated_peer: bool = False,
+) -> dict[str, Any] | None:
+    bundle = load_dataset_details_bundle(
+        request,
+        dataset_uuid,
+        federated_peer=federated_peer,
+    )
     if bundle is None:
         return None
 
-    dataset_orm = bundle["dataset_orm"]
     ds = bundle["dataset"]
     uuid_str = str(ds.get("uuid", dataset_uuid))
 
     return {
         "dataset": ds,
         "statistics": bundle["statistics"],
-        "dataset_updated_at": dataset_orm.updated_at,
+        "dataset_updated_at": bundle["updated_at"],
         "dataset_uuid": uuid_str,
     }
 
@@ -340,7 +467,7 @@ def get_registered_asset_types() -> frozenset[str]:
     return frozenset(DETAILS_MODAL_REGISTRY.keys())
 
 
-DetailsModalContextBuilder = Callable[[HttpRequest, UUID], dict[str, Any] | None]
+DetailsModalContextBuilder = Callable[..., dict[str, Any] | None]
 DetailsModalJsonBuilder = Callable[[dict[str, Any], str], dict[str, Any]]
 
 DETAILS_MODAL_REGISTRY: dict[str, DetailsModalContextBuilder] = {

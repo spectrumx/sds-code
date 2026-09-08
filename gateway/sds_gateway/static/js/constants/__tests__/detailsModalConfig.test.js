@@ -23,9 +23,45 @@ describe("detailsModalConfig", () => {
         )
     })
 
+    test("capture buildDetailsUrl adds federated_peer for peer rows", () => {
+        const el = document.createElement("a")
+        el.setAttribute("data-federated-peer", "True")
+        expect(registry().capture.buildDetailsUrl("abc-def", el)).toBe(
+            "/users/details-modal/capture/abc-def/?federated_peer=true",
+        )
+    })
+
     test("dataset buildDetailsUrl uses users details-modal path", () => {
         expect(registry().dataset.buildDetailsUrl("ds-1")).toBe(
             "/users/details-modal/dataset/ds-1/",
+        )
+    })
+
+    test("dataset buildDetailsUrl adds federated_peer from dataset-details-open row", () => {
+        document.body.innerHTML = `
+			<table><tbody>
+			<tr class="dataset-details-open" data-federated-peer="true">
+				<td><a class="dataset-name-link" href="#">DS</a></td>
+			</tr>
+			</tbody></table>
+		`
+        const row = document.querySelector(".dataset-details-open")
+        expect(registry().dataset.buildDetailsUrl("ds-1", row)).toBe(
+            "/users/details-modal/dataset/ds-1/?federated_peer=true",
+        )
+    })
+
+    test("dataset buildDetailsUrl adds federated_peer from name link inside row", () => {
+        document.body.innerHTML = `
+			<table><tbody>
+			<tr class="dataset-details-open">
+				<td><a class="dataset-name-link" data-federated-peer="True" href="#">DS</a></td>
+			</tr>
+			</tbody></table>
+		`
+        const row = document.querySelector(".dataset-details-open")
+        expect(registry().dataset.buildDetailsUrl("ds-1", row)).toBe(
+            "/users/details-modal/dataset/ds-1/?federated_peer=true",
         )
     })
 

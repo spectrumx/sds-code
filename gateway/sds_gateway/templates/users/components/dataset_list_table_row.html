@@ -11,26 +11,24 @@ Context:
     data-dataset-uuid="{{ dataset.uuid }}"
     data-item-uuid="{{ dataset.uuid }}"
     data-item-type="dataset"
+    data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
     role="button"
     tabindex="0">
     <td class="text-nowrap">
-        {% if dataset.is_owner %}
-            <a href="#"
-               class="dataset-name-link"
-               data-dataset-uuid="{{ dataset.uuid }}"
-               data-item-uuid="{{ dataset.uuid }}"
-               aria-label="View details for {{ dataset.name }}">{{ dataset.name }} (v{{ dataset.version }})</a>
-        {% else %}
-            <span class="text-muted dataset-name-link"
-                  data-dataset-uuid="{{ dataset.uuid }}"
-                  data-item-uuid="{{ dataset.uuid }}">{{ dataset.name }} (v{{ dataset.version }})</span>
-        {% endif %}
+        <a href="#"
+           class="dataset-name-link"
+           data-dataset-uuid="{{ dataset.uuid }}"
+           data-item-uuid="{{ dataset.uuid }}"
+           data-item-type="dataset"
+           data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
+           aria-label="View details for {{ dataset.name }}">{{ dataset.name }}{% if dataset.version %} (v{{ dataset.version }}){% endif %}</a>
         {% if dataset.status == 'draft' %}
             <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
         {% endif %}
-        {% if dataset.is_public %}<i class="bi bi-globe me-1 text-primary" title="Public"></i>{% endif %}
         {% if dataset.is_federated %}
             <span class="ms-2 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>
+        {% elif dataset.is_public %}
+            <i class="bi bi-globe me-1 text-primary" title="Public"></i>
         {% endif %}
         {% if dataset.is_shared_with_me %}
             <span class="ms-2 align-middle"

@@ -24,16 +24,41 @@ Context:
            data-item-type="capture"
            data-item-uuid="{{ capture.uuid }}"
            data-uuid="{{ capture.uuid }}"
+           data-federated-peer="{{ capture.is_federated }}"
            aria-label="View details for capture {{ capture.name|default:capture.uuid }}"
            title="View capture details: {{ capture.name|default:capture.uuid }}">
             {{ capture.name|default:"Unnamed Capture" }}
         </a>
-        {% if capture.is_shared_with_me %}
+        {% if capture.is_federated %}
+            <span class="ms-2 align-middle"
+                  data-bs-toggle="tooltip"
+                  title="Federated peer site">
+                <i class="bi bi-globe text-info" aria-hidden="true"></i>
+            </span>
+            <span class="ms-1 badge bg-info text-dark" title="Federated site">{{ capture.site_name }}</span>
+        {% elif capture.is_public_discovery %}
+            <span class="ms-2 align-middle"
+                  data-bs-toggle="tooltip"
+                  title="Public on this site">
+                <i class="bi bi-globe text-primary" aria-hidden="true"></i>
+            </span>
+        {% elif capture.is_owner %}
+            <span class="ms-2 badge bg-secondary" title="You own this capture">Owned by you</span>
+        {% elif capture.is_shared_with_me %}
             <span class="ms-2 align-middle"
                   data-bs-toggle="tooltip"
                   title="Shared with you">
-                <i class="bi bi-people-fill text-success"></i>
+                <i class="bi bi-people-fill text-success" aria-hidden="true"></i>
             </span>
+        {% endif %}
+    </td>
+    <td class="capture-col-owner text-truncate"
+        headers="owner-header"
+        title="{{ capture.owner_name|default:'' }}">
+        {% if capture.is_owner %}
+            <span class="text-muted">You</span>
+        {% else %}
+            {{ capture.owner_name|default:"-" }}
         {% endif %}
     </td>
     <td class="capture-col-directory text-truncate"
@@ -41,7 +66,14 @@ Context:
         title="{{ capture.top_level_dir|default:'' }}">{{ capture.top_level_dir|default:"-" }}</td>
     <td class="capture-col-type" headers="type-header">{{ capture.capture_type_display }}</td>
     <td class="capture-col-created text-nowrap" headers="created-header">
-        {% if capture.capture.created_at %}
+        {% if capture.created_at %}
+            {% localtime on %}
+                <div class="d-flex align-items-center gap-2">
+                    <span class="bg-transparent pe-2">{{ capture.created_at|date:"Y-m-d" }}</span>
+                    <span class="text-muted bg-transparent">{{ capture.created_at|date:"H:i:s T" }}</span>
+                </div>
+            {% endlocaltime %}
+        {% elif capture.capture.created_at %}
             {% localtime on %}
                 <div class="d-flex align-items-center gap-2">
                     <span class="bg-transparent pe-2">{{ capture.capture.created_at|date:"Y-m-d" }}</span>

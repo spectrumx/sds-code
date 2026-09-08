@@ -31,6 +31,12 @@ from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.helpers.list_helpers import annotate_capture_list_display
+from sds_gateway.api_methods.helpers.list_helpers import capture_list_dropdown_menu_items
+from sds_gateway.api_methods.helpers.list_helpers import get_published_captures
+from sds_gateway.api_methods.helpers.list_helpers import merge_capture_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import published_captures_excluding
+from sds_gateway.api_methods.helpers.list_helpers import capture_permission_maps_for_user
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -72,108 +78,53 @@ def _parse_items_per_page(
     return min(n, max_items)
 
 
-def _capture_list_dropdown_menu_items(row: dict[str, Any]) -> list[dict[str, Any]]:
-    """Build dropdown_menu.html items for a serialized capture list row."""
-    uuid = str(row.get("uuid") or "")
-    if not uuid:
-        return []
-
-    is_owner = row.get("is_owner")
-    permission_level = row.get("permission_level")
-    is_contributor = permission_level == PermissionLevel.CONTRIBUTOR
-    is_co_owner = permission_level == PermissionLevel.CO_OWNER
-
-    items: list[dict[str, Any]] = []
-    if is_owner:
-        display_name = (
-            str(row.get("name") or "").strip()
-            or str(row.get("top_level_dir") or "").strip()
-            or "Capture"
-        )
-        items.append(
-            {
-                "label": "Add to dataset",
-                "icon": "folder-plus",
-                "type": "button",
-                "extra_class": "add-to-dataset-btn",
-                "data_attrs": {
-                    "capture-uuid": uuid,
-                    "capture-name": display_name[:200],
-                },
-            }
-        )
-        top_level = str(row.get("top_level_dir") or "").strip()
-        items.append(
-            {
-                "label": "Reindex",
-                "icon": "arrow-repeat",
-                "type": "button",
-                "extra_class": "reindex-capture-btn",
-                "data_attrs": {
-                    "capture-uuid": uuid,
-                    "capture-name": display_name[:200],
-                    "top-level-dir": top_level[:500],
-                },
-            }
-        )
-
-    if is_owner:
-        display_name = (
-            str(row.get("name") or "").strip()
-            or str(row.get("top_level_dir") or "").strip()
-            or "Capture"
-        )
-        items.append(
-            {
-                "label": "Delete",
-                "icon": "trash",
-                "type": "button",
-                "extra_class": "delete-asset-btn",
-                "data_attrs": {
-                    "asset-type": "capture",
-                    "asset-uuid": uuid,
-                    "asset-name": display_name[:200],
-                    **({"asset-shared": "true"} if row.get("is_shared") else {}),
-                },
-            }
-        )
-
-    if is_owner or is_contributor or is_co_owner:
-        items.extend(
-            (
-                {
-                    "label": "Share",
-                    "icon": "person-plus",
-                    "type": "button",
-                    "modal_toggle": True,
-                    "modal_target": f"#shareModal-{uuid}",
-                    "data_attrs": {},
-                },
-            )
-        )
-
-    items.append(
-        {
-            "label": "Download",
-            "icon": "download",
-            "type": "button",
-            "modal_toggle": True,
-            "modal_target": f"#webDownloadModal-{uuid}",
-            "data_attrs": {},
-        }
+def _build_capture_list_rows(
+    request: HttpRequest,
+    params: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Owned, shared, public-on-host, and federated capture list rows."""
+    owned_shared = _get_filtered_and_sorted_captures(request.user, params)
+    published_qs = _apply_basic_filters(
+        qs=get_published_captures(),
+        search=params.get("search") or "",
+        date_start=params.get("date_start") or "",
+        date_end=params.get("date_end") or "",
+        cap_type=params.get("cap_type") or "",
     )
-    return items
+    public_extra = published_captures_excluding(owned_shared, published_qs)
+    public_uuids = {capture.uuid for capture in public_extra}
+    all_captures = _apply_sorting_to_list(
+        [*owned_shared, *public_extra],
+        params.get("sort_by", "created_at"),
+        params.get("sort_order", "desc"),
+    )
+    enhanced = _get_captures_for_template(all_captures, request, public_uuids=public_uuids)
+    search = (params.get("search") or "").strip() or None
+    return merge_capture_list_rows(
+        enhanced,
+        query=search,
+        sort_by=params.get("sort_by", "created_at"),
+        descending=params.get("sort_order", "desc") == "desc",
+    )
 
 
 def _get_captures_for_template(
     captures: QuerySet[Capture] | list[Capture] | Page[Capture],
     request: HttpRequest,
+    *,
+    public_uuids: set[Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Get enhanced captures for the template."""
     enhanced_captures = []
 
     # Bulk-load OpenSearch metadata before serialization loop
     captures_list = list(captures)
+    if public_uuids is None:
+        public_uuids = set()
+    perm_by_uuid, _shared_uuids, shared_with_me = capture_permission_maps_for_user(
+        captures_list,
+        request.user,
+    )
     if captures_list:
         temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures_list])
         bulk_metadata = Capture.bulk_load_frequency_metadata(temp_qs)
@@ -189,15 +140,22 @@ def _get_captures_for_template(
 
         # Add ownership flags for template display
         capture_data["is_owner"] = capture.owner == request.user
-        capture_data["is_shared_with_me"] = capture.owner != request.user
+        capture_data["is_shared_with_me"] = (
+            capture.uuid in shared_with_me and not capture_data["is_owner"]
+        )
+        capture_data["permission_level"] = perm_by_uuid.get(capture.uuid)
         if capture_data["is_owner"] and not capture_data.get("permission_level"):
             capture_data["permission_level"] = PermissionLevel.OWNER
+        capture_data["is_published_discovery"] = capture.uuid in public_uuids
+        annotate_capture_list_display(capture_data)
         capture_data["owner_name"] = capture.owner.name or "Owner"
         capture_data["owner_email"] = capture.owner.email or ""
+        capture_data.setdefault("created_at", capture.created_at)
+        capture_data.setdefault("is_federated", False)
 
         # Add the original model instance for template use
         capture_data["capture"] = capture
-        capture_data["dropdown_menu_items"] = _capture_list_dropdown_menu_items(
+        capture_data["dropdown_menu_items"] = capture_list_dropdown_menu_items(
             capture_data,
         )
 
@@ -551,6 +509,7 @@ def _get_filtered_and_sorted_captures(
 CAPTURES_LIST_TABLE_HEADERS = [
     {"label": "", "col_class": "capture-col-select", "aria_label": "Select"},
     {"label": "Name", "col_class": "capture-col-name"},
+    {"label": "Owner", "col_class": "capture-col-owner"},
     {"label": "Directory", "col_class": "capture-col-directory"},
     {"label": "Type", "col_class": "capture-col-type"},
     {"label": "Created", "col_class": "capture-col-created"},
@@ -590,15 +549,10 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
         # Extract request parameters
         params = self._extract_request_params(request)
 
-        # Get filtered and sorted captures
-        unique_captures = _get_filtered_and_sorted_captures(request.user, params)
+        list_rows = _build_capture_list_rows(request, params)
 
-        # Paginate; get_page handles bad page values safely
-        paginator = Paginator(unique_captures, params["items_per_page"])
+        paginator = Paginator(list_rows, params["items_per_page"])
         page_obj = paginator.get_page(request.GET.get("page", 1))
-
-        # Update the page_obj with enhanced captures
-        page_obj.object_list = _get_captures_for_template(page_obj, request)
 
         # Get visualization compatibility data
         visualization_compatibility = get_visualization_compatibility()
@@ -660,70 +614,6 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
 
 
 user_capture_list_view = ListCapturesView.as_view()
-
-
-class CapturesAPIView(Auth0LoginRequiredMixin, View):
-    """Handle API/JSON requests for captures search."""
-
-    def _extract_request_params(self, request):
-        """Extract and return request parameters for API view."""
-        return {
-            "sort_by": request.GET.get("sort_by", "created_at"),
-            "sort_order": request.GET.get("sort_order", "desc"),
-            "search": request.GET.get("search", ""),
-            "date_start": request.GET.get("date_start", ""),
-            "date_end": request.GET.get("date_end", ""),
-            "cap_type": request.GET.get("capture_type", ""),
-            "min_freq": request.GET.get("min_freq", ""),
-            "max_freq": request.GET.get("max_freq", ""),
-        }
-
-    def get(self, request, *args, **kwargs) -> JsonResponse:
-        """Handle AJAX requests for the captures API."""
-
-        try:
-            # Extract and validate parameters
-            params = self._extract_request_params(request)
-
-            # Get filtered and sorted captures with API limit applied before union
-            captures_list = _get_filtered_and_sorted_captures(
-                request.user, params, limit=API_CAPTURES_LIMIT
-            )
-
-            try:
-                captures_data = _get_captures_for_template(captures_list, request)
-                # remove the Capture model instance from each
-                #   capture_data dict for JSON serialization
-                for capture_data in captures_data:
-                    capture_data.pop("capture", None)
-            except Exception as e:
-                log.exception(f"Error in _get_captures_for_template: {e}")
-                msg = f"Error getting capture data: {e!s}"
-                raise ValueError(msg) from e
-
-            response_data = {
-                "captures": captures_data,
-                "has_results": len(captures_data) > 0,
-                "total_count": len(captures_data),
-            }
-            return JsonResponse(response_data)
-
-        except (ValueError, TypeError) as e:
-            error_msg = str(e)
-            log.warning(
-                f"Invalid parameter in captures API request: {error_msg}",
-                exc_info=True,
-            )
-            return JsonResponse(
-                {"error": f"Invalid search parameters: {error_msg}"},
-                status=400,
-            )
-        except DatabaseError:
-            log.exception("Database error in captures API request")
-            return JsonResponse({"error": "Database error occurred"}, status=500)
-
-
-user_captures_api_view = CapturesAPIView.as_view()
 
 
 class KeywordAutocompleteAPIView(Auth0LoginRequiredMixin, View):
