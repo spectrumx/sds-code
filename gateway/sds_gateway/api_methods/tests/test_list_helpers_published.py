@@ -6,6 +6,7 @@ import pytest
 
 from sds_gateway.api_methods.helpers.list_helpers import get_published_captures
 from sds_gateway.api_methods.helpers.list_helpers import get_published_datasets
+from sds_gateway.api_methods.helpers.list_helpers import merge_asset_list_rows
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
@@ -46,3 +47,15 @@ def test_get_published_datasets_and_captures_align_on_exportable_criteria() -> N
 
     assert get_published_datasets().filter(uuid=exportable.uuid).exists()
     assert get_published_captures().filter(uuid=capture.uuid).exists()
+
+
+def test_merge_asset_list_rows_sort_by_authors_mixed_shapes() -> None:
+    local_rows = [{"uuid": "1", "authors": [{"name": "Bob", "orcid_id": ""}]}]
+    federated_rows = [{"uuid": "2", "authors": ["Alice"]}]
+    merged = merge_asset_list_rows(
+        local_rows,
+        federated_rows,
+        sort_by="authors",
+        descending=False,
+    )
+    assert [row["uuid"] for row in merged] == ["2", "1"]

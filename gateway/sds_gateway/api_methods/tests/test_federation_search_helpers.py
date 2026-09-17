@@ -88,7 +88,10 @@ def test_federated_capture_list_metadata_filters_date_and_frequency() -> None:
     assert filters[0] == {
         "field_path": "created_at",
         "query_type": "range",
-        "filter_value": {"gte": "2024-01-01", "lte": "2024-12-31"},
+        "filter_value": {
+            "gte": "2024-01-01T00:00:00.000Z",
+            "lte": "2024-12-31T23:59:59.999Z",
+        },
     }
     assert filters[1]["field_path"] == "search_props.center_frequency"
     min_hz, max_hz = _parse_freq_bounds_hz("1.0", "2.5")
@@ -108,7 +111,7 @@ def test_build_fed_must_clauses_includes_capture_type_and_metadata() -> None:
     terms = [clause.get("term") for clause in must if "term" in clause]
     assert {"capture_type": "digital-rf"} in terms
     ranges = [clause.get("range") for clause in must if "range" in clause]
-    assert {"created_at": {"gte": "2024-06-01"}} in ranges
+    assert {"created_at": {"gte": "2024-06-01T00:00:00.000Z"}} in ranges
 
 
 def test_serialize_peer_capture_sets_capture_type_display() -> None:
