@@ -12,9 +12,13 @@ from typing import Any
 from django.template.loader import render_to_string
 from django.utils import dateparse
 from django.utils import timezone
+from sds_opensearch_query.query import federation_not_deleted_clause
 from sds_opensearch_query.query import run_search
 
 from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
+from sds_gateway.api_methods.federation.search_helpers import (
+    federated_published_capture_visibility_must,
+)
 from sds_gateway.api_methods.federation.fed_index import FED_DATASETS_INDEX
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
@@ -397,8 +401,8 @@ def build_capture_details_modal_context(
                     "bool": {
                         "must": [
                             {"term": {"uuid": str(capture_uuid)}},
-                            {"term": {"is_deleted": False}},
-                            {"exists": {"field": "public_dataset_ids"}},
+                            federation_not_deleted_clause(),
+                            federated_published_capture_visibility_must(),
                         ],
                     },
                 },

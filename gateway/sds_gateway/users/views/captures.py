@@ -33,6 +33,7 @@ from sds_gateway.api_methods.helpers.list_helpers import (
 from sds_gateway.api_methods.helpers.list_helpers import get_published_captures
 from sds_gateway.api_methods.helpers.list_helpers import merge_capture_list_rows
 from sds_gateway.api_methods.helpers.list_helpers import published_captures_excluding
+from sds_gateway.api_methods.helpers.list_helpers import serialize_assets_for_user
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
@@ -107,12 +108,18 @@ def _build_capture_list_rows(
         params.get("sort_by", "created_at"),
         params.get("sort_order", "desc"),
     )
-    enhanced = _get_captures_for_template(
-        all_captures, request, public_uuids=public_uuids
+    local_rows = serialize_assets_for_user(
+        all_captures,
+        request.user,
+        asset_type=ItemType.CAPTURE,
     )
+    for row in local_rows:
+        if row.get("uuid") in public_uuids:
+            row["is_published_discovery"] = True
+        annotate_capture_list_display(row)
     search = (params.get("search") or "").strip() or None
     return merge_capture_list_rows(
-        enhanced,
+        local_rows,
         query=search,
         capture_type=params.get("cap_type") or "",
         date_start=params.get("date_start") or "",
@@ -270,6 +277,51 @@ def _get_captures_for_template(
         enhanced_captures.append(enhanced_capture_data)
 
     return enhanced_captures
+
+
+def _enhance_capture_list_page_rows(
+    request: HttpRequest,
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Full composite serialization and share data for one paginated page only."""
+    local_captures: list[Capture] = []
+    for row in rows:
+        if row.get("is_federated"):
+            continue
+        capture = row.get("capture")
+        if isinstance(capture, Capture):
+            local_captures.append(capture)
+
+    if not local_captures:
+        return rows
+
+    published_by_uuid = {
+        row.get("uuid"): bool(row.get("is_published_discovery"))
+        for row in rows
+        if not row.get("is_federated")
+    }
+    perm_by_uuid, _shared_uuids, shared_with_me = capture_permission_maps_for_user(
+        local_captures,
+        request.user,
+    )
+    bulk_metadata = _load_bulk_metadata(local_captures)
+    enhanced_by_uuid: dict[Any, dict[str, Any]] = {}
+    for capture in local_captures:
+        enhanced_by_uuid[capture.uuid] = _prepare_capture_data_for_template(
+            request=request,
+            capture=capture,
+            bulk_metadata=bulk_metadata,
+            permission=perm_by_uuid.get(capture.uuid),
+            shared_with_me=shared_with_me,
+            published=published_by_uuid.get(capture.uuid, False),
+        )
+
+    return [
+        enhanced_by_uuid.get(row.get("uuid"), row)
+        if not row.get("is_federated")
+        else row
+        for row in rows
+    ]
 
 
 def _get_user_captures_querysets(
@@ -603,6 +655,10 @@ class ListCapturesView(Auth0LoginRequiredMixin, View):
 
         paginator = Paginator(list_rows, params["items_per_page"])
         page_obj = paginator.get_page(request.GET.get("page", 1))
+        page_obj.object_list = _enhance_capture_list_page_rows(
+            request,
+            list(page_obj.object_list),
+        )
 
         # Get visualization compatibility data
         visualization_compatibility = get_visualization_compatibility()
