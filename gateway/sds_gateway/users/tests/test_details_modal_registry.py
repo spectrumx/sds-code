@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 
 from sds_gateway.users.views import details_modal_registry as reg
@@ -187,15 +189,15 @@ class TestNormalizeFederatedCaptureDetails:
         assert out["center_frequency_ghz"] == 1.0
         assert reg._center_frequency_display(out) == "1.000 GHz"
 
-    def test_public_dataset_ids_resolved_to_datasets(self, mocker) -> None:
-        mocker.patch.object(
+    def test_public_dataset_ids_resolved_to_datasets(self) -> None:
+        with patch.object(
             reg,
             "_federated_dataset_names_by_uuid",
             return_value={"ds-uuid": "Peer Dataset"},
-        )
-        out = reg._normalize_federated_capture_details(
-            {"public_dataset_ids": ["ds-uuid"]},
-        )
+        ):
+            out = reg._normalize_federated_capture_details(
+                {"public_dataset_ids": ["ds-uuid"]},
+            )
         assert reg._dataset_display(out) == "Peer Dataset"
 
 
