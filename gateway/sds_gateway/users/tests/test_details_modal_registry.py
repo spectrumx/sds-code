@@ -127,6 +127,8 @@ class TestCaptureFileSummaryFromDict:
     EXPECTED_SIZE = 1000
     FALLBACK_COUNT = 3
     FALLBACK_SIZE = 500
+    EXPECTED_SINGLE_FILE_COUNT = 1
+    EXPECTED_SINGLE_FILE_SIZE = 1024
 
     def test_uses_total_file_fields(self) -> None:
         count, size = reg._capture_file_summary_from_dict(
@@ -152,10 +154,13 @@ class TestCaptureFileSummaryFromDict:
 
     def test_falls_back_to_federated_file_count_and_size(self) -> None:
         count, size = reg._capture_file_summary_from_dict(
-            {"file_count": 1, "size": 1024},
+            {
+                "file_count": self.EXPECTED_SINGLE_FILE_COUNT,
+                "size": self.EXPECTED_SINGLE_FILE_SIZE,
+            },
         )
-        assert count == 1
-        assert size == 1024
+        assert count == self.EXPECTED_SINGLE_FILE_COUNT
+        assert size == self.EXPECTED_SINGLE_FILE_SIZE
 
 
 class TestFinalizeModalJson:
