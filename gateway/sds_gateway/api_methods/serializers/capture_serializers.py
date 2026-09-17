@@ -900,21 +900,22 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
     """Public-safe capture payload for federation export (sync / OpenSearch)."""
 
     site_name = serializers.SerializerMethodField()
+    owner_name = serializers.SerializerMethodField()
     file_count = serializers.SerializerMethodField()
     size = serializers.SerializerMethodField()
     capture_props = serializers.SerializerMethodField()
     search_props = serializers.SerializerMethodField()
     public_dataset_ids = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
-        format="%Y-%m-%d %H:%M:%S%z",
+        format="iso-8601",
         read_only=True,
     )
     updated_at = serializers.DateTimeField(
-        format="%Y-%m-%d %H:%M:%S%z",
+        format="iso-8601",
         read_only=True,
     )
     deleted_at = serializers.DateTimeField(
-        format="%Y-%m-%d %H:%M:%S%z",
+        format="iso-8601",
         read_only=True,
     )
 
@@ -928,6 +929,7 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
             "scan_group",
             "top_level_dir",
             "site_name",
+            "owner_name",
             "file_count",
             "size",
             "capture_props",
@@ -941,6 +943,9 @@ class CaptureFederationSerializer(serializers.ModelSerializer[Capture]):
 
     def get_site_name(self, obj: Capture) -> str:
         return str((self.context or {})["site_name"])
+
+    def get_owner_name(self, obj: Capture) -> str:
+        return obj.owner.name if obj.owner else "Owner"
 
     def get_file_count(self, obj: Capture) -> int:
         return int(obj.get_files_summary()["total_count"])

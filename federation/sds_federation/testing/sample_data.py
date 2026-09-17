@@ -55,4 +55,5 @@ def sample_federated_capture_doc(
         capture_type="drf",
         channel="0",
         site_name=site_name,
+        owner_name="Test Owner",
     )
