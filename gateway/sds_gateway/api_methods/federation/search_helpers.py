@@ -121,12 +121,11 @@ def _build_fed_search_body(
     site_filter = _site_clause(site)
     if site_filter is not None:
         must = [*must, site_filter]
-        must_not = _build_fed_must_not_clauses(exclude_site=None)
-    else:
-        local_site = _local_peer_site()
-        must_not = _build_fed_must_not_clauses(
-            exclude_site=local_site or None,
-        )
+    # Fed indices mirror published local assets.
+    # Postgres is authoritative for this site.
+    must_not = _build_fed_must_not_clauses(
+        exclude_site=_local_peer_site() or None,
+    )
     return bool_must_search_body(*must, must_not_clauses=must_not)
 
 

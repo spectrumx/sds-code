@@ -328,6 +328,14 @@ _CAPTURE_LOCAL_FIELD_DEFAULTS: dict[str, Any] = {
     "size": 0,
 }
 
+_CAPTURE_TYPE_DISPLAY: dict[str, str] = dict(Capture.CAPTURE_TYPE_CHOICES)
+
+
+def _capture_type_display(capture_type: Any) -> str:
+    key = str(capture_type or "").strip()
+    return _CAPTURE_TYPE_DISPLAY.get(key, key)
+
+
 _CAPTURE_LIST_FIELDS: tuple[str, ...] = (
     "uuid",
     "name",
@@ -370,7 +378,7 @@ def _local_list_field_value(
     elif field == "status_display" and isinstance(asset, Dataset):
         value = asset.get_status_display()
     elif field == "capture_type_display" and isinstance(asset, Capture):
-        value = asset.get_capture_type_display()
+        value = _capture_type_display(asset.capture_type)
     elif field == "owner_name":
         value = asset.owner.name if asset.owner else "Owner"
     elif field == "site_name":
@@ -500,6 +508,7 @@ def serialize_peer_asset(doc: dict[str, Any], asset_type: ItemType) -> dict[str,
     _apply_peer_doc_to_row(row, doc)
     row["dropdown_menu_items"] = []
     if asset_type == ItemType.CAPTURE:
+        row["capture_type_display"] = _capture_type_display(row.get("capture_type"))
         row.setdefault("is_public_discovery", False)
         row.setdefault("is_published_discovery", False)
     return row
@@ -612,7 +621,12 @@ def annotate_capture_list_display(row: dict[str, Any]) -> None:
 
 
 def _sort_key_value(row: dict[str, Any], key: str) -> tuple[bool, Any]:
-    value = _parse_datetime(row.get(key))
+    raw = row.get(key)
+    if key in _LIST_ROW_DATETIME_FIELDS:
+        value: Any = _parse_datetime(raw)
+    else:
+        value = raw
+    # None sorts after real values when ascending; reverse flips that.
     return (value is None, value)
 
 
@@ -623,7 +637,13 @@ def merge_asset_list_rows(
     sort_by: str = "created_at",
     descending: bool = True,
 ) -> list[dict[str, Any]]:
-    merged = [*local_rows, *federated_rows]
+    seen = {str(row.get("uuid")) for row in local_rows if row.get("uuid")}
+    merged = list(local_rows)
+    for fed_row in federated_rows:
+        fed_uuid = str(fed_row.get("uuid") or "")
+        if fed_uuid and fed_uuid not in seen:
+            merged.append(fed_row)
+            seen.add(fed_uuid)
     merged.sort(
         key=lambda row: _sort_key_value(row, sort_by),
         reverse=descending,
@@ -653,6 +673,70 @@ def merge_dataset_list_rows(
     return merged
 
 
+def _parse_freq_bounds_hz(
+    min_freq: str | float | None,
+    max_freq: str | float | None,
+) -> tuple[float | None, float | None]:
+    """Parse GHz bounds from list filters into Hz for OpenSearch range queries."""
+    min_str = str(min_freq).strip() if min_freq else ""
+    max_str = str(max_freq).strip() if max_freq else ""
+    min_ghz: float | None
+    max_ghz: float | None
+    try:
+        min_ghz = float(min_str) if min_str else None
+    except ValueError:
+        min_ghz = None
+    try:
+        max_ghz = float(max_str) if max_str else None
+    except ValueError:
+        max_ghz = None
+    min_hz = min_ghz * 1e9 if min_ghz is not None else None
+    max_hz = max_ghz * 1e9 if max_ghz is not None else None
+    return min_hz, max_hz
+
+
+def federated_capture_list_metadata_filters(
+    *,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    min_freq: str | float | None = None,
+    max_freq: str | float | None = None,
+) -> list[dict[str, Any]]:
+    """OpenSearch metadata filters aligned with local capture list filters."""
+    filters: list[dict[str, Any]] = []
+    start = (date_start or "").strip()
+    end = (date_end or "").strip()
+    if start or end:
+        created_range: dict[str, Any] = {}
+        if start:
+            created_range["gte"] = start
+        if end:
+            created_range["lte"] = end
+        filters.append(
+            {
+                "field_path": "created_at",
+                "query_type": "range",
+                "filter_value": created_range,
+            },
+        )
+
+    min_hz, max_hz = _parse_freq_bounds_hz(min_freq, max_freq)
+    if min_hz is not None or max_hz is not None:
+        freq_range: dict[str, Any] = {}
+        if min_hz is not None:
+            freq_range["gte"] = min_hz
+        if max_hz is not None:
+            freq_range["lte"] = max_hz
+        filters.append(
+            {
+                "field_path": "search_props.center_frequency",
+                "query_type": "range",
+                "filter_value": freq_range,
+            },
+        )
+    return filters
+
+
 def _serialize_peer_asset_rows(
     result: dict[str, Any],
     asset_type: ItemType,
@@ -674,6 +758,8 @@ def _get_peer_asset_rows(
     query: str | None = None,
     site: str | None = None,
     asset_type: ItemType,
+    capture_type: str | None = None,
+    metadata_filters: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     if not is_federation_operational():
         return []
@@ -685,7 +771,21 @@ def _get_peer_asset_rows(
     )
     try:
         client = get_opensearch_client()
-        result = search_func(client, q=query, site=site)
+        if asset_type == ItemType.CAPTURE:
+            result = search_func(
+                client,
+                q=query,
+                site=site,
+                capture_type=capture_type,
+                metadata_filters=metadata_filters,
+            )
+        else:
+            result = search_func(
+                client,
+                q=query,
+                site=site,
+                metadata_filters=metadata_filters,
+            )
     except Exception:
         log.exception(
             "Federated %s search failed; returning local results only",
@@ -697,7 +797,11 @@ def _get_peer_asset_rows(
 
 
 def get_published_datasets() -> QuerySet[Dataset]:
-    return Dataset.objects.filter(status=DatasetStatus.FINAL, is_public=True)
+    return Dataset.objects.filter(
+        status=DatasetStatus.FINAL,
+        is_public=True,
+        is_deleted=False,
+    )
 
 
 def get_published_captures() -> QuerySet[Capture]:
@@ -763,11 +867,15 @@ def federated_published_capture_rows(
     *,
     query: str | None = None,
     site: str | None = None,
+    capture_type: str | None = None,
+    metadata_filters: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     return _get_peer_asset_rows(
         query=query,
         site=site,
         asset_type=ItemType.CAPTURE,
+        capture_type=capture_type,
+        metadata_filters=metadata_filters,
     )
 
 
@@ -787,10 +895,26 @@ def merge_capture_list_rows(
     local_rows: list[dict[str, Any]],
     *,
     query: str | None = None,
+    capture_type: str | None = None,
+    date_start: str | None = None,
+    date_end: str | None = None,
+    min_freq: str | float | None = None,
+    max_freq: str | float | None = None,
     sort_by: str = "created_at",
     descending: bool = True,
 ) -> list[dict[str, Any]]:
-    federated_rows = federated_published_capture_rows(query=query)
+    cap_type = (capture_type or "").strip() or None
+    metadata_filters = federated_capture_list_metadata_filters(
+        date_start=date_start,
+        date_end=date_end,
+        min_freq=min_freq,
+        max_freq=max_freq,
+    )
+    federated_rows = federated_published_capture_rows(
+        query=query,
+        capture_type=cap_type,
+        metadata_filters=metadata_filters or None,
+    )
     seen = {str(row.get("uuid")) for row in local_rows if row.get("uuid")}
     merged = list(local_rows)
     for fed_row in federated_rows:

@@ -61,7 +61,7 @@ urlpatterns = [
     path(
         "file-list/api/",
         RedirectView.as_view(
-            pattern_name="users:capture_list_api",
+            pattern_name="users:capture_list",
             permanent=True,
             query_string=True,
         ),
