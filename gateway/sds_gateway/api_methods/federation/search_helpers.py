@@ -100,14 +100,19 @@ def _local_peer_site() -> str:
     return str(getattr(settings, "SDS_SITE_FQDN", "") or "").strip()
 
 
+def federated_published_capture_visibility_must() -> dict[str, Any]:
+    """Published peer captures expose ``public_dataset_ids`` (no ``is_public`` on fed-captures)."""
+    return {"exists": {"field": "public_dataset_ids"}}
+
+
 def _build_fed_must_not_clauses(
     *,
     exclude_site: str | None = None,
+    for_datasets: bool,
 ) -> list[dict[str, Any]]:
-    must_not = [
-        term_clause("is_deleted", value=True),
-        term_clause("is_public", value=False),
-    ]
+    must_not = [term_clause("is_deleted", value=True)]
+    if for_datasets:
+        must_not.append(term_clause("is_public", value=False))
     if exclude_site:
         must_not.append(term_clause("site_name", value=exclude_site))
     return must_not
@@ -117,14 +122,18 @@ def _build_fed_search_body(
     *,
     must: list[dict[str, Any]],
     site: str | None,
+    for_datasets: bool,
 ) -> dict[str, Any]:
     site_filter = _site_clause(site)
     if site_filter is not None:
         must = [*must, site_filter]
+    if not for_datasets:
+        must = [*must, federated_published_capture_visibility_must()]
     # Fed indices mirror published local assets.
     # Postgres is authoritative for this site.
     must_not = _build_fed_must_not_clauses(
         exclude_site=_local_peer_site() or None,
+        for_datasets=for_datasets,
     )
     return bool_must_search_body(*must, must_not_clauses=must_not)
 
@@ -143,7 +152,7 @@ def search_federated_datasets(
         rfc_properties=RFC_FED_DATASET_PROPERTIES,
         text_fields=FED_DATASET_TEXT_FIELDS,
     )
-    body = _build_fed_search_body(must=must, site=site)
+    body = _build_fed_search_body(must=must, site=site, for_datasets=True)
     hits = run_search(
         client,
         index=FED_DATASETS_INDEX,
@@ -169,7 +178,7 @@ def search_federated_captures(
         text_fields=FED_CAPTURE_TEXT_FIELDS,
         extra_terms=[("capture_type", capture_type)],
     )
-    body = _build_fed_search_body(must=must, site=site)
+    body = _build_fed_search_body(must=must, site=site, for_datasets=False)
     hits = run_search(
         client,
         index=FED_CAPTURES_INDEX,

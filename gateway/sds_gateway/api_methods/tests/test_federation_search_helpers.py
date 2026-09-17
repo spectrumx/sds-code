@@ -26,9 +26,17 @@ def _site_name_must_not_clauses(body: dict) -> list[str]:
     return sites
 
 
+def _must_not_terms(body: dict) -> list[dict]:
+    return body["query"]["bool"]["must_not"]
+
+
 @override_settings(SDS_SITE_FQDN="local.example.com")
 def test_fed_search_body_excludes_local_site_when_site_filter_unset() -> None:
-    body = _build_fed_search_body(must=[{"term": {"is_deleted": False}}], site=None)
+    body = _build_fed_search_body(
+        must=[{"term": {"is_deleted": False}}],
+        site=None,
+        for_datasets=True,
+    )
     assert "local.example.com" in _site_name_must_not_clauses(body)
 
 
@@ -37,6 +45,7 @@ def test_fed_search_body_excludes_local_site_when_site_filter_is_local() -> None
     body = _build_fed_search_body(
         must=[{"term": {"is_deleted": False}}],
         site="local.example.com",
+        for_datasets=True,
     )
     must = body["query"]["bool"]["must"]
     assert {"term": {"site_name": "local.example.com"}} in must
@@ -48,10 +57,25 @@ def test_fed_search_body_excludes_local_site_when_site_filter_is_peer() -> None:
     body = _build_fed_search_body(
         must=[{"term": {"is_deleted": False}}],
         site="peer.example.com",
+        for_datasets=True,
     )
     must = body["query"]["bool"]["must"]
     assert {"term": {"site_name": "peer.example.com"}} in must
     assert "local.example.com" in _site_name_must_not_clauses(body)
+
+
+def test_fed_dataset_search_body_excludes_non_public() -> None:
+    body = _build_fed_search_body(must=[], site=None, for_datasets=True)
+    assert {"is_public": False} in [c.get("term") for c in _must_not_terms(body)]
+
+
+def test_fed_capture_search_body_requires_public_dataset_ids_not_is_public() -> None:
+    body = _build_fed_search_body(must=[], site=None, for_datasets=False)
+    must = body["query"]["bool"]["must"]
+    assert {"exists": {"field": "public_dataset_ids"}} in must
+    terms = [clause.get("term") for clause in _must_not_terms(body)]
+    assert {"is_deleted": True} in terms
+    assert not any("is_public" in (t or {}) for t in terms)
 
 
 def test_federated_capture_list_metadata_filters_date_and_frequency() -> None:
