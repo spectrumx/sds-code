@@ -63,6 +63,7 @@
                                                            data-dataset-uuid="{{ dataset.uuid }}"
                                                            data-item-uuid="{{ dataset.uuid }}"
                                                            data-item-type="dataset"
+                                                           data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
                                                            aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                                         {% if dataset.is_federated %}
                                                             <span class="ms-1 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>

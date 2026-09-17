@@ -17,3 +17,10 @@ def test_update():
 def test_redirect():
     assert reverse("users:redirect") == "/users/~redirect/"
     assert resolve("/users/~redirect/").view_name == "users:redirect"
+
+
+def test_file_list_api_legacy_redirects_to_capture_list():
+    assert reverse("users:file_list_api_legacy") == "/users/file-list/api/"
+    match = resolve("/users/file-list/api/")
+    assert match.view_name == "users:file_list_api_legacy"
+    assert match.func.view_initkwargs["pattern_name"] == "users:capture_list"

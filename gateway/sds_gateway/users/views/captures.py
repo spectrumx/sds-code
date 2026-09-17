@@ -109,6 +109,11 @@ def _build_capture_list_rows(
     return merge_capture_list_rows(
         enhanced,
         query=search,
+        capture_type=params.get("cap_type") or "",
+        date_start=params.get("date_start") or "",
+        date_end=params.get("date_end") or "",
+        min_freq=params.get("min_freq") or "",
+        max_freq=params.get("max_freq") or "",
         sort_by=params.get("sort_by", "created_at"),
         descending=params.get("sort_order", "desc") == "desc",
     )
