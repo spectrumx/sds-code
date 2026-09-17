@@ -11,7 +11,9 @@ class CaptureDetailsModalBehavior {
         visualizeBtn?.classList.add("d-none")
 
         CaptureDetailsModalBehavior.setupVisualizeFromMeta(meta)
-        CaptureDetailsModalBehavior.ensureDelegatedCaptureNameEditing(modal)
+        if (meta?.name_editable !== false) {
+            CaptureDetailsModalBehavior.ensureDelegatedCaptureNameEditing(modal)
+        }
     }
 
     /**
