@@ -77,6 +77,12 @@ class TestCaptureDetailsHelpers:
         meta = reg.capture_details_meta({"capture_type": "rh"})
         assert meta["visualize_enabled"] is False
 
+    def test_capture_details_meta_drf_peer_disables_visualize(self) -> None:
+        meta = reg.capture_details_meta(
+            {"capture_type": "drf", "is_federated_peer": True},
+        )
+        assert meta["visualize_enabled"] is False
+
     def test_owner_display(self) -> None:
         assert reg._owner_display({"owner": {"email": "a@b.com"}}) == "a@b.com"
         assert reg._owner_display({"owner_name": "Peer Owner"}) == "Peer Owner"
@@ -92,6 +98,12 @@ class TestCaptureDetailsHelpers:
             "2.500 GHz"
         )
         assert reg._center_frequency_display({"center_frequency_ghz": None}) == "N/A"
+        assert (
+            reg._center_frequency_display(
+                {"search_props": {"center_frequency": 2_500_000_000}},
+            )
+            == "2.500 GHz"
+        )
 
     def test_channel_summary_single(self) -> None:
         cap = {"is_multi_channel": False, "channel": "ch0"}
@@ -161,6 +173,53 @@ class TestCaptureFileSummaryFromDict:
         )
         assert count == self.EXPECTED_SINGLE_FILE_COUNT
         assert size == self.EXPECTED_SINGLE_FILE_SIZE
+
+
+class TestNormalizeFederatedCaptureDetails:
+    def test_search_props_center_frequency_and_peer_flag(self) -> None:
+        out = reg._normalize_federated_capture_details(
+            {
+                "capture_type": "drf",
+                "search_props": {"center_frequency": 1_000_000_000},
+            },
+        )
+        assert out["is_federated_peer"] is True
+        assert out["center_frequency_ghz"] == 1.0
+        assert reg._center_frequency_display(out) == "1.000 GHz"
+
+    def test_public_dataset_ids_resolved_to_datasets(self, mocker) -> None:
+        mocker.patch.object(
+            reg,
+            "_federated_dataset_names_by_uuid",
+            return_value={"ds-uuid": "Peer Dataset"},
+        )
+        out = reg._normalize_federated_capture_details(
+            {"public_dataset_ids": ["ds-uuid"]},
+        )
+        assert reg._dataset_display(out) == "Peer Dataset"
+
+
+class TestNormalizeFederatedDatasetDetails:
+    EXPECTED_VERSION = 4
+
+    def test_defaults_version_and_parses_updated_at(self) -> None:
+        out = reg._normalize_federated_dataset_details(
+            {
+                "name": "Peer DS",
+                "updated_at": "2024-06-01T15:30:00Z",
+            },
+        )
+        assert out["version"] == 1
+        assert out["name"] == "Peer DS"
+        assert (
+            reg._parse_federated_datetime("2024-06-01T15:30:00Z") == out["updated_at"]
+        )
+
+    def test_preserves_explicit_version(self) -> None:
+        out = reg._normalize_federated_dataset_details(
+            {"version": self.EXPECTED_VERSION}
+        )
+        assert out["version"] == self.EXPECTED_VERSION
 
 
 class TestFinalizeModalJson:

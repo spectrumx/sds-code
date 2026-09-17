@@ -15,6 +15,7 @@ RFC_DATASET_FIELDS = frozenset(
         "uuid",
         "site_name",
         "name",
+        "version",
         "description",
         "abstract",
         "keywords",

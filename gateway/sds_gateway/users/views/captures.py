@@ -96,6 +96,11 @@ def _build_capture_list_rows(
         cap_type=params.get("cap_type") or "",
     )
     public_extra = published_captures_excluding(owned_shared, published_qs)
+    public_extra = _apply_frequency_filters_to_list(
+        public_extra,
+        params.get("min_freq"),
+        params.get("max_freq"),
+    )
     public_uuids = {capture.uuid for capture in public_extra}
     all_captures = _apply_sorting_to_list(
         [*owned_shared, *public_extra],

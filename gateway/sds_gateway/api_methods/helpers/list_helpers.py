@@ -571,7 +571,7 @@ def build_user_dataset_list_rows(
     owned_shared = [*owned_list, *shared_list]
     public_extra = published_datasets_excluding(
         owned_shared,
-        get_published_datasets().select_related("owner").prefetch_related("keywords"),
+        get_published_datasets(),
     )
     local_rows = [
         *serialize_datasets_for_user(owned_list, user),
@@ -797,19 +797,26 @@ def _get_peer_asset_rows(
 
 
 def get_published_datasets() -> QuerySet[Dataset]:
-    return Dataset.objects.filter(
-        status=DatasetStatus.FINAL,
-        is_public=True,
-        is_deleted=False,
+    return (
+        Dataset.objects.filter(
+            status=DatasetStatus.FINAL,
+            is_public=True,
+            is_deleted=False,
+        )
+        .select_related("owner")
+        .prefetch_related("keywords")
     )
 
 
 def get_published_captures() -> QuerySet[Capture]:
-    return Capture.objects.filter(
-        is_deleted=False,
-        datasets__is_public=True,
-        datasets__is_deleted=False,
-    ).distinct()
+    return (
+        Capture.objects.filter(
+            is_deleted=False,
+            datasets__in=Dataset.objects.federation_exportable(),
+        )
+        .select_related("owner")
+        .distinct()
+    )
 
 
 def build_published_asset_list_rows(

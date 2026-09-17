@@ -10,6 +10,8 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from django.template.loader import render_to_string
+from django.utils import dateparse
+from django.utils import timezone
 from sds_opensearch_query.query import run_search
 
 from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
@@ -183,14 +185,30 @@ def _dataset_display(capture_dict: dict[str, Any]) -> str:
     return "N/A"
 
 
-def _center_frequency_display(capture_dict: dict[str, Any]) -> str:
+def _center_frequency_ghz_from_dict(capture_dict: dict[str, Any]) -> float | None:
     raw = capture_dict.get("center_frequency_ghz")
-    if raw is None or raw == "None":
-        return "N/A"
+    if raw is not None and raw != "None":
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            pass
+    search_props = capture_dict.get("search_props")
+    if not isinstance(search_props, dict):
+        return None
+    center_hz = search_props.get("center_frequency")
+    if center_hz is None:
+        return None
     try:
-        return f"{float(raw):.3f} GHz"
+        return float(center_hz) / 1e9
     except (TypeError, ValueError):
+        return None
+
+
+def _center_frequency_display(capture_dict: dict[str, Any]) -> str:
+    ghz = _center_frequency_ghz_from_dict(capture_dict)
+    if ghz is None:
         return "N/A"
+    return f"{ghz:.3f} GHz"
 
 
 def _channel_summary_label(capture_dict: dict[str, Any]) -> str:
@@ -254,6 +272,98 @@ def _capture_file_summary_from_dict(capture_dict: dict[str, Any]) -> tuple[int, 
     return int(files_count or 0), int(total_size or 0)
 
 
+def _parse_federated_datetime(value: Any) -> datetime | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        parsed: datetime | None = value
+    elif isinstance(value, str):
+        parsed = dateparse.parse_datetime(value)
+    else:
+        return None
+    if parsed is None:
+        return None
+    if timezone.is_naive(parsed):
+        return timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
+def _federated_dataset_names_by_uuid(dataset_uuids: list[str]) -> dict[str, str]:
+    if not dataset_uuids:
+        return {}
+    body = {
+        "query": {
+            "bool": {
+                "must": [
+                    {"terms": {"uuid": dataset_uuids}},
+                    {"term": {"is_deleted": False}},
+                ],
+            },
+        },
+    }
+    client = get_opensearch_client()
+    hits = run_search(
+        client=client,
+        index=FED_DATASETS_INDEX,
+        body=body,
+        size=len(dataset_uuids),
+    )
+    names: dict[str, str] = {}
+    for hit in hits:
+        src = hit.get("_source") or {}
+        if not isinstance(src, dict):
+            continue
+        uid = str(src.get("uuid") or "").strip()
+        name = str(src.get("name") or "").strip()
+        if uid and name:
+            names[uid] = name
+    return names
+
+
+def _normalize_federated_capture_details(doc: dict[str, Any]) -> dict[str, Any]:
+    """Shape a fed-captures ``_source`` doc for capture details templates."""
+    normalized = dict(doc)
+    normalized["is_federated_peer"] = True
+
+    ghz = _center_frequency_ghz_from_dict(normalized)
+    if ghz is not None:
+        normalized["center_frequency_ghz"] = ghz
+
+    public_ids = normalized.get("public_dataset_ids")
+    if isinstance(public_ids, list) and public_ids and not normalized.get("datasets"):
+        id_strs = [str(dataset_id).strip() for dataset_id in public_ids if dataset_id]
+        name_by_uuid = _federated_dataset_names_by_uuid(id_strs)
+        normalized["datasets"] = [
+            {"name": name_by_uuid.get(uid) or uid} for uid in id_strs
+        ]
+
+    created_at = _parse_federated_datetime(normalized.get("created_at"))
+    if created_at is not None:
+        normalized["created_at"] = created_at
+    updated_at = _parse_federated_datetime(normalized.get("updated_at"))
+    if updated_at is not None:
+        normalized["updated_at"] = updated_at
+    return normalized
+
+
+def _normalize_federated_dataset_details(doc: dict[str, Any]) -> dict[str, Any]:
+    """Shape a fed-datasets ``_source`` doc for dataset details templates."""
+    normalized = dict(doc)
+    if normalized.get("version") is None:
+        normalized["version"] = 1
+    normalized.setdefault("authors", [])
+    normalized.setdefault("keywords", [])
+    normalized.setdefault("description", "")
+    normalized.setdefault("status", DatasetStatus.FINAL)
+    created_at = _parse_federated_datetime(normalized.get("created_at"))
+    if created_at is not None:
+        normalized["created_at"] = created_at
+    updated_at = _parse_federated_datetime(normalized.get("updated_at"))
+    if updated_at is not None:
+        normalized["updated_at"] = updated_at
+    return normalized
+
+
 def _run_search_for_fed_asset(
     index: str, body: dict[str, Any]
 ) -> dict[str, Any] | None:
@@ -293,9 +403,10 @@ def build_capture_details_modal_context(
                     },
                 },
             }
-            capture_dict = _run_search_for_fed_asset(FED_CAPTURES_INDEX, body)
-            if capture_dict is None:
+            raw_capture = _run_search_for_fed_asset(FED_CAPTURES_INDEX, body)
+            if raw_capture is None:
                 return None
+            capture_dict = _normalize_federated_capture_details(raw_capture)
         else:
             if not request.user.is_authenticated:
                 return None
@@ -346,8 +457,9 @@ def capture_details_title(capture_dict: dict[str, Any]) -> str:
 def capture_details_meta(capture_dict: dict[str, Any]) -> dict[str, Any]:
     """JSON meta for ModalManager (visualize, etc.)."""
     ct = capture_dict.get("capture_type") or ""
+    is_peer = bool(capture_dict.get("is_federated_peer"))
     return {
-        "visualize_enabled": ct == "drf",
+        "visualize_enabled": ct == "drf" and not is_peer,
         "capture_type": str(ct),
         "uuid": str(capture_dict.get("uuid", "")),
         "name": str(capture_dict.get("name") or ""),
@@ -389,9 +501,10 @@ def load_dataset_details_bundle(
                     },
                 },
             }
-            dataset_data = _run_search_for_fed_asset(FED_DATASETS_INDEX, body)
-            if dataset_data is None:
+            raw_dataset = _run_search_for_fed_asset(FED_DATASETS_INDEX, body)
+            if raw_dataset is None:
                 return None
+            dataset_data = _normalize_federated_dataset_details(raw_dataset)
             capture_file_count = dataset_data.get("capture_file_count", 0)
             artifact_file_count = dataset_data.get("artifact_file_count", 0)
             total_size = dataset_data.get("size", 0)
@@ -401,7 +514,7 @@ def load_dataset_details_bundle(
                 "artifacts": artifact_file_count,
                 "total_size": total_size,
             }
-            updated_at = dataset_data.get("updated_at", None)
+            updated_at = dataset_data.get("updated_at")
         else:
             dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
 
