@@ -77,6 +77,7 @@ class FederatedCaptureDoc(BaseModel):
     channel: str = ""
     scan_group: UUID | str | None = None
     top_level_dir: str = ""
+    owner_name: str = ""
     created_at: str | None = None
     updated_at: str | None = None
     site_name: str  # peer site FQDN (RFC §6), not federation.toml [site].name

@@ -140,6 +140,7 @@ def public_captures_queryset() -> QuerySet[Capture]:
     return (
         Capture.objects.filter(is_deleted=False)
         .filter(datasets__in=Dataset.objects.federation_exportable())
+        .select_related("owner")
         .distinct()
         .order_by("-updated_at")
     )

@@ -101,7 +101,7 @@ def _local_peer_site() -> str:
 
 
 def federated_published_capture_visibility_must() -> dict[str, Any]:
-    """Published peer captures expose ``public_dataset_ids`` (no ``is_public`` on fed-captures)."""
+    """Peer capture visibility uses ``public_dataset_ids`` (not ``is_public``)."""
     return {"exists": {"field": "public_dataset_ids"}}
 
 

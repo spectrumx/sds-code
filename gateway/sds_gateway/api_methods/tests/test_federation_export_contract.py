@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -36,6 +37,8 @@ from sds_federation.schemas.webhooks import FederatedCaptureDoc  # noqa: E402
 from sds_federation.schemas.webhooks import FederatedDatasetDoc  # noqa: E402
 
 User = get_user_model()
+
+_FED_EXPORT_ISO_DATETIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 
 
 @pytest.mark.django_db
@@ -92,3 +95,8 @@ def test_compile_federated_capture_doc_validates_against_pydantic() -> None:
     capture = CaptureFactory(owner=owner, is_public=True)
     payload = compile_federated_capture_doc(capture)
     FederatedCaptureDoc.model_validate(payload)
+    assert payload.get("owner_name") == owner.name
+    for field in ("created_at", "updated_at"):
+        value = payload.get(field)
+        assert value
+        assert _FED_EXPORT_ISO_DATETIME.match(str(value))
