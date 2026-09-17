@@ -16,10 +16,10 @@ from sds_opensearch_query.query import federation_not_deleted_clause
 from sds_opensearch_query.query import run_search
 
 from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
+from sds_gateway.api_methods.federation.fed_index import FED_DATASETS_INDEX
 from sds_gateway.api_methods.federation.search_helpers import (
     federated_published_capture_visibility_must,
 )
-from sds_gateway.api_methods.federation.fed_index import FED_DATASETS_INDEX
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
