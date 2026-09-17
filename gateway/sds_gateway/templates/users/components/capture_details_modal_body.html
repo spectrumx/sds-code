@@ -8,37 +8,43 @@ Capture details modal body — rendered server-side for ModalManager injection.
         </h6>
     </div>
     <div class="mb-3">
-        <label for="capture-name-input" class="form-label fw-medium">
+        <label {% if capture_name_editable %}for="capture-name-input"{% endif %}
+               class="form-label fw-medium">
             <strong>Name:</strong>
         </label>
-        <div class="input-group">
-            <input type="text"
-                   class="form-control"
-                   id="capture-name-input"
-                   value="{{ capture.name|default:'' }}"
-                   placeholder="Enter capture name"
-                   maxlength="255"
-                   data-uuid="{{ capture_uuid }}" />
-            <button class="btn btn-outline-secondary edit-name-btn"
-                    type="button"
-                    id="edit-name-btn"
-                    title="Edit capture name">
-                <i class="bi bi-pencil"></i>
-            </button>
-            <button class="btn btn-outline-danger d-none"
-                    type="button"
-                    id="cancel-name-btn"
-                    title="Cancel editing">
-                <i class="bi bi-x-lg"></i>
-            </button>
-            <button class="btn btn-outline-primary save-name-btn d-none"
-                    type="button"
-                    id="save-name-btn"
-                    title="Save changes">
-                <i class="bi bi-check-lg"></i>
-            </button>
-        </div>
-        <div class="form-text">Click the edit button to modify the capture name</div>
+        {% if capture_name_editable %}
+            <div class="input-group">
+                <input type="text"
+                       class="form-control"
+                       id="capture-name-input"
+                       value="{{ capture.name|default:'' }}"
+                       placeholder="Enter capture name"
+                       maxlength="255"
+                       data-uuid="{{ capture_uuid }}" />
+                <button class="btn btn-outline-secondary edit-name-btn"
+                        type="button"
+                        id="edit-name-btn"
+                        title="Edit capture name">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-outline-danger d-none"
+                        type="button"
+                        id="cancel-name-btn"
+                        title="Cancel editing">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+                <button class="btn btn-outline-primary save-name-btn d-none"
+                        type="button"
+                        id="save-name-btn"
+                        title="Save changes">
+                    <i class="bi bi-check-lg"></i>
+                </button>
+            </div>
+            <div class="form-text">Click the edit button to modify the capture name</div>
+        {% else %}
+            <p class="mb-0">{{ capture.name|default:"Unnamed Capture" }}</p>
+            <div class="form-text text-muted">Names on federated peer captures cannot be edited here.</div>
+        {% endif %}
     </div>
     <div class="row">
         <div class="col-md-6">

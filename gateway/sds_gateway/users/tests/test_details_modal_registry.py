@@ -84,6 +84,11 @@ class TestCaptureDetailsHelpers:
             {"capture_type": "drf", "is_federated_peer": True},
         )
         assert meta["visualize_enabled"] is False
+        assert meta["name_editable"] is False
+
+    def test_capture_details_meta_local_name_editable(self) -> None:
+        meta = reg.capture_details_meta({"capture_type": "drf"})
+        assert meta["name_editable"] is True
 
     def test_owner_display(self) -> None:
         assert reg._owner_display({"owner": {"email": "a@b.com"}}) == "a@b.com"

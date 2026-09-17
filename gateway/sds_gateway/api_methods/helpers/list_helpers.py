@@ -306,7 +306,10 @@ _CALENDAR_DATE_LEN = 10
 
 
 def _opensearch_created_at_bound(value: str, *, end_of_day: bool) -> str:
-    """Map UI calendar dates to inclusive OpenSearch ``strict_date_optional_time`` bounds."""
+    """
+    Map UI calendar dates to inclusive OpenSearch
+    ``strict_date_optional_time`` bounds.
+    """
     if len(value) == _CALENDAR_DATE_LEN and value[4] == "-" and value[7] == "-":
         if end_of_day:
             return f"{value}T23:59:59.999Z"
@@ -331,6 +334,7 @@ def _authors_sort_key(raw: Any) -> str:
         if name:
             names.append(name)
     return ", ".join(names).lower()
+
 
 # ORM / OpenSearch field names populated on list rows (beyond BASE_ASSET_DICT).
 _DATASET_LIST_FIELDS: tuple[str, ...] = (

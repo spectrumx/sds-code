@@ -75,6 +75,21 @@ describe("CaptureDetailsModalBehavior", () => {
         expect(openWithCaptureData).toHaveBeenCalledWith("cap-2", "drf")
     })
 
+    test("afterInject skips name editing when meta.name_editable is false", () => {
+        document.body.innerHTML = `
+			<div id="asset-details-modal"></div>
+			<button id="visualize-btn" class="d-none"></button>
+		`
+        const modal = document.getElementById("asset-details-modal")
+
+        CaptureDetailsModalBehavior.afterInject({
+            modal,
+            meta: { name_editable: false, visualize_enabled: false },
+        })
+
+        expect(modal.dataset.nameDelegationWired).toBeUndefined()
+    })
+
     test("afterInject enables visualize button when meta allows DRF", () => {
         document.body.innerHTML = `
 			<div id="asset-details-modal"><input id="capture-name-input" /></div>

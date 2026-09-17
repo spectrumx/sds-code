@@ -428,12 +428,16 @@ def build_capture_details_modal_context(
         return None
 
     uuid_str = str(capture_dict.get("uuid", capture_uuid))
+    is_federated_peer = bool(
+        federated_peer or capture_dict.get("is_federated_peer"),
+    )
 
     files_count, total_size = _capture_file_summary_from_dict(capture_dict)
 
     return {
         "capture": capture_dict,
         "capture_uuid": uuid_str,
+        "capture_name_editable": not is_federated_peer,
         "owner_display": _owner_display(capture_dict),
         "center_frequency_display": _center_frequency_display(capture_dict),
         "channel_label": _channel_summary_label(capture_dict),
@@ -464,6 +468,7 @@ def capture_details_meta(capture_dict: dict[str, Any]) -> dict[str, Any]:
     is_peer = bool(capture_dict.get("is_federated_peer"))
     return {
         "visualize_enabled": ct == "drf" and not is_peer,
+        "name_editable": not is_peer,
         "capture_type": str(ct),
         "uuid": str(capture_dict.get("uuid", "")),
         "name": str(capture_dict.get("name") or ""),
