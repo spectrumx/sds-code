@@ -302,6 +302,35 @@ def _keyword_names(dataset: Dataset) -> list[str]:
 
 
 _LIST_ROW_DATETIME_FIELDS = frozenset({"created_at", "updated_at"})
+_CALENDAR_DATE_LEN = 10
+
+
+def _opensearch_created_at_bound(value: str, *, end_of_day: bool) -> str:
+    """Map UI calendar dates to inclusive OpenSearch ``strict_date_optional_time`` bounds."""
+    if len(value) == _CALENDAR_DATE_LEN and value[4] == "-" and value[7] == "-":
+        if end_of_day:
+            return f"{value}T23:59:59.999Z"
+        return f"{value}T00:00:00.000Z"
+    return value
+
+
+def _authors_sort_key(raw: Any) -> str:
+    """Normalize local display dicts and exported author lists for sorting."""
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw.strip().lower()
+    if not isinstance(raw, list):
+        return str(raw).strip().lower()
+    names: list[str] = []
+    for item in raw:
+        if isinstance(item, dict):
+            name = str(item.get("name") or "").strip()
+        else:
+            name = str(item).strip()
+        if name:
+            names.append(name)
+    return ", ".join(names).lower()
 
 # ORM / OpenSearch field names populated on list rows (beyond BASE_ASSET_DICT).
 _DATASET_LIST_FIELDS: tuple[str, ...] = (
@@ -624,6 +653,8 @@ def _sort_key_value(row: dict[str, Any], key: str) -> tuple[bool, Any]:
     raw = row.get(key)
     if key in _LIST_ROW_DATETIME_FIELDS:
         value: Any = _parse_datetime(raw)
+    elif key == "authors":
+        value = _authors_sort_key(raw)
     else:
         value = raw
     # None sorts after real values when ascending; reverse flips that.
@@ -709,9 +740,15 @@ def federated_capture_list_metadata_filters(
     if start or end:
         created_range: dict[str, Any] = {}
         if start:
-            created_range["gte"] = start
+            created_range["gte"] = _opensearch_created_at_bound(
+                start,
+                end_of_day=False,
+            )
         if end:
-            created_range["lte"] = end
+            created_range["lte"] = _opensearch_created_at_bound(
+                end,
+                end_of_day=True,
+            )
         filters.append(
             {
                 "field_path": "created_at",
