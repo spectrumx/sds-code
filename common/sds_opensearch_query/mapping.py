@@ -18,6 +18,7 @@ RFC_FED_DATASET_PROPERTIES: dict[str, dict[str, Any]] = {
     "uuid": {"type": "keyword"},
     "site_name": {"type": "keyword"},  # peer FQDN (federation.toml [site].fqdn)
     "name": {"type": "text", "fields": {"keyword": {"type": "keyword"}}},
+    "version": {"type": "integer"},
     "description": {"type": "text"},
     "abstract": {"type": "text"},
     "keywords": {"type": "keyword"},
