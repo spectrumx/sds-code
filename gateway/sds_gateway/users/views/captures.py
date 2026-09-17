@@ -23,6 +23,16 @@ from rest_framework import status
 from sds_gateway.api_methods.helpers.capture_reindex_preview import (
     get_capture_reindex_candidates,
 )
+from sds_gateway.api_methods.helpers.list_helpers import annotate_capture_list_display
+from sds_gateway.api_methods.helpers.list_helpers import (
+    capture_list_dropdown_menu_items,
+)
+from sds_gateway.api_methods.helpers.list_helpers import (
+    capture_permission_maps_for_user,
+)
+from sds_gateway.api_methods.helpers.list_helpers import get_published_captures
+from sds_gateway.api_methods.helpers.list_helpers import merge_capture_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import published_captures_excluding
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
@@ -31,12 +41,6 @@ from sds_gateway.api_methods.models import Keyword
 from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.helpers.list_helpers import annotate_capture_list_display
-from sds_gateway.api_methods.helpers.list_helpers import capture_list_dropdown_menu_items
-from sds_gateway.api_methods.helpers.list_helpers import get_published_captures
-from sds_gateway.api_methods.helpers.list_helpers import merge_capture_list_rows
-from sds_gateway.api_methods.helpers.list_helpers import published_captures_excluding
-from sds_gateway.api_methods.helpers.list_helpers import capture_permission_maps_for_user
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
@@ -98,7 +102,9 @@ def _build_capture_list_rows(
         params.get("sort_by", "created_at"),
         params.get("sort_order", "desc"),
     )
-    enhanced = _get_captures_for_template(all_captures, request, public_uuids=public_uuids)
+    enhanced = _get_captures_for_template(
+        all_captures, request, public_uuids=public_uuids
+    )
     search = (params.get("search") or "").strip() or None
     return merge_capture_list_rows(
         enhanced,
@@ -106,6 +112,117 @@ def _build_capture_list_rows(
         sort_by=params.get("sort_by", "created_at"),
         descending=params.get("sort_order", "desc") == "desc",
     )
+
+
+def _load_bulk_metadata(captures: list[Capture]) -> dict[str, Any]:
+    """Load bulk metadata for a list of captures."""
+    if not captures:
+        return {}
+
+    temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures])
+    return Capture.bulk_load_frequency_metadata(temp_qs)
+
+
+def _set_shared_user_data(
+    request: HttpRequest,
+    capture: Capture,
+) -> list[dict[str, Any]]:
+    # Get shared users and groups using the new model
+    shared_permissions = (
+        UserSharePermission.objects.filter(
+            item_uuid=capture.uuid,
+            item_type=ItemType.CAPTURE,
+            is_deleted=False,
+            is_enabled=True,
+        )
+        .select_related("shared_with")
+        .prefetch_related("share_groups__members")
+    )
+
+    shared_users = []
+    group_permissions = {}
+
+    for perm in shared_permissions:
+        if perm.share_groups.exists():
+            # Group member - collect by group
+            for group in perm.share_groups.all():
+                group_uuid = str(group.uuid)
+                if group_uuid not in group_permissions:
+                    group_permissions[group_uuid] = {
+                        "name": group.name,
+                        "email": f"group:{group_uuid}",
+                        "type": "group",
+                        "members": [],
+                        "permission_level": perm.permission_level,
+                        "owner": group.owner.name,
+                        "owner_email": group.owner.email,
+                        "is_group_owner": group.owner == request.user,
+                    }
+                group_permissions[group_uuid]["members"].append(
+                    {
+                        "name": perm.shared_with.name,
+                        "email": perm.shared_with.email,
+                    }
+                )
+        else:
+            # Individual user
+            shared_users.append(
+                {
+                    "name": perm.shared_with.name,
+                    "email": perm.shared_with.email,
+                    "type": "user",
+                    "permission_level": perm.permission_level,
+                }
+            )
+
+    # Add groups with member counts
+    for group_data in group_permissions.values():
+        group_data["member_count"] = len(group_data["members"])
+        shared_users.append(group_data)
+
+    return shared_users
+
+
+def _prepare_capture_data_for_template(
+    request: HttpRequest,
+    capture: Capture,
+    bulk_metadata: dict[str, Any],
+    permission: dict[Any, str],
+    shared_with_me: set[Any],
+    *,
+    published: bool,
+) -> dict[str, Any]:
+    # Use composite serialization to handle multi-channel captures properly
+    capture_data = serialize_capture_or_composite(
+        capture, context={"request": request, "bulk_metadata": bulk_metadata}
+    )
+
+    # Add ownership flags for template display
+    capture_data["is_owner"] = capture.owner == request.user
+    capture_data["is_shared_with_me"] = (
+        capture.uuid in shared_with_me and not capture_data["is_owner"]
+    )
+    capture_data["permission_level"] = permission
+    if capture_data["is_owner"] and not capture_data.get("permission_level"):
+        capture_data["permission_level"] = PermissionLevel.OWNER
+    capture_data["is_published_discovery"] = published
+    annotate_capture_list_display(capture_data)
+    capture_data["owner_name"] = capture.owner.name or "Owner"
+    capture_data["owner_email"] = capture.owner.email or ""
+    capture_data.setdefault("created_at", capture.created_at)
+    capture_data.setdefault("is_federated", False)
+
+    # Add the original model instance for template use
+    capture_data["capture"] = capture
+    capture_data["dropdown_menu_items"] = capture_list_dropdown_menu_items(
+        capture_data,
+    )
+
+    capture_data["shared_users"] = []
+    if user_has_access_to_item(request.user, capture.uuid, ItemType.CAPTURE):
+        capture_data["shared_users"] = _set_shared_user_data(request, capture)
+
+    return capture_data
 
 
 def _get_captures_for_template(
@@ -117,107 +234,30 @@ def _get_captures_for_template(
     """Get enhanced captures for the template."""
     enhanced_captures = []
 
-    # Bulk-load OpenSearch metadata before serialization loop
     captures_list = list(captures)
+
     if public_uuids is None:
         public_uuids = set()
+
     perm_by_uuid, _shared_uuids, shared_with_me = capture_permission_maps_for_user(
         captures_list,
         request.user,
     )
-    if captures_list:
-        temp_qs = Capture.objects.filter(uuid__in=[c.uuid for c in captures_list])
-        bulk_metadata = Capture.bulk_load_frequency_metadata(temp_qs)
-        Capture.set_bulk_metadata_cache(captures_list, bulk_metadata)
-    else:
-        bulk_metadata = {}
+    bulk_metadata = _load_bulk_metadata(captures_list)
 
     for capture in captures_list:
-        # Use composite serialization to handle multi-channel captures properly
-        capture_data = serialize_capture_or_composite(
-            capture, context={"request": request, "bulk_metadata": bulk_metadata}
+        permission = perm_by_uuid.get(capture.uuid)
+        published = capture.uuid in public_uuids
+        enhanced_capture_data = _prepare_capture_data_for_template(
+            request=request,
+            capture=capture,
+            bulk_metadata=bulk_metadata,
+            permission=permission,
+            shared_with_me=shared_with_me,
+            published=published,
         )
 
-        # Add ownership flags for template display
-        capture_data["is_owner"] = capture.owner == request.user
-        capture_data["is_shared_with_me"] = (
-            capture.uuid in shared_with_me and not capture_data["is_owner"]
-        )
-        capture_data["permission_level"] = perm_by_uuid.get(capture.uuid)
-        if capture_data["is_owner"] and not capture_data.get("permission_level"):
-            capture_data["permission_level"] = PermissionLevel.OWNER
-        capture_data["is_published_discovery"] = capture.uuid in public_uuids
-        annotate_capture_list_display(capture_data)
-        capture_data["owner_name"] = capture.owner.name or "Owner"
-        capture_data["owner_email"] = capture.owner.email or ""
-        capture_data.setdefault("created_at", capture.created_at)
-        capture_data.setdefault("is_federated", False)
-
-        # Add the original model instance for template use
-        capture_data["capture"] = capture
-        capture_data["dropdown_menu_items"] = capture_list_dropdown_menu_items(
-            capture_data,
-        )
-
-        # Add shared users data for share modal
-        if user_has_access_to_item(request.user, capture.uuid, ItemType.CAPTURE):
-            # Get shared users and groups using the new model
-            shared_permissions = (
-                UserSharePermission.objects.filter(
-                    item_uuid=capture.uuid,
-                    item_type=ItemType.CAPTURE,
-                    is_deleted=False,
-                    is_enabled=True,
-                )
-                .select_related("shared_with")
-                .prefetch_related("share_groups__members")
-            )
-
-            shared_users = []
-            group_permissions = {}
-
-            for perm in shared_permissions:
-                if perm.share_groups.exists():
-                    # Group member - collect by group
-                    for group in perm.share_groups.all():
-                        group_uuid = str(group.uuid)
-                        if group_uuid not in group_permissions:
-                            group_permissions[group_uuid] = {
-                                "name": group.name,
-                                "email": f"group:{group_uuid}",
-                                "type": "group",
-                                "members": [],
-                                "permission_level": perm.permission_level,
-                                "owner": group.owner.name,
-                                "owner_email": group.owner.email,
-                                "is_group_owner": group.owner == request.user,
-                            }
-                        group_permissions[group_uuid]["members"].append(
-                            {
-                                "name": perm.shared_with.name,
-                                "email": perm.shared_with.email,
-                            }
-                        )
-                else:
-                    # Individual user
-                    shared_users.append(
-                        {
-                            "name": perm.shared_with.name,
-                            "email": perm.shared_with.email,
-                            "type": "user",
-                            "permission_level": perm.permission_level,
-                        }
-                    )
-
-            # Add groups with member counts
-            for group_data in group_permissions.values():
-                group_data["member_count"] = len(group_data["members"])
-                shared_users.append(group_data)
-            capture_data["shared_users"] = shared_users
-        else:
-            capture_data["shared_users"] = []
-
-        enhanced_captures.append(capture_data)
+        enhanced_captures.append(enhanced_capture_data)
 
     return enhanced_captures
 

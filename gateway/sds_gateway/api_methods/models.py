@@ -113,7 +113,7 @@ class ItemType(StrEnum):
     def pluralize(self) -> str:
         """Get the plural form of the item type."""
         return self.value + "s"
-    
+
     def federated_index_name(self) -> str:
         """Get the federated index name for this item type."""
         return f"fed-{self.value}s"
@@ -464,7 +464,7 @@ class Capture(BaseModel):
                 return captures_in_top_level_dir > 1
             case _:
                 return False
-    
+
     @property
     def is_federated(self) -> bool:
         """Check if this capture is federated."""
@@ -474,10 +474,10 @@ class Capture(BaseModel):
         client = get_opensearch_client()
         response = client.search(
             index=ItemType.CAPTURE.federated_index_name(),
-            body={"query": {"match": {"uuid": self.uuid}}}
+            body={"query": {"match": {"uuid": self.uuid}}},
         )
         return response.get("hits", {}).get("total", {}).get("value", 0) > 0
-    
+
     @property
     def is_published(self) -> bool:
         """Check if this capture is published."""
@@ -1164,7 +1164,7 @@ class Dataset(BaseModel):
         client = get_opensearch_client()
         response = client.search(
             index=ItemType.DATASET.federated_index_name(),
-            body={"query": {"match": {"uuid": self.uuid}}}
+            body={"query": {"match": {"uuid": self.uuid}}},
         )
         return response.get("hits", {}).get("total", {}).get("value", 0) > 0
 

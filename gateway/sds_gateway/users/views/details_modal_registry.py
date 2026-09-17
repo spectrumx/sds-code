@@ -6,12 +6,10 @@ import datetime as dt
 import json
 from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
 from typing import Any
-from uuid import UUID
 
-from django.http import HttpRequest
 from django.template.loader import render_to_string
-
 from sds_opensearch_query.query import run_search
 
 from sds_gateway.api_methods.federation.fed_index import FED_CAPTURES_INDEX
@@ -23,10 +21,20 @@ from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.serializers.capture_serializers import (
     serialize_capture_or_composite,
 )
-from sds_gateway.api_methods.serializers.dataset_serializers import get_dataset_serializer
-from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_capture
+from sds_gateway.api_methods.serializers.dataset_serializers import (
+    get_dataset_serializer,
+)
+from sds_gateway.api_methods.utils.asset_access_control import (
+    user_has_access_to_capture,
+)
 from sds_gateway.api_methods.utils.asset_access_control import user_has_access_to_item
 from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from django.http import HttpRequest
+
 
 TIME_METADATA_FIELDS = frozenset(
     {
@@ -246,7 +254,9 @@ def _capture_file_summary_from_dict(capture_dict: dict[str, Any]) -> tuple[int, 
     return int(files_count or 0), int(total_size or 0)
 
 
-def _run_search_for_fed_asset(index: str, body: dict[str, Any]) -> dict[str, Any] | None:
+def _run_search_for_fed_asset(
+    index: str, body: dict[str, Any]
+) -> dict[str, Any] | None:
     client = get_opensearch_client()
     hits = run_search(
         client=client,
@@ -262,6 +272,7 @@ def _run_search_for_fed_asset(index: str, body: dict[str, Any]) -> dict[str, Any
 def build_capture_details_modal_context(
     request: HttpRequest,
     capture_uuid: UUID,
+    *,
     federated_peer: bool = False,
 ) -> dict[str, Any] | None:
     """
@@ -290,7 +301,7 @@ def build_capture_details_modal_context(
                 return None
 
             capture = Capture.objects.get(uuid=capture_uuid, is_deleted=False)
-            
+
             if not user_has_access_to_capture(request.user, capture):
                 return None
 
@@ -313,7 +324,9 @@ def build_capture_details_modal_context(
         "channel_label": _channel_summary_label(capture_dict),
         "channel_value": _channel_summary_value(capture_dict),
         "accordion_channels": _accordion_channels(capture_dict),
-        "is_public_yesno": "Yes" if capture_dict.get("is_public") or federated_peer else "No",
+        "is_public_yesno": "Yes"
+        if capture_dict.get("is_public") or federated_peer
+        else "No",
         "dataset_display": _dataset_display(capture_dict),
         "files_count": files_count,
         "total_size": total_size,
@@ -354,6 +367,7 @@ def finalize_capture_modal_json(ctx: dict[str, Any], html: str) -> dict[str, Any
 def load_dataset_details_bundle(
     request: HttpRequest,
     dataset_uuid: UUID,
+    *,
     federated_peer: bool = False,
 ) -> dict[str, Any] | None:
     """
@@ -390,15 +404,17 @@ def load_dataset_details_bundle(
             updated_at = dataset_data.get("updated_at", None)
         else:
             dataset = Dataset.objects.get(uuid=dataset_uuid, is_deleted=False)
-            
-            has_public_access = dataset.is_public and dataset.status == DatasetStatus.FINAL
+
+            has_public_access = (
+                dataset.is_public and dataset.status == DatasetStatus.FINAL
+            )
             has_user_access = request.user.is_authenticated and user_has_access_to_item(
                 request.user, dataset_uuid, ItemType.DATASET
             )
 
             if not (has_public_access or has_user_access):
                 return None
-            
+
             serializer_context: dict[str, Any] = {"exclude_files": True}
             if request.user.is_authenticated:
                 serializer_context["request"] = request
@@ -421,7 +437,10 @@ def load_dataset_details_bundle(
 
 
 def build_dataset_details_modal_context(
-    request: HttpRequest, dataset_uuid: UUID, federated_peer: bool = False,
+    request: HttpRequest,
+    dataset_uuid: UUID,
+    *,
+    federated_peer: bool = False,
 ) -> dict[str, Any] | None:
     bundle = load_dataset_details_bundle(
         request,

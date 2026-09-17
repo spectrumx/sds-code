@@ -29,7 +29,9 @@ from django.views import View
 from django.views.generic import TemplateView
 from loguru import logger as log
 
-from sds_gateway.api_methods.helpers.list_helpers import build_published_dataset_list_rows
+from sds_gateway.api_methods.helpers.list_helpers import (
+    build_published_dataset_list_rows,
+)
 from sds_gateway.api_methods.helpers.list_helpers import build_user_dataset_list_rows
 from sds_gateway.api_methods.helpers.list_helpers import get_published_datasets
 from sds_gateway.api_methods.models import Capture
@@ -43,10 +45,6 @@ from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import get_shared_users_for_item
 from sds_gateway.api_methods.models import get_user_permission_level
 from sds_gateway.api_methods.models import user_has_access_to_item
-from sds_gateway.api_methods.serializers.dataset_serializers import (
-    get_dataset_serializer,
-)
-from sds_gateway.api_methods.utils.opensearch_client import get_opensearch_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.forms import CaptureSearchForm
 from sds_gateway.users.forms import DatasetInfoForm

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 from django.conf import settings
-
 from sds_opensearch_query import bool_must_search_body
 from sds_opensearch_query import build_metadata_filter_clauses
 from sds_opensearch_query import federation_not_deleted_clause
@@ -46,7 +45,7 @@ _WILDCARD_SITES = frozenset({"", "*", "all"})
 def _site_clause(site: str | None) -> dict[str, Any] | None:
     if site is None or site.strip().lower() in _WILDCARD_SITES:
         return None
-    return term_clause("site_name", site.strip())
+    return term_clause("site_name", value=site.strip())
 
 
 def _text_clause(q: str | None, fields: list[str]) -> dict[str, Any] | None:
@@ -82,7 +81,7 @@ def _build_fed_must_clauses(
 
     for field, value in extra_terms or ():
         if value is not None and value != "":
-            must.append(term_clause(field, value))
+            must.append(term_clause(field, value=value))
 
     text = _text_clause(q, text_fields)
     if text is not None:
@@ -106,11 +105,11 @@ def _build_fed_must_not_clauses(
     exclude_site: str | None = None,
 ) -> list[dict[str, Any]]:
     must_not = [
-        term_clause("is_deleted", True),
-        term_clause("is_public", False),
+        term_clause("is_deleted", value=True),
+        term_clause("is_public", value=False),
     ]
     if exclude_site:
-        must_not.append(term_clause("site_name", exclude_site))
+        must_not.append(term_clause("site_name", value=exclude_site))
     return must_not
 
 

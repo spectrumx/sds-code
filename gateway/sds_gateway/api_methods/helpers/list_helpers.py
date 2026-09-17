@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 
     from django.db.models import QuerySet
 
-    from sds_gateway.api_methods.models import Dataset
     from sds_gateway.users.models import User
 
 
@@ -40,7 +39,7 @@ BASE_ASSET_DICT = {
     "is_shared": False,
     "is_shared_with_me": False,
     "permission_level": None,
-    "dropdown_menu_items": [], 
+    "dropdown_menu_items": [],
 }
 
 
@@ -322,6 +321,13 @@ _DATASET_LIST_FIELDS: tuple[str, ...] = (
     "description",
 )
 
+_CAPTURE_LOCAL_FIELD_DEFAULTS: dict[str, Any] = {
+    "capture_props": {},
+    "search_props": {},
+    "file_count": 0,
+    "size": 0,
+}
+
 _CAPTURE_LIST_FIELDS: tuple[str, ...] = (
     "uuid",
     "name",
@@ -358,22 +364,22 @@ def _local_list_field_value(
     asset_type: ItemType,
 ) -> Any:
     if field == "keywords" and isinstance(asset, Dataset):
-        return _keyword_names(asset)
-    if field == "authors" and isinstance(asset, Dataset):
-        return asset.get_authors_display()
-    if field == "status_display" and isinstance(asset, Dataset):
-        return asset.get_status_display()
-    if field == "capture_type_display" and isinstance(asset, Capture):
-        return asset.get_capture_type_display()
-    if field == "owner_name":
-        return asset.owner.name if asset.owner else "Owner"
-    if field == "site_name":
-        return local_site_name()
-    if field in {"capture_props", "search_props"} and isinstance(asset, Capture):
-        return {}
-    if field in {"file_count", "size"} and isinstance(asset, Capture):
-        return 0
-    return getattr(asset, field)
+        value: Any = _keyword_names(asset)
+    elif field == "authors" and isinstance(asset, Dataset):
+        value = asset.get_authors_display()
+    elif field == "status_display" and isinstance(asset, Dataset):
+        value = asset.get_status_display()
+    elif field == "capture_type_display" and isinstance(asset, Capture):
+        value = asset.get_capture_type_display()
+    elif field == "owner_name":
+        value = asset.owner.name if asset.owner else "Owner"
+    elif field == "site_name":
+        value = local_site_name()
+    elif isinstance(asset, Capture) and field in _CAPTURE_LOCAL_FIELD_DEFAULTS:
+        value = _CAPTURE_LOCAL_FIELD_DEFAULTS[field]
+    else:
+        value = getattr(asset, field)
+    return value
 
 
 def _apply_peer_doc_to_row(row: dict[str, Any], doc: dict[str, Any]) -> None:
@@ -680,7 +686,7 @@ def _get_peer_asset_rows(
     try:
         client = get_opensearch_client()
         result = search_func(client, q=query, site=site)
-    except Exception:  # noqa: BLE001
+    except Exception:
         log.exception(
             "Federated %s search failed; returning local results only",
             asset_type.value,
@@ -716,7 +722,8 @@ def build_published_asset_list_rows(
         elif asset_type == ItemType.CAPTURE:
             assets = get_published_captures()
         else:
-            raise ValueError(f"Invalid asset type: {asset_type}")
+            msg = f"Invalid asset type: {asset_type}"
+            raise ValueError(msg)
     site_filter = (site or "").strip() or None
     local_rows = serialize_assets_for_user(
         assets,
