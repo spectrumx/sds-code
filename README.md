@@ -62,5 +62,6 @@ eventually supported by this system.
 ## More docs
 
 + [Gateway Readme](./gateway/README.md)
++ [Federation](./federation/README.md)
 + [SDK README](./sdk/README.md)
 + [SpectrumX Visualization Platform](https://github.com/spectrumx/svi-code)

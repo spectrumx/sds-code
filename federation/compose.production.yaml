@@ -16,11 +16,9 @@ services:
     env_file:
       - ../gateway/.envs/production/opensearch.env
       - ../federation-shared.env
+      - ./site.env
     environment:
       FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
-      GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-prod-app:18000/api/v1
-      FEDERATION_SYNC_SERVICE_URL: https://sds.crc.nd.edu/sync
-      REDIS_URL: redis://sds-gateway-prod-redis:6379/0
     volumes:
       - ./federation.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro

@@ -23,6 +23,11 @@ services:
               type: bind
               read_only: true
 
+            - source: ./traefik/conf.d
+              target: /etc/traefik/conf.d
+              type: bind
+              read_only: true
+
             - source: ./traefik/credentials.htpasswd
               target: /etc/traefik/dashboard/credentials.htpasswd
               type: bind
