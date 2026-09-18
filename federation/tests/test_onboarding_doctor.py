@@ -33,8 +33,8 @@ def run_doctor(
     }
     if extra_env:
         env.update(extra_env)
-    return subprocess.run(
-        [str(DOCTOR), check],
+    return subprocess.run(  # noqa: S603
+        ["/bin/bash", str(DOCTOR), check],
         cwd=FEDERATION_ROOT,
         env=env,
         capture_output=True,
@@ -47,7 +47,7 @@ def run_doctor(
 def doctor_fixtures(tmp_path: Path) -> dict[str, Path]:
     toml = tmp_path / "federation.toml"
     toml.write_text(
-        '[site]\n'
+        "[site]\n"
         'name = "crc"\n'
         'fqdn = "sds.crc.nd.edu"\n'
         'display_name = "CRC"\n'
@@ -140,7 +140,9 @@ def test_doctor_sync_url_fails_on_port_8001(doctor_fixtures: dict[str, Path]) ->
 
 
 @pytest.mark.regression
-def test_doctor_sync_url_allows_port_8001_local(doctor_fixtures: dict[str, Path]) -> None:
+def test_doctor_sync_url_allows_port_8001_local(
+    doctor_fixtures: dict[str, Path],
+) -> None:
     f = doctor_fixtures
     f["toml"].write_text(
         '[site]\nname = "crc"\nfqdn = "sds.localhost"\n'
