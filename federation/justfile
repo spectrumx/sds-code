@@ -38,6 +38,9 @@ env:
     if ! [ -f "../gateway/.envs/{{ env }}/opensearch.env" ]; then
         echo -e "\n\e[33mWarning:\e[0m ../gateway/.envs/{{ env }}/opensearch.env missing."
     fi
+    if ! [ -f "./site.env" ]; then
+        echo -e "\n\e[33mWarning:\e[0m ./site.env missing."
+    fi
 
 # install runtime + dev deps (pytest)
 [group('setup')]
@@ -84,6 +87,24 @@ simulate-redis +args='':
 [group('dev')]
 verify-federation-live +args='':
     uv run python scripts/verify_federation_live.py {{ args }}
+
+# Production / site onboarding wizard (see docs/onboarding-automation-plan.md)
+[group('setup')]
+federation-onboard +args='':
+    ./scripts/onboard-site.sh {{ args }}
+
+[group('setup')]
+federation-doctor +args='':
+    ./scripts/federation-doctor.sh {{ args }}
+
+[group('setup')]
+federation-add-peer +args='':
+    ./scripts/add-peer.sh {{ args }}
+
+# Render site.env, federation.toml, gateway federation env from templates
+[group('setup')]
+federation-render-config:
+    ./scripts/render-site-config.sh
 
 # Deploy local + peer federation stacks (checks gateway, builds, waits for health)
 [group('dev')]

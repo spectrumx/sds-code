@@ -1,0 +1,3 @@
+# Wizard-generated per-site sync routers (tracked sites live in 00-federation-sync.toml)
+*-sync.toml
+!00-federation-sync.toml

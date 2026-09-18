@@ -1,0 +1,11 @@
+# Generated federation sync router for ${SDS_SITE_FQDN} — do not strip /sync prefix.
+[http.routers.${FEDERATION_SYNC_CONTAINER}]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`${SDS_SITE_FQDN}`) && PathPrefix(`/sync`)"
+    service     = "${FEDERATION_SYNC_CONTAINER}"
+
+    [http.routers.${FEDERATION_SYNC_CONTAINER}.tls]
+        certResolver = "letsencrypt"
+
+[[http.services.${FEDERATION_SYNC_CONTAINER}.loadBalancer.servers]]
+    url = "http://${FEDERATION_SYNC_CONTAINER}:8000"

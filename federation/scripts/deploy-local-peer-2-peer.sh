@@ -19,60 +19,8 @@ PEER_OS_URL="${PEER_OS_URL:-http://localhost:9201/_cluster/health}"
 
 cd "${FEDERATION_ROOT}"
 
-die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
-info() { printf '==> %s\n' "$*"; }
-
-require_file() {
-  [[ -f "$1" ]] || die "missing $1"
-}
-
-# Gateway/federation compose mark this external (Traefik creates it in real
-# deploys). Local p2p does not need Traefik — create the net if missing.
-ensure_docker_network() {
-  local name=$1
-  if docker network inspect "${name}" >/dev/null 2>&1; then
-    return 0
-  fi
-  info "Creating docker network ${name}"
-  docker network create --driver bridge "${name}" >/dev/null
-}
-
-wait_http_ok() {
-  local url=$1 label=$2
-  local deadline=$((SECONDS + WAIT_SECS))
-  info "Waiting for ${label} (${url})"
-  while ((SECONDS < deadline)); do
-    if curl -fsS -o /dev/null --max-time 3 "${url}"; then
-      info "${label} is up"
-      return 0
-    fi
-    sleep 2
-  done
-  die "${label} not healthy after ${WAIT_SECS}s: ${url}"
-}
-
-# Require /sync/health JSON status == "ok" (not merely HTTP 200/503).
-wait_sync_operational() {
-  local url=$1 label=$2
-  local deadline=$((SECONDS + WAIT_SECS))
-  info "Waiting for ${label} operational (${url})"
-  while ((SECONDS < deadline)); do
-    body="$(curl -fsS --max-time 3 "${url}" 2>/dev/null || true)"
-    if [[ -n "${body}" ]] && printf '%s' "${body}" | grep -q '"status"[[:space:]]*:[[:space:]]*"ok"'; then
-      info "${label} operational"
-      return 0
-    fi
-    sleep 2
-  done
-  die "${label} not operational after ${WAIT_SECS}s: ${url}"
-}
-
-restart_and_wait_sync() {
-  local container=$1 url=$2 label=$3
-  info "Restarting ${container} so site-hello/bootstrap see a live peer"
-  docker restart "${container}" >/dev/null
-  wait_sync_operational "${url}" "${label}"
-}
+# shellcheck source=lib/common.sh
+source "${FEDERATION_ROOT}/scripts/lib/common.sh"
 
 # --- configs ---
 info "Checking federation configs"
