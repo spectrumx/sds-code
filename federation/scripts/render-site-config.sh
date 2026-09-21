@@ -154,7 +154,7 @@ render_federation_toml() {
 }
 
 render_site_env() {
-	envsubst_file "${FEDERATION_ROOT}/templates/site.env.tmpl" "${FEDERATION_ROOT}/site.env"
+	python3 "${FEDERATION_ROOT}/scripts/write_site_env.py" "${FEDERATION_ROOT}/site.env"
 }
 
 render_gateway_federation_env() {

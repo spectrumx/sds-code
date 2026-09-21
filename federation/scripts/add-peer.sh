@@ -39,14 +39,12 @@ if grep -q "fqdn = \"${PEER_FQDN}\"" "${FEDERATION_TOML}"; then
 	die "peer ${PEER_FQDN} already present in federation.toml"
 fi
 
-peer_ca_toml_line() {
-	[[ -n "${PEER_CA:-}" ]] || return 0
+PEER_CA_CONTAINER=""
+if [[ -n "${PEER_CA:-}" ]]; then
 	# shellcheck source=lib/ca_cert_path.sh
 	source "${FEDERATION_ROOT}/scripts/lib/ca_cert_path.sh"
-	local container_path
-	container_path="$(ca_cert_container_path_from_input "${PEER_CA}")"
-	printf 'ca_cert_path = "%s"\n' "${container_path}"
-}
+	PEER_CA_CONTAINER="$(ca_cert_container_path_from_input "${PEER_CA}")"
+fi
 
 {
 	printf '\n[[peers]]\n'
@@ -55,7 +53,9 @@ peer_ca_toml_line() {
 	printf 'display_name = "%s"\n' "${PEER_DISPLAY}"
 	printf 'gateway_api_base = "%s"\n' "${PEER_GATEWAY}"
 	printf 'sync_service_url = "%s"\n' "${PEER_SYNC}"
-	peer_ca_toml_line
+	if [[ -n "${PEER_CA_CONTAINER}" ]]; then
+		printf 'ca_cert_path = "%s"\n' "${PEER_CA_CONTAINER}"
+	fi
 } >>"${FEDERATION_TOML}"
 
 info "Restarting ${SYNC_CONTAINER}"

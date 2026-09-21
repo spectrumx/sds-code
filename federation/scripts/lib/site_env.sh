@@ -1,19 +1,44 @@
 #!/usr/bin/env bash
 # Requires FEDERATION_ROOT.
 
+site_env_path() {
+	printf '%s/site.env\n' "${FEDERATION_ROOT}"
+}
+
+# Value from site.env (handles double-quoted lines from write_site_env.py).
+site_env_value() {
+	local key=$1
+	local file line raw
+	file="$(site_env_path)"
+	[[ -f "${file}" ]] || return 0
+	line="$(grep -E "^${key}=" "${file}" 2>/dev/null | tail -1)" || return 0
+	[[ -n "${line}" ]] || return 0
+	raw="${line#*=}"
+	if [[ "${raw}" == \"*\" && "${raw}" == *\" ]]; then
+		raw="${raw:1:${#raw}-2}"
+		raw="${raw//\\\"/\"}"
+		raw="${raw//\\\\/\\}"
+	fi
+	printf '%s\n' "${raw}"
+}
+
 load_site_env_file() {
-	local site_env="${FEDERATION_ROOT}/site.env"
+	local site_env
+	site_env="$(site_env_path)"
 	[[ -f "${site_env}" ]] || return 0
 	# shellcheck disable=SC1090
 	source "${site_env}"
 }
 
-# Restore persisted onboarding vars when re-rendering without exports in the shell.
+# Restore persisted optional vars when re-rendering; never override exported identity.
 load_site_env_for_render() {
 	if [[ -n "${FEDERATION_PEER_CA_PATH:-}" ]]; then
 		return 0
 	fi
-	load_site_env_file
+	local stored
+	stored="$(site_env_value FEDERATION_PEER_CA_PATH)" || true
+	[[ -n "${stored}" ]] || return 0
+	export FEDERATION_PEER_CA_PATH="${stored}"
 }
 
 load_rendered_site_env() {
