@@ -121,6 +121,27 @@ def test_doctor_token_fails_on_short_token(doctor_fixtures: dict[str, Path]) -> 
 
 
 @pytest.mark.regression
+def test_doctor_sync_url_reads_quoted_site_env(doctor_fixtures: dict[str, Path]) -> None:
+    f = doctor_fixtures
+    f["toml"].write_text(
+        '[site]\nname = "fed1"\nfqdn = "fed1.example.edu"\n',
+        encoding="utf-8",
+    )
+    f["site"].write_text(
+        'FEDERATION_SYNC_SERVICE_URL="https://fed1.example.edu/sync"\n',
+        encoding="utf-8",
+    )
+    result = run_doctor(
+        federation_toml=f["toml"],
+        django_env=f["django"],
+        shared_env=f["shared"],
+        site_env=f["site"],
+        check="sync_url",
+    )
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.regression
 def test_doctor_sync_url_fails_on_port_8001(doctor_fixtures: dict[str, Path]) -> None:
     f = doctor_fixtures
     f["toml"].write_text(

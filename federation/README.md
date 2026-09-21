@@ -113,7 +113,9 @@ cd ../federation
 SDS_ENV=local just federation-onboard
 ```
 
-Defaults: `crc` / `sds.localhost`, site sync URL `http://localhost:8001/sync`, peer
+Defaults: `crc` / `sds.localhost`, advertised sync URL
+`http://sds-federation-local-sync:8000/sync` (Docker DNS for site-hello / peers), host health
+`http://localhost:8001/sync`. Peer
 `peer.local` with `sync_service_url = http://sds-federation-peer-sync:8000/sync` for
 `just deploy-local-peer-2-peer`. Keep `federation.peer.toml` reciprocal (see wizard output).
 
