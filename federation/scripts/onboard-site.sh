@@ -2,30 +2,18 @@
 set -euo pipefail
 
 FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-GATEWAY_ROOT="${FEDERATION_ROOT}/../gateway"
-GATEWAY_ENV_SELECTION="${GATEWAY_ROOT}/scripts/env-selection.sh"
 # shellcheck source=lib/common.sh
 source "${FEDERATION_ROOT}/scripts/lib/common.sh"
-
-ENV_SELECTION="${FEDERATION_ROOT}/scripts/env-selection.sh"
-SDS_ENV_TYPE="$("${ENV_SELECTION}" env)"
-COMPOSE_FILE="$("${ENV_SELECTION}" compose_file)"
-SYNC_CONTAINER="$("${ENV_SELECTION}" sync_container)"
+# shellcheck source=lib/bootstrap.sh
+source "${FEDERATION_ROOT}/scripts/lib/bootstrap.sh"
+federation_script_init
+# shellcheck source=lib/gateway.sh
+source "${FEDERATION_ROOT}/scripts/lib/gateway.sh"
+# shellcheck source=lib/site_env.sh
+source "${FEDERATION_ROOT}/scripts/lib/site_env.sh"
 
 default_hostname_fqdn() {
 	hostname -f 2>/dev/null || hostname
-}
-
-gateway_compose() {
-	local compose_file=$1
-	shift
-	local gate_env env_file
-	gate_env="$("${GATEWAY_ENV_SELECTION}" env)"
-	env_file="$("${GATEWAY_ENV_SELECTION}" env_file)"
-	docker compose -f "${GATEWAY_ROOT}/${compose_file}" \
-		--env-file "${GATEWAY_ROOT}/${env_file}" \
-		--env-file "${GATEWAY_ROOT}/.envs/${gate_env}/storage.env" \
-		"$@"
 }
 
 prompt_site_identity() {
@@ -43,70 +31,6 @@ prompt_site_identity() {
 	fi
 	export SDS_SITE_FQDN SDS_SITE_NAME SDS_SITE_DISPLAY_NAME
 	export FEDERATION_PEER_FQDN FEDERATION_PEER_CA_PATH
-}
-
-ensure_secrets() {
-	if [[ -f "${FEDERATION_ROOT}/../federation-shared.env" ]]; then
-		return 0
-	fi
-	info "Generating gateway secrets (${SDS_ENV_TYPE})"
-	( cd "${GATEWAY_ROOT}" && "./scripts/generate-secrets.sh" "${SDS_ENV_TYPE}" )
-}
-
-gateway_app_service() {
-	case "${SDS_ENV_TYPE}" in
-	production) printf '%s\n' "sds-gateway-prod-app" ;;
-	*) printf '%s\n' "sds-gateway-local-app" ;;
-	esac
-}
-
-gateway_compose_file() {
-	case "${SDS_ENV_TYPE}" in
-	production) printf '%s\n' "compose.production.yaml" ;;
-	*) printf '%s\n' "compose.local.yaml" ;;
-	esac
-}
-
-# Compose loads env_file only at container create; merge into django.env is not visible until recreate.
-recreate_gateway_for_updated_env() {
-	local compose_file app
-	compose_file="$(gateway_compose_file)"
-	app="$(gateway_app_service)"
-	if ! docker ps --format '{{.Names}}' | grep -qx "${app}"; then
-		info "Gateway app not running (skipping recreate — start gateway before onboard)"
-		return 0
-	fi
-	info "Recreating gateway app and Celery workers (reload django.env / federation-shared.env)"
-	gateway_compose "${compose_file}" up -d --force-recreate --no-deps \
-		"${app}" celery-worker celery-beat
-}
-
-init_sync_token() {
-	local container compose_file
-	container="$(gateway_app_service)"
-	compose_file="$(gateway_compose_file)"
-	info "Ensuring federation sync DRF token in gateway DB"
-	gateway_compose "${compose_file}" exec -T "${container}" \
-		uv run manage.py init_federation_sync_token
-}
-
-# render-site-config.sh writes site.env in a subprocess; load into this shell for handoff/health.
-load_rendered_site_env() {
-	local site_env="${FEDERATION_ROOT}/site.env"
-	[[ -f "${site_env}" ]] || return 0
-	# shellcheck disable=SC1090
-	source "${site_env}"
-	export FEDERATION_SYNC_SERVICE_URL
-}
-
-public_sync_health_url() {
-	local base
-	if [[ -z "${FEDERATION_SYNC_SERVICE_URL:-}" ]]; then
-		load_rendered_site_env
-	fi
-	base="${FEDERATION_SYNC_SERVICE_URL:-}"
-	base="${base%/}"
-	printf '%s/health\n' "${base}"
 }
 
 print_peer_handoff() {
@@ -144,13 +68,14 @@ EOF
 main() {
 	prompt_site_identity
 	export SDS_SITE_NAME SDS_SITE_FQDN SDS_SITE_DISPLAY_NAME
+	load_site_env_for_render
 	if [[ "${SDS_ENV_TYPE}" != "production" ]]; then
 		export RENDER_TRAEFIK_SYNC="${RENDER_TRAEFIK_SYNC:-0}"
 		export FEDERATION_DOCTOR_SKIP_DNS="${FEDERATION_DOCTOR_SKIP_DNS:-1}"
 	fi
+	ensure_gateway_secrets
 	"${FEDERATION_ROOT}/scripts/render-site-config.sh"
 	load_rendered_site_env
-	ensure_secrets
 	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
 	recreate_gateway_for_updated_env
 

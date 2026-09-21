@@ -66,6 +66,7 @@ export_vars_for_render() {
 	export REDIS_URL="${REDIS_URL:-$(default_redis_url)}"
 	export FEDERATION_SYNC_HEALTH_URL="${FEDERATION_SYNC_HEALTH_URL:-$(default_sync_health_url)}"
 	export FEDERATION_SYNC_USER_EMAIL="${FEDERATION_SYNC_USER_EMAIL:-federation-sync@internal.local}"
+	export FEDERATION_PEER_CA_PATH="${FEDERATION_PEER_CA_PATH:-}"
 	default_peer_values
 }
 
@@ -158,6 +159,9 @@ render_site_env() {
 
 render_gateway_federation_env() {
 	local django_env="${FEDERATION_ROOT}/../gateway/.envs/${SDS_ENV_TYPE}/django.env"
+	if [[ ! -f "${django_env}" ]]; then
+		die "missing ${django_env} — run: cd gateway && ./scripts/generate-secrets.sh ${SDS_ENV_TYPE}"
+	fi
 	local block
 	block="$(mktemp)"
 	envsubst_file "${FEDERATION_ROOT}/templates/gateway-federation.env.tmpl" "${block}"
@@ -186,6 +190,9 @@ render_traefik_sync_dropin() {
 }
 
 main() {
+	# shellcheck source=lib/site_env.sh
+	source "${FEDERATION_ROOT}/scripts/lib/site_env.sh"
+	load_site_env_for_render
 	export_vars_for_render
 	[[ -n "${SDS_SITE_NAME:-}" && -n "${SDS_SITE_FQDN:-}" ]] \
 		|| die "SDS_SITE_NAME and SDS_SITE_FQDN must be set"
