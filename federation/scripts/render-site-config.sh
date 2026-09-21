@@ -201,7 +201,7 @@ main() {
 		if [[ "${SDS_ENV_TYPE}" == "production" ]]; then
 			export FEDERATION_SYNC_SERVICE_URL="https://${SDS_SITE_FQDN}/sync"
 		else
-			export FEDERATION_SYNC_SERVICE_URL="http://localhost:8001/sync"
+			export FEDERATION_SYNC_SERVICE_URL="http://${FEDERATION_SYNC_CONTAINER}:8000/sync"
 		fi
 	fi
 	render_site_env

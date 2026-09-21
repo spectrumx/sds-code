@@ -47,7 +47,7 @@ def test_federation_toml_template_local_peer_uses_docker_dns() -> None:
         "SDS_SITE_NAME": "crc",
         "SDS_SITE_FQDN": "sds.localhost",
         "SDS_SITE_DISPLAY_NAME": "Local CRC",
-        "FEDERATION_SYNC_SERVICE_URL": "http://localhost:8001/sync",
+        "FEDERATION_SYNC_SERVICE_URL": "http://sds-federation-local-sync:8000/sync",
         "FEDERATION_PEER_NAME": "peer",
         "FEDERATION_PEER_FQDN": "peer.local",
         "FEDERATION_PEER_DISPLAY_NAME": "Local Peer",
@@ -55,4 +55,5 @@ def test_federation_toml_template_local_peer_uses_docker_dns() -> None:
         "FEDERATION_PEER_SYNC_SERVICE_URL": "http://sds-federation-peer-sync:8000/sync",
     }
     rendered = envsubst_template(TEMPLATE.read_text(encoding="utf-8"), env)
+    assert 'sync_service_url = "http://sds-federation-local-sync:8000/sync"' in rendered
     assert "sds-federation-peer-sync:8000/sync" in rendered

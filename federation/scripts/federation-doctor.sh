@@ -21,13 +21,28 @@ record_fail() {
 }
 
 toml_site_value() {
-	local key=$1
-	grep -E "^${key}[[:space:]]*=" "${FEDERATION_TOML}" | head -1 | sed -E 's/^[^=]+=[[:space:]]*"([^"]*)".*/\1/'
+	local key=$1 line
+	line="$(grep -E "^${key}[[:space:]]*=" "${FEDERATION_TOML}" 2>/dev/null | head -1)" || true
+	[[ -n "${line}" ]] || return 0
+	sed -E 's/^[^=]+=[[:space:]]*"([^"]*)".*/\1/' <<<"${line}"
+}
+
+strip_env_file_rhs() {
+	local raw=$1
+	if [[ "${raw}" == \"*\" && "${raw}" == *\" ]]; then
+		raw="${raw:1:${#raw}-2}"
+		raw="${raw//\\\"/\"}"
+		raw="${raw//\\\\/\\}"
+	fi
+	printf '%s\n' "${raw}"
 }
 
 env_value() {
-	local file=$1 key=$2
-	grep -E "^${key}=" "${file}" 2>/dev/null | tail -1 | cut -d= -f2- || true
+	local file=$1 key=$2 line raw
+	line="$(grep -E "^${key}=" "${file}" 2>/dev/null | tail -1)" || return 0
+	[[ -n "${line}" ]] || return 0
+	raw="${line#*=}"
+	strip_env_file_rhs "${raw}"
 }
 
 check_identity() {
@@ -119,7 +134,7 @@ check_ca() {
 		if [[ ! -r "${host_path}" ]]; then
 			record_fail "ca_cert_path ${configured} not readable on host at ${host_path} (PEM must be under federation/certs/)"
 		fi
-	done < <(grep -E 'ca_cert_path[[:space:]]*=' "${FEDERATION_TOML}" | sed -E 's/.*"([^"]+)".*/\1/')
+	done < <(grep -E 'ca_cert_path[[:space:]]*=' "${FEDERATION_TOML}" 2>/dev/null | sed -E 's/.*"([^"]+)".*/\1/' || true)
 }
 
 check_sync_url() {

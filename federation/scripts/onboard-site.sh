@@ -79,12 +79,7 @@ main() {
 	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
 	recreate_gateway_for_updated_env
 
-	local gateway_health
-	case "${SDS_ENV_TYPE}" in
-	production) gateway_health="https://${SDS_SITE_FQDN}/" ;;
-	*) gateway_health="${GATEWAY_URL:-http://localhost:8000}/" ;;
-	esac
-	wait_http_ok "${gateway_health}" "gateway"
+	wait_gateway_app_ready
 
 	init_sync_token
 	FEDERATION_DOCTOR_SKIP_DB=0 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"

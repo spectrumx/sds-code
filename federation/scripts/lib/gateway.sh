@@ -64,3 +64,27 @@ init_sync_token() {
 	gateway_compose "${compose_file}" exec -T "${container}" \
 		uv run manage.py init_federation_sync_token
 }
+
+# Docker-network probe (new production FQDNs may have /sync Traefik only, not gateway Host()).
+wait_gateway_app_ready() {
+	local app port wait_secs deadline
+	app="$(gateway_app_service)"
+	case "${SDS_ENV_TYPE}" in
+	production) port=18000 ;;
+	*) port=8000 ;;
+	esac
+	if ! docker ps --format '{{.Names}}' | grep -qx "${app}"; then
+		die "${app} not running — start gateway before federation onboard"
+	fi
+	wait_secs=${WAIT_SECS:-180}
+	deadline=$((SECONDS + wait_secs))
+	info "Waiting for gateway app ${app} (http://127.0.0.1:${port}/ in container)"
+	while ((SECONDS < deadline)); do
+		if docker exec "${app}" curl -fsS -o /dev/null --max-time 3 "http://127.0.0.1:${port}/" 2>/dev/null; then
+			info "Gateway app ${app} is up"
+			return 0
+		fi
+		sleep 2
+	done
+	die "Gateway app ${app} not healthy after ${wait_secs}s"
+}
