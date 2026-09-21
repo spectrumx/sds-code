@@ -110,11 +110,14 @@ check_dns() {
 }
 
 check_ca() {
-	local path
-	while IFS= read -r path; do
-		[[ -n "${path}" ]] || continue
-		if [[ ! -r "${path}" ]]; then
-			record_fail "ca_cert_path not readable: ${path}"
+	# shellcheck source=lib/ca_cert_path.sh
+	source "${FEDERATION_ROOT}/scripts/lib/ca_cert_path.sh"
+	local configured host_path
+	while IFS= read -r configured; do
+		[[ -n "${configured}" ]] || continue
+		host_path="$(ca_cert_host_path_for_check "${configured}")"
+		if [[ ! -r "${host_path}" ]]; then
+			record_fail "ca_cert_path ${configured} not readable on host at ${host_path} (PEM must be under federation/certs/)"
 		fi
 	done < <(grep -E 'ca_cert_path[[:space:]]*=' "${FEDERATION_TOML}" | sed -E 's/.*"([^"]+)".*/\1/')
 }
