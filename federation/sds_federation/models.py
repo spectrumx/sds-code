@@ -29,15 +29,39 @@ def site_name_for_federation(site: SiteInfo | PeerInfo) -> str:
     return site.fqdn
 
 
+class RegistryPolicy(BaseModel):
+    url: AnyHttpUrl | None = None
+    public_key_path: str = ""
+    certs_dir: str = "/etc/sds/certs"
+    cache_dir: str = "/var/lib/sds/registry"
+    refresh_secs: int = 900
+    required: bool = False
+    deny: list[str] = Field(default_factory=list)
+
+
 class FederationConfig(BaseModel):
     site: SiteInfo
     peers: list[PeerInfo] = Field(default_factory=list)
+    registry: RegistryPolicy = Field(default_factory=lambda: RegistryPolicy())
     gateway_api_base: AnyHttpUrl
     sync_service_url: AnyHttpUrl
 
 
 def allowed_federated_origin_fqdns(config: FederationConfig) -> set[str]:
     return {peer.fqdn for peer in config.peers} | {config.site.fqdn}
+
+
+def _registry_policy(data: dict) -> RegistryPolicy:
+    table = dict(data.get("registry", {}))
+    for key, env in (
+        ("url", "FEDERATION_REGISTRY_URL"),
+        ("public_key_path", "FEDERATION_REGISTRY_PUBKEY_PATH"),
+        ("cache_dir", "FEDERATION_REGISTRY_CACHE_DIR"),
+    ):
+        value = os.environ.get(env, "").strip()
+        if value:
+            table[key] = value
+    return RegistryPolicy.model_validate(table)
 
 
 def load_federation_config() -> FederationConfig:
@@ -61,6 +85,7 @@ def load_federation_config() -> FederationConfig:
     return FederationConfig.model_validate(
         {
             **data,
+            "registry": _registry_policy(data),
             "gateway_api_base": gateway_base.rstrip("/"),
             "sync_service_url": str(sync_url).rstrip("/"),
         },
