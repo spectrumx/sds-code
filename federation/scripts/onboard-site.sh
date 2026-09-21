@@ -34,7 +34,7 @@ prompt_site_identity() {
 		ask SDS_SITE_NAME "Short site id (federation.toml [site].name)" "${SDS_SITE_FQDN%%.*}"
 		ask SDS_SITE_DISPLAY_NAME "Human-readable site name" "${SDS_SITE_NAME}"
 		ask FEDERATION_PEER_FQDN "Peer sync FQDN to bootstrap from" "sds.crc.nd.edu"
-		ask FEDERATION_PEER_CA_PATH "Peer private CA bundle path (blank = omit ca_cert_path)" ""
+		ask FEDERATION_PEER_CA_PATH "Peer CA PEM path under federation/certs/ (stored as /etc/sds/certs/... in toml; blank = omit)" ""
 	else
 		ask SDS_SITE_FQDN "Site FQDN (OpenSearch site_name)" "sds.localhost"
 		ask SDS_SITE_NAME "Short site id (federation.toml [site].name)" "crc"
@@ -53,28 +53,56 @@ ensure_secrets() {
 	( cd "${GATEWAY_ROOT}" && "./scripts/generate-secrets.sh" "${SDS_ENV_TYPE}" )
 }
 
+gateway_app_service() {
+	case "${SDS_ENV_TYPE}" in
+	production) printf '%s\n' "sds-gateway-prod-app" ;;
+	*) printf '%s\n' "sds-gateway-local-app" ;;
+	esac
+}
+
+gateway_compose_file() {
+	case "${SDS_ENV_TYPE}" in
+	production) printf '%s\n' "compose.production.yaml" ;;
+	*) printf '%s\n' "compose.local.yaml" ;;
+	esac
+}
+
+# Compose loads env_file only at container create; merge into django.env is not visible until recreate.
+recreate_gateway_for_updated_env() {
+	local compose_file app
+	compose_file="$(gateway_compose_file)"
+	app="$(gateway_app_service)"
+	if ! docker ps --format '{{.Names}}' | grep -qx "${app}"; then
+		info "Gateway app not running (skipping recreate — start gateway before onboard)"
+		return 0
+	fi
+	info "Recreating gateway app and Celery workers (reload django.env / federation-shared.env)"
+	gateway_compose "${compose_file}" up -d --force-recreate --no-deps \
+		"${app}" celery-worker celery-beat
+}
+
 init_sync_token() {
 	local container compose_file
-	case "${SDS_ENV_TYPE}" in
-	production)
-		container="sds-gateway-prod-app"
-		compose_file="compose.production.yaml"
-		;;
-	*)
-		container="sds-gateway-local-app"
-		compose_file="compose.local.yaml"
-		;;
-	esac
+	container="$(gateway_app_service)"
+	compose_file="$(gateway_compose_file)"
 	info "Ensuring federation sync DRF token in gateway DB"
 	gateway_compose "${compose_file}" exec -T "${container}" \
 		uv run manage.py init_federation_sync_token
 }
 
+# render-site-config.sh writes site.env in a subprocess; load into this shell for handoff/health.
+load_rendered_site_env() {
+	local site_env="${FEDERATION_ROOT}/site.env"
+	[[ -f "${site_env}" ]] || return 0
+	# shellcheck disable=SC1090
+	source "${site_env}"
+	export FEDERATION_SYNC_SERVICE_URL
+}
+
 public_sync_health_url() {
-	local base="${FEDERATION_SYNC_SERVICE_URL:-}"
-	if [[ -z "${base}" && -f "${FEDERATION_ROOT}/site.env" ]]; then
-		# shellcheck disable=SC1090
-		source "${FEDERATION_ROOT}/site.env"
+	local base
+	if [[ -z "${FEDERATION_SYNC_SERVICE_URL:-}" ]]; then
+		load_rendered_site_env
 	fi
 	base="${FEDERATION_SYNC_SERVICE_URL:-}"
 	base="${base%/}"
@@ -108,7 +136,7 @@ name = "${SDS_SITE_NAME}"
 fqdn = "${SDS_SITE_FQDN}"
 display_name = "${SDS_SITE_DISPLAY_NAME}"
 gateway_api_base = "https://${SDS_SITE_FQDN}/api/v1"
-sync_service_url = "${FEDERATION_SYNC_SERVICE_URL}/"
+sync_service_url = "${FEDERATION_SYNC_SERVICE_URL%/}/"
 
 EOF
 }
@@ -121,8 +149,10 @@ main() {
 		export FEDERATION_DOCTOR_SKIP_DNS="${FEDERATION_DOCTOR_SKIP_DNS:-1}"
 	fi
 	"${FEDERATION_ROOT}/scripts/render-site-config.sh"
-	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
+	load_rendered_site_env
 	ensure_secrets
+	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
+	recreate_gateway_for_updated_env
 
 	local gateway_health
 	case "${SDS_ENV_TYPE}" in

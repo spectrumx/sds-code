@@ -3,13 +3,15 @@
 OpenSearch mappings live in :mod:`sds_opensearch_query.mapping` (RFC §6). Indexed
 ``fed-datasets`` / ``fed-captures`` documents use these top-level fields (plus
 ``dynamic: true`` for export keys not listed here). ``federation_event_at`` is
-stamped at index time by :func:`sds_opensearch_query.index_write.index_federated_document`,
-not by the gateway export payload.
+stamped at index time by
+:func:`sds_opensearch_query.index_write.index_federated_document`, not by the
+gateway export payload.
 
 **fed-datasets** — keys from ``RFC_FED_DATASET_PROPERTIES``:
 
 - ``uuid`` (keyword)
-- ``site_name`` (keyword) — peer FQDN (``federation.toml`` ``[site].fqdn``), not short name
+- ``site_name`` (keyword) — peer FQDN (``federation.toml`` ``[site].fqdn``),
+  not short name
 - ``name`` (text + keyword subfield)
 - ``version`` (integer)
 - ``description``, ``abstract`` (text)
@@ -29,7 +31,8 @@ be stored when present but are not in the RFC search mapping above.
 
 - ``uuid``, ``site_name`` (keyword; ``site_name`` = peer FQDN)
 - ``name`` (text + keyword subfield)
-- ``capture_type``, ``channel``, ``scan_group``, ``top_level_dir``, ``owner_name`` (keyword)
+- ``capture_type``, ``channel``, ``scan_group``, ``top_level_dir``,
+  ``owner_name`` (keyword)
 - ``file_count`` (integer), ``size`` (long)
 - ``created_at``, ``updated_at``, ``federation_event_at`` (date)
 - ``is_deleted`` (boolean)

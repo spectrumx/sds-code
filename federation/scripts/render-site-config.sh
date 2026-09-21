@@ -120,17 +120,36 @@ PY
 }
 
 append_peer_ca_cert() {
-	local toml=$1
+	local toml=$1 container_path
 	if [[ -z "${FEDERATION_PEER_CA_PATH:-}" ]]; then
 		return 0
 	fi
-	printf 'ca_cert_path = "%s"\n' "${FEDERATION_PEER_CA_PATH}" >>"${toml}"
+	# shellcheck source=lib/ca_cert_path.sh
+	source "${FEDERATION_ROOT}/scripts/lib/ca_cert_path.sh"
+	container_path="$(ca_cert_container_path_from_input "${FEDERATION_PEER_CA_PATH}")"
+	printf 'ca_cert_path = "%s"\n' "${container_path}" >>"${toml}"
+}
+
+merge_federation_toml_peers() {
+	local rendered=$1 existing=$2 out=$3
+	python3 "${FEDERATION_ROOT}/scripts/merge_federation_toml_peers.py" \
+		"${rendered}" "${existing}" "${out}"
 }
 
 render_federation_toml() {
 	local dest="${FEDERATION_ROOT}/federation.toml"
-	envsubst_file "${FEDERATION_ROOT}/templates/federation.toml.tmpl" "${dest}"
-	append_peer_ca_cert "${dest}"
+	local rendered tmp
+	rendered="$(mktemp)"
+	envsubst_file "${FEDERATION_ROOT}/templates/federation.toml.tmpl" "${rendered}"
+	append_peer_ca_cert "${rendered}"
+	if [[ ! -f "${dest}" ]]; then
+		mv "${rendered}" "${dest}"
+		return 0
+	fi
+	tmp="$(mktemp)"
+	merge_federation_toml_peers "${rendered}" "${dest}" "${tmp}"
+	mv "${tmp}" "${dest}"
+	rm -f "${rendered}"
 }
 
 render_site_env() {
@@ -146,19 +165,22 @@ render_gateway_federation_env() {
 	rm -f "${block}"
 }
 
-traefik_dropin_exists_for_fqdn() {
+traefik_sync_route_exists_for_fqdn() {
 	local fqdn=$1 conf_dir=$2
-	[[ -d "${conf_dir}" ]] && grep -rq "Host(\`${fqdn}\`)" "${conf_dir}" 2>/dev/null
+	# Gateway catch-alls use Host() only; federation sync requires PathPrefix(`/sync`).
+	local host_path='Host\(`'"${fqdn}"'`\)[[:space:]]*&&[[:space:]]*PathPrefix\(`/sync`\)'
+	[[ -d "${conf_dir}" ]] && grep -rqE "${host_path}" "${conf_dir}" 2>/dev/null
 }
 
 render_traefik_sync_dropin() {
 	local conf_dir="${FEDERATION_ROOT}/../network/traefik/conf.d"
-	if traefik_dropin_exists_for_fqdn "${SDS_SITE_FQDN}" "${conf_dir}"; then
-		info "Traefik already routes ${SDS_SITE_FQDN} (skipping drop-in)"
+	if traefik_sync_route_exists_for_fqdn "${SDS_SITE_FQDN}" "${conf_dir}"; then
+		info "Traefik already routes ${SDS_SITE_FQDN}/sync (skipping drop-in)"
 		return 0
 	fi
 	mkdir -p "${conf_dir}"
 	local dest="${conf_dir}/${SDS_SITE_NAME}-sync.toml"
+	export TRAEFIK_SYNC_ROUTER_ID="sds-site-${SDS_SITE_NAME}-sync"
 	envsubst_file "${FEDERATION_ROOT}/templates/traefik-sync.toml.tmpl" "${dest}"
 	info "Wrote ${dest}"
 }
