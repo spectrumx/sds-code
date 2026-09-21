@@ -121,7 +121,9 @@ def test_doctor_token_fails_on_short_token(doctor_fixtures: dict[str, Path]) -> 
 
 
 @pytest.mark.regression
-def test_doctor_sync_url_reads_quoted_site_env(doctor_fixtures: dict[str, Path]) -> None:
+def test_doctor_sync_url_reads_quoted_site_env(
+    doctor_fixtures: dict[str, Path],
+) -> None:
     f = doctor_fixtures
     f["toml"].write_text(
         '[site]\nname = "fed1"\nfqdn = "fed1.example.edu"\n',
