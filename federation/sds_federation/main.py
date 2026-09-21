@@ -13,6 +13,7 @@ from sds_opensearch_query.client import build_opensearch_client
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
 from sds_federation.routes.webhooks import webhooks_router
+from sds_federation.routes.sites import sites_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import ensure_fed_indices
@@ -43,12 +44,14 @@ def _env_flag(key: str) -> bool:
 sync_app = FastAPI(title="SDS Federation Sync")
 sync_app.include_router(health_router)
 sync_app.include_router(webhooks_router, prefix=API_PREFIX)
+sync_app.include_router(sites_router, prefix=API_PREFIX)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     config = load_federation_config()
     http = build_peer_http_client()
+    await apply_peers(config, await resolve_peers(http, config))
 
     os_client = build_opensearch_client(
         host=get_setting("OPENSEARCH_HOST", "opensearch"),
@@ -103,6 +106,14 @@ async def lifespan(app: FastAPI):
             registry=peer_registry,
         ),
     )
+    registry_task = asyncio.create_task(
+        run_registry_refresh(
+            http,
+            config,
+            fed_indexer,
+            stop
+        ),
+    )
     app.state.subscriber_task = sub_task
     sync_app.state.subscriber_task = sub_task
 
@@ -110,6 +121,7 @@ async def lifespan(app: FastAPI):
 
     stop.set()
     sub_task.cancel()
+    registry_task.cancel()
     # Pubsub listen may surface TimeoutError while cancelling the blocked read.
     with suppress(asyncio.CancelledError, TimeoutError, RedisTimeoutError):
         await sub_task

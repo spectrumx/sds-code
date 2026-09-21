@@ -119,3 +119,96 @@ async def fetch_manifest(
     manifest = _accept(policy, payload, signature)
     _cache(policy, payload, signature, manifest.serial)
     return manifest
+
+
+def _peer_from_site(site: RegistrySite, policy: RegistryPolicy) -> PeerInfo:
+    ca_path = ""
+    if site.ca_cert_file:
+        # Basename only: the manifest must not be able to select host paths.
+        candidate = Path(policy.certs_dir) / Path(site.ca_cert_file).name
+        if candidate.is_file():
+            ca_path = str(candidate)
+        else:
+            logger.warning("registry CA for {} not found at {}", site.name, candidate)
+    return PeerInfo(
+        name=site.name,
+        fqdn=site.fqdn,
+        display_name=site.display_name,
+        gateway_api_base=site.gateway_api_base,
+        sync_service_url=site.sync_service_url,
+        ca_cert_path=ca_path,
+    )
+
+
+def merge_peers(
+    config: FederationConfig,
+    manifest: RegistryManifest,
+) -> list[PeerInfo]:
+    """Static peers pinned by the operator, plus active registry sites."""
+    policy = config.registry
+    denied = set(policy.deny)
+    merged = {peer.fqdn: peer for peer in config.peers}
+    for site in manifest.active_sites():
+        if site.fqdn == config.site.fqdn or site.name == config.site.name:
+            continue
+        if site.fqdn in denied or site.name in denied:
+            logger.info("registry site {} skipped by local deny list", site.fqdn)
+            continue
+        merged.setdefault(site.fqdn, _peer_from_site(site, policy))
+    return list(merged.values())
+
+
+async def resolve_peers(
+    http: httpx.AsyncClient,
+    config: FederationConfig,
+) -> list[PeerInfo]:
+    """Peer set for this cycle: registry when trusted, static config otherwise."""
+    policy = config.registry
+    if not policy.url or not policy.public_key_path:
+        return list(config.peers)
+    try:
+        manifest = await fetch_manifest(http, policy)
+    except (httpx.HTTPError, RegistryTrustError, ValueError) as exc:
+        logger.error("registry fetch failed: {}", exc)
+        manifest = load_cached_manifest(policy)
+        if manifest is None:
+            if policy.required:
+                msg = "no trusted registry manifest and registry.required=true"
+                raise RegistryTrustError(msg) from exc
+            logger.warning("continuing with static federation.toml peers only")
+            return list(config.peers)
+        logger.info("using cached registry manifest serial {}", manifest.serial)
+    return merge_peers(config, manifest)
+
+
+async def apply_peers(config: FederationConfig, peers: list[PeerInfo]) -> list[PeerInfo]:
+    """Replace the peer list in place so every config holder sees the update."""
+    known = {peer.fqdn for peer in config.peers}
+    config.peers[:] = peers
+    return [peer for peer in peers if peer.fqdn not in known]
+
+
+async def run_registry_refresh(
+    http: httpx.AsyncClient,
+    config: FederationConfig,
+    indexer: FederatedAssetIndexer,
+    stop: asyncio.Event,
+) -> None:
+    policy = config.registry
+    if not policy.url:
+        return
+    while not stop.is_set():
+        with suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), timeout=policy.refresh_secs)
+        if stop.is_set():
+            return
+        try:
+            peers = await resolve_peers(http, config)
+        except RegistryTrustError as exc:
+            logger.error("registry refresh rejected: {}", exc)
+            continue
+        for peer in await apply_peers(config, peers):
+            logger.info("registry added peer {} ({})", peer.name, peer.fqdn)
+            await bootstrap_peer_sync_list(http, peer, indexer)
+            with suppress(httpx.HTTPError):
+                await push_site_hello_to_peer(http, peer, config)
