@@ -31,26 +31,7 @@
 [log]
     level = "DEBUG"
 
-[tls]
-    [[tls.certificates]]
-        certFile = "/etc/traefik/certs/public_key.crt"
-        keyFile  = "/etc/traefik/certs/private_key.pem"
-        stores   = ["default"]
-
-    [tls.options]
-        [tls.options.default]
-            minVersion = "VersionTLS12"
-
-    [tls.stores]
-
-        # these self-signed certs will be used by default if let's encrypt
-        #   fails due to e.g. the domain not being publicly reachable.
-        # you might need --insecure flag in curl; and to manually bypass
-        #   the browser's security warning if this is the case.
-        [tls.stores.default]
-            [tls.stores.default.defaultCertificate]
-                certFile = "/etc/traefik/certs/public_key.crt"
-                keyFile  = "/etc/traefik/certs/private_key.pem"
+# TLS certificates/stores/options: conf.d/00-tls.toml (file provider loads conf.d only)
 
 [entryPoints]
     # https://doc.traefik.io/traefik/routing/entrypoints/

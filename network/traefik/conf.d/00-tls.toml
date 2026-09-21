@@ -1,0 +1,18 @@
+# TLS defaults (Traefik v3: dynamic TLS must live under the file provider directory).
+
+[tls]
+    [[tls.certificates]]
+        certFile = "/etc/traefik/certs/public_key.crt"
+        keyFile  = "/etc/traefik/certs/private_key.pem"
+        stores   = ["default"]
+
+    [tls.options]
+        [tls.options.default]
+            minVersion = "VersionTLS12"
+
+    [tls.stores]
+        # Fallback when Let's Encrypt is unavailable (curl may need --insecure).
+        [tls.stores.default]
+            [tls.stores.default.defaultCertificate]
+                certFile = "/etc/traefik/certs/public_key.crt"
+                keyFile  = "/etc/traefik/certs/private_key.pem"

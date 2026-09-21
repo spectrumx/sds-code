@@ -4,16 +4,13 @@ set -euo pipefail
 FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/common.sh
 source "${FEDERATION_ROOT}/scripts/lib/common.sh"
+# shellcheck source=lib/bootstrap.sh
+source "${FEDERATION_ROOT}/scripts/lib/bootstrap.sh"
+federation_script_init
+# shellcheck source=lib/site_env.sh
+source "${FEDERATION_ROOT}/scripts/lib/site_env.sh"
 
-ENV_SELECTION="${FEDERATION_ROOT}/scripts/env-selection.sh"
-SYNC_CONTAINER="$("${ENV_SELECTION}" sync_container)"
 FEDERATION_TOML="${FEDERATION_ROOT}/federation.toml"
-
-public_sync_health_url_from_env() {
-	local base="${FEDERATION_SYNC_SERVICE_URL:-}"
-	base="${base%/}"
-	printf '%s/health\n' "${base}"
-}
 
 usage() {
 	die "usage: $0 --name NAME --fqdn FQDN [--display-name NAME] [--gateway-api-base URL] [--sync-url URL] [--ca-cert-path PATH]"
@@ -64,15 +61,8 @@ peer_ca_toml_line() {
 info "Restarting ${SYNC_CONTAINER}"
 docker restart "${SYNC_CONTAINER}" >/dev/null
 
-SITE_ENV_FILE="${FEDERATION_ROOT}/site.env"
-if [[ -f "${SITE_ENV_FILE}" ]]; then
-	# shellcheck disable=SC1090
-	source "${SITE_ENV_FILE}"
-fi
-SYNC_HEALTH="$(public_sync_health_url_from_env)"
-if [[ -z "${FEDERATION_SYNC_SERVICE_URL:-}" ]]; then
-	SYNC_HEALTH="http://127.0.0.1:8001/sync/health"
-fi
+load_rendered_site_env
+SYNC_HEALTH="$(public_sync_health_url)"
 
 wait_sync_operational "${SYNC_HEALTH}" "sync after peer add"
 info "Peer ${PEER_NAME} (${PEER_FQDN}) added — confirm peer site_name in fed-datasets"
