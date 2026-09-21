@@ -49,18 +49,22 @@ sync:
 
 [group('qa')]
 test-regression +args='':
+    uv sync --extra dev --reinstall-package sds-opensearch-query
     uv run pytest -m regression {{ args }}
 
 [group('qa')]
 test-integration +args='':
+    uv sync --extra dev --reinstall-package sds-opensearch-query
     uv run pytest -m integration {{ args }}
 
 [group('qa')]
 test +args='':
+    uv sync --extra dev --reinstall-package sds-opensearch-query
     uv run pytest {{ args }}
 
 [group('qa')]
 test-q:
+    uv sync --extra dev --reinstall-package sds-opensearch-query
     uv run pytest -q
 
 # Run federation pre-commit hooks (prek walks up to repo-root .pre-commit-config.yaml)

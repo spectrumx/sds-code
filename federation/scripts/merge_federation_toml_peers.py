@@ -32,8 +32,11 @@ def merge_ca_from_existing(rendered_block: str, existing_block: str) -> str:
     return rendered_block.rstrip() + f'\nca_cert_path = "{ca}"\n'
 
 
-def main() -> None:
-    rendered_path, existing_path, out_path = sys.argv[1:4]
+def merge_federation_toml_peer_files(
+    rendered_path: Path | str,
+    existing_path: Path | str,
+    out_path: Path | str,
+) -> None:
     rendered_site, rendered_peers = split_site_and_peers(
         Path(rendered_path).read_text()
     )
@@ -60,6 +63,10 @@ def main() -> None:
         lines.append(block)
         lines.append("")
     Path(out_path).write_text("\n".join(lines).rstrip() + "\n")
+
+
+def main() -> None:
+    merge_federation_toml_peer_files(*sys.argv[1:4])
 
 
 if __name__ == "__main__":

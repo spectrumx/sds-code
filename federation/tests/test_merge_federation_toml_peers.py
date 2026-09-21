@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import subprocess
 import sys
 from pathlib import Path
 
 import pytest
 
 FEDERATION_ROOT = Path(__file__).resolve().parents[1]
-MERGE = FEDERATION_ROOT / "scripts" / "merge_federation_toml_peers.py"
+SCRIPTS = FEDERATION_ROOT / "scripts"
+sys.path.insert(0, str(SCRIPTS))
+from merge_federation_toml_peers import merge_federation_toml_peer_files  # noqa: E402
 
 
 @pytest.mark.regression
@@ -50,9 +51,6 @@ sync_service_url = "https://sds.crc.nd.edu/sync/"
         encoding="utf-8",
     )
     out_path = tmp_path / "out.toml"
-    subprocess.run(
-        [sys.executable, str(MERGE), str(rendered), str(existing), str(out_path)],
-        check=True,
-    )
+    merge_federation_toml_peer_files(rendered, existing, out_path)
     text = out_path.read_text(encoding="utf-8")
     assert 'ca_cert_path = "/etc/sds/certs/crc-ca.pem"' in text
