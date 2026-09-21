@@ -44,14 +44,14 @@ printf '%s|%s|%s' "$SDS_SITE_NAME" "$SDS_SITE_FQDN" "${{FEDERATION_PEER_CA_PATH:
 
 
 @pytest.mark.regression
-def test_public_sync_health_url_local_uses_host_port() -> None:
+def test_operator_sync_health_url_uses_host_port_not_public_https() -> None:
     script = f"""
 set -euo pipefail
 FEDERATION_ROOT="{FEDERATION_ROOT}"
-SDS_ENV_TYPE=local
-export FEDERATION_SYNC_SERVICE_URL=http://sds-federation-local-sync:8000/sync
+SDS_ENV_TYPE=production
+export FEDERATION_SYNC_SERVICE_URL=https://new-site.example.edu/sync
 source "{SITE_ENV_SH}"
-public_sync_health_url
+operator_sync_health_url
 """
     out = subprocess.run(  # noqa: S603
         ["/bin/bash", "-c", script],

@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
 # Gateway compose helpers. Requires FEDERATION_ROOT, GATEWAY_ROOT, SDS_ENV_TYPE from bootstrap.
 
-GATEWAY_ENV_SELECTION="${GATEWAY_ROOT}/scripts/env-selection.sh"
-
 gateway_compose() {
 	local compose_file=$1
 	shift
-	local gate_env env_file
-	gate_env="$("${GATEWAY_ENV_SELECTION}" env)"
-	env_file="$("${GATEWAY_ENV_SELECTION}" env_file)"
-	docker compose -f "${GATEWAY_ROOT}/${compose_file}" \
-		--env-file "${GATEWAY_ROOT}/${env_file}" \
-		--env-file "${GATEWAY_ROOT}/.envs/${gate_env}/storage.env" \
-		"$@"
+	# Gateway env-selection checks paths relative to gateway/; compose expects same cwd.
+	(
+		cd "${GATEWAY_ROOT}"
+		local gate_env env_file
+		gate_env="$("./scripts/env-selection.sh" env)"
+		env_file="$("./scripts/env-selection.sh" env_file)"
+		docker compose -f "${compose_file}" \
+			--env-file "${env_file}" \
+			--env-file "./.envs/${gate_env}/storage.env" \
+			"$@"
+	)
 }
 
 gateway_app_service() {

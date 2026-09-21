@@ -63,7 +63,8 @@ The wizard prompts for FQDN, short site id, display name, bootstrap peer FQDN, o
 peer CA path; renders `site.env`, `federation.toml`, gateway federation block in
 `django.env`, and Traefik drop-in when needed; runs `federation-doctor`; ensures secrets;
 `init_federation_sync_token`; builds and starts sync; waits for `"status":"ok"` on
-`/sync/health`, restarts sync once; prints a `[[peers]]` block for the peer operator.
+host `http://127.0.0.1:8001/sync/health` (not public HTTPS — avoids hairpin/TLS during
+first boot), restarts sync once; prints a `[[peers]]` block for the peer operator.
 
 **Non-interactive** — export variables, then the same command:
 

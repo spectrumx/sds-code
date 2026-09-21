@@ -46,25 +46,15 @@ load_rendered_site_env() {
 	export FEDERATION_SYNC_SERVICE_URL
 }
 
+# Host bootstrap probe (compose maps host :8001 → sync :8000). Not peer-facing HTTPS.
+operator_sync_health_url() {
+	if [[ -n "${FEDERATION_OPERATOR_SYNC_HEALTH_URL:-}" ]]; then
+		printf '%s\n' "${FEDERATION_OPERATOR_SYNC_HEALTH_URL}"
+		return 0
+	fi
+	printf '%s\n' "http://127.0.0.1:8001/sync/health"
+}
+
 public_sync_health_url() {
-	local base env_type
-	if [[ -z "${FEDERATION_SYNC_SERVICE_URL:-}" ]]; then
-		load_rendered_site_env
-	fi
-	env_type="${SDS_ENV_TYPE:-}"
-	if [[ -z "${env_type}" && -n "${FEDERATION_ROOT:-}" ]]; then
-		env_type="$("${FEDERATION_ROOT}/scripts/env-selection.sh" env 2>/dev/null || true)"
-	fi
-	# Local lab: site-hello advertises Docker DNS; operator curls host port :8001.
-	if [[ "${env_type}" == "local" ]]; then
-		printf '%s\n' "http://127.0.0.1:8001/sync/health"
-		return 0
-	fi
-	base="${FEDERATION_SYNC_SERVICE_URL:-}"
-	if [[ -z "${base}" ]]; then
-		printf '%s\n' "http://127.0.0.1:8001/sync/health"
-		return 0
-	fi
-	base="${base%/}"
-	printf '%s/health\n' "${base}"
+	operator_sync_health_url
 }
