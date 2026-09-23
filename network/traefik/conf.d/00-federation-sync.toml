@@ -1,16 +1,9 @@
 # Federation sync routers (do not strip /sync — FastAPI is mounted there)
-
-[http.routers.sds-federation-local-sync]
-    entryPoints = ["web", "web-secure"]
-    rule        = "Host(`sds-dev.crc.nd.edu`) && PathPrefix(`/sync`)"
-    service     = "sds-federation-local-sync"
-
-    [http.routers.sds-federation-local-sync.tls]
-        certResolver = "letsencrypt"
+# sds-dev.crc.nd.edu (QA) uses the same prod sync container as sds.crc.nd.edu on shared hosts.
 
 [http.routers.sds-federation-prod-sync]
     entryPoints = ["web", "web-secure"]
-    rule        = "Host(`sds.crc.nd.edu`) && PathPrefix(`/sync`)"
+    rule        = "(Host(`sds.crc.nd.edu`) || Host(`sds-dev.crc.nd.edu`)) && PathPrefix(`/sync`)"
     service     = "sds-federation-prod-sync"
 
     [http.routers.sds-federation-prod-sync.tls]
@@ -23,9 +16,6 @@
 
     [http.routers.sds-federation-peer-sync.tls]
         certResolver = "letsencrypt"
-
-[[http.services.sds-federation-local-sync.loadBalancer.servers]]
-    url = "http://sds-federation-local-sync:8000"
 
 [[http.services.sds-federation-prod-sync.loadBalancer.servers]]
     url = "http://sds-federation-prod-sync:8000"
