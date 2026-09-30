@@ -135,11 +135,7 @@ services:
         networks:
             - sds-network-local
         healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "wget -q -O /dev/null http://localhost/healthz || exit 1",
-                ]
+            test: [ "CMD-SHELL", "curl -f http://localhost/healthz", ]
             interval: 30s
             timeout: 5s
             retries: 5

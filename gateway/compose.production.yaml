@@ -42,6 +42,7 @@ networks:
 services:
     sds-gateway-prod-app:
         image: ghcr.io/spectrumx/sds-gateway:${SDS_GATEWAY_TAG:-stable}
+        init: true
         container_name: sds-gateway-prod-app
         tty: true
         depends_on:
@@ -128,11 +129,7 @@ services:
         networks:
             - sds-network-prod
         healthcheck:
-            test:
-                [
-                    "CMD-SHELL",
-                    "wget -q -O /dev/null http://localhost/healthz || exit 1",
-                ]
+            test: [ "CMD-SHELL", "curl -f http://localhost/healthz", ]
             interval: 30s
             timeout: 5s
             retries: 5
