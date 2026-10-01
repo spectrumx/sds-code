@@ -33,6 +33,7 @@ networks:
         driver: bridge
     sds-gateway-prod-opensearch-net:
         driver: bridge
+        name: sds-gateway-prod-opensearch-net
     sds-gateway-prod-postgres-net:
         driver: bridge
     sds-network-prod:
@@ -278,7 +279,10 @@ services:
             - "19200:9200"
             - "19600:9600"
         networks:
-            - sds-gateway-prod-opensearch-net
+            sds-gateway-prod-opensearch-net:
+                aliases:
+                    # TLS cert SAN + federation OPENSEARCH_HOST (external compose project).
+                    - opensearch
         restart: unless-stopped
         tty: true
         healthcheck:
