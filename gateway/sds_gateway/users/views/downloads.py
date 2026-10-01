@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from django.core.paginator import Paginator
 from django.http import FileResponse
 from django.http import Http404
 from django.http import HttpRequest
@@ -11,6 +12,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views import View
 from loguru import logger as log
 
@@ -18,6 +20,7 @@ from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import ItemType
 from sds_gateway.api_methods.models import TemporaryZipFile
+from sds_gateway.api_methods.models import ZipFileStatus
 from sds_gateway.api_methods.models import user_has_access_to_item
 from sds_gateway.api_methods.tasks import is_user_locked
 from sds_gateway.api_methods.tasks import send_item_files_email
@@ -143,6 +146,110 @@ class TemporaryZipDownloadView(Auth0LoginRequiredMixin, View):
 
 
 user_temporary_zip_download_view = TemporaryZipDownloadView.as_view()
+
+
+DOWNLOAD_DISPLAY_STATUSES = (
+    "Pending",
+    "Ready",
+    "Downloaded",
+    "Failed",
+    "Expired",
+)
+DOWNLOAD_STATUS_RANK = {
+    status: rank for rank, status in enumerate(DOWNLOAD_DISPLAY_STATUSES)
+}
+
+
+def get_download_display_status(temp_zip: TemporaryZipFile) -> str:
+    """Return a user-facing status using the requirements-defined precedence."""
+    if temp_zip.creation_status == ZipFileStatus.Pending:
+        return "Pending"
+    if (
+        temp_zip.creation_status == ZipFileStatus.Created
+        and not temp_zip.is_downloaded
+        and not temp_zip.is_expired
+    ):
+        return "Ready"
+    if temp_zip.is_downloaded:
+        return "Downloaded"
+    if temp_zip.creation_status == ZipFileStatus.Failed:
+        return "Failed"
+    if temp_zip.is_expired:
+        return "Expired"
+    return "Failed"
+
+
+class DownloadsListView(Auth0LoginRequiredMixin, View):
+    """Display the authenticated user's temporary download requests."""
+
+    template_name = "users/downloads_list.html"
+    page_size = 25
+
+    @staticmethod
+    def _row_for(temp_zip: TemporaryZipFile) -> dict[str, Any]:
+        status = get_download_display_status(temp_zip)
+        return {
+            "filename": temp_zip.filename,
+            "status": status,
+            "file_size": temp_zip.file_size,
+            "created_at": temp_zip.created_at,
+            "downloaded_at": (
+                temp_zip.downloaded_at if temp_zip.is_downloaded else None
+            ),
+            "expires_at": temp_zip.expires_at,
+            "download_url": temp_zip.download_url,
+        }
+
+    def get(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
+        queryset = TemporaryZipFile.objects.filter(
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        created_at_start = request.GET.get("created_at_start", "")
+        if start_date := parse_date(created_at_start):
+            queryset = queryset.filter(created_at__date__gte=start_date)
+
+        created_at_end = request.GET.get("created_at_end", "")
+        if end_date := parse_date(created_at_end):
+            queryset = queryset.filter(created_at__date__lte=end_date)
+
+        rows = [self._row_for(temp_zip) for temp_zip in queryset]
+
+        selected_status = request.GET.get("status", "")
+        if selected_status in DOWNLOAD_DISPLAY_STATUSES:
+            rows = [row for row in rows if row["status"] == selected_status]
+
+        sort_by = request.GET.get("sort_by", "")
+        sort_order = request.GET.get("sort_order", "desc")
+        if sort_by == "created_at":
+            rows.sort(
+                key=lambda row: row["created_at"],
+                reverse=sort_order != "asc",
+            )
+        else:
+            rows.sort(key=lambda row: row["created_at"], reverse=True)
+            rows.sort(key=lambda row: DOWNLOAD_STATUS_RANK[row["status"]])
+
+        paginator = Paginator(rows, self.page_size)
+        page_obj = paginator.get_page(request.GET.get("page", 1))
+
+        query_params = request.GET.copy()
+        query_params.pop("page", None)
+        context = {
+            "page_obj": page_obj,
+            "download_statuses": DOWNLOAD_DISPLAY_STATUSES,
+            "selected_status": selected_status,
+            "created_at_start": created_at_start,
+            "created_at_end": created_at_end,
+            "sort_by": sort_by,
+            "sort_order": sort_order,
+            "search_querystring": query_params.urlencode(),
+        }
+        return render(request, self.template_name, context)
+
+
+user_downloads_list_view = DownloadsListView.as_view()
 
 
 def _parse_optional_time(
