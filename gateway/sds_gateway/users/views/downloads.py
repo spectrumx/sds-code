@@ -170,12 +170,12 @@ def get_download_display_status(temp_zip: TemporaryZipFile) -> str:
         and not temp_zip.is_expired
     ):
         return "Ready"
-    if temp_zip.is_downloaded:
-        return "Downloaded"
     if temp_zip.creation_status == ZipFileStatus.Failed:
         return "Failed"
     if temp_zip.is_expired:
         return "Expired"
+    if temp_zip.is_downloaded:
+        return "Downloaded"
     return "Failed"
 
 
