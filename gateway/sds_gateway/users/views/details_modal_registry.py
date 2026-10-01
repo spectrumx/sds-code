@@ -425,7 +425,13 @@ def build_capture_details_modal_context(
                 context={"request": request, "exclude_files": True},
             )
     except Capture.DoesNotExist:
-        return None
+        if federated_peer:
+            return None
+        return build_capture_details_modal_context(
+            request,
+            capture_uuid,
+            federated_peer=True,
+        )
 
     uuid_str = str(capture_dict.get("uuid", capture_uuid))
     is_federated_peer = bool(

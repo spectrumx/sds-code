@@ -7,7 +7,9 @@ Context:
 {% endcomment %}
 {% load tz %}
 
-<tr class="capture-row" data-capture-uuid="{{ capture.uuid }}">
+<tr class="capture-row"
+    data-capture-uuid="{{ capture.uuid }}"
+    data-federated-peer="{{ capture.is_federated|yesno:'true,false' }}">
     <td class="capture-col-select" headers="select-header">
         {% if capture.is_owner %}
             <input type="checkbox"
@@ -24,7 +26,7 @@ Context:
            data-item-type="capture"
            data-item-uuid="{{ capture.uuid }}"
            data-uuid="{{ capture.uuid }}"
-           data-federated-peer="{{ capture.is_federated }}"
+           data-federated-peer="{{ capture.is_federated|yesno:'true,false' }}"
            aria-label="View details for capture {{ capture.name|default:capture.uuid }}"
            title="View capture details: {{ capture.name|default:capture.uuid }}">
             {{ capture.name|default:"Unnamed Capture" }}

@@ -92,6 +92,7 @@ services:
             - ./.envs/production/opensearch.env
             - ./.envs/production/postgres.env
             - ./.envs/production/storage.env
+            - ../federation-shared.env
         ports:
             - "18000:18000" # make sure this port matches traefik's config, if used
         # remember /entrypoint runs first
@@ -386,6 +387,7 @@ services:
             - ./.envs/production/opensearch.env
             - ./.envs/production/postgres.env
             - ./.envs/production/storage.env
+            - ../federation-shared.env
         command: "/worker-start"
         restart: unless-stopped
         networks:
@@ -447,6 +449,7 @@ services:
             - ./.envs/production/opensearch.env
             - ./.envs/production/postgres.env
             - ./.envs/production/storage.env
+            - ../federation-shared.env
         command: "/beat-start"
         restart: unless-stopped
         networks:
@@ -503,6 +506,7 @@ services:
             - ./.envs/production/opensearch.env
             - ./.envs/production/postgres.env
             - ./.envs/production/storage.env
+            - ../federation-shared.env
         command: "/flower-start"
         restart: unless-stopped
         ports:

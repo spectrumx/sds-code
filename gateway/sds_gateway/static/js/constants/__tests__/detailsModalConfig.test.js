@@ -23,6 +23,20 @@ describe("detailsModalConfig", () => {
         )
     })
 
+    test("capture buildDetailsUrl adds federated_peer from capture-row", () => {
+        document.body.innerHTML = `
+			<table><tbody>
+			<tr class="capture-row" data-federated-peer="true">
+				<td><a class="capture-link" href="#">Cap</a></td>
+			</tr>
+			</tbody></table>
+		`
+        const link = document.querySelector(".capture-link")
+        expect(registry().capture.buildDetailsUrl("abc-def", link)).toBe(
+            "/users/details-modal/capture/abc-def/?federated_peer=true",
+        )
+    })
+
     test("capture buildDetailsUrl adds federated_peer for peer rows", () => {
         const el = document.createElement("a")
         el.setAttribute("data-federated-peer", "True")
