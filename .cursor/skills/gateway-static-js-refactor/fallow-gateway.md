@@ -2,6 +2,29 @@
 
 Run all commands from `gateway/` (config: `.fallowrc.json`). Ignores `sds_gateway/static/js/deprecated/**`.
 
+## Dependencies
+
+fallow requires node ^24.0, it will fail if you have a default node of v26 installed, for example.
+If you have trouble doing a git commit from a GUI client, you may need to install nove v24 globally,
+or use nvm to set the version and run git commit from the command line.
+
+For Linux:
+
+```bash
+apt install node
+```
+
+For MacOS:
+
+```bash
+brew install node
+```
+
+```bash
+nvm use 24.19.0
+nvm alias default 24.19.0
+```
+
 ## npm scripts
 
 | Script | Purpose |
