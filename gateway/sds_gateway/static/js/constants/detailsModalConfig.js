@@ -20,10 +20,16 @@
     function federatedPeerFromTrigger(el) {
         if (!el) return false
         const nodes = [el]
+        const captureLink = el.closest?.(".capture-link")
+        if (captureLink) nodes.push(captureLink)
+        const captureRow = el.closest?.(".capture-row")
+        if (captureRow) nodes.push(captureRow)
         const link = el.querySelector?.(".dataset-name-link")
         if (link) nodes.push(link)
         const closestLink = el.closest?.(".dataset-name-link")
         if (closestLink) nodes.push(closestLink)
+        const datasetRow = el.closest?.(".dataset-details-open")
+        if (datasetRow) nodes.push(datasetRow)
         for (const node of nodes) {
             const raw = node.getAttribute("data-federated-peer")
             if (raw == null || raw === "") continue
