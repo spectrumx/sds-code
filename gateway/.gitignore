@@ -29,6 +29,8 @@ build/
 develop-eggs/
 dist/
 downloads/
+!sds_gateway/static/js/downloads/
+!sds_gateway/static/js/downloads/**
 eggs/
 .eggs/
 lib/

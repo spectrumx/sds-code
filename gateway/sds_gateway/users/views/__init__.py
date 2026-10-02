@@ -46,8 +46,10 @@ from .details_modal import details_modal_fragment_view
 
 # Download views
 from .downloads import DownloadItemView
+from .downloads import DownloadsListView
 from .downloads import TemporaryZipDownloadView
 from .downloads import user_download_item_view
+from .downloads import user_downloads_list_view
 from .downloads import user_temporary_zip_download_view
 
 # File views
@@ -95,6 +97,7 @@ __all__ = [
     "DatasetDetailsView",
     "DatasetVersioningView",
     "DownloadItemView",
+    "DownloadsListView",
     "FileContentView",
     "FileDetailView",
     "FileDownloadView",
@@ -144,6 +147,7 @@ __all__ = [
     "user_datasets_for_quick_add_view",
     "user_detail_view",
     "user_download_item_view",
+    "user_downloads_list_view",
     "user_file_detail_view",
     "user_group_captures_view",
     "user_publish_dataset_view",
