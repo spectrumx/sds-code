@@ -25,6 +25,7 @@ from .views import user_dataset_versioning_view
 from .views import user_datasets_for_quick_add_view
 from .views import user_detail_view
 from .views import user_download_item_view
+from .views import user_downloads_list_view
 from .views import user_file_detail_view
 from .views import user_group_captures_view
 from .views import user_publish_dataset_view
@@ -48,6 +49,7 @@ urlpatterns = [
     path("view-api-key/", user_api_key_view, name="view_api_key"),
     path("new-api-key/", new_api_key_view, name="new_api_key"),
     path("files/", FilesView.as_view(), name="files"),
+    path("downloads/", user_downloads_list_view, name="downloads-list"),
     path("capture-list/", ListCapturesView.as_view(), name="capture_list"),
     path(
         "file-list/",
