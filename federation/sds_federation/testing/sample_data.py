@@ -90,6 +90,7 @@ def sample_federated_dataset_doc(
         description="Sample dataset description for federation tests.",
         abstract="Sample abstract.",
         keywords=["federation", "test"],
+        authors=[{"name": "Simulated Author", "orcid_id": ""}],
         owner_name="Test Owner",
         status="final",
         status_display="Final",
@@ -107,9 +108,9 @@ def sample_federated_dataset_doc(
 
 def sample_federated_capture_doc(
     *,
-    uuid: UUID = TEST_CAPTURE_UUID,
+    uuid: UUID,
     site_name: str = "localhost",
-    dataset_uuid: UUID = TEST_DATASET_UUID,
+    dataset_uuid: UUID,
 ) -> FederatedCaptureDoc:
     """Build a :class:`FederatedCaptureDoc` with every RFC mapped field set.
 
