@@ -1,6 +1,7 @@
 # Gateway Development Notes
 
 + [Gateway Development Notes](#gateway-development-notes)
+    + [Pre Commit Checks](#pre-commit-checks)
     + [Production Backups](#production-backups)
         + [What is backed up](#what-is-backed-up)
         + [What is NOT backed up](#what-is-not-backed-up)
@@ -34,6 +35,32 @@
             + [List Users](#list-users)
         + [Postgres collation version mismatch](#postgres-collation-version-mismatch)
             + [Solution](#solution)
+
+## Pre Commit Checks
+
+When a git commit is performed, a series of pre-commit checks are done, for which there
+could be some dependencies in your dev environment or global system.
+For example:
+fallow requires node ^24.0, it will fail if you have a default node of v26 installed, for example.
+If you have trouble doing a git commit from a GUI client, you may need to install nove v24 globally,
+or use nvm to set the version and run git commit from the command line.
+
+For Linux:
+
+```bash
+apt install node
+```
+
+For MacOS:
+
+```bash
+brew install node
+```
+
+```bash
+nvm use 24.19.0
+nvm alias default 24.19.0
+```
 
 ## Production Backups
 
