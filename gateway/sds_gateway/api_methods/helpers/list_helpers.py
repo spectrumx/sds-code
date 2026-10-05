@@ -708,6 +708,27 @@ def merge_dataset_list_rows(
     return merged
 
 
+# Must match capture_list.html frequency slider (GHz).
+_CAPTURE_LIST_FREQ_SLIDER_MIN_GHZ = 0.0
+_CAPTURE_LIST_FREQ_SLIDER_MAX_GHZ = 10.0
+
+
+def _is_default_capture_list_freq_range(
+    min_freq: str | float | None,
+    max_freq: str | float | None,
+) -> bool:
+    """True when UI sends the full slider range (treat as no frequency filter)."""
+    min_hz, max_hz = _parse_freq_bounds_hz(min_freq, max_freq)
+    if min_hz is None and max_hz is None:
+        return True
+    if min_hz is None or max_hz is None:
+        return False
+    return (
+        min_hz <= _CAPTURE_LIST_FREQ_SLIDER_MIN_GHZ * 1e9
+        and max_hz >= _CAPTURE_LIST_FREQ_SLIDER_MAX_GHZ * 1e9
+    )
+
+
 def _parse_freq_bounds_hz(
     min_freq: str | float | None,
     max_freq: str | float | None,
@@ -761,20 +782,21 @@ def federated_capture_list_metadata_filters(
             },
         )
 
-    min_hz, max_hz = _parse_freq_bounds_hz(min_freq, max_freq)
-    if min_hz is not None or max_hz is not None:
-        freq_range: dict[str, Any] = {}
-        if min_hz is not None:
-            freq_range["gte"] = min_hz
-        if max_hz is not None:
-            freq_range["lte"] = max_hz
-        filters.append(
-            {
-                "field_path": "search_props.center_frequency",
-                "query_type": "range",
-                "filter_value": freq_range,
-            },
-        )
+    if not _is_default_capture_list_freq_range(min_freq, max_freq):
+        min_hz, max_hz = _parse_freq_bounds_hz(min_freq, max_freq)
+        if min_hz is not None or max_hz is not None:
+            freq_range: dict[str, Any] = {}
+            if min_hz is not None:
+                freq_range["gte"] = min_hz
+            if max_hz is not None:
+                freq_range["lte"] = max_hz
+            filters.append(
+                {
+                    "field_path": "search_props.center_frequency",
+                    "query_type": "range",
+                    "filter_value": freq_range,
+                },
+            )
     return filters
 
 

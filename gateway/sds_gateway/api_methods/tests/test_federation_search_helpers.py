@@ -78,6 +78,14 @@ def test_fed_capture_search_body_requires_public_dataset_ids_not_is_public() -> 
     assert not any("is_public" in (t or {}) for t in terms)
 
 
+def test_federated_capture_list_metadata_filters_skips_default_freq_range() -> None:
+    filters = federated_capture_list_metadata_filters(
+        min_freq="0",
+        max_freq="10",
+    )
+    assert filters == []
+
+
 def test_federated_capture_list_metadata_filters_date_and_frequency() -> None:
     filters = federated_capture_list_metadata_filters(
         date_start="2024-01-01",
