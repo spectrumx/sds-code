@@ -58,9 +58,10 @@ unset (Let's Encrypt).
 
    ```bash
    uv sync --extra dev
-   uv run python scripts/seed_peer_opensearch.py \
+   FEDERATION_CONFIG_PATH=./federation.peer.toml uv run python scripts/seed_peer_opensearch.py \
      --opensearch-url http://localhost:9200 \
-     --site-name sds-fed1.crc.nd.edu
+     --site-name sds-fed1.crc.nd.edu \
+     --notify-peers
    curl -sS https://sds-fed1.crc.nd.edu/sync/api/v1/webhook/list-datasets/ \
      | jq '.[].site_name'
    # → ["sds-fed1.crc.nd.edu"]
