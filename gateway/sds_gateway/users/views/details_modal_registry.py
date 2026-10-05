@@ -372,12 +372,16 @@ def _run_search_for_fed_asset(
     index: str, body: dict[str, Any]
 ) -> dict[str, Any] | None:
     client = get_opensearch_client()
-    hits = run_search(
-        client=client,
-        index=index,
-        body=body,
-        size=1,
-    )
+    try:
+        hits = run_search(
+            client=client,
+            index=index,
+            body=body,
+            size=1,
+        )
+    except ValueError:
+        # Federation indices may be absent in CI or when federation is not provisioned.
+        return None
     if not hits:
         return None
     return hits[0].get("_source") or None
@@ -425,7 +429,8 @@ def build_capture_details_modal_context(
                 context={"request": request, "exclude_files": True},
             )
     except Capture.DoesNotExist:
-        if federated_peer:
+        # Tombstoned local row, or peer lookup already tried — not peer-only UUID.
+        if federated_peer or Capture.objects.filter(uuid=capture_uuid).exists():
             return None
         return build_capture_details_modal_context(
             request,
