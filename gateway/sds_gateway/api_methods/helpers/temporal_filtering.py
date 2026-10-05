@@ -20,6 +20,7 @@ DRF_RF_FILENAME_PATTERN = re.compile(
 
 def drf_rf_filename_from_ms(ms: int) -> str:
     """Format ms as DRF rf data filename (canonical for range queries)."""
+    ms = int(ms)
     return f"rf@{ms // 1000}.{ms % 1000:03d}.h5"
 
 
