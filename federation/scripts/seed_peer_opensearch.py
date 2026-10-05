@@ -54,9 +54,21 @@ from sds_federation.services.peer_sync import push_asset_updated_to_peers
 from sds_federation.testing.sample_data import TEST_CAPTURE_UUID
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_capture_doc
+from sds_federation.testing.sample_data import sample_federated_capture_search_props
 from sds_federation.testing.sample_data import sample_federated_dataset_doc
+from sds_federation.testing.sample_data import sample_federated_drf_capture_props
 
 _PEER_SEED_NAMESPACE = uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+# Capture list UI slider range (GHz); seeded center frequencies stay inside this band.
+_PEER_SEED_FREQ_MIN_GHZ = 0.5
+_PEER_SEED_FREQ_STEP_GHZ = 0.4
+
+
+def _seed_capture_center_frequency_hz(ds_index: int, cap_index: int) -> float:
+    """Deterministic center frequency (Hz) within the capture-list filter slider."""
+    ghz = _PEER_SEED_FREQ_MIN_GHZ + (ds_index + cap_index) * _PEER_SEED_FREQ_STEP_GHZ
+    ghz = min(ghz, 9.5)
+    return ghz * 1e9
 
 
 def _parse_args() -> argparse.Namespace:
@@ -331,10 +343,17 @@ def main() -> int:
             capture_uuid = _capture_uuid_for_index(args, site, ds_index, cap_index)
             event_at = next_event_at()
             iso = event_at.isoformat()
+            center_hz = _seed_capture_center_frequency_hz(ds_index, cap_index)
             capture = sample_federated_capture_doc(
                 uuid=capture_uuid,
                 site_name=site,
                 dataset_uuid=dataset_uuid,
+                capture_props=sample_federated_drf_capture_props(
+                    center_frequency_hz=center_hz,
+                ),
+                search_props=sample_federated_capture_search_props(
+                    center_frequency_hz=center_hz,
+                ),
             )
             capture = capture.model_copy(
                 update={

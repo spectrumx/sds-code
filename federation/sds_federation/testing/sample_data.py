@@ -46,6 +46,7 @@ from __future__ import annotations
 
 from datetime import UTC
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
@@ -58,6 +59,37 @@ TEST_SCAN_GROUP_UUID = UUID("cccccccc-bbbb-cccc-dddd-eeeeeeeeeeee")
 
 SIMULATED_REDIS_TIMESTAMP = datetime(2026, 6, 11, 12, 0, 0, tzinfo=UTC)
 _SAMPLE_DOC_TIMESTAMP = SIMULATED_REDIS_TIMESTAMP.isoformat()
+
+_DEFAULT_SEED_CENTER_FREQUENCY_HZ = 2_000_000_000.0
+_DEFAULT_SEED_SAMPLE_RATE_HZ = 20_000_000
+
+
+def sample_federated_capture_search_props(
+    *,
+    center_frequency_hz: float = _DEFAULT_SEED_CENTER_FREQUENCY_HZ,
+    sample_rate_hz: int = _DEFAULT_SEED_SAMPLE_RATE_HZ,
+) -> dict[str, Any]:
+    """``search_props`` shape aligned with gateway ``search_properties`` indexing."""
+    half_span = sample_rate_hz / 2
+    return {
+        "center_frequency": center_frequency_hz,
+        "sample_rate": sample_rate_hz,
+        "frequency_min": center_frequency_hz - half_span,
+        "frequency_max": center_frequency_hz + half_span,
+    }
+
+
+def sample_federated_drf_capture_props(
+    *,
+    center_frequency_hz: float = _DEFAULT_SEED_CENTER_FREQUENCY_HZ,
+    sample_rate_hz: int = _DEFAULT_SEED_SAMPLE_RATE_HZ,
+) -> dict[str, Any]:
+    """Minimal DRF ``capture_props`` for federation export parity."""
+    return {
+        "center_freq": center_frequency_hz,
+        "sample_rate": sample_rate_hz,
+        "center_frequencies": [center_frequency_hz],
+    }
 
 
 def simulated_dataset_redis_payload(
@@ -111,12 +143,14 @@ def sample_federated_capture_doc(
     uuid: UUID,
     site_name: str = "localhost",
     dataset_uuid: UUID,
+    capture_props: dict[str, Any] | None = None,
+    search_props: dict[str, Any] | None = None,
 ) -> FederatedCaptureDoc:
     """Build a :class:`FederatedCaptureDoc` with every RFC mapped field set.
 
     ``capture_props`` / ``search_props`` default to empty dicts (tests assert that
-    shape); nested keys follow gateway metadata schemas when you need them.
-    ``federation_event_at`` is omitted here (added when indexing).
+    shape); pass :func:`sample_federated_capture_search_props` for list/search
+    metadata. ``federation_event_at`` is omitted here (added when indexing).
     """
     return FederatedCaptureDoc(
         uuid=uuid,
@@ -131,8 +165,8 @@ def sample_federated_capture_doc(
         created_at=_SAMPLE_DOC_TIMESTAMP,
         updated_at=_SAMPLE_DOC_TIMESTAMP,
         is_deleted=False,
-        capture_props={},
-        search_props={},
+        capture_props=capture_props if capture_props is not None else {},
+        search_props=search_props if search_props is not None else {},
         public_dataset_ids=[str(dataset_uuid)],
         url=f"https://{site_name}/captures/{uuid}",
     )
