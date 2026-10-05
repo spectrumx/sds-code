@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.test import override_settings
 from sds_opensearch_query.mapping import RFC_FED_CAPTURE_PROPERTIES
 
@@ -10,6 +12,9 @@ from sds_gateway.api_methods.federation.search_helpers import _build_fed_search_
 from sds_gateway.api_methods.helpers.list_helpers import _parse_freq_bounds_hz
 from sds_gateway.api_methods.helpers.list_helpers import (
     federated_capture_list_metadata_filters,
+)
+from sds_gateway.api_methods.helpers.list_helpers import (
+    federated_published_dataset_rows,
 )
 from sds_gateway.api_methods.helpers.list_helpers import merge_asset_list_rows
 from sds_gateway.api_methods.helpers.list_helpers import serialize_peer_asset
@@ -128,6 +133,38 @@ def test_serialize_peer_capture_sets_capture_type_display() -> None:
         ItemType.CAPTURE,
     )
     assert row["capture_type_display"] == "Digital RF"
+
+
+@patch("sds_gateway.api_methods.helpers.list_helpers._get_peer_asset_rows")
+def test_federated_published_dataset_rows_frequency_intersects_captures(
+    mock_get_peer_rows,
+) -> None:
+    mock_get_peer_rows.side_effect = [
+        [
+            {"uuid": "ds-keep", "site_name": "peer.example", "name": "In band"},
+            {"uuid": "ds-drop", "site_name": "peer.example", "name": "Out of band"},
+        ],
+        [
+            {
+                "uuid": "cap-1",
+                "site_name": "peer.example",
+                "public_dataset_ids": ["ds-keep"],
+            },
+        ],
+    ]
+    rows = federated_published_dataset_rows(
+        min_freq="1.0",
+        max_freq="2.0",
+    )
+    assert [row["uuid"] for row in rows] == ["ds-keep"]
+    expected_peer_lookups = 2  # federated datasets, then federated captures (freq)
+    assert mock_get_peer_rows.call_count == expected_peer_lookups
+    capture_call = mock_get_peer_rows.call_args_list[1]
+    assert capture_call.kwargs["asset_type"] == ItemType.CAPTURE
+    assert capture_call.kwargs["query"] is None
+    metadata = capture_call.kwargs["metadata_filters"]
+    assert metadata
+    assert metadata[0]["field_path"] == "search_props.center_frequency"
 
 
 def test_merge_asset_list_rows_dedupes_by_uuid_prefers_local() -> None:
