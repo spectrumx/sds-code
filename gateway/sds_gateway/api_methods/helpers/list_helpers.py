@@ -889,6 +889,8 @@ def build_published_asset_list_rows(
     asset_type: ItemType,
     query: str | None = None,
     site: str | None = None,
+    min_freq: str | float | None = None,
+    max_freq: str | float | None = None,
 ) -> list[dict[str, Any]]:
     if assets is None:
         if asset_type == ItemType.DATASET:
@@ -909,11 +911,19 @@ def build_published_asset_list_rows(
         local_rows = [
             row for row in local_rows if (row.get("site_name") or "") == site_filter
         ]
-    federated_rows = _get_peer_asset_rows(
-        query=query,
-        site=site_filter,
-        asset_type=asset_type,
-    )
+    if asset_type == ItemType.DATASET:
+        federated_rows = federated_published_dataset_rows(
+            query=query,
+            site=site_filter,
+            min_freq=min_freq,
+            max_freq=max_freq,
+        )
+    else:
+        federated_rows = _get_peer_asset_rows(
+            query=query,
+            site=site_filter,
+            asset_type=asset_type,
+        )
     return merge_asset_list_rows(local_rows, federated_rows)
 
 
@@ -923,6 +933,8 @@ def build_published_dataset_list_rows(
     datasets: QuerySet[Dataset] | None = None,
     query: str | None = None,
     site: str | None = None,
+    min_freq: str | float | None = None,
+    max_freq: str | float | None = None,
 ) -> list[dict[str, Any]]:
     return build_published_asset_list_rows(
         user,
@@ -930,6 +942,8 @@ def build_published_dataset_list_rows(
         asset_type=ItemType.DATASET,
         query=query,
         site=site,
+        min_freq=min_freq,
+        max_freq=max_freq,
     )
 
 
@@ -953,12 +967,48 @@ def federated_published_dataset_rows(
     *,
     query: str | None = None,
     site: str | None = None,
+    min_freq: str | float | None = None,
+    max_freq: str | float | None = None,
 ) -> list[dict[str, Any]]:
-    return _get_peer_asset_rows(
+    rows = _get_peer_asset_rows(
         query=query,
         site=site,
         asset_type=ItemType.DATASET,
     )
+    metadata_filters = federated_capture_list_metadata_filters(
+        min_freq=min_freq,
+        max_freq=max_freq,
+    )
+    if not metadata_filters:
+        return rows
+
+    capture_rows = _get_peer_asset_rows(
+        query=None,
+        site=site,
+        asset_type=ItemType.CAPTURE,
+        metadata_filters=metadata_filters,
+    )
+    allowed: set[tuple[str, str]] = set()
+    for capture in capture_rows:
+        peer_site = str(capture.get("site_name") or "").strip()
+        if not peer_site:
+            continue
+        for dataset_id in capture.get("public_dataset_ids") or []:
+            ds_uuid = str(dataset_id).strip()
+            if ds_uuid:
+                allowed.add((peer_site, ds_uuid))
+    if not allowed:
+        return []
+
+    return [
+        row
+        for row in rows
+        if (
+            str(row.get("site_name") or "").strip(),
+            str(row.get("uuid") or "").strip(),
+        )
+        in allowed
+    ]
 
 
 def merge_capture_list_rows(

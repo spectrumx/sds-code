@@ -1083,6 +1083,8 @@ class SearchPublishedDatasetsView(View):
         datasets = get_published_datasets()
         query: str | None = None
         site: str | None = None
+        min_freq: float | None = None
+        max_freq: float | None = None
 
         # Apply search filters
         if form.is_valid():
@@ -1092,6 +1094,8 @@ class SearchPublishedDatasetsView(View):
             )
             query = (form.cleaned_data.get("query") or "").strip() or None
             site = (form.cleaned_data.get("site_name") or "").strip() or None
+            min_freq = form.cleaned_data.get("min_frequency")
+            max_freq = form.cleaned_data.get("max_frequency")
 
         user = request.user if request.user.is_authenticated else None
         # Published search is read-only discovery; skip action dropdowns.
@@ -1100,6 +1104,8 @@ class SearchPublishedDatasetsView(View):
             datasets=datasets,
             query=query,
             site=site,
+            min_freq=min_freq,
+            max_freq=max_freq,
         )
 
         # Paginate results
