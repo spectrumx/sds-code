@@ -16,6 +16,10 @@ from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
 from .views import quick_add_capture_to_dataset_view
+from .views import registry_application_detail_view
+from .views import registry_application_list_view
+from .views import registry_application_verify_view
+from .views import registry_application_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view
@@ -141,5 +145,25 @@ urlpatterns = [
         "generate-api-key-form/",
         generate_api_key_form_view,
         name="generate_api_key_form",
+    ),
+    path(
+        "federation/registry/",
+        registry_application_list_view,
+        name="registry_application_list",
+    ),
+    path(
+        "federation/registry/apply/",
+        registry_application_view,
+        name="registry_application",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/",
+        registry_application_detail_view,
+        name="registry_application_detail",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/verify/",
+        registry_application_verify_view,
+        name="registry_application_verify",
     ),
 ]

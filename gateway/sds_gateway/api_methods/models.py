@@ -147,6 +147,25 @@ class ZipFileStatus(StrEnum):
     Failed = "failed"
 
 
+class RegistryApplicationStatus(StrEnum):
+    """Lifecycle of a federation registry membership application."""
+
+    PENDING_VERIFICATION = "pending_verification"
+    VERIFICATION_FAILED = "verification_failed"
+    VERIFIED = "verified"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    WITHDRAWN = "withdrawn"
+    PUBLISHED = "published"
+
+
+class ChallengeMethod(StrEnum):
+    """The method of challenge for the application."""
+
+    WELL_KNOWN_JSON = "well_known_json"
+    WELL_KNOWN_PATH = "well_known_path"
+
+
 class DatasetStatus(StrEnum):
     """The status of a dataset."""
 
@@ -1729,6 +1748,138 @@ class ShareGroup(BaseModel):
 
     def __str__(self) -> str:
         return f"ShareGroup: {self.name} (Owner: {self.owner.email})"
+
+
+def _default_registry_challenge_expires_at() -> datetime.datetime:
+    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=72)
+
+
+REGISTRY_APPLICATION_OPEN_FQDN_STATUSES = (
+    RegistryApplicationStatus.PENDING_VERIFICATION.value,
+    RegistryApplicationStatus.VERIFICATION_FAILED.value,
+    RegistryApplicationStatus.VERIFIED.value,
+    RegistryApplicationStatus.APPROVED.value,
+)
+
+_REGISTRY_APPLICATION_ACTIVE_STATUSES = REGISTRY_APPLICATION_OPEN_FQDN_STATUSES
+
+
+class RegistryApplication(BaseModel):
+    """
+    Intake record for joining the SDS federation registry (mothership-signed sites.json).
+
+    Domain control is proven via challenge token hash on the applicant's .well-known endpoint;
+    human approval and manifest publication are separate admin/offline steps.
+    """
+
+    fqdn = models.CharField(max_length=255, db_index=True)
+    display_name = models.CharField(max_length=255)
+    contact = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="registry_applications",
+    )
+    contact_email = models.EmailField(
+        blank=True,
+        help_text="Optional ops contact; defaults to contact user's email when empty.",
+    )
+    proposed_site_name = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Applicant-suggested short site id (federation.toml [site].name).",
+    )
+    site_name = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Assigned on approval; must be unique in the signed manifest.",
+    )
+    gateway_api_base = models.URLField(max_length=512, blank=True)
+    sync_service_url = models.URLField(max_length=512, blank=True)
+    status = models.CharField(
+        max_length=32,
+        choices=[
+            (st.value, st.value.replace("_", " ").title())
+            for st in RegistryApplicationStatus
+        ],
+        default=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+        db_index=True,
+    )
+    challenge_token_hash = models.CharField(max_length=64)
+    challenge_expires_at = models.DateTimeField(
+        default=_default_registry_challenge_expires_at,
+    )
+    challenge_method = models.CharField(
+        max_length=32,
+        choices=[
+            (cm.value, cm.value.replace("_", " ").title()) for cm in ChallengeMethod
+        ],
+        default=ChallengeMethod.WELL_KNOWN_JSON.value,
+    )
+    verified_at = models.DateTimeField(null=True, blank=True)
+    verified_well_known = models.JSONField(
+        null=True,
+        blank=True,
+        help_text="Snapshot of /.well-known/sds-federation.json at successful verify.",
+    )
+    verification_attempts = models.PositiveSmallIntegerField(default=0)
+    last_verification_error = models.TextField(blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviewed_registry_applications",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    rejected_reason = models.TextField(blank=True)
+    withdrawn_at = models.DateTimeField(null=True, blank=True)
+    published_manifest_serial = models.PositiveIntegerField(null=True, blank=True)
+    published_at = models.DateTimeField(null=True, blank=True)
+    ca_cert_file = models.CharField(
+        max_length=255,
+        blank=True,
+        help_text="Basename only; distributed via signed manifest.",
+    )
+    client_cert_fingerprints = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "fqdn"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["fqdn"],
+                condition=models.Q(status__in=_REGISTRY_APPLICATION_ACTIVE_STATUSES),
+                name="unique_active_registry_application_per_fqdn",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"RegistryApplication({self.fqdn}, {self.status})"
+
+    def clean(self) -> None:
+        super().clean()
+        self.fqdn = self.fqdn.strip().lower()
+        if "://" in self.fqdn or "/" in self.fqdn:
+            raise ValidationError(
+                {"fqdn": "Enter a hostname only (no scheme or path)."}
+            )
+
+    def save(self, *args, **kwargs) -> None:
+        if self.fqdn:
+            self.fqdn = self.fqdn.strip().lower()
+        super().save(*args, **kwargs)
+
+
+def fqdn_has_open_registry_application(fqdn: str) -> bool:
+    """True when a new application must not be created for this FQDN."""
+    normalized = fqdn.strip().lower()
+    if not normalized:
+        return False
+    return RegistryApplication.objects.filter(
+        fqdn=normalized,
+        status__in=REGISTRY_APPLICATION_OPEN_FQDN_STATUSES,
+    ).exists()
 
 
 def _extract_drf_capture_props(
