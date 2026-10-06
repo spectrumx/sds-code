@@ -12,7 +12,8 @@ And others not as much.
         + [How do I set up authentication?](#how-do-i-set-up-authentication)
         + [How to generate a secret token?](#how-to-generate-a-secret-token)
         + [Why can't I generate an API key?](#why-cant-i-generate-an-api-key)
-        + [Why is my data not uploaded? | What is dry-run mode?](#why-is-my-data-not-uploaded--what-is-dry-run-mode)
+        <!-- markdownlint-disable-next-line MD051 -->
+        + [Why is my data not uploaded? | What is dry-run mode?](#why-is-my-data-not-uploaded-what-is-dry-run-mode)
         + [Where can I find code examples?](#where-can-i-find-code-examples)
     + [File Operations](#file-operations)
         + [How do I upload files to the SDS?](#how-do-i-upload-files-to-the-sds)
@@ -20,7 +21,8 @@ And others not as much.
         + [Can I resume interrupted uploads or downloads?](#can-i-resume-interrupted-uploads-or-downloads)
         + [How do I handle errors during file operations?](#how-do-i-handle-errors-during-file-operations)
     + [Asset Types and Organization](#asset-types-and-organization)
-        + [What is a File | Directory | Capture | Dataset | Experiment?](#what-is-a-file--directory--capture--dataset--experiment)
+        <!-- markdownlint-disable-next-line MD051 -->
+        + [What is a File | Directory | Capture | Dataset | Experiment?](#what-is-a-file-directory-capture-dataset-experiment)
         + [What are Draft and Final Datasets?](#what-are-draft-and-final-datasets)
         + [Can we share a draft dataset?](#can-we-share-a-draft-dataset)
         + [What's the difference between a Directory and a Dataset?](#whats-the-difference-between-a-directory-and-a-dataset)

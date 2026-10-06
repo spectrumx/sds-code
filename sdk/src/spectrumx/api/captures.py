@@ -324,7 +324,9 @@ class CaptureAPI:
     def revoke_share_permissions(self, capture_uuid: uuid.UUID) -> bool:
         """Revoke all direct share permissions on this capture (owner-only).
 
-        Use this (or the web portal) before :meth:`delete` when the capture is shared.
+        Use this (or the web portal) before
+        [`delete`][spectrumx.api.captures.CaptureAPI.delete]
+        when the capture is shared.
         """
         if self.verbose:
             log.bind(cat=LogCategory.FILESYSTEM).debug(
@@ -341,7 +343,8 @@ class CaptureAPI:
     def detach_from_datasets(self, capture_uuid: uuid.UUID) -> bool:
         """Remove this capture from all datasets (owner-only).
 
-        Use before :meth:`delete` when the capture is still linked to datasets.
+        Use before [`delete`][spectrumx.api.captures.CaptureAPI.delete]
+        when the capture is still linked to datasets.
         """
         if self.verbose:
             log.bind(cat=LogCategory.FILESYSTEM).debug(
