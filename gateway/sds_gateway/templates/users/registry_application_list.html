@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+    {% translate "Federation registry applications" %}
+{% endblock title %}
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block content %}
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container mt-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h1 class="page-title mb-0">{% translate "Federation registry applications" %}</h1>
+                    <button type="button"
+                            class="btn btn-primary"
+                            data-bs-toggle="modal"
+                            data-bs-target="#registryApplicationModal">{% translate "New application" %}</button>
+                </div>
+                <div class="card">
+                    <div class="card-body p-0">
+                        {% if applications %}
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">{% translate "Site display name" %}</th>
+                                            <th scope="col">{% translate "FQDN" %}</th>
+                                            <th scope="col">{% translate "Status" %}</th>
+                                            <th scope="col"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for application in applications %}
+                                            <tr>
+                                                <td>{{ application.display_name }}</td>
+                                                <td>{{ application.fqdn }}</td>
+                                                <td>{{ application.get_status_display }}</td>
+                                                <td class="text-end">
+                                                    <a href="{% url 'users:registry_application_detail' pk=application.pk %}"
+                                                       class="btn btn-sm btn-outline-primary">
+                                                        {% translate "View" %}
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <p class="text-muted p-4 mb-0">
+                                {% translate "You have no registry applications yet." %}
+                                <button type="button"
+                                        class="btn btn-link p-0 align-baseline"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#registryApplicationModal">
+                                    {% translate "Submit one" %}
+                                </button>.
+                            </p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% include "users/partials/registry_application_modal.html" %}
+{% endblock content %}
+{% block inline_javascript %}
+    {{ block.super }}
+    {% if open_apply_modal %}
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const modalEl = document.getElementById("registryApplicationModal");
+                if (!modalEl || !window.bootstrap) {
+                    return;
+                }
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+            });
+        </script>
+    {% endif %}
+{% endblock inline_javascript %}

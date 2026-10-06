@@ -17,6 +17,7 @@ from loguru import logger
 from sds_gateway.api_methods.models import Dataset
 from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
+from sds_gateway.api_methods.models import fqdn_has_open_registry_application
 
 from .models import User
 
@@ -453,3 +454,48 @@ class PublishedDatasetSearchForm(forms.Form):
         ),
         help_text="Maximum frequency in GHz",
     )
+
+
+class RegistryApplicationForm(forms.Form):
+    """Form for creating a registry application."""
+
+    fqdn = forms.CharField(
+        label="Site FQDN",
+        required=True,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "sds.example.edu"},
+        ),
+        help_text="Public hostname only (no https:// or path).",
+    )
+    display_name = forms.CharField(
+        label="Site display name",
+        required=True,
+        widget=forms.TextInput(attrs={"class": "form-control"}),
+    )
+    proposed_site_name = forms.CharField(
+        label="Proposed site id",
+        required=True,
+        max_length=64,
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "mysite"},
+        ),
+        help_text="Short id for federation.toml [site].name (letters, numbers, hyphens).",
+    )
+
+    def clean_fqdn(self) -> str:
+        fqdn = self.cleaned_data["fqdn"].strip().lower()
+        if "://" in fqdn or "/" in fqdn:
+            raise ValidationError("Enter a hostname only (e.g. sds.example.edu).")
+        if fqdn_has_open_registry_application(fqdn):
+            raise ValidationError(
+                "An active registry application already exists for this FQDN "
+                "(pending verification, verified, or awaiting approval).",
+            )
+        return fqdn
+
+    def clean_proposed_site_name(self) -> str:
+        raw = self.cleaned_data["proposed_site_name"].strip()
+        site_name = slugify(raw)
+        if not site_name:
+            raise ValidationError("Enter a short site id.")
+        return site_name

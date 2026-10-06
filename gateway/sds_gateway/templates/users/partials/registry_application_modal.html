@@ -1,0 +1,50 @@
+{% load i18n %}
+
+<div class="modal fade"
+     id="registryApplicationModal"
+     tabindex="-1"
+     aria-labelledby="registryApplicationModalLabel"
+     aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="registryApplicationModalLabel">{% translate "Apply for federation registry" %}</h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal"
+                        aria-label="{% translate 'Close' %}"></button>
+            </div>
+            <form method="post" action="{% url 'users:registry_application_list' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <p class="text-muted">
+                        {% translate "Submit your site's public identity. After you apply, you will receive a one-time verification token for your .well-known endpoint." %}
+                    </p>
+                    <p class="mb-3">
+                        <strong>{% translate "Applicant" %}:</strong>
+                        {{ request.user.name|default:request.user.email }}
+                    </p>
+                    {% for field in form %}
+                        <div class="mb-3">
+                            <label class="form-label" for="{{ field.id_for_label }}">{{ field.label }}</label>
+                            {{ field }}
+                            {% if field.help_text %}
+                                <div class="form-text">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% for error in field.errors %}
+                                <div class="text-danger"><small>{{ error }}</small></div>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger mb-0">{% for error in form.non_field_errors %}{{ error }}{% endfor %}</div>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn btn-primary">{% translate "Submit application" %}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
