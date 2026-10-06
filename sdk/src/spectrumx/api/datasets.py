@@ -44,7 +44,8 @@ class DatasetAPI:
 
         Captures are returned in the same grouped shape as the capture list API
         (one entry per logical multi-channel capture where applicable). For every
-        file in the dataset (including capture-linked files), use :meth:`get_files`
+        file in the dataset (including capture-linked files),
+        use [`get_files`][spectrumx.api.datasets.DatasetAPI.get_files]
         instead, which calls the paginated dataset files manifest endpoint.
         """
         if self.dry_run:
@@ -61,7 +62,8 @@ class DatasetAPI:
         """Return capture payloads linked to the dataset (raw JSON objects).
 
         Use this when you need composite capture fields (for example ``channels``)
-        without coercing through :class:`~spectrumx.models.datasets.DatasetCapture`.
+        without coercing through
+        [`DatasetCapture`][spectrumx.models.datasets.DatasetCapture].
         """
         if self.dry_run:
             log_user("Dry run enabled: returning an empty capture list")
@@ -78,9 +80,10 @@ class DatasetAPI:
     def list_artifact_files(self, dataset_uuid: UUID) -> list[dict[str, Any]]:
         """Return file rows linked directly to the dataset (artifacts), as JSON dicts.
 
-        These are the same objects embedded on :meth:`get` under the ``files`` key.
+        These are the same objects embedded on
+        [`get`][spectrumx.api.datasets.DatasetAPI.get] under the ``files`` key.
         For the full downloadable manifest (captures plus artifacts), use
-        :meth:`get_files`.
+        [`get_files`][spectrumx.api.datasets.DatasetAPI.get_files].
         """
         if self.dry_run:
             log_user("Dry run enabled: returning an empty artifact file list")
@@ -182,7 +185,8 @@ class DatasetAPI:
     def revoke_share_permissions(self, dataset_uuid: UUID) -> bool:
         """Revoke all direct share permissions on this dataset (owner-only).
 
-        Use this (or the web portal) before :meth:`delete` when the dataset is shared.
+        Use this (or the web portal) before
+        [`delete`][spectrumx.api.datasets.DatasetAPI.delete] when the dataset is shared.
         """
         if self.verbose:
             log.bind(cat=LogCategory.FILESYSTEM).debug(

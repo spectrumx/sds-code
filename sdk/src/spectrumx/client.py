@@ -296,9 +296,9 @@ class Client:
         Args:
             from_sds_path:  The virtual directory on SDS to download files from.
             start_time:     The start time to filter DRF capture files by
-            (optional, only applicable to DRF capture files).
+                (optional, only applicable to DRF capture files).
             end_time:       The end time to filter DRF capture files by
-            (optional, only applicable to DRF capture files).
+                (optional, only applicable to DRF capture files).
             to_local_path:  The local path to save the downloaded files to.
             files_to_download:  A paginator or list (in dry run mode) of files to
                 download. If not provided, all files in the directory will be
@@ -784,8 +784,9 @@ class Client:
                 UUIDs are downloaded (dataset artifacts with no capture are excluded).
             top_level_dirs: If set, only files whose ``directory`` lies under one of
                 these capture ``top_level_dir`` paths (as from
-                :meth:`list_dataset_captures`) are included. Leading/trailing slashes
-                are normalized.
+                [`list_dataset_captures`][spectrumx.client.Client.list_dataset_captures])
+                are included.
+                Leading/trailing slashes are normalized.
             artifacts_only: If set, only return artifact files (not capture-linked
                 files).
             skip_contents: When True, only the metadata is downloaded.
