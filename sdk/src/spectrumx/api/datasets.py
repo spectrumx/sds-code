@@ -195,3 +195,22 @@ class DatasetAPI:
             return True
         self.gateway.revoke_dataset_share_permissions(dataset_uuid=dataset_uuid)
         return True
+
+    def add_capture_to_dataset(self, dataset_uuid: UUID, capture_uuid: UUID) -> bool:
+        """Add an existing capture to an existing dataset."""
+        if self.verbose:
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Attaching capture {capture_uuid} to dataset {dataset_uuid}"
+            )
+        if self.dry_run:
+            log.bind(cat=LogCategory.FILESYSTEM).debug(
+                f"Dry run enabled: would attach capture {capture_uuid} "
+                f"to dataset {dataset_uuid}"
+            )
+            return True
+        self.gateway.add_capture_to_dataset(
+            dataset_uuid=dataset_uuid,
+            capture_uuid=capture_uuid,
+            verbose=self.verbose,
+        )
+        return True

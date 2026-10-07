@@ -256,3 +256,42 @@ def test_revoke_share_permissions_dry_run(client: Client) -> None:
     dataset_uuid = uuidlib.uuid4()
     result = client.datasets.revoke_share_permissions(dataset_uuid)
     assert result is True
+
+
+def test_add_capture_to_dataset_forwards_uuids_and_verbose() -> None:
+    """Dataset API forwards attachment arguments to the gateway."""
+    api = DatasetAPI(
+        gateway=GatewayClient(host="example.invalid", api_key="test-key"),
+        dry_run=False,
+        verbose=True,
+    )
+    dataset_uuid = uuidlib.uuid4()
+    capture_uuid = uuidlib.uuid4()
+
+    with patch.object(
+        api.gateway,
+        "add_capture_to_dataset",
+        return_value=b'{"message": "attached"}',
+    ) as add_capture:
+        result = api.add_capture_to_dataset(dataset_uuid, capture_uuid)
+
+    assert result is True
+    add_capture.assert_called_once_with(
+        dataset_uuid=dataset_uuid,
+        capture_uuid=capture_uuid,
+        verbose=True,
+    )
+
+
+def test_add_capture_to_dataset_dry_run_skips_gateway() -> None:
+    """Dry-run attachment reports success without making an HTTP request."""
+    api = DatasetAPI(
+        gateway=GatewayClient(host="example.invalid", api_key="test-key"),
+        dry_run=True,
+    )
+
+    with patch.object(api.gateway, "add_capture_to_dataset") as add_capture:
+        result = api.add_capture_to_dataset(uuidlib.uuid4(), uuidlib.uuid4())
+
+    assert result is True
+    add_capture.assert_not_called()

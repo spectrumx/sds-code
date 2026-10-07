@@ -10,8 +10,11 @@ from rest_framework.test import APIClient
 
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import PermissionLevel
 from sds_gateway.api_methods.models import UserSharePermission
+from sds_gateway.api_methods.tests.factories import CaptureFactory
 from sds_gateway.api_methods.tests.factories import DatasetFactory
 from sds_gateway.api_methods.tests.factories import MockMinIOContext
 from sds_gateway.api_methods.tests.factories import UserFactory
@@ -808,3 +811,207 @@ class DatasetEndpointsTestCase(TestCase):
 
         # Should get 403 Forbidden because the share permission is disabled
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+class DatasetAttachCaptureEndpointTestCase(TestCase):
+    """Tests for attaching owned captures to editable datasets."""
+
+    def setUp(self) -> None:
+        self.client = APIClient()
+        self.user = UserFactory()
+        self.client.force_authenticate(user=self.user)
+        self.dataset = DatasetFactory(owner=self.user, keywords=None)
+        self.capture = CaptureFactory(owner=self.user)
+        self.url = reverse(
+            "api:datasets-attach-capture",
+            kwargs={"pk": self.dataset.uuid},
+        )
+
+    def test_owner_can_attach_capture_with_json(self) -> None:
+        response = self.client.post(
+            self.url,
+            {"capture_uuid": str(self.capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["added"] == [str(self.capture.uuid)]
+        assert response.data["skipped"] == []
+        assert self.dataset.captures.filter(pk=self.capture.pk).exists()
+
+    def test_attach_is_idempotent(self) -> None:
+        self.dataset.captures.add(self.capture)
+
+        response = self.client.post(
+            self.url,
+            {"capture_uuid": str(self.capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["added"] == []
+        assert response.data["skipped"] == [str(self.capture.uuid)]
+        assert self.dataset.captures.filter(pk=self.capture.pk).count() == 1
+
+    def test_missing_or_invalid_capture_uuid_returns_bad_request(self) -> None:
+        missing_response = self.client.post(self.url, {}, format="json")
+        invalid_response = self.client.post(
+            self.url,
+            {"capture_uuid": "not-a-uuid"},
+            format="json",
+        )
+
+        assert missing_response.status_code == status.HTTP_400_BAD_REQUEST
+        assert invalid_response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_invalid_dataset_uuid_returns_bad_request(self) -> None:
+        url = reverse(
+            "api:datasets-attach-capture",
+            kwargs={"pk": "not-a-uuid"},
+        )
+
+        response = self.client.post(
+            url,
+            {"capture_uuid": str(self.capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+
+    def test_contributor_can_attach_owned_capture(self) -> None:
+        owner = UserFactory()
+        shared_dataset = DatasetFactory(owner=owner, keywords=None)
+        UserSharePermission.objects.create(
+            owner=owner,
+            shared_with=self.user,
+            item_type=ItemType.DATASET,
+            item_uuid=shared_dataset.uuid,
+            permission_level=PermissionLevel.CONTRIBUTOR,
+        )
+        url = reverse(
+            "api:datasets-attach-capture",
+            kwargs={"pk": shared_dataset.uuid},
+        )
+
+        response = self.client.post(
+            url,
+            {"capture_uuid": str(self.capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert shared_dataset.captures.filter(pk=self.capture.pk).exists()
+
+    def test_viewer_cannot_attach_capture(self) -> None:
+        owner = UserFactory()
+        shared_dataset = DatasetFactory(owner=owner, keywords=None)
+        UserSharePermission.objects.create(
+            owner=owner,
+            shared_with=self.user,
+            item_type=ItemType.DATASET,
+            item_uuid=shared_dataset.uuid,
+            permission_level=PermissionLevel.VIEWER,
+        )
+        url = reverse(
+            "api:datasets-attach-capture",
+            kwargs={"pk": shared_dataset.uuid},
+        )
+
+        response = self.client.post(
+            url,
+            {"capture_uuid": str(self.capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+        assert not shared_dataset.captures.filter(pk=self.capture.pk).exists()
+
+    def test_user_cannot_attach_another_users_capture(self) -> None:
+        foreign_capture = CaptureFactory(owner=UserFactory())
+
+        response = self.client.post(
+            self.url,
+            {"capture_uuid": str(foreign_capture.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert not self.dataset.captures.filter(pk=foreign_capture.pk).exists()
+
+    def test_published_dataset_cannot_be_modified(self) -> None:
+        for dataset in (
+            DatasetFactory(
+                owner=self.user,
+                status=DatasetStatus.FINAL,
+                keywords=None,
+            ),
+            DatasetFactory(owner=self.user, is_public=True, keywords=None),
+        ):
+            with self.subTest(dataset=dataset.uuid):
+                url = reverse(
+                    "api:datasets-attach-capture",
+                    kwargs={"pk": dataset.uuid},
+                )
+                response = self.client.post(
+                    url,
+                    {"capture_uuid": str(self.capture.uuid)},
+                    format="json",
+                )
+
+                assert response.status_code == status.HTTP_403_FORBIDDEN
+                assert not dataset.captures.filter(pk=self.capture.pk).exists()
+
+    def test_all_multi_channel_siblings_are_attached(self) -> None:
+        top_level_dir = "multi-channel-capture"
+        first = CaptureFactory(
+            owner=self.user,
+            top_level_dir=top_level_dir,
+            capture_type=CaptureType.DigitalRF,
+            channel="channel-1",
+        )
+        second = CaptureFactory(
+            owner=self.user,
+            top_level_dir=top_level_dir,
+            capture_type=CaptureType.DigitalRF,
+            channel="channel-2",
+        )
+
+        response = self.client.post(
+            self.url,
+            {"capture_uuid": str(first.uuid)},
+            format="json",
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert set(response.data["added"]) == {str(first.uuid), str(second.uuid)}
+        expected_capture_count = 2
+        assert (
+            self.dataset.captures.filter(pk__in=[first.pk, second.pk]).count()
+            == expected_capture_count
+        )
+
+    def test_attachment_rolls_back_when_database_add_fails(self) -> None:
+        manager_class = type(self.dataset.captures)
+
+        def failing_add(manager, *captures, **_kwargs) -> None:
+            manager.through.objects.create(
+                dataset_id=manager.instance.pk,
+                capture_id=captures[0].pk,
+            )
+            message = "simulated database failure"
+            raise RuntimeError(message)
+
+        with patch.object(
+            manager_class,
+            "add",
+            autospec=True,
+            side_effect=failing_add,
+        ):
+            response = self.client.post(
+                self.url,
+                {"capture_uuid": str(self.capture.uuid)},
+                format="json",
+            )
+
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert not self.dataset.captures.filter(pk=self.capture.pk).exists()

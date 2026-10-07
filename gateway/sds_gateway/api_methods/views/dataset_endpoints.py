@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from uuid import UUID
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import OpenApiParameter
 from drf_spectacular.utils import OpenApiResponse
@@ -15,10 +17,16 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ViewSet
 
 from sds_gateway.api_methods.authentication import APIKeyAuthentication
+from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import Dataset
+from sds_gateway.api_methods.models import DatasetStatus
 from sds_gateway.api_methods.models import File
 from sds_gateway.api_methods.models import ItemType
+from sds_gateway.api_methods.models import UserSharePermission
 from sds_gateway.api_methods.models import user_has_access_to_item
+from sds_gateway.api_methods.serializers.dataset_serializers import (
+    DatasetAttachCaptureSerializer,
+)
 from sds_gateway.api_methods.serializers.dataset_serializers import DatasetGetSerializer
 from sds_gateway.api_methods.serializers.file_serializers import FileGetSerializer
 from sds_gateway.api_methods.utils.asset_access_control import check_if_shared
@@ -42,8 +50,6 @@ from sds_gateway.api_methods.views.file_endpoints import FilePagination
 from sds_gateway.users.models import User
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from django.db.models import QuerySet
     from rest_framework.request import Request
 
@@ -265,6 +271,123 @@ class DatasetViewSet(ViewSet):
         serializer = FileGetSerializer(paginated_files, many=True)
 
         return paginator.get_paginated_response(serializer.data)
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="id",
+                description="Dataset UUID",
+                required=True,
+                type=str,
+                location=OpenApiParameter.PATH,
+            ),
+        ],
+        request=DatasetAttachCaptureSerializer,
+        responses={
+            200: OpenApiResponse(description="Capture attached to Dataset"),
+            400: OpenApiResponse(description="Bad Request"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Not Found"),
+            500: OpenApiResponse(description="Error attaching Capture to Dataset"),
+        },
+        description=("Attach a Capture to a Dataset."),
+        summary="Attach Capture to Dataset",
+    )
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="attach-capture",
+        url_name="attach-capture",
+    )
+    def attach_capture_to_dataset(
+        self, request: Request, pk: str | None = None
+    ) -> Response:
+        """Link a capture to a dataset."""
+        try:
+            dataset_uuid = UUID(str(pk))
+        except ValueError:
+            return Response(
+                {"detail": "Dataset UUID must be a valid UUID."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        request_serializer = DatasetAttachCaptureSerializer(data=request.data)
+        if not request_serializer.is_valid():
+            return Response(
+                request_serializer.errors,
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target_dataset = get_object_or_404(
+            Dataset,
+            pk=dataset_uuid,
+            is_deleted=False,
+        )
+
+        assert isinstance(request.user, User), (
+            "Expected request.user to be an instance of the custom User model"
+        )
+        if not UserSharePermission.user_can_add_assets(
+            request.user,
+            target_dataset.uuid,
+            ItemType.DATASET,
+        ):
+            return Response(
+                {"detail": "You do not have permission to add assets to this dataset."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if target_dataset.status == DatasetStatus.FINAL or target_dataset.is_public:
+            return Response(
+                {"detail": "Published datasets cannot be edited."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        capture_uuid = request_serializer.validated_data["capture_uuid"]
+        capture = get_object_or_404(
+            Capture,
+            pk=capture_uuid,
+            owner=request.user,
+            is_deleted=False,
+        )
+
+        candidates = (
+            list(
+                Capture.objects.filter(
+                    top_level_dir=capture.top_level_dir,
+                    owner=request.user,
+                    is_deleted=False,
+                    capture_type=capture.capture_type,
+                )
+            )
+            if capture.is_multi_channel
+            else [capture]
+        )
+
+        existing_pks = set(
+            target_dataset.captures.filter(
+                pk__in=[c.pk for c in candidates]
+            ).values_list("pk", flat=True)
+        )
+
+        captures_to_add = [c for c in candidates if c.pk not in existing_pks]
+        try:
+            with transaction.atomic():
+                target_dataset.captures.add(*captures_to_add)
+        except Exception:  # noqa: BLE001
+            return Response(
+                {"detail": f"Failed to attach Capture to Dataset {dataset_uuid}."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        return Response(
+            status=status.HTTP_200_OK,
+            data={
+                "message": "Capture attached to Dataset.",
+                "added": [str(c.uuid) for c in captures_to_add],
+                "skipped": [str(c.uuid) for c in candidates if c.pk in existing_pks],
+            },
+        )
 
     @extend_schema(
         parameters=[

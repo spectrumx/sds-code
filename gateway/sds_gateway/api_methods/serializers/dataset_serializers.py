@@ -24,6 +24,12 @@ from sds_gateway.api_methods.utils.relationship_utils import get_dataset_artifac
 READABLE_ISO_DATE_TIME: str = "%Y-%m-%d %H:%M:%S%z"
 
 
+class DatasetAttachCaptureSerializer(serializers.Serializer):
+    """Validate a request to attach an existing capture to a dataset."""
+
+    capture_uuid = serializers.UUIDField(required=True)
+
+
 class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     owner = UserGetSerializer(read_only=True)
     authors = serializers.SerializerMethodField()

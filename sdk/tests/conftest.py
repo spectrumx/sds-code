@@ -292,6 +292,15 @@ def get_dataset_revoke_share_permissions_url(client: Client, dataset_id: str) ->
     )
 
 
+def get_dataset_attach_capture_url(client: Client, dataset_id: str) -> str:
+    """URL for POST attach-capture on a dataset."""
+    return (
+        client.base_url
+        + f"/api/{API_TARGET_VERSION}/assets/datasets/{dataset_id}/"
+        + "attach-capture/"
+    )
+
+
 def get_content_check_endpoint(client: Client) -> str:
     """Returns the endpoint for the content check API."""
     return (

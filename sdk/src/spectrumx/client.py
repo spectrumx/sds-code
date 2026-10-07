@@ -884,6 +884,18 @@ class Client:
             dataset_uuid = UUID(dataset_uuid)
         return self.datasets.list_captures(dataset_uuid)
 
+    def add_capture_to_dataset(
+        self, dataset_uuid: UUID4 | str, capture_uuid: UUID4 | str
+    ) -> Dataset:
+        """Attach a Capture to an existing Dataset."""
+        if isinstance(dataset_uuid, str):
+            dataset_uuid = UUID(dataset_uuid)
+        if isinstance(capture_uuid, str):
+            capture_uuid = UUID(capture_uuid)
+
+        self.datasets.add_capture_to_dataset(dataset_uuid, capture_uuid)
+        return self.datasets.get(dataset_uuid)
+
     def list_dataset_artifact_files(
         self, dataset_uuid: UUID4 | str
     ) -> list[dict[str, Any]]:

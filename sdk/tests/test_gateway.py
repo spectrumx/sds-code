@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import io
+import json
 import logging
 import uuid
 from datetime import datetime
@@ -22,6 +23,7 @@ import responses
 from loguru import logger as loguru_logger
 from pytz import UTC
 from spectrumx.errors import AuthError
+from spectrumx.errors import DatasetError
 from spectrumx.errors import FileError
 from spectrumx.errors import NetworkError
 from spectrumx.gateway import Endpoints
@@ -395,6 +397,61 @@ def test_get_dataset_files_with_artifacts_only() -> None:
     )
     result = gw.get_dataset_files(dataset_uuid=ds_uuid, artifacts_only=True)
     assert result == b'{"files": []}'
+
+
+# ---------------------------------------------------------------------------
+# add_capture_to_dataset
+# ---------------------------------------------------------------------------
+
+
+@responses.activate
+def test_add_capture_to_dataset_posts_json_to_dataset_action() -> None:
+    gw = _make_gateway()
+    dataset_uuid = uuid.uuid4()
+    capture_uuid = uuid.uuid4()
+    url = (
+        f"http://localhost:80/api/v1/assets/datasets/{dataset_uuid.hex}/attach-capture/"
+    )
+    responses.add(
+        responses.POST,
+        url,
+        body=b'{"message": "Capture attached to Dataset."}',
+        status=200,
+    )
+
+    result = gw.add_capture_to_dataset(
+        dataset_uuid=dataset_uuid,
+        capture_uuid=capture_uuid,
+    )
+
+    assert result == b'{"message": "Capture attached to Dataset."}'
+    assert len(responses.calls) == 1
+    request = responses.calls[0].request
+    assert request.method == "POST"
+    assert request.url == url
+    assert json.loads(request.body) == {"capture_uuid": capture_uuid.hex}
+
+
+@responses.activate
+def test_add_capture_to_dataset_raises_dataset_error() -> None:
+    gw = _make_gateway()
+    dataset_uuid = uuid.uuid4()
+    capture_uuid = uuid.uuid4()
+    url = (
+        f"http://localhost:80/api/v1/assets/datasets/{dataset_uuid.hex}/attach-capture/"
+    )
+    responses.add(
+        responses.POST,
+        url,
+        json={"detail": "Capture not found."},
+        status=404,
+    )
+
+    with pytest.raises(DatasetError, match="Capture not found"):
+        gw.add_capture_to_dataset(
+            dataset_uuid=dataset_uuid,
+            capture_uuid=capture_uuid,
+        )
 
 
 # ---------------------------------------------------------------------------

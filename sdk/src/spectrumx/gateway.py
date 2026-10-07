@@ -52,6 +52,7 @@ class Endpoints(StrEnum):
     )
     DATASETS = "/assets/datasets"
     DATASET_FILES = "/assets/datasets/{uuid}/files"
+    DATASET_ATTACH_CAPTURE = "/assets/datasets/{uuid}/attach-capture"
     DATASET_REVOKE_SHARE_PERMISSIONS = (
         "/assets/datasets/{uuid}/revoke-share-permissions"
     )
@@ -754,6 +755,33 @@ class GatewayClient:
             verbose=verbose,
         )
         network.success_or_raise(response, ContextException=CaptureError)
+        return response.content
+
+    def add_capture_to_dataset(
+        self,
+        *,
+        dataset_uuid: uuid.UUID,
+        capture_uuid: uuid.UUID,
+        verbose: bool = False,
+    ) -> bytes:
+        """Attach a capture to a specified dataset.
+
+        Args:
+            dataset_uuid: UUID of the dataset.
+            capture_uuid: UUID of the capture.
+        Returns:
+            Raw response body (typically JSON with a success message).
+        Raises:
+            CaptureError: If the request fails.
+        """
+        response = self._request(
+            method=HTTPMethods.POST,
+            endpoint=Endpoints.DATASET_ATTACH_CAPTURE,
+            endpoint_args={"uuid": dataset_uuid.hex},
+            json={"capture_uuid": capture_uuid.hex},
+            verbose=verbose,
+        )
+        network.success_or_raise(response, ContextException=DatasetError)
         return response.content
 
     def detach_capture_from_datasets(

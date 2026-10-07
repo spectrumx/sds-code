@@ -21,6 +21,7 @@ from spectrumx.client import resolve_dataset_capture_filter_params
 from spectrumx.config import CFG_NAME_LOOKUP
 from spectrumx.config import SDSConfig
 from spectrumx.errors import CaptureError
+from spectrumx.errors import DatasetError
 from spectrumx.errors import Result
 from spectrumx.errors import SDSError
 from spectrumx.gateway import API_TARGET_VERSION
@@ -1362,6 +1363,54 @@ def test_get_dataset_with_uuid_object(
     )
     ds = client.get_dataset(dataset_uuid=ds_uuid_obj)
     assert ds.uuid is not None
+
+
+def test_add_capture_to_dataset_normalizes_uuids_and_returns_refreshed_dataset(
+    client: Client,
+) -> None:
+    """Public attachment normalizes strings and returns the refreshed dataset."""
+    dataset_uuid = uuid.uuid4()
+    capture_uuid = uuid.uuid4()
+    refreshed_dataset = MagicMock()
+
+    with (
+        patch.object(
+            client.datasets,
+            "add_capture_to_dataset",
+            return_value=True,
+        ) as add_capture,
+        patch.object(
+            client.datasets,
+            "get",
+            return_value=refreshed_dataset,
+        ) as get_dataset,
+    ):
+        result = client.add_capture_to_dataset(
+            str(dataset_uuid),
+            str(capture_uuid),
+        )
+
+    assert result is refreshed_dataset
+    add_capture.assert_called_once_with(dataset_uuid, capture_uuid)
+    get_dataset.assert_called_once_with(dataset_uuid)
+
+
+def test_add_capture_to_dataset_does_not_refresh_after_attachment_error(
+    client: Client,
+) -> None:
+    """An attachment error propagates without issuing a misleading refresh."""
+    with (
+        patch.object(
+            client.datasets,
+            "add_capture_to_dataset",
+            side_effect=DatasetError("attachment failed"),
+        ),
+        patch.object(client.datasets, "get") as get_dataset,
+        pytest.raises(DatasetError, match="attachment failed"),
+    ):
+        client.add_capture_to_dataset(uuid.uuid4(), uuid.uuid4())
+
+    get_dataset.assert_not_called()
 
 
 @responses.activate
