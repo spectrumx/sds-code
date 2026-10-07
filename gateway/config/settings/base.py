@@ -757,6 +757,30 @@ SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 # Export/OpenSearch ``site_name`` uses SDS_SITE_FQDN
 # (matches federation.toml [site].fqdn).
 FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
+# Matches federation.toml [site].display_name (well-known JSON, not UI branding).
+SDS_SITE_DISPLAY_NAME: str = env.str("SDS_SITE_DISPLAY_NAME", default="").strip()
+# Optional override for well-known gateway_api_base (local lab Docker DNS).
+# When unset, non-local hosts use https://{SDS_SITE_FQDN}/api/{API_VERSION}.
+FEDERATION_GATEWAY_API_BASE: str = env.str("FEDERATION_GATEWAY_API_BASE", default="").strip()
+# Optional override for well-known sync_service_url (render sets this from onboarding).
+# When unset, non-local hosts use https://{SDS_SITE_FQDN}/sync/.
+FEDERATION_SYNC_SERVICE_URL: str = env.str("FEDERATION_SYNC_SERVICE_URL", default="").strip()
+FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
+    "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
+    default="",
+).strip()
+FEDERATION_REGISTRY_WELL_KNOWN_URL: str = env.str(
+    "FEDERATION_REGISTRY_WELL_KNOWN_URL",
+    default="",
+).strip()
+FEDERATION_REGISTRY_PUBKEY_FINGERPRINT: str = env.str(
+    "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT",
+    default="",
+).strip()
+SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
+    "SDS_FEDERATION_WELL_KNOWN_CONTACT",
+    default="",
+).strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
 _federation_events_channel_override: str = env.str(

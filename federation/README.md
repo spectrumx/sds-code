@@ -85,11 +85,19 @@ Skip Traefik: `RENDER_TRAEFIK_SYNC=0`. **Preflight:** `just federation-doctor`
 **Add a peer** on this host:
 
 ```bash
+# Discover name, display_name, gateway_api_base, and sync_service_url from the peer gateway:
+SDS_ENV=production just federation-add-peer --fqdn peer.example.edu --discover
+
+# Or set fields explicitly:
 SDS_ENV=production just federation-add-peer \
   --name peer-id --fqdn peer.example.edu \
   --sync-url https://peer.example.edu/sync/ \
   --gateway-api-base https://peer.example.edu/api/v1
 ```
+
+Each gateway serves `GET https://<fqdn>/.well-known/sds-federation.json` (unsigned site identity).
+During registry apply, set `FEDERATION_REGISTRY_CHALLENGE_TOKEN` on the applicant gateway so that
+document includes `registry_challenge` for mothership verification.
 
 Optional `--ca-cert-path` (file under `federation/certs/` in the sync container).
 Reciprocal `[[peers]]` on the remote site is still manual.
