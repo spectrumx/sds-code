@@ -153,6 +153,7 @@ class RegistryApplicationStatus(StrEnum):
     PENDING_VERIFICATION = "pending_verification"
     VERIFICATION_FAILED = "verification_failed"
     VERIFIED = "verified"
+    PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
     WITHDRAWN = "withdrawn"
@@ -1758,6 +1759,7 @@ REGISTRY_APPLICATION_OPEN_FQDN_STATUSES = (
     RegistryApplicationStatus.PENDING_VERIFICATION.value,
     RegistryApplicationStatus.VERIFICATION_FAILED.value,
     RegistryApplicationStatus.VERIFIED.value,
+    RegistryApplicationStatus.PENDING_APPROVAL.value,
     RegistryApplicationStatus.APPROVED.value,
 )
 
