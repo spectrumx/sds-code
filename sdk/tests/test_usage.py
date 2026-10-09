@@ -34,6 +34,14 @@ def get_auth_endpoint(client: Client) -> str:
     return client.base_url + f"/api/{API_TARGET_VERSION}/auth/"
 
 
+def test_dry_run_enabled_by_default(client: Client) -> None:
+    """Dry-run mode must be enabled by default."""
+    assert client.dry_run is True, (
+        "Dry-run must be enabled by default. "
+        "Check your SDK .env file for 'DRY_RUN = false'"
+    )
+
+
 # ------------------------
 # TESTS FOR AUTHENTICATION
 # ------------------------
@@ -80,11 +88,6 @@ def test_dry_run_setter(client: Client) -> None:
     assert client.dry_run is False, "Dry-run setter failed."
     client.dry_run = True
     assert client.dry_run is True, "Dry-run setter failed."
-
-
-def test_dry_run_enabled_by_default(client: Client) -> None:
-    """Dry-run mode must be enabled by default."""
-    assert client.dry_run is True, "Dry-run must be enabled by default."
 
 
 def test_dry_auth_does_not_request(

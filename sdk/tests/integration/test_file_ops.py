@@ -5,6 +5,7 @@ import time
 import uuid
 from datetime import UTC
 from datetime import datetime
+from enum import IntEnum
 from pathlib import Path
 from pathlib import PurePosixPath
 from unittest.mock import patch
@@ -14,6 +15,7 @@ from loguru import logger as log
 from spectrumx.client import Client
 from spectrumx.errors import FileError
 from spectrumx.models.files import File
+from spectrumx.ops import files
 from spectrumx.ops.files import construct_file
 from spectrumx.ops.files import get_valid_files
 from spectrumx.ops.files import is_valid_file
@@ -26,6 +28,17 @@ from tests.test_utils import disable_ssl_warnings
 
 BLAKE3_HEX_LEN: int = 64
 DRF_SAMPLE_RF_CHUNK_COUNT: int = 16
+
+
+class LogLevels(IntEnum):
+    """Log levels for testing."""
+
+    TRACE = 5
+    DEBUG = 10
+    INFO = 20
+    WARNING = 30
+    ERROR = 40
+    CRITICAL = 50
 
 
 def test_is_valid_file_allowed(temp_file_with_text_contents) -> None:
@@ -505,6 +518,75 @@ def test_download_single_file(
     # cleanup
     finally:
         download_path.unlink(missing_ok=True)
+
+
+@pytest.mark.integration
+@pytest.mark.usefixtures("_integration_setup_teardown")
+@pytest.mark.usefixtures("_without_responses")
+@pytest.mark.parametrize(
+    "_without_responses",
+    argvalues=[
+        [
+            *PassthruEndpoints.authentication(),
+            *PassthruEndpoints.file_content_checks(),
+            *PassthruEndpoints.file_meta_download_or_upload(),
+            *PassthruEndpoints.file_content_download(),
+        ]
+    ],
+    indirect=True,
+)
+def test_download_fails_for_invalid_files(
+    caplog: pytest.LogCaptureFixture,
+    client: Client,
+) -> None:
+    """Ensures download() fails when an invalid local path is provided."""
+
+    caplog.set_level(LogLevels.ERROR)
+    sds_path = PurePosixPath("sds/custom/dir/")
+    local_path = Path("local/path")
+
+    target_num_files = 2
+    original_list = files.generate_random_files(num_files=target_num_files)
+
+    def _get_problematic_list_of_files(num_files: int = 10) -> list[File]:
+        """Generates a list of fabricated files with issues for download."""
+        # num_files is ignored — using pre-generated file list instead
+        altered_list = [
+            ofile.model_copy() for ofile in original_list[:target_num_files]
+        ]
+
+        # set an invalid directory (not a child of local_path)
+        altered_list[0].directory = local_path / "../../../" / "invalid"
+
+        # can't download a file with missing uuid for now
+        altered_list[1].uuid = None
+
+        return altered_list
+
+    # Patch the files.generate_random_files method to return the problematic list
+    with patch.object(
+        files,
+        attribute="generate_random_files",
+        side_effect=_get_problematic_list_of_files,
+    ):
+        results = client.download(from_sds_path=sds_path, to_local_path=local_path)
+        assert len(results) == target_num_files, "Three files should be generated"
+
+        successful_files = [result() for result in results if result]
+        error_infos = [result.error_info for result in results if not result]
+        log.error(
+            f"File count: successful={len(successful_files)}, "
+            f"errored={len(error_infos)}"
+        )
+        for success in successful_files:
+            log.info(f"{success.name}: {success.uuid}")
+        for error in error_infos:
+            # simplified: error_info includes file object for error metadata
+            assert isinstance(error, dict)
+            if error:
+                file_obj: File = error["file"]
+                log.error(f"{file_obj.name}: uuid={file_obj.uuid}")
+        assert not any(successful_files), "No file should be successfully downloaded."
 
 
 @pytest.mark.integration

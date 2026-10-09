@@ -671,6 +671,7 @@ def test_delete_file_str_uuid(
 
 def test_delete_file_dry_run(client: Client, responses: responses.RequestsMock) -> None:
     """Test file deletion in dry run mode."""
+    client.dry_run = True
     # ARRANGE
     test_uuid = uuidlib.uuid4()
     assert client.dry_run is True, "Dry run must be enabled for this test."
@@ -1937,6 +1938,7 @@ def test_upload_new_file_metadata_only_dry_run(
     client: Client,
 ) -> None:
     """Dry-run in __upload_new_file_metadata_only logs and returns early."""
+    client.dry_run = True
     file_instance = File(
         name="dry_meta.txt",
         media_type="text/plain",
