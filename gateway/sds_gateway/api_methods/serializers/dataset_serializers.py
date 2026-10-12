@@ -34,6 +34,7 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     owner = UserGetSerializer(read_only=True)
     authors = serializers.SerializerMethodField()
     keywords = serializers.SerializerMethodField()
+    institutions = serializers.SerializerMethodField()
     created_at = serializers.DateTimeField(
         format=READABLE_ISO_DATE_TIME, read_only=True
     )
@@ -56,6 +57,13 @@ class DatasetGetSerializer(serializers.ModelSerializer[Dataset]):
     def get_authors(self, obj):
         """Return the full authors list using the model's get_authors_display method."""
         return obj.get_authors_display()
+
+    def get_institutions(self, obj):
+        if not obj.institutions:
+            return []
+        if isinstance(obj.institutions, list):
+            return obj.institutions
+        return []
 
     def get_keywords(self, obj):
         """Return a list of keyword names for the dataset."""

@@ -47,10 +47,10 @@ class Dataset(BaseModel):
     abstract: str | None = None
     description: str | None = None
     doi: str | None = None
-    authors: list[str] | None = None
+    authors: list[dict[str, Any]] | list[str] | None = None
     license: str | None = None
     keywords: list[str] | None = None
-    institutions: list[str] | None = None
+    institutions: list[str] | str | None = None
     release_date: datetime | None = None
     repository: str | None = None
     version: int | None = None

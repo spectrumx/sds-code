@@ -1240,6 +1240,28 @@ class Dataset(BaseModel):
         # Authors should already be in new object format
         return self.authors
 
+    def get_institutions_display(self):
+        if not self.institutions or self.institutions == "":
+            return []
+
+        if not isinstance(self.institutions, list):
+            log.warning(
+                f"Dataset {self.uuid}: institutions field is not a list "
+                f"(type: {type(self.institutions).__name__})",
+            )
+            return []
+
+        if self.institutions and isinstance(self.institutions[0], str):
+            log.warning(
+                f"Dataset {self.uuid}: institutions still in old string format, "
+                f"needs migration",
+            )
+            # Convert old format for backward compatibility
+            return [{institution} for institution in self.institutions]
+
+        # institutions should already be in new object format
+        return self.institutions
+
 
 class TemporaryZipFile(BaseModel):
     """
