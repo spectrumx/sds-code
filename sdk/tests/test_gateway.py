@@ -429,7 +429,10 @@ def test_add_capture_to_dataset_posts_json_to_dataset_action() -> None:
     request = responses.calls[0].request
     assert request.method == "POST"
     assert request.url == url
-    assert json.loads(request.body) == {"capture_uuid": capture_uuid.hex}
+    request_body = request.body
+    if isinstance(request_body, bytes):
+        request_body = request_body.decode()
+    assert json.loads(request_body) == {"capture_uuid": capture_uuid.hex}
 
 
 @responses.activate
