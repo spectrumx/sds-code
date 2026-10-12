@@ -23,6 +23,8 @@ class DatasetFile(BaseModel):
 
 
 class DatasetCapture(BaseModel):
+    """A Capture linked to a Dataset."""
+
     model_config = ConfigDict(extra="ignore")
 
     uuid: UUID4 | None = None

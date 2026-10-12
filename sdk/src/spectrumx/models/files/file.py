@@ -92,8 +92,6 @@ class File(SDSModel):
         If the file is currently being downloaded, this method will
             block until the download is complete or terminated.
 
-        Args:
-            block: when True, waits until the file contents are unlocked.
         Returns:
             The BLAKE3 checksum of the file,
                 OR None if the file is not available locally.

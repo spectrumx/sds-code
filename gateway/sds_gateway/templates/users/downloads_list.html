@@ -95,7 +95,7 @@
                                     <td>{% if download.downloaded_at %}{{ download.downloaded_at|date:"M j, Y, P" }}{% endif %}</td>
                                     <td>
                                         {% if download.status == "Ready" or download.status == "Downloaded" %}
-                                            <a class="btn btn-sm btn-primary" href="{{ download.download_url }}">Download</a>
+                                            <a class="btn btn-sm btn-info" href="{{ download.download_url }}">Download</a>
                                         {% endif %}
                                     </td>
                                 </tr>
