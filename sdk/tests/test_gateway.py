@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import io
-import json
 import logging
 import uuid
 from datetime import datetime
@@ -432,7 +431,8 @@ def test_add_capture_to_dataset_posts_json_to_dataset_action() -> None:
     request_body = request.body
     if isinstance(request_body, bytes):
         request_body = request_body.decode()
-    assert json.loads(request_body) == {"capture_uuid": capture_uuid.hex}
+    capture_uuid_string = str(capture_uuid.hex)
+    assert request_body == f'{{"capture_uuid": "{capture_uuid_string}"}}'
 
 
 @responses.activate
