@@ -1,5 +1,10 @@
 # SpectrumX SDK Changelog
 
+## `0.2.4` - 2026-10-15
+
++ Features:
+    + **New SDK function**: Client.add_capture_to_dataset(dataset_uuid, capture_uuid)
+
 ## `0.2.3` - 2026-08-27
 
 + Fixes:
