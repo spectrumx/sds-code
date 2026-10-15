@@ -1,7 +1,7 @@
 """Shared utilities for visualization processing."""
 
 import contextlib
-import datetime
+import datetime as dt
 import os
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
@@ -412,7 +412,7 @@ def store_processed_data(
     # Add storage metadata
     processed_data.metadata.update(
         {
-            "stored_at": datetime.datetime.now(datetime.UTC).isoformat(),
+            "stored_at": dt.datetime.now(dt.UTC).isoformat(),
             "data_format": "file",
             "file_size": processed_data.data_file.size,
         }

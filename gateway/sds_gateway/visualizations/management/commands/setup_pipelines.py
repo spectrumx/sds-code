@@ -1,6 +1,6 @@
 """Management command to set up django-cog visualization pipelines."""
 
-import datetime
+import datetime as dt
 import json
 
 from django.core.management.base import BaseCommand
@@ -63,7 +63,7 @@ class Command(BaseCommand):
 
     def _create_new_pipeline(self, config: dict) -> Pipeline:
         """Create a new pipeline with timestamp."""
-        timestamp = datetime.datetime.now(datetime.UTC).strftime("%Y%m%d_%H%M%S")
+        timestamp = dt.datetime.now(dt.UTC).strftime("%Y%m%d_%H%M%S")
         new_name = f"{config['pipeline_name']}_{timestamp}"
         return Pipeline.objects.create(
             name=new_name,

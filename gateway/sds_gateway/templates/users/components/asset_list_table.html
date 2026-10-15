@@ -75,7 +75,7 @@ Context:
                         <li class="page-item active" aria-current="page">
                             <span class="page-link">{{ num }}</span>
                         </li>
-                    {% elif num|add:0 > page_obj.number|add:'-3' and num|add:0 < page_obj.number|add:'3' %}
+                    {% elif num|add:0 > page_obj.number|add:"-3" and num|add:0 < page_obj.number|add:"3" %}
                         <li class="page-item">
                             <a class="page-link"
                                href="?page={{ num }}&amp;sort_by={{ sort_by }}&amp;sort_order={{ sort_order }}">{{ num }}</a>

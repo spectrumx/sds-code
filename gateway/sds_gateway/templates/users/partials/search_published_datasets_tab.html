@@ -58,7 +58,8 @@
                                        data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
                                        aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                     {% if dataset.is_federated %}
-                                        <span class="ms-2 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>
+                                        <span class="ms-2 badge bg-info text-dark"
+                                              title="Federated site">{{ dataset.site_name }}</span>
                                     {% elif dataset.is_public %}
                                         <i class="bi bi-globe me-1 text-primary" title="Public"></i>
                                     {% endif %}

@@ -1,6 +1,6 @@
 """Describes the models for the API methods."""
 
-import datetime
+import datetime as dt
 import json
 import threading
 import uuid
@@ -163,10 +163,10 @@ class PermissionLevel(StrEnum):
     VIEWER = "viewer"
 
 
-def default_expiration_date() -> datetime.datetime:
+def default_expiration_date() -> dt.datetime:
     """Returns the default expiration date for a file."""
     # 2 years from now
-    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(days=730)
+    return dt.datetime.now(dt.UTC) + dt.timedelta(days=730)
 
 
 class BaseModel(models.Model):
@@ -189,7 +189,7 @@ class BaseModel(models.Model):
     def soft_delete(self) -> None:
         """Soft delete this record by marking it as deleted."""
         self.is_deleted = True
-        self.deleted_at = datetime.datetime.now(datetime.UTC)
+        self.deleted_at = dt.datetime.now(dt.UTC)
         self.save()
 
 
@@ -1296,16 +1296,14 @@ class TemporaryZipFile(BaseModel):
     def save(self, *args, **kwargs):
         # Set expiration time if not already set (default: 7 days)
         if not self.expires_at:
-            self.expires_at = datetime.datetime.now(datetime.UTC) + datetime.timedelta(
-                days=3
-            )
+            self.expires_at = dt.datetime.now(dt.UTC) + dt.timedelta(days=3)
 
         super().save(*args, **kwargs)
 
     @property
     def is_expired(self) -> bool:
         """Check if the file has expired and should be deleted."""
-        return datetime.datetime.now(datetime.UTC) > self.expires_at
+        return dt.datetime.now(dt.UTC) > self.expires_at
 
     @property
     def download_url(self) -> str:
@@ -1322,7 +1320,7 @@ class TemporaryZipFile(BaseModel):
     def mark_downloaded(self):
         """Mark the file as downloaded."""
         self.is_downloaded = True
-        self.downloaded_at = datetime.datetime.now(datetime.UTC)
+        self.downloaded_at = dt.datetime.now(dt.UTC)
         self.save(update_fields=["is_downloaded", "downloaded_at"])
 
     def mark_failed(self):
@@ -1697,7 +1695,7 @@ class DEPRECATEDPostProcessedData(BaseModel):
     def mark_processing_completed(self) -> None:
         """Mark processing as completed."""
         self.processing_status = ProcessingStatus.Completed.value
-        self.processed_at = datetime.datetime.now(datetime.UTC)
+        self.processed_at = dt.datetime.now(dt.UTC)
         self.save(update_fields=["processing_status", "processed_at"])
 
     def mark_processing_failed(self, error_message: str) -> None:

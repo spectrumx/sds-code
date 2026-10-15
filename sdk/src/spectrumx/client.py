@@ -888,7 +888,14 @@ class Client:
     def add_capture_to_dataset(
         self, dataset_uuid: UUID4 | str, capture_uuid: UUID4 | str
     ) -> Dataset:
-        """Attach a Capture to an existing Dataset."""
+        """Attach a Capture to an existing Dataset.
+
+        Args:
+            dataset_uuid: The UUID of the target Dataset.
+            capture_uuid: The UUID of the Capture to attach to the target.
+        Returns:
+            The Dataset instance.
+        """
         if isinstance(dataset_uuid, str):
             dataset_uuid = UUID(dataset_uuid)
         if isinstance(capture_uuid, str):

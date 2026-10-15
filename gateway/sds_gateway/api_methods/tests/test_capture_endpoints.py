@@ -3,7 +3,7 @@
 # pyright: reportPrivateUsage=false
 
 import contextlib
-import datetime
+import datetime as dt
 import json
 import logging
 import uuid
@@ -770,7 +770,7 @@ class CaptureTestCases(APITestCase):
         # delete all test user captures
         Capture.objects.filter(owner=self.user).update(
             is_deleted=True,
-            deleted_at=datetime.datetime.now(datetime.UTC),
+            deleted_at=dt.datetime.now(dt.UTC),
         )
 
         response_raw = self.client.get(self.list_url)

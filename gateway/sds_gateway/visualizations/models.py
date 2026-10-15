@@ -1,6 +1,6 @@
 """Models for the visualizations app."""
 
-import datetime
+import datetime as dt
 import re
 import traceback
 import uuid
@@ -55,7 +55,7 @@ class BaseModel(models.Model):
     def soft_delete(self) -> None:
         """Soft delete this record by marking it as deleted."""
         self.is_deleted = True
-        self.deleted_at = datetime.datetime.now(datetime.UTC)
+        self.deleted_at = dt.datetime.now(dt.UTC)
         self.save()
 
 
@@ -164,7 +164,7 @@ class PostProcessedData(BaseModel):
     def mark_processing_completed(self) -> None:
         """Mark processing as completed."""
         self.processing_status = ProcessingStatus.Completed.value
-        self.processed_at = datetime.datetime.now(datetime.UTC)
+        self.processed_at = dt.datetime.now(dt.UTC)
         self.save(update_fields=["processing_status", "processed_at"])
 
     def mark_processing_failed(
@@ -195,7 +195,7 @@ class PostProcessedData(BaseModel):
             )
 
             self.processing_error = {
-                "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
+                "timestamp": dt.datetime.now(dt.UTC).isoformat(),
                 "error_type": type(processing_error).__name__,
                 "traceback": error_traceback,
             }

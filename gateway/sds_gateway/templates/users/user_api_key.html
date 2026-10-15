@@ -68,7 +68,8 @@
                                                            onclick="var nameDiv = document.getElementById('nameDropdown{{ key.id }}'); var btn = this; nameDiv.classList.toggle('d-none'); btn.textContent = nameDiv.classList.contains('d-none') ? 'View More' : 'View Less';">
                                                             View More
                                                         </a>
-                                                        <div id="nameDropdown{{ key.id }}" class="d-none mt-2">{{ key.name }}</div>
+                                                        <div id="nameDropdown{{ key.id }}"
+                                                             class="d-none mt-2">{{ key.name }}</div>
                                                     {% else %}
                                                         {{ key.name }}
                                                     {% endif %}
@@ -81,7 +82,8 @@
                                                            onclick="var desc = document.getElementById('descDropdown{{ key.id }}'); var btn = this; desc.classList.toggle('d-none'); btn.textContent = desc.classList.contains('d-none') ? 'View More' : 'View Less';">
                                                             View More
                                                         </a>
-                                                        <div id="descDropdown{{ key.id }}" class="d-none mt-2">{{ key.description }}</div>
+                                                        <div id="descDropdown{{ key.id }}"
+                                                             class="d-none mt-2">{{ key.description }}</div>
                                                     {% else %}
                                                         {{ key.description }}
                                                     {% endif %}
@@ -131,7 +133,8 @@
                                                                     aria-expanded="false">
                                                                 <i class="bi bi-three-dots-vertical"></i>
                                                             </button>
-                                                            <ul class="dropdown-menu" aria-labelledby="actionDropdown{{ key.id }}">
+                                                            <ul class="dropdown-menu"
+                                                                aria-labelledby="actionDropdown{{ key.id }}">
                                                                 <li>
                                                                     <button type="button"
                                                                             class="dropdown-item text-danger"

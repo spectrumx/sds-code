@@ -66,9 +66,11 @@
                                                            data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
                                                            aria-label="View details for {{ dataset.name }}">{{ dataset.name }}</a>
                                                         {% if dataset.is_federated %}
-                                                            <span class="ms-1 badge bg-info text-dark" title="Federated site">{{ dataset.site_name }}</span>
+                                                            <span class="ms-1 badge bg-info text-dark"
+                                                                  title="Federated site">{{ dataset.site_name }}</span>
                                                         {% elif dataset.is_public %}
-                                                            <i class="bi bi-globe ms-1 text-primary" title="Public"></i>
+                                                            <i class="bi bi-globe ms-1 text-primary"
+                                                               title="Public"></i>
                                                         {% endif %}
                                                     </h5>
                                                     <div class="mb-2">
@@ -146,7 +148,8 @@
                                 <!-- NOTE: this points outside the Django application, so we're
                             using the full URL for it to work in other Gateway deployments -->
                                 {# djlint:off D018 #}
-                                <a href="https://sds.crc.nd.edu/sdk/" class="capture-link external-link">Python SDK reference, examples, and FAQ</a>
+                                <a href="https://sds.crc.nd.edu/sdk/"
+                                   class="capture-link external-link">Python SDK reference, examples, and FAQ</a>
                                 {# djlint:on D018 #}
                             </p>
                         </div>

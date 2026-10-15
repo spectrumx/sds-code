@@ -101,9 +101,7 @@ def into_human_bool(value: str | int | bool) -> bool:  # noqa: FBT001
 def is_running_in_notebook() -> bool:
     """Check if the current environment is a Jupyter notebook."""
     try:
-        from IPython import (  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # pyrefly: ignore[missing-import]
-            get_ipython,  # pyright: ignore[reportPrivateImportUsage]
-        )
+        from IPython import get_ipython  # pyright: ignore[reportMissingModuleSource, reportMissingImports]  # pyrefly: ignore[missing-import]  # pyright: ignore[reportPrivateImportUsage]
 
         if "ZMQInteractiveShell" in str(get_ipython()):
             running_in_notebook = True

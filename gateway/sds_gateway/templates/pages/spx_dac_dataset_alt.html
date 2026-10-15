@@ -30,7 +30,9 @@
                     </p>
                     <form id="api-key-form" class="mb-3">
                         {% csrf_token %}
-                        <button type="submit" class="btn btn-primary btn-lg" id="generate-key-btn">Generate API Key</button>
+                        <button type="submit"
+                                class="btn btn-primary btn-lg"
+                                id="generate-key-btn">Generate API Key</button>
                     </form>
                     {# djlint:off H021 #}
                     <div id="api-key-result" class="mt-3" style="display: none;">
@@ -92,11 +94,12 @@
                         </h6>
                         <button class="btn btn-sm btn-outline-primary copy-code-btn"
                                 data-clipboard-target="#python-code-example"
-                                title="Copy to clipboard">
+                                title="Copy to clipboard"
+                                type="button">
                             <i class="bi bi-clipboard"></i> Copy
                         </button>
                     </div>
-                    <pre id="python-code-example" class="bg-light p-3 rounded border" style="font-size: 0.875rem; line-height: 1.6; font-family: 'Consolas', 'Monaco', 'Courier New', monospace;"><code class="language-python">from spectrumx import Client
+                    <pre id="python-code-example" class="bg-light p-3 rounded border"><code class="language-python">from spectrumx import Client
 from spectrumx.errors import SDSError
 from pathlib import Path
 from uuid import UUID

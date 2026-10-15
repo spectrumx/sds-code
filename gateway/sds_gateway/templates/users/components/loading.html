@@ -7,7 +7,7 @@ Context:
   - size: 'sm' | 'md' | 'lg' for spinner size (default: 'md')
   - color: Bootstrap color class (default: 'primary')
 {% endcomment %}
-{% if format == 'modal' %}
+{% if format == "modal" %}
     {# Full modal loading state with centered spinner #}
     <div class="text-center py-4">
         <div class="spinner-border spinner-border-lg text-{{ color|default:'primary' }}"
@@ -16,7 +16,7 @@ Context:
         </div>
         <p class="mt-3 text-muted">{{ text|default:"Loading..." }}</p>
     </div>
-{% elif format == 'block' %}
+{% elif format == "block" %}
     {# Block-level loading state #}
     <div class="text-center py-3">
         <div class="spinner-border{% if size == 'sm' %} spinner-border-sm{% endif %} text-{{ color|default:'primary' }}"
@@ -25,7 +25,7 @@ Context:
         </div>
         {% if text %}<p class="mt-2 mb-0 text-muted">{{ text }}</p>{% endif %}
     </div>
-{% elif format == 'progress' %}
+{% elif format == "progress" %}
     {# Indeterminate progress (long-running operations) #}
     <div class="progress"
          role="progressbar"

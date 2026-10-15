@@ -34,7 +34,9 @@
                     {% else %}
                         <div class="form-group mt-4">
                             <label class="form-label">Description</label>
-                            <textarea class="form-control" rows="3" readonly>{{ existing_dataset.description|default:"No description provided." }}</textarea>
+                            <textarea class="form-control"
+                                      rows="3"
+                                      readonly>{{ existing_dataset.description|default:"No description provided." }}</textarea>
                         </div>
                     {% endif %}
                 </div>

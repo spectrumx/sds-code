@@ -2,7 +2,7 @@
 Tests for Celery tasks in the API methods app.
 """
 
-import datetime
+import datetime as dt
 import shutil
 import tempfile
 import uuid
@@ -590,7 +590,7 @@ class TestCeleryTasks(TestCase):
     def test_cleanup_expired_temp_zips_with_expired_files(self, mock_path):
         """Test cleanup task with expired files."""
         # Create expired temporary zip files
-        past_time = datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=2)
+        past_time = dt.datetime.now(dt.UTC) - dt.timedelta(hours=2)
 
         # Create secure temporary files
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp_file1:
@@ -619,7 +619,7 @@ class TestCeleryTasks(TestCase):
         )
 
         # Create a valid file for comparison
-        future_time = datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=1)
+        future_time = dt.datetime.now(dt.UTC) + dt.timedelta(hours=1)
         valid_zip = TemporaryZipFile.objects.create(
             file_path=temp_file_path3,
             filename="valid.zip",
@@ -975,8 +975,7 @@ class TestCeleryTasks(TestCase):
                 files_processed=1,
                 owner=self.user,
                 creation_status=ZipFileStatus.Created.value,
-                expires_at=datetime.datetime.now(datetime.UTC)
-                + datetime.timedelta(hours=1),
+                expires_at=dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
             )
 
             # Create the actual file on disk
@@ -1031,8 +1030,7 @@ class TestCeleryTasks(TestCase):
                     "filename": "completed_mixed.zip",
                     "content": "completed content",
                     "should_be_cleaned": False,
-                    "expires_at": datetime.datetime.now(datetime.UTC)
-                    + datetime.timedelta(hours=1),
+                    "expires_at": dt.datetime.now(dt.UTC) + dt.timedelta(hours=1),
                 },
                 # Expired completed file (should NOT be cleaned by this function)
                 {
@@ -1040,8 +1038,7 @@ class TestCeleryTasks(TestCase):
                     "filename": "expired_mixed.zip",
                     "content": "expired content",
                     "should_be_cleaned": False,  # Changed from True to False
-                    "expires_at": datetime.datetime.now(datetime.UTC)
-                    - datetime.timedelta(hours=1),
+                    "expires_at": dt.datetime.now(dt.UTC) - dt.timedelta(hours=1),
                 },
             ]
 

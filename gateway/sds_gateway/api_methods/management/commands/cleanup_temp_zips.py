@@ -1,6 +1,6 @@
 """Management command to clean up expired temporary zip files."""
 
-import datetime
+import datetime as dt
 
 from django.core.management.base import BaseCommand
 from loguru import logger
@@ -33,7 +33,7 @@ class Command(BaseCommand):
         else:
             self.stdout.write("Dry run mode: will only show what would be deleted")
             expired_files = TemporaryZipFile.objects.filter(
-                expires_at__lt=datetime.datetime.now(datetime.UTC)
+                expires_at__lt=dt.datetime.now(dt.UTC)
             )
 
         if not expired_files.exists():

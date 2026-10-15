@@ -5,9 +5,7 @@ from django.conf import settings
 from django.db.utils import OperationalError
 from django.test import RequestFactory
 
-from sds_gateway.context_processors import (
-    _latest_admin_monitoring_status,  # pyright: ignore[reportPrivateUsage]
-)
+from sds_gateway.context_processors import _latest_admin_monitoring_status  # pyright: ignore[reportPrivateUsage]
 from sds_gateway.context_processors import app_settings
 from sds_gateway.context_processors import branding
 

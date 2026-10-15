@@ -22,7 +22,7 @@ Context:
            data-item-type="dataset"
            data-federated-peer="{{ dataset.is_federated|yesno:'true,false' }}"
            aria-label="View details for {{ dataset.name }}">{{ dataset.name }}{% if dataset.version %} (v{{ dataset.version }}){% endif %}</a>
-        {% if dataset.status == 'draft' %}
+        {% if dataset.status == "draft" %}
             <span class="ms-2 badge bg-secondary">{{ dataset.status_display }}</span>
         {% endif %}
         {% if dataset.is_federated %}

@@ -17,18 +17,10 @@ from unittest.mock import patch
 import pytest
 import responses
 from spectrumx import Client
-from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
-    __download_file_contents,
-)
-from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
-    __update_existing_file_metadata_only,
-)
-from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
-    __upload_contents_and_metadata,
-)
-from spectrumx.api.sds_files import (  # pyright: ignore[reportPrivateUsage]
-    __upload_new_file_metadata_only,
-)
+from spectrumx.api.sds_files import __download_file_contents  # pyright: ignore[reportPrivateUsage]
+from spectrumx.api.sds_files import __update_existing_file_metadata_only  # pyright: ignore[reportPrivateUsage]
+from spectrumx.api.sds_files import __upload_contents_and_metadata  # pyright: ignore[reportPrivateUsage]
+from spectrumx.api.sds_files import __upload_new_file_metadata_only  # pyright: ignore[reportPrivateUsage]
 from spectrumx.api.sds_files import delete_file
 from spectrumx.api.sds_files import download_file
 from spectrumx.api.sds_files import file_list_time_query_param
@@ -39,9 +31,7 @@ from spectrumx.errors import FileError
 from spectrumx.errors import SDSError
 from spectrumx.gateway import API_TARGET_VERSION
 from spectrumx.models.files import File
-from spectrumx.ops.files import (
-    _load_undesired_globs,  # pyright: ignore[reportPrivateUsage]
-)
+from spectrumx.ops.files import _load_undesired_globs  # pyright: ignore[reportPrivateUsage]
 from spectrumx.ops.files import get_file_permissions
 from spectrumx.ops.files import is_valid_file
 

@@ -28,7 +28,7 @@ sds = Client(
 # Combine with other client options
 sds = Client(
     host=SDS_HOST,
-    env_file=Path(".env"),            # default
+    env_file=Path(".env"),  # default
     env_config={"SDS_SECRET_TOKEN": "my-custom-token"},  # overrides
     log_file=Path("my_spectrum_files") / "sdk.log",
 )

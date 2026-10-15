@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 from typing import Any
 from uuid import UUID
 
@@ -29,7 +29,7 @@ def get_active_api_key_count(api_keys) -> int:
     Returns:
         int: Number of active API keys
     """
-    now = datetime.datetime.now(datetime.UTC)
+    now = dt.datetime.now(dt.UTC)
     return sum(
         1
         for key in api_keys
@@ -57,7 +57,7 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
             .exclude(source=KeySources.SVIBackend)
             .order_by("revoked", "-created")
         )  # Active keys first, then by creation date (recent first)
-        now = datetime.datetime.now(datetime.UTC)
+        now = dt.datetime.now(dt.UTC)
         active_api_key_count = get_active_api_key_count(api_keys)
         context = {
             "api_key": False,
@@ -115,9 +115,9 @@ class GenerateAPIKeyView(ApprovedUserRequiredMixin, Auth0LoginRequiredMixin, Vie
         expiry_date = None
         if api_key_expiry_date_str:
             try:
-                expiry_date = datetime.datetime.strptime(
+                expiry_date = dt.datetime.strptime(
                     api_key_expiry_date_str, "%Y-%m-%d"
-                ).replace(tzinfo=datetime.UTC)
+                ).replace(tzinfo=dt.UTC)
             except ValueError:
                 messages.error(request, "Invalid expiration date format.")
                 return redirect("users:view_api_key")

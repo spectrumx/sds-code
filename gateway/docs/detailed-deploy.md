@@ -116,7 +116,7 @@ Then proceed to the [first deployment steps](#first-deployment-automated) below.
 2. Docker compose deploy:
 
     Either create an `sds-network-local` network manually, or run the [Traefik
-    service](../network/compose.yaml) that creates it:
+    service](../../network/compose.yaml) that creates it:
 
     ```bash
     docker network create sds-network-local --driver=bridge
@@ -302,7 +302,7 @@ just env
 ### Deploy the production gateway
 
 Either create an `sds-network-prod` network manually, or run the [Traefik
-service](../network/compose.yaml) that creates it:
+service](../../network/compose.yaml) that creates it:
 
 ```bash
 docker network create sds-network-prod --driver=bridge

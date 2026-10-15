@@ -14,7 +14,7 @@ Downloads](https://img.shields.io/pepy/dt/spectrumx)](https://pypi.org/project/s
     + [Basic Usage](#basic-usage)
     + [Error Handling](#error-handling)
 + [Time Filtering (v0.1.19+)](#time-filtering-v0119)
-+ [Dataset API (v0.1.19+)](#dataset-api-v0119)
++ [Dataset API (v0.1.19+)](#dataset-api-v024)
 + [Concurrent Access](#concurrent-access)
 
 The SpectrumX Data System (SDS) SDK is a Python package that provides a simple interface
@@ -269,7 +269,7 @@ sds.download(
 Naive datetimes are treated as UTC. The server applies the filter on DigitalRF HDF5
 data files before returning results.
 
-## Dataset API (v0.1.19+)
+## Dataset API (v0.2.4+)
 
 Datasets can now be inspected and downloaded with more granular control:
 
@@ -306,6 +306,9 @@ sds.download_dataset(
     top_level_dirs=["/capture/path/one", "/capture/path/two"],
     overwrite=False,
 )
+
+# Attach a capture to a dataset
+ds = sds.add_capture_to_dataset(dataset_uuid=<dataset_uuid, capture_uuid=<capture_uuid>)
 ```
 
 ## Concurrent Access

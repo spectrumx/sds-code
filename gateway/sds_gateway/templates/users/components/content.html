@@ -8,7 +8,7 @@ Context:
   - icon_position: 'left' | 'right' (default: 'left')
   - spacing: Add spacing between icon and text (default: True)
 {% endcomment %}
-{% if icon and icon_position == 'right' %}
+{% if icon and icon_position == "right" %}
     {% if text %}
         {{ text }}
         {% if spacing|default:True %}{% endif %}

@@ -15,7 +15,7 @@
 # ///
 import ast
 import base64
-import datetime
+import datetime as dt
 import json
 import re
 import sys
@@ -69,12 +69,12 @@ def validate_mac_address(v: str) -> str:
     return v
 
 
-def validate_timestamp(v: datetime.datetime) -> datetime.datetime:
+def validate_timestamp(v: dt.datetime) -> dt.datetime:
     # make sure it has timezone info, defaulting to UTC when missing
     if not v.tzinfo:
         msg = "Timestamp must have timezone information. Assuming UTC."
         log_warning(msg)
-        now_utc = datetime.datetime.now(datetime.UTC)
+        now_utc = dt.datetime.now(dt.UTC)
         v = v.replace(tzinfo=now_utc.tzinfo)
     return v
 
@@ -286,7 +286,7 @@ class _RadioHoundDataV0(BaseModel):
         Field(description="The short name of the device", max_length=255),
     ]
     timestamp: Annotated[
-        datetime.datetime,
+        dt.datetime,
         AfterValidator(validate_timestamp),
         Field(
             description="Timestamp of the capture start, as "

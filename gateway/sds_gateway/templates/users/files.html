@@ -126,8 +126,10 @@
                                     {% endif %}
                                     <div class="file-name">
                                         <span class="file-name-text">{{ item.name }}</span>
-                                        {% if item.is_shared and item.type == 'directory' %}
-                                            <span class="align-middle" data-bs-toggle="tooltip" title="Shared with you">
+                                        {% if item.is_shared and item.type == "directory" %}
+                                            <span class="align-middle"
+                                                  data-bs-toggle="tooltip"
+                                                  title="Shared with you">
                                                 <i class="bi bi-people-fill text-success"></i>
                                             </span>
                                         {% endif %}
@@ -141,7 +143,7 @@
                                     </div>
                                     <div class="file-shared">{% if item.shared_by %}{{ item.shared_by }}{% endif %}</div>
                                     <div class="file-actions">
-                                        {% if item.type == 'file' %}
+                                        {% if item.type == "file" %}
                                             <div class="dropdown">
                                                 <button class="btn btn-sm btn-light dropdown-toggle btn-icon-dropdown d-flex align-items-center justify-content-center"
                                                         type="button"
@@ -251,7 +253,8 @@
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> You can select files, a folder, or both. At least one must be selected.
                         </div>
-                        <div id="uploadValidationFeedback" class="invalid-feedback">Please select at least one file or folder to upload.</div>
+                        <div id="uploadValidationFeedback"
+                             class="invalid-feedback">Please select at least one file or folder to upload.</div>
                     </div>
                     <div class="modal-footer d-flex gap-2">
                         <button type="button"

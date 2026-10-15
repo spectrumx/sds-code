@@ -2,7 +2,7 @@
 
 import base64
 import contextlib
-import datetime
+import datetime as dt
 import time
 from pathlib import Path
 from typing import Any
@@ -45,8 +45,8 @@ class WaterfallSliceParams(DigitalRFParams):
     @property
     def timestamp(self) -> str:
         """Calculate timestamp for this slice."""
-        return datetime.datetime.fromtimestamp(
-            self.slice_start_sample / self.sample_rate, tz=datetime.UTC
+        return dt.datetime.fromtimestamp(
+            self.slice_start_sample / self.sample_rate, tz=dt.UTC
         ).isoformat()
 
 

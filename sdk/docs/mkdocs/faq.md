@@ -137,10 +137,7 @@ Environment variables take precedence over `.env` files.
 ```python
 from spectrumx.client import Client
 
-sds = Client(
-    host="sds.crc.nd.edu",
-    env_config={"SDS_SECRET_TOKEN": "my-custom-token"}
-)
+sds = Client(host="sds.crc.nd.edu", env_config={"SDS_SECRET_TOKEN": "my-custom-token"})
 ```
 
 ### How to generate a secret token?
@@ -210,7 +207,7 @@ sds.authenticate()
 upload_results = sds.upload(
     local_path=Path("my_files"),
     sds_path="remote_directory",
-    verbose=True  # Shows progress bar
+    verbose=True,  # Shows progress bar
 )
 ```
 
@@ -231,7 +228,7 @@ sds.download(
     from_sds_path="remote_directory",
     to_local_path=Path("local_downloads"),
     overwrite=False,  # Don't overwrite existing local files
-    verbose=True  # Shows progress bar
+    verbose=True,  # Shows progress bar
 )
 ```
 

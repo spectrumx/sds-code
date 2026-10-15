@@ -3,9 +3,7 @@
 from unittest.mock import patch
 
 import pytest
-from config.settings.base import (
-    _get_brand_image_url,  # pyright: ignore[reportPrivateUsage]
-)
+from config.settings.base import _get_brand_image_url  # pyright: ignore[reportPrivateUsage]
 
 
 class TestGetBrandImageUrl:

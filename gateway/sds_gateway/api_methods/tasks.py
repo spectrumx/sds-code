@@ -1,4 +1,4 @@
-import datetime
+import datetime as dt
 import re
 import shutil
 import uuid
@@ -176,7 +176,7 @@ def acquire_user_lock(user_id: str, task_name: str, timeout: int = 300) -> bool:
         # Try to acquire the lock with a timeout
         acquired = redis_client.set(
             lock_key,
-            datetime.datetime.now(datetime.UTC).isoformat(),
+            dt.datetime.now(dt.UTC).isoformat(),
             ex=timeout,
             nx=True,
         )
@@ -374,7 +374,7 @@ def cleanup_expired_temp_zips() -> dict[str, str | int]:
     try:
         # Get expired files that haven't been soft deleted yet
         expired_files = TemporaryZipFile.objects.filter(
-            expires_at__lt=datetime.datetime.now(datetime.UTC),
+            expires_at__lt=dt.datetime.now(dt.UTC),
             is_deleted=False,
         )
         count = expired_files.count()
@@ -1359,9 +1359,7 @@ def _send_item_download_error_email(
             "item_type": item_type,
             "item_name": item_name,
             "error_message": error_message,
-            "requested_at": datetime.datetime.now(datetime.UTC).strftime(
-                "%Y-%m-%d %H:%M:%S UTC"
-            ),
+            "requested_at": dt.datetime.now(dt.UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "site_url": settings.SITE_URL,
             "debug": settings.DEBUG,
             "use_sdk": use_sdk,
