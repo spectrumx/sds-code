@@ -12,6 +12,7 @@
         "celery==5.5.2",
         "coverage>=7.6",
         "crispy-bootstrap5>=2024.10",
+        "cryptography>=44.0",
         "deptry>=0.24.0",
         "digital-rf>=2.6.11",
         "django~=4.2",                                                                   # TODO: upgrade from 4.2 LTS -> 5.2 LTS

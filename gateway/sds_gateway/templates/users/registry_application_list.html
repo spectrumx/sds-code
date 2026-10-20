@@ -14,10 +14,21 @@
             <div class="container mt-4">
                 <div class="d-flex justify-content-between align-items-center mb-4">
                     <h1 class="page-title mb-0">{% translate "Federation registry applications" %}</h1>
-                    <button type="button"
-                            class="btn btn-primary"
-                            data-bs-toggle="modal"
-                            data-bs-target="#registryApplicationModal">{% translate "New application" %}</button>
+                    <div class="d-flex gap-2">
+                        {% if can_staff_publish_manifest %}
+                            <form method="post"
+                                  action="{% url 'users:registry_application_publish_manifest' %}">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-warning">
+                                    {% translate "Publish Signed Registry" %}
+                                </button>
+                            </form>
+                        {% endif %}
+                        <button type="button"
+                                class="btn btn-primary"
+                                data-bs-toggle="modal"
+                                data-bs-target="#registryApplicationModal">{% translate "New Application" %}</button>
+                    </div>
                 </div>
                 <div class="card">
                     <div class="card-body p-0">

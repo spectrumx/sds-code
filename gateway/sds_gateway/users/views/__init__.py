@@ -66,6 +66,7 @@ from .registry_application import registry_application_approve_view
 from .registry_application import registry_application_detail_view
 from .registry_application import registry_application_list_view
 from .registry_application import registry_application_reissue_challenge_view
+from .registry_application import registry_application_publish_manifest_view
 from .registry_application import registry_application_reject_view
 from .registry_application import registry_application_verify_view
 from .registry_application import registry_application_view
@@ -147,6 +148,7 @@ __all__ = [
     "registry_application_detail_view",
     "registry_application_list_view",
     "registry_application_reissue_challenge_view",
+    "registry_application_publish_manifest_view",
     "registry_application_reject_view",
     "registry_application_verify_view",
     "registry_application_view",

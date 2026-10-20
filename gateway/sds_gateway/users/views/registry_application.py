@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Any
 
+from config.settings.utils import is_flagship_gateway_deployment
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError
@@ -32,6 +34,12 @@ from sds_gateway.api_methods.federation.registry_application_review import (
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_manifest_publish import (
+    RegistryManifestPublishError,
+)
+from sds_gateway.api_methods.federation.registry_manifest_publish import (
+    publish_registry_manifest,
 )
 from sds_gateway.api_methods.federation.registry_challenge import (
     generate_registry_challenge_token,
@@ -181,6 +189,9 @@ class RegistryApplicationDetailView(
             and application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
         )
         context["is_staff_viewer"] = self.request.user.is_staff
+        context["can_staff_publish_manifest"] = _staff_can_publish_manifest(
+            self.request.user,
+        )
         return context
 
 
@@ -223,6 +234,19 @@ class RegistryApplicationWithdrawView(
         return redirect("users:registry_application_detail", pk=application.pk)
 
 
+def _staff_can_publish_manifest(user) -> bool:
+    if not user.is_staff:
+        return False
+    if not is_flagship_gateway_deployment(
+        site_fqdn=str(getattr(settings, "SDS_SITE_FQDN", "") or ""),
+        flagship_gateway_host=str(getattr(settings, "FLAGSHIP_GATEWAY_HOST", "") or ""),
+    ):
+        return False
+    return bool(
+        str(getattr(settings, "FEDERATION_REGISTRY_SIGNING_KEY_PATH", "") or "").strip()
+    )
+
+
 class RegistryApplicationVerifyView(
     RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
 ):
@@ -260,6 +284,9 @@ class RegistryApplicationListView(
         context["open_apply_modal"] = kwargs.get(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
+        )
+        context["can_staff_publish_manifest"] = _staff_can_publish_manifest(
+            self.request.user,
         )
         return context
 
@@ -299,6 +326,27 @@ class RegistryApplicationApproveView(
         else:
             messages.error(request, result.message)
         return redirect("users:registry_application_detail", pk=application.pk)
+
+
+class RegistryApplicationPublishManifestView(
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    StaffRequiredMixin,
+    View,
+):
+    """Staff: sign and publish the federation registry manifest (flagship only)."""
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        try:
+            result = publish_registry_manifest()
+        except RegistryManifestPublishError as exc:
+            messages.error(request, str(exc))
+            return redirect("users:registry_application_list")
+        if result.ok:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("users:registry_application_list")
 
 
 class RegistryApplicationRejectView(
@@ -341,4 +389,7 @@ registry_application_approve_view = require_POST(
 )
 registry_application_reject_view = require_POST(
     RegistryApplicationRejectView.as_view(),
+)
+registry_application_publish_manifest_view = require_POST(
+    RegistryApplicationPublishManifestView.as_view(),
 )
