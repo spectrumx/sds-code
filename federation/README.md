@@ -99,6 +99,9 @@ Each gateway serves `GET https://<fqdn>/.well-known/sds-federation.json` (unsign
 During registry apply, set `FEDERATION_REGISTRY_CHALLENGE_TOKEN` on the applicant gateway so that
 document includes `registry_challenge` for mothership verification.
 
+Step-by-step (apply, env token, verify, local HTTPS caveats):
+[`gateway/docs/federation-registry-verify.md`](../gateway/docs/federation-registry-verify.md).
+
 Optional `--ca-cert-path` (file under `federation/certs/` in the sync container).
 Reciprocal `[[peers]]` on the remote site is still manual.
 

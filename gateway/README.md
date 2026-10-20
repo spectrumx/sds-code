@@ -226,6 +226,7 @@ Available recipes:
     + [Production backups](./docs/dev-notes.md#production-backups)
 + Authentication
     + [OAuth (Auth0) setup](./docs/oauth-setup.md)
+    + [Federation registry domain verification](./docs/federation-registry-verify.md)
 + Others
     + [OpenSearch Query Tips](./docs/detailed-deploy.md#opensearch-query-tips)
     + [Handling migration conflicts](./docs/dev-notes.md#handling-migration-conflicts)

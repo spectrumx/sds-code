@@ -18,6 +18,7 @@ from sds_gateway.api_methods.federation.redis_channel import (
 from config.settings.logs import ColoredFormatter
 from config.settings.utils import guess_admin_console_env
 from config.settings.utils import guess_max_web_download_size
+from config.settings.utils import resolve_federation_registry_intake_enabled
 
 __rng = random.SystemRandom()
 
@@ -769,6 +770,12 @@ FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
     "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
     default="",
 ).strip()
+# Local lab only: base URL for registry verify fetch when application FQDN == SDS_SITE_FQDN
+# (default http://sds-gateway-local-app:8000). Production uses https://{fqdn}/...
+FEDERATION_REGISTRY_VERIFY_FETCH_BASE: str = env.str(
+    "FEDERATION_REGISTRY_VERIFY_FETCH_BASE",
+    default="",
+).strip()
 FEDERATION_REGISTRY_WELL_KNOWN_URL: str = env.str(
     "FEDERATION_REGISTRY_WELL_KNOWN_URL",
     default="",
@@ -783,6 +790,16 @@ SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
 ).strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
+# Federation registry mothership hostname; intake is allowed only when SDS_SITE_FQDN matches.
+FLAGSHIP_GATEWAY_HOST: str = (
+    env.str("FLAGSHIP_GATEWAY_HOST", default="sds.crc.nd.edu").strip().lower()
+)
+# Env alone cannot enable intake on non-flagship hosts (see resolve_federation_registry_intake_enabled).
+FEDERATION_REGISTRY_INTAKE_ENABLED: bool = resolve_federation_registry_intake_enabled(
+    site_fqdn=SDS_SITE_FQDN,
+    flagship_gateway_host=FLAGSHIP_GATEWAY_HOST,
+    intake_requested=env.bool("FEDERATION_REGISTRY_INTAKE_ENABLED", default=False),
+)
 _federation_events_channel_override: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
     default="",

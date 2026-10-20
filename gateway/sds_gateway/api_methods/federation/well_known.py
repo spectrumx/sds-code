@@ -58,6 +58,34 @@ def resolve_sync_service_url(fqdn: str) -> str:
     return default_public_sync_service_url(fqdn) if fqdn else ""
 
 
+def default_local_well_known_fetch_base() -> str:
+    """Docker DNS for registry verify in the local lab (same compose stack)."""
+    return f"http://{_LOCAL_GATEWAY_HOST}:8000"
+
+
+def resolve_well_known_fetch_url(fqdn: str) -> str:
+    """URL mothership verify uses to fetch an applicant's well-known JSON.
+
+    Production/staging: always ``https://{fqdn}/.well-known/...``.
+
+    Local lab: when the application FQDN matches ``SDS_SITE_FQDN``, fetch over HTTP
+    from the gateway container (no Traefik/TLS required). Optional
+    ``FEDERATION_REGISTRY_VERIFY_FETCH_BASE`` overrides that base URL.
+    """
+    normalized = fqdn.strip().lower()
+    if _is_local_federation_lab():
+        site_fqdn = _setting_str("SDS_SITE_FQDN").lower()
+        if site_fqdn and normalized == site_fqdn:
+            base = (
+                _setting_str("FEDERATION_REGISTRY_VERIFY_FETCH_BASE")
+                or default_local_well_known_fetch_base()
+            )
+            return f"{base.rstrip('/')}{WELL_KNOWN_SDS_FEDERATION_PATH}"
+    if not normalized:
+        return f"https://{normalized}{WELL_KNOWN_SDS_FEDERATION_PATH}"
+    return f"https://{normalized}{WELL_KNOWN_SDS_FEDERATION_PATH}"
+
+
 def build_sds_federation_document(
     *,
     registry_challenge: str | None = None,

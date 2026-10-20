@@ -10,7 +10,10 @@ from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
+from sds_federation.schemas.registry import RegistrySite
 from sds_federation.services.peer_sync import peer_webhook_url
+from sds_federation.services.site_registry import _peer_from_site
+from sds_federation.models import RegistryPolicy
 from sds_federation.testing.sample_data import TEST_CAPTURE_UUID
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_capture_doc
@@ -68,6 +71,35 @@ def test_asset_updated_webhook_round_trip_capture() -> None:
     restored = AssetUpdatedWebhook.model_validate(payload.model_dump(mode="json"))
     assert isinstance(restored.asset, FederatedCaptureDoc)
     assert restored.asset.uuid == TEST_CAPTURE_UUID
+
+
+@pytest.mark.regression
+def test_registry_site_defaults_urls_from_fqdn() -> None:
+    site = RegistrySite.model_validate(
+        {
+            "name": "crc",
+            "fqdn": CRC_FQDN,
+            "display_name": "CRC",
+        }
+    )
+    assert str(site.gateway_api_base) == f"https://{CRC_FQDN}/api/v1"
+    assert str(site.sync_service_url) == f"https://{CRC_FQDN}/sync"
+
+
+@pytest.mark.regression
+def test_registry_site_peer_from_site_uses_url_fields() -> None:
+    site = RegistrySite.model_validate(
+        {
+            "name": "peer",
+            "fqdn": "peer.test",
+            "display_name": "Peer",
+            "gateway_api_base": "http://peer-gateway:8000/api/v1",
+            "sync_service_url": "http://peer-sync:8000/sync",
+        }
+    )
+    peer = _peer_from_site(site, RegistryPolicy())
+    assert str(peer.gateway_api_base) == "http://peer-gateway:8000/api/v1"
+    assert str(peer.sync_service_url) == "http://peer-sync:8000/sync"
 
 
 @pytest.mark.regression
