@@ -102,7 +102,9 @@ def test_resolve_well_known_fetch_url_production(settings) -> None:
     )
 
 
-def test_build_sds_federation_document_includes_optional_registry_challenge(settings) -> None:
+def test_build_sds_federation_document_includes_optional_registry_challenge(
+    settings,
+) -> None:
     settings.SDS_SITE_FQDN = "sds.crc.nd.edu"
     settings.FEDERATION_SITE_NAME = "crc"
     settings.FEDERATION_REGISTRY_CHALLENGE_TOKEN = "challenge-token"
@@ -113,7 +115,9 @@ def test_build_sds_federation_document_includes_optional_registry_challenge(sett
 
 
 @pytest.mark.django_db
-def test_sds_federation_well_known_503_when_unconfigured(client: Client, settings) -> None:
+def test_sds_federation_well_known_503_when_unconfigured(
+    client: Client, settings
+) -> None:
     settings.SDS_SITE_FQDN = ""
     settings.FEDERATION_SITE_NAME = ""
     settings.SDS_SITE_DISPLAY_NAME = ""

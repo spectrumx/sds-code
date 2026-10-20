@@ -4,10 +4,10 @@ from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import AccessMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import Http404
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db.models import QuerySet
+from django.http import Http404
 from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import redirect

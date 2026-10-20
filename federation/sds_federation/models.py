@@ -42,7 +42,7 @@ class RegistryPolicy(BaseModel):
 class FederationConfig(BaseModel):
     site: SiteInfo
     peers: list[PeerInfo] = Field(default_factory=list)
-    registry: RegistryPolicy = Field(default_factory=lambda: RegistryPolicy())
+    registry: RegistryPolicy = Field(default_factory=RegistryPolicy)
     gateway_api_base: AnyHttpUrl
     sync_service_url: AnyHttpUrl
 

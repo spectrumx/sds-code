@@ -19,7 +19,7 @@ async def list_sites(request: Request) -> dict:
                 "fqdn": peer.fqdn,
                 "display_name": peer.display_name,
                 "sync_service_url": str(peer.sync_service_url),
-                "hello_received": registry.get(peer.fqdn) is not None,
+                "hello_received": peer_registry.get(peer.fqdn) is not None,
             }
             for peer in config.peers
         ],

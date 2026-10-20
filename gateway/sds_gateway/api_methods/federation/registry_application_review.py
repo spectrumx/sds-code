@@ -31,7 +31,7 @@ class ReviewResult:
 def _resolve_site_name(
     application: RegistryApplication, override: str | None = None
 ) -> str:
-    raw = (override or application.site_name or application.proposed_site_name or "")
+    raw = override or application.site_name or application.proposed_site_name or ""
     site_name = raw.strip()
     if not site_name:
         msg = "site_name is required (set on the application or use proposed site id)."
@@ -116,4 +116,6 @@ def reject_registry_application(
     application.save(
         update_fields=["status", "reviewed_by", "reviewed_at", "rejected_reason"]
     )
-    return ReviewResult(ok=True, message=f"Rejected application for {application.fqdn}.")
+    return ReviewResult(
+        ok=True, message=f"Rejected application for {application.fqdn}."
+    )

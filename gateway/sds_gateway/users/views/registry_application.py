@@ -67,9 +67,7 @@ def registry_applications_for_user(user) -> QuerySet[RegistryApplication]:
     return base.filter(contact=user)
 
 
-def get_registry_application_for_user(
-    user, pk: str
-) -> RegistryApplication:
+def get_registry_application_for_user(user, pk: str) -> RegistryApplication:
     return get_object_or_404(registry_applications_for_user(user), pk=pk)
 
 
@@ -107,7 +105,9 @@ def _submit_registry_application(
     return redirect("users:registry_application_detail", pk=application.pk)
 
 
-class RegistryApplicationView(RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View):
+class RegistryApplicationView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+):
     """Legacy apply URL: opens the create modal on the list page."""
 
     def get(self, request: HttpRequest) -> HttpResponse:
@@ -154,8 +154,7 @@ class RegistryApplicationDetailView(
         )
         context["can_staff_review"] = (
             self.request.user.is_staff
-            and application.status
-            == RegistryApplicationStatus.PENDING_APPROVAL.value
+            and application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
         )
         context["is_staff_viewer"] = self.request.user.is_staff
         return context
@@ -190,9 +189,7 @@ class RegistryApplicationListView(
     form_class = RegistryApplicationForm
 
     def get_queryset(self) -> QuerySet[RegistryApplication]:
-        return registry_applications_for_user(self.request.user).order_by(
-            "-updated_at"
-        )
+        return registry_applications_for_user(self.request.user).order_by("-updated_at")
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
