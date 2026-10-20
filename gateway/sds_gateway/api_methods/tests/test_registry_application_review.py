@@ -4,6 +4,8 @@ import pytest
 
 from sds_gateway.api_methods.federation.registry_application_review import (
     approve_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
 )
 from sds_gateway.api_methods.models import RegistryApplication

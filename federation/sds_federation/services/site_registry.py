@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
-from datetime import UTC
-from datetime import datetime
+from contextlib import suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,10 +17,15 @@ from sds_federation.models import PeerInfo
 from sds_federation.schemas.registry import REGISTRY_SCHEMA_VERSION
 from sds_federation.schemas.registry import RegistryManifest
 from sds_federation.schemas.registry import RegistrySite
+from sds_federation.services.bootstrap import bootstrap_peer_sync_list
+from sds_federation.services.bootstrap import push_site_hello_to_peer
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from sds_federation.models import FederationConfig
     from sds_federation.models import RegistryPolicy
+    from sds_federation.services.fed_index import FederatedAssetIndexer
 
 _MANIFEST_NAME = "sites.json"
 _SIGNATURE_NAME = "sites.json.sig"
@@ -82,11 +87,13 @@ def _accept(
     return manifest
 
 
-def _cache(policy: RegistryPolicy, payload: bytes, signature: bytes, serial: int) -> None:
+def _cache(
+    policy: RegistryPolicy, payload: bytes, signature: bytes, serial: int
+) -> None:
     cache_dir = Path(policy.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / _MANIFEST_NAME).write_bytes(payload)
-    (cache_dir / _SIGNATURE_NAME).write_bytes(signature)
+    (cache_dir / _SIGNATURE_NAME).write_bytes(base64.b64encode(signature))
     (cache_dir / _SERIAL_NAME).write_text(str(serial), encoding="utf-8")
 
 
@@ -181,7 +188,9 @@ async def resolve_peers(
     return merge_peers(config, manifest)
 
 
-async def apply_peers(config: FederationConfig, peers: list[PeerInfo]) -> list[PeerInfo]:
+async def apply_peers(
+    config: FederationConfig, peers: list[PeerInfo]
+) -> list[PeerInfo]:
     """Replace the peer list in place so every config holder sees the update."""
     known = {peer.fqdn for peer in config.peers}
     config.peers[:] = peers

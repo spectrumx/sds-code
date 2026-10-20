@@ -12,14 +12,17 @@ from sds_opensearch_query.client import build_opensearch_client
 
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
-from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.routes.sites import sites_router
+from sds_federation.routes.webhooks import webhooks_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import ensure_fed_indices
 from sds_federation.services.local_events import run_federation_subscriber
 from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
+from sds_federation.services.site_registry import apply_peers
+from sds_federation.services.site_registry import resolve_peers
+from sds_federation.services.site_registry import run_registry_refresh
 
 API_PREFIX = "/api/v1"
 SYNC_PREFIX = "/sync"
@@ -107,12 +110,7 @@ async def lifespan(app: FastAPI):
         ),
     )
     registry_task = asyncio.create_task(
-        run_registry_refresh(
-            http,
-            config,
-            fed_indexer,
-            stop
-        ),
+        run_registry_refresh(http, config, fed_indexer, stop),
     )
     app.state.subscriber_task = sub_task
     sync_app.state.subscriber_task = sub_task

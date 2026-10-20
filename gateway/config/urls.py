@@ -10,7 +10,9 @@ from drf_spectacular.views import SpectacularSwaggerView
 from loguru import logger as log
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.permissions import AllowAny
-from sds_gateway.api_methods.views.federation_well_known import sds_federation_well_known_view
+from sds_gateway.api_methods.views.federation_well_known import (
+    sds_federation_well_known_view,
+)
 from sds_gateway.users.views import home_page_view
 from sds_gateway.users.views import spx_dac_dataset_alt_view
 

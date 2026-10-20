@@ -6,14 +6,14 @@ from datetime import UTC
 from datetime import datetime
 
 import pytest
+from sds_federation.models import RegistryPolicy
+from sds_federation.schemas.registry import RegistrySite
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
-from sds_federation.schemas.registry import RegistrySite
 from sds_federation.services.peer_sync import peer_webhook_url
 from sds_federation.services.site_registry import _peer_from_site
-from sds_federation.models import RegistryPolicy
 from sds_federation.testing.sample_data import TEST_CAPTURE_UUID
 from sds_federation.testing.sample_data import TEST_DATASET_UUID
 from sds_federation.testing.sample_data import sample_federated_capture_doc

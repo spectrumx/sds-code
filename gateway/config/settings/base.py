@@ -762,10 +762,14 @@ FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
 SDS_SITE_DISPLAY_NAME: str = env.str("SDS_SITE_DISPLAY_NAME", default="").strip()
 # Optional override for well-known gateway_api_base (local lab Docker DNS).
 # When unset, non-local hosts use https://{SDS_SITE_FQDN}/api/{API_VERSION}.
-FEDERATION_GATEWAY_API_BASE: str = env.str("FEDERATION_GATEWAY_API_BASE", default="").strip()
+FEDERATION_GATEWAY_API_BASE: str = env.str(
+    "FEDERATION_GATEWAY_API_BASE", default=""
+).strip()
 # Optional override for well-known sync_service_url (render sets this from onboarding).
 # When unset, non-local hosts use https://{SDS_SITE_FQDN}/sync/.
-FEDERATION_SYNC_SERVICE_URL: str = env.str("FEDERATION_SYNC_SERVICE_URL", default="").strip()
+FEDERATION_SYNC_SERVICE_URL: str = env.str(
+    "FEDERATION_SYNC_SERVICE_URL", default=""
+).strip()
 FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
     "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
     default="",
