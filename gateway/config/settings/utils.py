@@ -76,3 +76,19 @@ def guess_admin_console_env(*, is_debug: bool) -> str:
         return "local"
     # safer default
     return "production"
+
+
+def resolve_federation_registry_intake_enabled(
+    *,
+    site_fqdn: str,
+    flagship_gateway_host: str,
+    intake_requested: bool,
+) -> bool:
+    """True only when intake is requested and this deployment is the flagship host."""
+    if not intake_requested:
+        return False
+    normalized_site = site_fqdn.strip().lower()
+    normalized_flagship = flagship_gateway_host.strip().lower()
+    if not normalized_site or not normalized_flagship:
+        return False
+    return normalized_site == normalized_flagship

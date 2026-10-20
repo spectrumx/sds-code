@@ -3,7 +3,7 @@
 {% load i18n %}
 
 {% block title %}
-    {% translate "Registry application" %} — {{ application.fqdn }}
+    {% translate "Registry Application" %} — {{ application.fqdn }}
 {% endblock title %}
 {% block bodyclass %}
     hero-white-page
@@ -13,9 +13,9 @@
         <div class="main-content-area">
             <div class="container mt-4 col-lg-8">
                 <div class="d-flex justify-content-between align-items-center mb-3">
-                    <h1 class="page-title mb-0">{% translate "Registry application" %}</h1>
+                    <h1 class="page-title mb-0">{% translate "Registry Application" %}</h1>
                     <a href="{% url 'users:registry_application_list' %}"
-                       class="btn btn-outline-secondary btn-sm">{% translate "All applications" %}</a>
+                       class="btn btn-outline-secondary btn-sm">{% translate "All Applications" %}</a>
                 </div>
                 <dl class="row mb-4">
                     <dt class="col-sm-4">{% translate "Status" %}</dt>
@@ -30,11 +30,45 @@
                     <dd class="col-sm-8">
                         {{ application.display_name }}
                     </dd>
-                    <dt class="col-sm-4">{% translate "Proposed site id" %}</dt>
+                    <dt class="col-sm-4">{% translate "Proposed site ID" %}</dt>
                     <dd class="col-sm-8">
                         {{ application.proposed_site_name }}
                     </dd>
+                    {% if application.site_name %}
+                        <dt class="col-sm-4">{% translate "Assigned site ID" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.site_name }}
+                        </dd>
+                    {% endif %}
+                    {% if application.gateway_api_base or application.sync_service_url %}
+                        <dt class="col-sm-4">{% translate "Gateway API base" %}</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ application.gateway_api_base }}</code>
+                        </dd>
+                        <dt class="col-sm-4">{% translate "Sync service URL" %}</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ application.sync_service_url }}</code>
+                        </dd>
+                    {% endif %}
+                    {% if application.reviewed_at %}
+                        <dt class="col-sm-4">{% translate "Reviewed" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.reviewed_at }}
+                            {% if application.reviewed_by %}({{ application.reviewed_by.email }}){% endif %}
+                        </dd>
+                    {% endif %}
+                    {% if application.rejected_reason %}
+                        <dt class="col-sm-4">{% translate "Rejection reason" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.rejected_reason }}
+                        </dd>
+                    {% endif %}
                 </dl>
+                {% if is_staff_viewer and application.contact_id != user.pk %}
+                    <div class="alert alert-secondary">
+                        {% translate "Staff view" %} — {% translate "applicant" %}: {{ application.contact.email }}
+                    </div>
+                {% endif %}
                 {% if application.status == "pending_verification" or application.status == "verification_failed" %}
                     {% if not challenge_token_once %}
                         <div class="alert alert-info">
@@ -54,6 +88,44 @@
                         </p>
                         <button type="submit" class="btn btn-primary">{% translate "Verify domain" %}</button>
                     </form>
+                {% endif %}
+                {% if can_staff_review %}
+                    <div class="card border-warning mb-4">
+                        <div class="card-header">{% translate "Staff review" %}</div>
+                        <div class="card-body">
+                            <p class="text-muted">
+                                {% translate "Approve assigns the federation site id and marks this application approved. Reject closes the request." %}
+                            </p>
+                            <form method="post"
+                                  action="{% url 'users:registry_application_approve' pk=application.pk %}"
+                                  class="mb-4">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label" for="registry-approve-site-name">{% translate "Site id (optional)" %}</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="registry-approve-site-name"
+                                           name="site_name"
+                                           maxlength="64"
+                                           value="{{ application.proposed_site_name }}"
+                                           placeholder="{% translate "Defaults to proposed site id" %}">
+                                </div>
+                                <button type="submit" class="btn btn-success">{% translate "Approve application" %}</button>
+                            </form>
+                            <form method="post"
+                                  action="{% url 'users:registry_application_reject' pk=application.pk %}">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label" for="registry-reject-reason">{% translate "Rejection reason (optional)" %}</label>
+                                    <textarea class="form-control"
+                                              id="registry-reject-reason"
+                                              name="rejected_reason"
+                                              rows="2"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-outline-danger">{% translate "Reject application" %}</button>
+                            </form>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
         </div>

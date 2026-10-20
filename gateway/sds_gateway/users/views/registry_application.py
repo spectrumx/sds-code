@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
+from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError
 from django.db.models import QuerySet
 from django.http import HttpRequest
@@ -15,6 +16,12 @@ from django.views.decorators.http import require_POST
 from django.views.generic import DetailView
 from django.views.generic import ListView
 
+from sds_gateway.api_methods.federation.registry_application_review import (
+    approve_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_application_review import (
+    reject_registry_application,
+)
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
 )
@@ -29,6 +36,7 @@ from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 from sds_gateway.users.forms import RegistryApplicationForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
+from sds_gateway.users.mixins import RegistryIntakeRequiredMixin
 
 _REGISTRY_CHALLENGE_SESSION_PREFIX = "registry_challenge_token:"
 
@@ -49,6 +57,20 @@ def pop_challenge_token_for_display(
     request: HttpRequest, application: RegistryApplication
 ) -> str | None:
     return request.session.pop(_challenge_session_key(str(application.pk)), None)
+
+
+def registry_applications_for_user(user) -> QuerySet[RegistryApplication]:
+    """Applicants see their own rows; staff can open any application for review."""
+    base = RegistryApplication.objects.select_related("contact", "reviewed_by")
+    if user.is_staff:
+        return base.all()
+    return base.filter(contact=user)
+
+
+def get_registry_application_for_user(
+    user, pk: str
+) -> RegistryApplication:
+    return get_object_or_404(registry_applications_for_user(user), pk=pk)
 
 
 def _submit_registry_application(
@@ -85,7 +107,7 @@ def _submit_registry_application(
     return redirect("users:registry_application_detail", pk=application.pk)
 
 
-class RegistryApplicationView(Auth0LoginRequiredMixin, View):
+class RegistryApplicationView(RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View):
     """Legacy apply URL: opens the create modal on the list page."""
 
     def get(self, request: HttpRequest) -> HttpResponse:
@@ -103,7 +125,9 @@ class RegistryApplicationView(Auth0LoginRequiredMixin, View):
         return list_view.render_to_response(context)
 
 
-class RegistryApplicationDetailView(Auth0LoginRequiredMixin, DetailView):
+class RegistryApplicationDetailView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, DetailView
+):
     """Application status and one-time challenge token display."""
 
     model = RegistryApplication
@@ -111,7 +135,7 @@ class RegistryApplicationDetailView(Auth0LoginRequiredMixin, DetailView):
     context_object_name = "application"
 
     def get_queryset(self) -> QuerySet[RegistryApplication]:
-        return RegistryApplication.objects.filter(contact=self.request.user)
+        return registry_applications_for_user(self.request.user)
 
     def get_context_data(self, **kwargs: Any) -> dict[str, Any]:
         context = super().get_context_data(**kwargs)
@@ -128,18 +152,25 @@ class RegistryApplicationDetailView(Auth0LoginRequiredMixin, DetailView):
             RegistryApplicationStatus.PENDING_VERIFICATION.value,
             RegistryApplicationStatus.VERIFICATION_FAILED.value,
         )
+        context["can_staff_review"] = (
+            self.request.user.is_staff
+            and application.status
+            == RegistryApplicationStatus.PENDING_APPROVAL.value
+        )
+        context["is_staff_viewer"] = self.request.user.is_staff
         return context
 
 
-class RegistryApplicationVerifyView(Auth0LoginRequiredMixin, View):
+class RegistryApplicationVerifyView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+):
     """Run domain verification for the applicant's well-known endpoint."""
 
     def post(self, request: HttpRequest, pk: str) -> HttpResponse:
-        application = get_object_or_404(
-            RegistryApplication,
-            pk=pk,
-            contact=request.user,
-        )
+        application = get_registry_application_for_user(request.user, pk)
+        if application.contact_id != request.user.id:
+            messages.error(request, "Only the applicant can run domain verification.")
+            return redirect("users:registry_application_detail", pk=application.pk)
         result = verify_registry_application(application)
         if result.ok:
             messages.success(request, result.message)
@@ -148,7 +179,9 @@ class RegistryApplicationVerifyView(Auth0LoginRequiredMixin, View):
         return redirect("users:registry_application_detail", pk=application.pk)
 
 
-class RegistryApplicationListView(Auth0LoginRequiredMixin, ListView):
+class RegistryApplicationListView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, ListView
+):
     """List the current user's federation registry applications."""
 
     model = RegistryApplication
@@ -157,7 +190,7 @@ class RegistryApplicationListView(Auth0LoginRequiredMixin, ListView):
     form_class = RegistryApplicationForm
 
     def get_queryset(self) -> QuerySet[RegistryApplication]:
-        return RegistryApplication.objects.filter(contact=self.request.user).order_by(
+        return registry_applications_for_user(self.request.user).order_by(
             "-updated_at"
         )
 
@@ -180,9 +213,66 @@ class RegistryApplicationListView(Auth0LoginRequiredMixin, ListView):
         return self.render_to_response(context)
 
 
+class StaffRequiredMixin(UserPassesTestMixin):
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
+
+
+class RegistryApplicationApproveView(
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    StaffRequiredMixin,
+    View,
+):
+    """Staff: approve a verified application (sets site_name and approved status)."""
+
+    def post(self, request: HttpRequest, pk: str) -> HttpResponse:
+        application = get_registry_application_for_user(request.user, pk)
+        site_name = (request.POST.get("site_name") or "").strip() or None
+        result = approve_registry_application(
+            application,
+            request.user,
+            site_name=site_name,
+        )
+        if result.ok:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("users:registry_application_detail", pk=application.pk)
+
+
+class RegistryApplicationRejectView(
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    StaffRequiredMixin,
+    View,
+):
+    """Staff: reject an application awaiting approval."""
+
+    def post(self, request: HttpRequest, pk: str) -> HttpResponse:
+        application = get_registry_application_for_user(request.user, pk)
+        reason = (request.POST.get("rejected_reason") or "").strip()
+        result = reject_registry_application(
+            application,
+            request.user,
+            reason=reason,
+        )
+        if result.ok:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("users:registry_application_detail", pk=application.pk)
+
+
 registry_application_list_view = RegistryApplicationListView.as_view()
 registry_application_view = RegistryApplicationView.as_view()
 registry_application_detail_view = RegistryApplicationDetailView.as_view()
 registry_application_verify_view = require_POST(
     RegistryApplicationVerifyView.as_view(),
+)
+registry_application_approve_view = require_POST(
+    RegistryApplicationApproveView.as_view(),
+)
+registry_application_reject_view = require_POST(
+    RegistryApplicationRejectView.as_view(),
 )

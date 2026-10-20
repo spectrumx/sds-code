@@ -10,7 +10,7 @@ from requests import RequestException
 from sds_gateway.api_methods.federation.registry_challenge import (
     verify_registry_challenge_token,
 )
-from sds_gateway.api_methods.federation.well_known import WELL_KNOWN_SDS_FEDERATION_PATH
+from sds_gateway.api_methods.federation.well_known import resolve_well_known_fetch_url
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
@@ -34,8 +34,8 @@ class VerifyResult:
 def fetch_well_known_json(
     fqdn: str, timeout: int = _DEFAULT_FETCH_TIMEOUT_SECONDS
 ) -> dict[str, Any]:
-    """GET https://{fqdn}/.well-known/sds-federation.json."""
-    url = f"https://{fqdn.strip().lower()}{WELL_KNOWN_SDS_FEDERATION_PATH}"
+    """GET applicant well-known JSON (HTTPS in prod; local lab may use internal HTTP)."""
+    url = resolve_well_known_fetch_url(fqdn)
     response = requests.get(url, timeout=timeout)
     response.raise_for_status()
     payload = response.json()

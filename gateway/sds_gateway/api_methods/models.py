@@ -1795,8 +1795,16 @@ class RegistryApplication(BaseModel):
         blank=True,
         help_text="Assigned on approval; must be unique in the signed manifest.",
     )
-    gateway_api_base = models.URLField(max_length=512, blank=True)
-    sync_service_url = models.URLField(max_length=512, blank=True)
+    gateway_api_base = models.CharField(
+        max_length=512,
+        blank=True,
+        help_text="Applicant gateway API base (may use internal Docker hostnames in lab).",
+    )
+    sync_service_url = models.CharField(
+        max_length=512,
+        blank=True,
+        help_text="Applicant federation sync base URL.",
+    )
     status = models.CharField(
         max_length=32,
         choices=[

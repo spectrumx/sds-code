@@ -16,8 +16,10 @@ from .views import generate_api_key_form_view
 from .views import keyword_autocomplete_api_view
 from .views import new_api_key_view
 from .views import quick_add_capture_to_dataset_view
+from .views import registry_application_approve_view
 from .views import registry_application_detail_view
 from .views import registry_application_list_view
+from .views import registry_application_reject_view
 from .views import registry_application_verify_view
 from .views import registry_application_view
 from .views import render_html_fragment_view
@@ -165,5 +167,15 @@ urlpatterns = [
         "federation/registry/applications/<uuid:pk>/verify/",
         registry_application_verify_view,
         name="registry_application_verify",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/approve/",
+        registry_application_approve_view,
+        name="registry_application_approve",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/reject/",
+        registry_application_reject_view,
+        name="registry_application_reject",
     ),
 ]

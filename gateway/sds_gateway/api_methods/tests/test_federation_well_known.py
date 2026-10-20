@@ -7,15 +7,19 @@ from django.test import Client
 from django.urls import reverse
 
 from sds_gateway.api_methods.federation.well_known import build_sds_federation_document
+from sds_gateway.api_methods.federation.well_known import resolve_well_known_fetch_url
 
 
 @pytest.mark.django_db
-def test_sds_federation_well_known_endpoint(client: Client, settings) -> None:
+def test_sds_federation_well_known_endpoint(settings, client: Client) -> None:
     settings.ADMIN_CONSOLE_ENV = "production"
     settings.SDS_SITE_FQDN = "sds.example.edu"
     settings.FEDERATION_SITE_NAME = "example"
     settings.SDS_SITE_DISPLAY_NAME = "Example SDS"
     settings.API_VERSION = "v1"
+    # Local compose often sets Docker DNS overrides; derive from FQDN for this case.
+    settings.FEDERATION_GATEWAY_API_BASE = ""
+    settings.FEDERATION_SYNC_SERVICE_URL = ""
 
     response = client.get(reverse("sds_federation_well_known"))
 
@@ -60,6 +64,42 @@ def test_sds_federation_well_known_explicit_overrides(client: Client, settings) 
     payload = json.loads(response.content)
     assert payload["gateway_api_base"] == "https://custom.example/api/v1"
     assert payload["sync_service_url"] == "https://custom.example/sync/"
+
+
+def test_resolve_well_known_fetch_url_local_self_site(settings) -> None:
+    settings.ADMIN_CONSOLE_ENV = "local"
+    settings.SDS_SITE_FQDN = "sds.localhost"
+    settings.FEDERATION_REGISTRY_VERIFY_FETCH_BASE = ""
+
+    assert (
+        resolve_well_known_fetch_url("sds.localhost")
+        == "http://sds-gateway-local-app:8000/.well-known/sds-federation.json"
+    )
+    assert (
+        resolve_well_known_fetch_url("peer.example.edu")
+        == "https://peer.example.edu/.well-known/sds-federation.json"
+    )
+
+
+def test_resolve_well_known_fetch_url_local_fetch_base_override(settings) -> None:
+    settings.ADMIN_CONSOLE_ENV = "local"
+    settings.SDS_SITE_FQDN = "sds.localhost"
+    settings.FEDERATION_REGISTRY_VERIFY_FETCH_BASE = "http://custom-gateway:9000"
+
+    assert (
+        resolve_well_known_fetch_url("sds.localhost")
+        == "http://custom-gateway:9000/.well-known/sds-federation.json"
+    )
+
+
+def test_resolve_well_known_fetch_url_production(settings) -> None:
+    settings.ADMIN_CONSOLE_ENV = "production"
+    settings.SDS_SITE_FQDN = "sds.example.edu"
+
+    assert (
+        resolve_well_known_fetch_url("sds.example.edu")
+        == "https://sds.example.edu/.well-known/sds-federation.json"
+    )
 
 
 def test_build_sds_federation_document_includes_optional_registry_challenge(settings) -> None:
