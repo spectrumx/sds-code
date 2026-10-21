@@ -22,6 +22,15 @@ _HOSTNAME_RE = re.compile(
     re.IGNORECASE,
 )
 
+_INVALID_APPLICANT_HOSTNAME = "Invalid applicant hostname."
+_APPLICANT_HOSTNAME_NOT_ALLOWED = "Applicant hostname is not allowed."
+_COULD_NOT_RESOLVE_HOSTNAME = "Could not resolve applicant hostname."
+_INVALID_VERIFY_FETCH_URL = "Invalid verify fetch URL."
+_WELL_KNOWN_TOO_LARGE = "Well-known response was too large."
+_COULD_NOT_FETCH_WELL_KNOWN = "Could not fetch well-known JSON."
+_WELL_KNOWN_INVALID_JSON = "Well-known response was not valid JSON."
+_WELL_KNOWN_NOT_OBJECT = "Well-known response was not a JSON object."
+
 
 class RegistryVerifyFetchError(Exception):
     """Verify fetch failed; message is safe to show applicants."""
@@ -42,45 +51,48 @@ def validate_applicant_hostname_for_verify(fqdn: str) -> None:
     """Reject private, link-local, and non-public resolved targets."""
     host = _normalized_host(fqdn)
     if not host or "%" in host or "/" in host or "@" in host or ":" in host:
-        raise RegistryVerifyFetchError("Invalid applicant hostname.")
+        raise RegistryVerifyFetchError(_INVALID_APPLICANT_HOSTNAME)
 
     try:
         literal = ipaddress.ip_address(host)
     except ValueError:
         if not _HOSTNAME_RE.fullmatch(host):
-            raise RegistryVerifyFetchError("Invalid applicant hostname.")
+            raise RegistryVerifyFetchError(_INVALID_APPLICANT_HOSTNAME) from None
     else:
         if not literal.is_global:
-            raise RegistryVerifyFetchError("Applicant hostname is not allowed.")
+            raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED)
         return
 
     try:
         infos = socket.getaddrinfo(host, 443, type=socket.SOCK_STREAM)
     except OSError:
         logger.warning("registry verify DNS lookup failed for {}", host, exc_info=True)
-        raise RegistryVerifyFetchError("Could not resolve applicant hostname.") from None
+        raise RegistryVerifyFetchError(_COULD_NOT_RESOLVE_HOSTNAME) from None
 
     if not infos:
-        raise RegistryVerifyFetchError("Could not resolve applicant hostname.")
+        raise RegistryVerifyFetchError(_COULD_NOT_RESOLVE_HOSTNAME)
 
     for *_, sockaddr in infos:
         addr = ipaddress.ip_address(sockaddr[0])
         if not addr.is_global:
-            raise RegistryVerifyFetchError("Applicant hostname is not allowed.")
+            raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED)
 
 
 def fetch_well_known_json(
     fqdn: str,
     timeout: int = _DEFAULT_FETCH_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """GET applicant well-known JSON (HTTPS in prod; local lab may use internal HTTP)."""
+    """GET applicant well-known JSON (HTTPS; local lab may use internal HTTP)."""
     url = resolve_well_known_fetch_url(fqdn)
     if not _is_lab_self_fetch(fqdn):
         validate_applicant_hostname_for_verify(fqdn)
         parsed = urlparse(url)
         expected_host = _normalized_host(fqdn)
-        if parsed.scheme != "https" or _normalized_host(parsed.hostname or "") != expected_host:
-            raise RegistryVerifyFetchError("Invalid verify fetch URL.")
+        if (
+            parsed.scheme != "https"
+            or _normalized_host(parsed.hostname or "") != expected_host
+        ):
+            raise RegistryVerifyFetchError(_INVALID_VERIFY_FETCH_URL)
 
     try:
         response = requests.get(
@@ -92,7 +104,7 @@ def fetch_well_known_json(
         response.raise_for_status()
         content = response.content
         if len(content) > _MAX_RESPONSE_BYTES:
-            raise RegistryVerifyFetchError("Well-known response was too large.")
+            raise RegistryVerifyFetchError(_WELL_KNOWN_TOO_LARGE)
         payload = response.json()
     except requests.RequestException:
         logger.warning(
@@ -101,11 +113,11 @@ def fetch_well_known_json(
             url,
             exc_info=True,
         )
-        raise RegistryVerifyFetchError("Could not fetch well-known JSON.") from None
+        raise RegistryVerifyFetchError(_COULD_NOT_FETCH_WELL_KNOWN) from None
     except ValueError:
         logger.warning("registry verify JSON parse failed fqdn={}", fqdn, exc_info=True)
-        raise RegistryVerifyFetchError("Well-known response was not valid JSON.") from None
+        raise RegistryVerifyFetchError(_WELL_KNOWN_INVALID_JSON) from None
 
     if not isinstance(payload, dict):
-        raise RegistryVerifyFetchError("Well-known response was not a JSON object.")
+        raise RegistryVerifyFetchError(_WELL_KNOWN_NOT_OBJECT)
     return payload

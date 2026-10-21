@@ -11,8 +11,8 @@ from loguru import logger
 
 from sds_federation.models import PeerInfo
 from sds_federation.models import allowed_federated_origin_fqdns
-from sds_federation.models import snapshot_runtime_peers
 from sds_federation.models import site_name_for_federation
+from sds_federation.models import snapshot_runtime_peers
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import SiteHelloWebhook

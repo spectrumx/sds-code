@@ -86,16 +86,12 @@
                         <form method="post"
                               action="{% url 'users:registry_application_reissue_challenge' pk=application.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-primary">
-                                {% translate "Issue new verification token" %}
-                            </button>
+                            <button type="submit" class="btn btn-outline-primary">{% translate "Issue new verification token" %}</button>
                         </form>
                         <form method="post"
                               action="{% url 'users:registry_application_withdraw' pk=application.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-secondary">
-                                {% translate "Withdraw application" %}
-                            </button>
+                            <button type="submit" class="btn btn-outline-secondary">{% translate "Withdraw application" %}</button>
                         </form>
                     </div>
                 {% endif %}
