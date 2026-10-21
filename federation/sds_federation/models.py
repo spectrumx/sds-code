@@ -1,10 +1,12 @@
 import os
 import tomllib
 from pathlib import Path
+from typing import Self
 
 from pydantic import AnyHttpUrl
 from pydantic import BaseModel
 from pydantic import Field
+from pydantic import model_validator
 
 
 class SiteInfo(BaseModel):
@@ -42,13 +44,26 @@ class RegistryPolicy(BaseModel):
 class FederationConfig(BaseModel):
     site: SiteInfo
     peers: list[PeerInfo] = Field(default_factory=list)
+    # Snapshot of [[peers]] at load; registry merge seeds from this, not mutable peers.
+    static_peers: list[PeerInfo] = Field(default_factory=list)
     registry: RegistryPolicy = Field(default_factory=RegistryPolicy)
     gateway_api_base: AnyHttpUrl
     sync_service_url: AnyHttpUrl
 
+    @model_validator(mode="after")
+    def _ensure_static_peers_snapshot(self) -> Self:
+        if not self.static_peers and self.peers:
+            self.static_peers = [peer.model_copy(deep=True) for peer in self.peers]
+        return self
+
+
+def snapshot_runtime_peers(config: FederationConfig) -> list[PeerInfo]:
+    """Copy of the live peer list for iteration across await points."""
+    return list(config.peers)
+
 
 def allowed_federated_origin_fqdns(config: FederationConfig) -> set[str]:
-    return {peer.fqdn for peer in config.peers} | {config.site.fqdn}
+    return {peer.fqdn for peer in snapshot_runtime_peers(config)} | {config.site.fqdn}
 
 
 def _registry_policy(data: dict) -> RegistryPolicy:

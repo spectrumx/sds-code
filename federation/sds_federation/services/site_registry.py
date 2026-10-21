@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from loguru import logger
 
 from sds_federation.models import PeerInfo
+from sds_federation.models import snapshot_runtime_peers
 from sds_federation.schemas.registry import REGISTRY_SCHEMA_VERSION
 from sds_federation.schemas.registry import RegistryManifest
 from sds_federation.schemas.registry import RegistrySite
@@ -147,6 +148,10 @@ def _peer_from_site(site: RegistrySite, policy: RegistryPolicy) -> PeerInfo:
     )
 
 
+def _static_peers(config: FederationConfig) -> list[PeerInfo]:
+    return list(config.static_peers)
+
+
 def merge_peers(
     config: FederationConfig,
     manifest: RegistryManifest,
@@ -154,14 +159,17 @@ def merge_peers(
     """Static peers pinned by the operator, plus active registry sites."""
     policy = config.registry
     denied = set(policy.deny)
-    merged = {peer.fqdn: peer for peer in config.peers}
+    static_by_fqdn = {peer.fqdn: peer for peer in _static_peers(config)}
+    merged = dict(static_by_fqdn)
     for site in manifest.active_sites():
         if site.fqdn == config.site.fqdn or site.name == config.site.name:
             continue
         if site.fqdn in denied or site.name in denied:
             logger.info("registry site {} skipped by local deny list", site.fqdn)
             continue
-        merged.setdefault(site.fqdn, _peer_from_site(site, policy))
+        if site.fqdn in static_by_fqdn:
+            continue
+        merged[site.fqdn] = _peer_from_site(site, policy)
     return list(merged.values())
 
 
@@ -172,7 +180,7 @@ async def resolve_peers(
     """Peer set for this cycle: registry when trusted, static config otherwise."""
     policy = config.registry
     if not policy.url or not policy.public_key_path:
-        return list(config.peers)
+        return _static_peers(config)
     try:
         manifest = await fetch_manifest(http, policy)
     except (httpx.HTTPError, RegistryTrustError, ValueError) as exc:
@@ -183,7 +191,7 @@ async def resolve_peers(
                 msg = "no trusted registry manifest and registry.required=true"
                 raise RegistryTrustError(msg) from exc
             logger.warning("continuing with static federation.toml peers only")
-            return list(config.peers)
+            return _static_peers(config)
         logger.info("using cached registry manifest serial {}", manifest.serial)
     return merge_peers(config, manifest)
 
@@ -191,9 +199,9 @@ async def resolve_peers(
 async def apply_peers(
     config: FederationConfig, peers: list[PeerInfo]
 ) -> list[PeerInfo]:
-    """Replace the peer list in place so every config holder sees the update."""
-    known = {peer.fqdn for peer in config.peers}
-    config.peers[:] = peers
+    """Replace runtime peers atomically (new list object) for config holders."""
+    known = {peer.fqdn for peer in snapshot_runtime_peers(config)}
+    config.peers = list(peers)
     return [peer for peer in peers if peer.fqdn not in known]
 
 

@@ -14,6 +14,7 @@ from loguru import logger
 from sds_federation.models import FederationConfig
 from sds_federation.models import PeerInfo
 from sds_federation.models import site_name_for_federation
+from sds_federation.models import snapshot_runtime_peers
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import FederatedCaptureDoc
 from sds_federation.schemas.webhooks import FederatedDatasetDoc
@@ -391,7 +392,7 @@ async def bootstrap_all_peers(
     event_at: datetime | None = None,
 ) -> int:
     total = 0
-    for peer in config.peers:
+    for peer in snapshot_runtime_peers(config):
         logger.info(
             "Bootstrapping peer {} from sync {}",
             peer.name,
@@ -407,7 +408,7 @@ async def bootstrap_all_peers(
 
 
 def peer_by_name(config: FederationConfig, site_name: str) -> PeerInfo | None:
-    for peer in config.peers:
+    for peer in snapshot_runtime_peers(config):
         if site_name in (peer.name, peer.fqdn):
             return peer
     return None
@@ -465,7 +466,7 @@ async def register_with_peers(
     http: httpx.AsyncClient,
     config: FederationConfig,
 ) -> None:
-    for peer in config.peers:
+    for peer in snapshot_runtime_peers(config):
         try:
             result = await push_site_hello_to_peer(http, peer, config)
         except httpx.HTTPError as exc:

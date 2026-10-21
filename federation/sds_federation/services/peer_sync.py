@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 import httpx
 from loguru import logger
 
+from sds_federation.models import snapshot_runtime_peers
 from sds_federation.services.peer_http import peer_request
 
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ async def push_asset_updated_to_peers(
 ) -> None:
     body = payload.model_dump(mode="json")
     path = payload.asset_type.webhook_updated_path
-    for peer in config.peers:
+    for peer in snapshot_runtime_peers(config):
         outbound = peer_for_outbound(peer, registry)
         url = peer_webhook_url(outbound, path)
         try:
