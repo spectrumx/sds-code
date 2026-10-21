@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import pytest
 from django.urls import reverse
 from django.utils import timezone
@@ -18,6 +20,8 @@ from sds_gateway.api_methods.models import RegistryApplicationStatus
 from sds_gateway.api_methods.models import fqdn_has_open_registry_application
 from sds_gateway.users.forms import RegistryApplicationForm
 
+_TEST_CHALLENGE_HASH = hash_registry_challenge_token("test-challenge")
+
 
 @pytest.mark.django_db
 def test_withdraw_releases_fqdn(user) -> None:
@@ -25,7 +29,7 @@ def test_withdraw_releases_fqdn(user) -> None:
         fqdn="release.example.edu",
         display_name="Site",
         contact=user,
-        challenge_token_hash="abc",
+        challenge_token_hash=_TEST_CHALLENGE_HASH,
         status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
     )
     assert fqdn_has_open_registry_application("release.example.edu")
@@ -79,7 +83,7 @@ def test_applicant_can_reissue_via_post(client, user, settings) -> None:
         fqdn="site.example.edu",
         display_name="Site",
         contact=user,
-        challenge_token_hash="abc",
+        challenge_token_hash=_TEST_CHALLENGE_HASH,
         status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
     )
     client.force_login(user)
@@ -88,6 +92,6 @@ def test_applicant_can_reissue_via_post(client, user, settings) -> None:
         kwargs={"pk": application.pk},
     )
     response = client.post(url)
-    assert response.status_code == 302
+    assert response.status_code == HTTPStatus.FOUND
     application.refresh_from_db()
-    assert application.challenge_token_hash != "abc"
+    assert application.challenge_token_hash != _TEST_CHALLENGE_HASH

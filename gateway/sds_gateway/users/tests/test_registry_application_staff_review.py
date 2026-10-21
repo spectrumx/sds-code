@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import pytest
 from django.urls import reverse
 
+from sds_gateway.api_methods.federation.registry_challenge import (
+    hash_registry_challenge_token,
+)
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
+
+_STAFF_CHALLENGE_HASH = hash_registry_challenge_token("staff-review")
 
 
 @pytest.mark.django_db
@@ -15,7 +22,7 @@ def test_staff_can_approve_from_detail_post(client, user, settings) -> None:
     applicant = user
     staff = user.__class__.objects.create_user(
         email="staff@example.com",
-        password="test-pass-12345",
+        password="test-pass-12345",  # noqa: S106
         is_staff=True,
     )
     application = RegistryApplication.objects.create(
@@ -23,7 +30,7 @@ def test_staff_can_approve_from_detail_post(client, user, settings) -> None:
         display_name="Site",
         contact=applicant,
         proposed_site_name="mysite",
-        challenge_token_hash="hash",
+        challenge_token_hash=_STAFF_CHALLENGE_HASH,
         status=RegistryApplicationStatus.PENDING_APPROVAL.value,
     )
 
@@ -31,7 +38,7 @@ def test_staff_can_approve_from_detail_post(client, user, settings) -> None:
     url = reverse("users:registry_application_approve", kwargs={"pk": application.pk})
     response = client.post(url, {"site_name": "mysite"})
 
-    assert response.status_code == 302
+    assert response.status_code == HTTPStatus.FOUND
     application.refresh_from_db()
     assert application.status == RegistryApplicationStatus.APPROVED.value
     assert application.site_name == "mysite"
@@ -48,7 +55,7 @@ def test_non_staff_cannot_approve(client, user, settings) -> None:
         display_name="Site",
         contact=user,
         proposed_site_name="mysite",
-        challenge_token_hash="hash",
+        challenge_token_hash=_STAFF_CHALLENGE_HASH,
         status=RegistryApplicationStatus.PENDING_APPROVAL.value,
     )
 
@@ -56,6 +63,6 @@ def test_non_staff_cannot_approve(client, user, settings) -> None:
     url = reverse("users:registry_application_approve", kwargs={"pk": application.pk})
     response = client.post(url, {"site_name": "mysite"})
 
-    assert response.status_code == 403
+    assert response.status_code == HTTPStatus.FORBIDDEN
     application.refresh_from_db()
     assert application.status == RegistryApplicationStatus.PENDING_APPROVAL.value

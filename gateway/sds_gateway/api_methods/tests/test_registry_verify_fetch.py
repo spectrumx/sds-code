@@ -33,7 +33,7 @@ def test_rejects_loopback_literal_ip() -> None:
     "sds_gateway.api_methods.federation.registry_verify_fetch.socket.getaddrinfo",
     return_value=[(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443))],
 )
-def test_rejects_private_resolved_ip(_mock_getaddrinfo: MagicMock) -> None:
+def test_rejects_private_resolved_ip() -> None:
     with pytest.raises(RegistryVerifyFetchError, match="not allowed"):
         validate_applicant_hostname_for_verify("evil.example.edu")
 
@@ -46,10 +46,7 @@ def test_rejects_private_resolved_ip(_mock_getaddrinfo: MagicMock) -> None:
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
     ],
 )
-def test_fetch_disables_redirects(
-    _mock_getaddrinfo: MagicMock,
-    mock_get: MagicMock,
-) -> None:
+def test_fetch_disables_redirects(mock_get: MagicMock) -> None:
     response = MagicMock()
     response.content = b'{"fqdn":"public.example.edu"}'
     response.json.return_value = {"fqdn": "public.example.edu"}

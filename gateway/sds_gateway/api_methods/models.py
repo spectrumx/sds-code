@@ -1768,10 +1768,10 @@ _REGISTRY_APPLICATION_ACTIVE_STATUSES = REGISTRY_APPLICATION_OPEN_FQDN_STATUSES
 
 class RegistryApplication(BaseModel):
     """
-    Intake record for joining the SDS federation registry (mothership-signed sites.json).
+    Intake record for joining the SDS federation registry (signed sites.json).
 
-    Domain control is proven via challenge token hash on the applicant's .well-known endpoint;
-    human approval and manifest publication are separate admin/offline steps.
+    Domain control is proven via challenge hash on the applicant well-known endpoint;
+    approval and manifest publication are separate steps.
     """
 
     fqdn = models.CharField(max_length=255, db_index=True)
@@ -1798,7 +1798,7 @@ class RegistryApplication(BaseModel):
     gateway_api_base = models.CharField(
         max_length=512,
         blank=True,
-        help_text="Applicant gateway API base (may use internal Docker hostnames in lab).",
+        help_text="Applicant gateway API base (Docker internal hostnames OK in lab).",
     )
     sync_service_url = models.CharField(
         max_length=512,
@@ -1867,6 +1867,11 @@ class RegistryApplication(BaseModel):
     def __str__(self) -> str:
         return f"RegistryApplication({self.fqdn}, {self.status})"
 
+    def save(self, *args, **kwargs) -> None:
+        if self.fqdn:
+            self.fqdn = self.fqdn.strip().lower()
+        super().save(*args, **kwargs)
+
     def clean(self) -> None:
         super().clean()
         self.fqdn = self.fqdn.strip().lower()
@@ -1874,11 +1879,6 @@ class RegistryApplication(BaseModel):
             raise ValidationError(
                 {"fqdn": "Enter a hostname only (no scheme or path)."}
             )
-
-    def save(self, *args, **kwargs) -> None:
-        if self.fqdn:
-            self.fqdn = self.fqdn.strip().lower()
-        super().save(*args, **kwargs)
 
 
 def fqdn_has_open_registry_application(fqdn: str) -> bool:

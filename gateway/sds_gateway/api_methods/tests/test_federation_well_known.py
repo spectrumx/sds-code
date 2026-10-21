@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 import pytest
-from django.test import Client
 from django.urls import reverse
 
 from sds_gateway.api_methods.federation.well_known import build_sds_federation_document
 from sds_gateway.api_methods.federation.well_known import resolve_well_known_fetch_url
+
+if TYPE_CHECKING:
+    from django.test import Client
 
 
 @pytest.mark.django_db
@@ -23,7 +27,7 @@ def test_sds_federation_well_known_endpoint(settings, client: Client) -> None:
 
     response = client.get(reverse("sds_federation_well_known"))
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     payload = json.loads(response.content)
     assert payload["fqdn"] == "sds.example.edu"
     assert payload["name"] == "example"
@@ -44,7 +48,7 @@ def test_sds_federation_well_known_local_lab_defaults(client: Client, settings) 
 
     response = client.get(reverse("sds_federation_well_known"))
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK
     payload = json.loads(response.content)
     assert payload["gateway_api_base"] == "http://sds-gateway-local-app:8000/api/v1"
     assert payload["sync_service_url"] == "http://sds-federation-local-sync:8000/sync"
@@ -107,7 +111,7 @@ def test_build_sds_federation_document_includes_optional_registry_challenge(
 ) -> None:
     settings.SDS_SITE_FQDN = "sds.crc.nd.edu"
     settings.FEDERATION_SITE_NAME = "crc"
-    settings.FEDERATION_REGISTRY_CHALLENGE_TOKEN = "challenge-token"
+    settings.FEDERATION_REGISTRY_CHALLENGE_TOKEN = "challenge-token"  # noqa: S105
 
     doc = build_sds_federation_document()
 
@@ -124,4 +128,4 @@ def test_sds_federation_well_known_503_when_unconfigured(
 
     response = client.get(reverse("sds_federation_well_known"))
 
-    assert response.status_code == 503
+    assert response.status_code == HTTPStatus.SERVICE_UNAVAILABLE

@@ -10,14 +10,16 @@ from sds_gateway.api_methods.federation.well_known import well_known_document_re
 
 
 class SdsFederationWellKnownView(View):
-    """Public site identity for federation discovery and registry domain verification."""
+    """Public site identity for federation discovery and registry verification."""
 
     def get(self, request: HttpRequest) -> HttpResponse:
         document = build_sds_federation_document()
         if not well_known_document_ready(document):
             return JsonResponse(
                 {
-                    "error": "federation well-known document is not configured on this host"
+                    "error": (
+                        "federation well-known document is not configured on this host"
+                    )
                 },
                 status=503,
             )

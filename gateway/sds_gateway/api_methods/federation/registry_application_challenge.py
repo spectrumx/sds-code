@@ -16,6 +16,16 @@ from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 from sds_gateway.api_methods.models import _default_registry_challenge_expires_at
 
+_REISSUE_TOO_LATE_MESSAGE = (
+    "A new challenge can only be issued before domain verification succeeds."
+)
+_REISSUE_SUCCESS_MESSAGE = (
+    "A new verification token was issued. Copy it now—it is shown only once."
+)
+_WITHDRAW_SUCCESS_MESSAGE = (
+    "Application withdrawn. You may submit a new application for this FQDN."
+)
+
 _APPLICANT_MANAGE_STATUSES = frozenset(
     {
         RegistryApplicationStatus.PENDING_VERIFICATION.value,
@@ -47,7 +57,7 @@ def reissue_registry_challenge(
     if application.status not in _APPLICANT_MANAGE_STATUSES:
         return ReissueChallengeResult(
             ok=False,
-            message="A new challenge can only be issued before domain verification succeeds.",
+            message=_REISSUE_TOO_LATE_MESSAGE,
         )
 
     raw_token = generate_registry_challenge_token()
@@ -66,7 +76,7 @@ def reissue_registry_challenge(
     )
     return ReissueChallengeResult(
         ok=True,
-        message="A new verification token was issued. Copy it now—it is shown only once.",
+        message=_REISSUE_SUCCESS_MESSAGE,
         raw_token=raw_token,
     )
 
@@ -83,5 +93,5 @@ def withdraw_registry_application(application: RegistryApplication) -> WithdrawR
     application.save(update_fields=["status", "withdrawn_at", "updated_at"])
     return WithdrawResult(
         ok=True,
-        message="Application withdrawn. You may submit a new application for this FQDN.",
+        message=_WITHDRAW_SUCCESS_MESSAGE,
     )
