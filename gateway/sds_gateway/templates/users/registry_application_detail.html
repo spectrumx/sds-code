@@ -86,12 +86,14 @@
                         <form method="post"
                               action="{% url 'users:registry_application_reissue_challenge' pk=application.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-primary">{% translate "Issue new verification token" %}</button>
+                            <button type="submit"
+                                    class="btn btn-outline-primary">{% translate "Issue new verification token" %}</button>
                         </form>
                         <form method="post"
                               action="{% url 'users:registry_application_withdraw' pk=application.pk %}">
                             {% csrf_token %}
-                            <button type="submit" class="btn btn-outline-secondary">{% translate "Withdraw application" %}</button>
+                            <button type="submit"
+                                    class="btn btn-outline-secondary">{% translate "Withdraw application" %}</button>
                         </form>
                     </div>
                 {% endif %}
@@ -117,7 +119,8 @@
                                   class="mb-4">
                                 {% csrf_token %}
                                 <div class="mb-3">
-                                    <label class="form-label" for="registry-approve-site-name">{% translate "Site id (optional)" %}</label>
+                                    <label class="form-label"
+                                           for="registry-approve-site-name">{% translate "Site id (optional)" %}</label>
                                     <input type="text"
                                            class="form-control"
                                            id="registry-approve-site-name"
@@ -126,19 +129,22 @@
                                            value="{{ application.proposed_site_name }}"
                                            placeholder="{% translate "Defaults to proposed site id" %}" />
                                 </div>
-                                <button type="submit" class="btn btn-success">{% translate "Approve application" %}</button>
+                                <button type="submit"
+                                        class="btn btn-success">{% translate "Approve application" %}</button>
                             </form>
                             <form method="post"
                                   action="{% url 'users:registry_application_reject' pk=application.pk %}">
                                 {% csrf_token %}
                                 <div class="mb-3">
-                                    <label class="form-label" for="registry-reject-reason">{% translate "Rejection reason (optional)" %}</label>
+                                    <label class="form-label"
+                                           for="registry-reject-reason">{% translate "Rejection reason (optional)" %}</label>
                                     <textarea class="form-control"
                                               id="registry-reject-reason"
                                               name="rejected_reason"
                                               rows="2"></textarea>
                                 </div>
-                                <button type="submit" class="btn btn-outline-danger">{% translate "Reject application" %}</button>
+                                <button type="submit"
+                                        class="btn btn-outline-danger">{% translate "Reject application" %}</button>
                             </form>
                         </div>
                     </div>
@@ -159,7 +165,8 @@
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="registryChallengeTokenModalLabel">{% translate "Verification token (copy now)" %}</h5>
+                        <h5 class="modal-title"
+                            id="registryChallengeTokenModalLabel">{% translate "Verification token (copy now)" %}</h5>
                     </div>
                     <div class="modal-body">
                         <p>
@@ -172,7 +179,9 @@
                         </p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-primary" data-bs-dismiss="modal">{% translate "Close" %}</button>
+                        <button type="button"
+                                class="btn btn-primary"
+                                data-bs-dismiss="modal">{% translate "Close" %}</button>
                     </div>
                 </div>
             </div>
