@@ -86,6 +86,7 @@ def approve_registry_application(
         "reviewed_by",
         "reviewed_at",
         "rejected_reason",
+        "updated_at",
     ]
     if application.verified_well_known:
         update_fields.extend(
@@ -116,7 +117,13 @@ def reject_registry_application(
     application.reviewed_at = timezone.now()
     application.rejected_reason = (reason or "").strip()
     application.save(
-        update_fields=["status", "reviewed_by", "reviewed_at", "rejected_reason"]
+        update_fields=[
+            "status",
+            "reviewed_by",
+            "reviewed_at",
+            "rejected_reason",
+            "updated_at",
+        ]
     )
     return ReviewResult(
         ok=True, message=f"Rejected application for {application.fqdn}."
