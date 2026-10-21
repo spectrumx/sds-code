@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from http import HTTPStatus
+
 import pytest
 from django.urls import reverse
 
@@ -11,7 +13,7 @@ def test_registry_list_404_when_intake_disabled(client, user, settings) -> None:
 
     response = client.get(reverse("users:registry_application_list"))
 
-    assert response.status_code == 404
+    assert response.status_code == HTTPStatus.NOT_FOUND
 
 
 @pytest.mark.django_db
@@ -23,4 +25,4 @@ def test_registry_list_ok_when_intake_enabled(client, user, settings) -> None:
 
     response = client.get(reverse("users:registry_application_list"))
 
-    assert response.status_code == 200
+    assert response.status_code == HTTPStatus.OK

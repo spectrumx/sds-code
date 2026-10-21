@@ -69,7 +69,9 @@ def approve_registry_application(
     if site_name_taken(assigned_name, exclude_pk=str(application.pk)):
         return ReviewResult(
             ok=False,
-            message=f"site_name '{assigned_name}' is already assigned to an approved site.",
+            message=(
+                f"site_name '{assigned_name}' is already assigned to an approved site."
+            ),
         )
 
     application.site_name = assigned_name

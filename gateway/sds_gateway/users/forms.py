@@ -456,6 +456,14 @@ class PublishedDatasetSearchForm(forms.Form):
     )
 
 
+_FQDN_HOSTNAME_ONLY = "Enter a hostname only (e.g. sds.example.edu)."
+_FQDN_OPEN_APPLICATION = (
+    "An active registry application already exists for this FQDN "
+    "(pending verification, verified, or awaiting approval)."
+)
+_PROPOSED_SITE_ID_REQUIRED = "Enter a short site id."
+
+
 class RegistryApplicationForm(forms.Form):
     """Form for creating a registry application."""
 
@@ -479,23 +487,20 @@ class RegistryApplicationForm(forms.Form):
         widget=forms.TextInput(
             attrs={"class": "form-control", "placeholder": "mysite"},
         ),
-        help_text="Short id for federation.toml [site].name (letters, numbers, hyphens).",
+        help_text="Short federation site id (letters, numbers, hyphens).",
     )
 
     def clean_fqdn(self) -> str:
         fqdn = self.cleaned_data["fqdn"].strip().lower()
         if "://" in fqdn or "/" in fqdn:
-            raise ValidationError("Enter a hostname only (e.g. sds.example.edu).")
+            raise ValidationError(_FQDN_HOSTNAME_ONLY)
         if fqdn_has_open_registry_application(fqdn):
-            raise ValidationError(
-                "An active registry application already exists for this FQDN "
-                "(pending verification, verified, or awaiting approval).",
-            )
+            raise ValidationError(_FQDN_OPEN_APPLICATION)
         return fqdn
 
     def clean_proposed_site_name(self) -> str:
         raw = self.cleaned_data["proposed_site_name"].strip()
         site_name = slugify(raw)
         if not site_name:
-            raise ValidationError("Enter a short site id.")
+            raise ValidationError(_PROPOSED_SITE_ID_REQUIRED)
         return site_name
