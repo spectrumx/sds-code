@@ -31,8 +31,6 @@ registered. The mothership gateway:
 4. On success, sets status to **`pending_approval`** (human approval and signed registry
    manifest are separate work).
 
-Design background: [`federation/docs/federation-registry-design.md`](../../federation/docs/federation-registry-design.md).
-
 ## Roles
 
 | Role | Responsibility |
@@ -257,7 +255,6 @@ On the application detail page (before staff approval), applicants can:
 
 ## Related docs
 
-+ [Federation registry design](../../federation/docs/federation-registry-design.md)
 + [Federation README](../../federation/README.md) (peers, well-known, `--discover`)
 + [Network / Traefik / TLS](../../network/README.md)
 + [OAuth setup](./oauth-setup.md)
