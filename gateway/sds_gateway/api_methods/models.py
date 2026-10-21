@@ -1751,8 +1751,8 @@ class ShareGroup(BaseModel):
         return f"ShareGroup: {self.name} (Owner: {self.owner.email})"
 
 
-def _default_registry_challenge_expires_at() -> datetime.datetime:
-    return datetime.datetime.now(datetime.UTC) + datetime.timedelta(hours=72)
+def _default_registry_challenge_expires_at() -> dt.datetime:
+    return dt.datetime.now(dt.UTC) + dt.timedelta(hours=72)
 
 
 REGISTRY_APPLICATION_OPEN_FQDN_STATUSES = (
