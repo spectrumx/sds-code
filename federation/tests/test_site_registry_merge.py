@@ -6,7 +6,6 @@ from datetime import timedelta
 
 from sds_federation.models import FederationConfig
 from sds_federation.models import PeerInfo
-from sds_federation.models import RegistryPolicy
 from sds_federation.models import SiteInfo
 from sds_federation.schemas.registry import RegistryManifest
 from sds_federation.schemas.registry import RegistrySite

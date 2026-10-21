@@ -21,9 +21,9 @@ from .views import registry_application_detail_view
 from .views import registry_application_list_view
 from .views import registry_application_reissue_challenge_view
 from .views import registry_application_reject_view
-from .views import registry_application_withdraw_view
 from .views import registry_application_verify_view
 from .views import registry_application_view
+from .views import registry_application_withdraw_view
 from .views import render_html_fragment_view
 from .views import revoke_api_key_view
 from .views import user_api_key_view

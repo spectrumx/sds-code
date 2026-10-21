@@ -1,28 +1,20 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from typing import Any
 
 from django.contrib import messages
-from django.utils import timezone
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError
-from django.db.models import QuerySet
-from django.http import HttpRequest
-from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import redirect
 from django.urls import reverse
+from django.utils import timezone
 from django.views import View
 from django.views.decorators.http import require_POST
 from django.views.generic import DetailView
 from django.views.generic import ListView
 
-from sds_gateway.api_methods.federation.registry_application_review import (
-    approve_registry_application,
-)
-from sds_gateway.api_methods.federation.registry_application_review import (
-    reject_registry_application,
-)
 from sds_gateway.api_methods.federation.registry_application_challenge import (
     applicant_can_manage_challenge,
 )
@@ -31,6 +23,12 @@ from sds_gateway.api_methods.federation.registry_application_challenge import (
 )
 from sds_gateway.api_methods.federation.registry_application_challenge import (
     withdraw_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_application_review import (
+    approve_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_application_review import (
+    reject_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
@@ -47,6 +45,11 @@ from sds_gateway.api_methods.models import RegistryApplicationStatus
 from sds_gateway.users.forms import RegistryApplicationForm
 from sds_gateway.users.mixins import Auth0LoginRequiredMixin
 from sds_gateway.users.mixins import RegistryIntakeRequiredMixin
+
+if TYPE_CHECKING:
+    from django.db.models import QuerySet
+    from django.http import HttpRequest
+    from django.http import HttpResponse
 
 _REGISTRY_CHALLENGE_SESSION_PREFIX = "registry_challenge_token:"
 
@@ -84,7 +87,10 @@ def get_registry_application_for_user(user, pk: str) -> RegistryApplication:
 def _submit_registry_application(
     request: HttpRequest, form: RegistryApplicationForm
 ) -> HttpResponse | None:
-    """Create application on valid form; return redirect response or None if form was updated with errors."""
+    """Create application on valid form.
+
+    Return redirect response or None if the form was updated with errors.
+    """
     if not form.is_valid():
         return None
 
@@ -110,7 +116,10 @@ def _submit_registry_application(
     stash_challenge_token_for_display(request, application, raw_challenge)
     messages.success(
         request,
-        "Application created. Copy your verification token on the next screen—it is shown only once.",
+        (
+            "Application created. Copy your verification token on the next screen—"
+            "it is shown only once."
+        ),
     )
     return redirect("users:registry_application_detail", pk=application.pk)
 

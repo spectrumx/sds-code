@@ -25,6 +25,9 @@ _VERIFYABLE_STATUSES = frozenset(
 )
 
 _MAX_ERROR_LENGTH = 2000
+_CHALLENGE_MISMATCH_MESSAGE = (
+    "registry_challenge is missing or does not match your verification token."
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,8 +106,10 @@ def verify_registry_application(application: RegistryApplication) -> VerifyResul
         )
 
     if application.challenge_expires_at <= timezone.now():
-        msg = ("The verification challenge has expired. "
-               "Issue a new verification token on the application page.")
+        msg = (
+            "The verification challenge has expired. "
+            "Issue a new verification token on the application page."
+        )
         return VerifyResult(ok=False, message=msg)
 
     fqdn = application.fqdn
@@ -121,7 +126,7 @@ def verify_registry_application(application: RegistryApplication) -> VerifyResul
         return apply_verification_result(
             application,
             ok=False,
-            message="registry_challenge is missing or does not match your verification token.",
+            message=_CHALLENGE_MISMATCH_MESSAGE,
         )
 
     if not validate_site_identity(well_known_json, application):
