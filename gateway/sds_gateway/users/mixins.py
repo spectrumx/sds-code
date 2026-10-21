@@ -1,11 +1,13 @@
 from typing import Any
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import AccessMixin
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.paginator import Paginator
 from django.db.models import Q
 from django.db.models import QuerySet
+from django.http import Http404
 from django.http import HttpResponseRedirect
 from django.http import JsonResponse
 from django.shortcuts import redirect
@@ -48,6 +50,15 @@ class Auth0LoginRequiredMixin(LoginRequiredMixin):
 
     def get_login_url(self) -> str:
         return reverse("auth0_login")
+
+
+class RegistryIntakeRequiredMixin(AccessMixin):
+    """404 unless this host is the federation registry mothership (flagship intake)."""
+
+    def dispatch(self, request, *args, **kwargs):
+        if not getattr(settings, "FEDERATION_REGISTRY_INTAKE_ENABLED", False):
+            raise Http404
+        return super().dispatch(request, *args, **kwargs)
 
 
 class UserSearchMixin:

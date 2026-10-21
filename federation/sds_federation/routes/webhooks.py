@@ -12,6 +12,7 @@ from loguru import logger
 from sds_federation.models import PeerInfo
 from sds_federation.models import allowed_federated_origin_fqdns
 from sds_federation.models import site_name_for_federation
+from sds_federation.models import snapshot_runtime_peers
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.schemas.webhooks import AssetUpdatedWebhook
 from sds_federation.schemas.webhooks import SiteHelloWebhook
@@ -172,7 +173,7 @@ async def site_hello(
             status_code=422,
             detail="Cannot register self via site-hello",
         )
-    allowed = {peer.fqdn for peer in config.peers}
+    allowed = {peer.fqdn for peer in snapshot_runtime_peers(config)}
     if payload.site_name not in allowed:
         raise HTTPException(status_code=403, detail="Unknown registering site")
 

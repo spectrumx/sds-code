@@ -168,6 +168,14 @@
                                                     <i class="bi bi-person-circle me-2"></i>{% translate "Profile" %}
                                                 </a>
                                             </li>
+                                            {% if FEDERATION_REGISTRY_INTAKE_ENABLED %}
+                                                <li>
+                                                    <a class="dropdown-item"
+                                                       href="{% url 'users:registry_application_list' %}">
+                                                        <i class="bi bi-globe2 me-2"></i>{% translate "Federation Registry" %}
+                                                    </a>
+                                                </li>
+                                            {% endif %}
                                             <li>
                                                 <a class="dropdown-item" href="{% url 'users:share_group_list' %}">
                                                     <i class="bi bi-people me-2"></i>{% translate "Manage Groups" %}

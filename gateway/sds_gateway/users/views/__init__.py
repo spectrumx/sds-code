@@ -62,6 +62,14 @@ from .files import FilesView
 from .files import files_view
 from .files import user_check_file_exists_view
 from .files import user_file_detail_view
+from .registry_application import registry_application_approve_view
+from .registry_application import registry_application_detail_view
+from .registry_application import registry_application_list_view
+from .registry_application import registry_application_reissue_challenge_view
+from .registry_application import registry_application_reject_view
+from .registry_application import registry_application_verify_view
+from .registry_application import registry_application_view
+from .registry_application import registry_application_withdraw_view
 
 # Share group views
 from .share_groups import ShareGroupListView
@@ -135,6 +143,14 @@ __all__ = [
     "keyword_autocomplete_api_view",
     "new_api_key_view",
     "quick_add_capture_to_dataset_view",
+    "registry_application_approve_view",
+    "registry_application_detail_view",
+    "registry_application_list_view",
+    "registry_application_reissue_challenge_view",
+    "registry_application_reject_view",
+    "registry_application_verify_view",
+    "registry_application_view",
+    "registry_application_withdraw_view",
     "render_html_fragment_view",
     "revoke_api_key_view",
     "spx_dac_dataset_alt_view",

@@ -11,4 +11,10 @@ def allauth_settings(request):
         "PASSKEY_LOGIN_ENABLED": getattr(settings, "MFA_PASSKEY_LOGIN_ENABLED", False),
         "SOCIALACCOUNT_ONLY": getattr(settings, "SOCIALACCOUNT_ONLY", False),
         "SOCIALACCOUNT_ENABLED": "allauth.socialaccount" in settings.INSTALLED_APPS,
+        "FEDERATION_ENABLED": getattr(settings, "FEDERATION_ENABLED", False),
+        "FEDERATION_REGISTRY_INTAKE_ENABLED": getattr(
+            settings,
+            "FEDERATION_REGISTRY_INTAKE_ENABLED",
+            False,
+        ),
     }

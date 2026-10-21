@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+
+{% load i18n %}
+
+{% block title %}
+    {% translate "Registry Application" %} — {{ application.fqdn }}
+{% endblock title %}
+{% block bodyclass %}
+    hero-white-page
+{% endblock bodyclass %}
+{% block content %}
+    <div class="content-wrapper">
+        <div class="main-content-area">
+            <div class="container mt-4 col-lg-8">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h1 class="page-title mb-0">{% translate "Registry Application" %}</h1>
+                    <a href="{% url 'users:registry_application_list' %}"
+                       class="btn btn-outline-secondary btn-sm">{% translate "All Applications" %}</a>
+                </div>
+                <dl class="row mb-4">
+                    <dt class="col-sm-4">{% translate "Status" %}</dt>
+                    <dd class="col-sm-8">
+                        {{ application.get_status_display|default:application.status }}
+                    </dd>
+                    <dt class="col-sm-4">{% translate "FQDN" %}</dt>
+                    <dd class="col-sm-8">
+                        {{ application.fqdn }}
+                    </dd>
+                    <dt class="col-sm-4">{% translate "Site display name" %}</dt>
+                    <dd class="col-sm-8">
+                        {{ application.display_name }}
+                    </dd>
+                    <dt class="col-sm-4">{% translate "Proposed site ID" %}</dt>
+                    <dd class="col-sm-8">
+                        {{ application.proposed_site_name }}
+                    </dd>
+                    {% if application.site_name %}
+                        <dt class="col-sm-4">{% translate "Assigned site ID" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.site_name }}
+                        </dd>
+                    {% endif %}
+                    {% if application.gateway_api_base or application.sync_service_url %}
+                        <dt class="col-sm-4">{% translate "Gateway API base" %}</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ application.gateway_api_base }}</code>
+                        </dd>
+                        <dt class="col-sm-4">{% translate "Sync service URL" %}</dt>
+                        <dd class="col-sm-8">
+                            <code>{{ application.sync_service_url }}</code>
+                        </dd>
+                    {% endif %}
+                    {% if application.reviewed_at %}
+                        <dt class="col-sm-4">{% translate "Reviewed" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.reviewed_at }}
+                            {% if application.reviewed_by %}({{ application.reviewed_by.email }}){% endif %}
+                        </dd>
+                    {% endif %}
+                    {% if application.rejected_reason %}
+                        <dt class="col-sm-4">{% translate "Rejection reason" %}</dt>
+                        <dd class="col-sm-8">
+                            {{ application.rejected_reason }}
+                        </dd>
+                    {% endif %}
+                </dl>
+                {% if is_staff_viewer and application.contact_id != user.pk %}
+                    <div class="alert alert-secondary">
+                        {% translate "Staff view" %} — {% translate "applicant" %}: {{ application.contact.email }}
+                    </div>
+                {% endif %}
+                {% if challenge_expired %}
+                    <div class="alert alert-warning">
+                        {% translate "Your verification challenge has expired. Issue a new token below, then update your well-known JSON and verify again." %}
+                    </div>
+                {% elif can_applicant_manage and not challenge_token_once %}
+                    <div class="alert alert-info">
+                        {% translate "Verification token was already displayed. Use “Issue new verification token” if you need another copy." %}
+                    </div>
+                {% endif %}
+                {% if application.last_verification_error %}
+                    <div class="alert alert-danger">{{ application.last_verification_error }}</div>
+                {% endif %}
+                {% if can_applicant_manage %}
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        <form method="post"
+                              action="{% url 'users:registry_application_reissue_challenge' pk=application.pk %}">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn btn-outline-primary">{% translate "Issue new verification token" %}</button>
+                        </form>
+                        <form method="post"
+                              action="{% url 'users:registry_application_withdraw' pk=application.pk %}">
+                            {% csrf_token %}
+                            <button type="submit"
+                                    class="btn btn-outline-secondary">{% translate "Withdraw application" %}</button>
+                        </form>
+                    </div>
+                {% endif %}
+                {% if can_verify_domain %}
+                    <form method="post"
+                          action="{% url 'users:registry_application_verify' pk=application.pk %}">
+                        {% csrf_token %}
+                        <p class="text-muted">
+                            {% translate "After publishing registry_challenge on your well-known URL, run verification." %}
+                        </p>
+                        <button type="submit" class="btn btn-primary">{% translate "Verify domain" %}</button>
+                    </form>
+                {% endif %}
+                {% if can_staff_review %}
+                    <div class="card border-warning mb-4">
+                        <div class="card-header">{% translate "Staff review" %}</div>
+                        <div class="card-body">
+                            <p class="text-muted">
+                                {% translate "Approve assigns the federation site id and marks this application approved. Reject closes the request." %}
+                            </p>
+                            <form method="post"
+                                  action="{% url 'users:registry_application_approve' pk=application.pk %}"
+                                  class="mb-4">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label"
+                                           for="registry-approve-site-name">{% translate "Site id (optional)" %}</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="registry-approve-site-name"
+                                           name="site_name"
+                                           maxlength="64"
+                                           value="{{ application.proposed_site_name }}"
+                                           placeholder="{% translate "Defaults to proposed site id" %}" />
+                                </div>
+                                <button type="submit"
+                                        class="btn btn-success">{% translate "Approve application" %}</button>
+                            </form>
+                            <form method="post"
+                                  action="{% url 'users:registry_application_reject' pk=application.pk %}">
+                                {% csrf_token %}
+                                <div class="mb-3">
+                                    <label class="form-label"
+                                           for="registry-reject-reason">{% translate "Rejection reason (optional)" %}</label>
+                                    <textarea class="form-control"
+                                              id="registry-reject-reason"
+                                              name="rejected_reason"
+                                              rows="2"></textarea>
+                                </div>
+                                <button type="submit"
+                                        class="btn btn-outline-danger">{% translate "Reject application" %}</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}
+{% block modal %}
+    {% if challenge_token_once %}
+        <div class="modal fade"
+             id="registryChallengeTokenModal"
+             tabindex="-1"
+             aria-labelledby="registryChallengeTokenModalLabel"
+             aria-hidden="true"
+             data-bs-backdrop="static"
+             data-bs-keyboard="false">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"
+                            id="registryChallengeTokenModalLabel">{% translate "Verification token (copy now)" %}</h5>
+                    </div>
+                    <div class="modal-body">
+                        <p>
+                            {% translate "This token is shown only once. Add it to your well-known JSON as registry_challenge, then run verification when ready." %}
+                        </p>
+                        <code class="user-select-all d-block p-2 bg-light border rounded">{{ challenge_token_once }}</code>
+                        <p class="text-muted mt-3 mb-0">
+                            {% translate "Well-known URL" %}:
+                            <a href="{{ well_known_url }}" target="_blank" rel="noopener">{{ well_known_url }}</a>
+                        </p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button"
+                                class="btn btn-primary"
+                                data-bs-dismiss="modal">{% translate "Close" %}</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endblock modal %}
+{% block inline_javascript %}
+    {{ block.super }}
+    {% if challenge_token_once %}
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                const modalEl = document.getElementById("registryChallengeTokenModal");
+                if (!modalEl || !window.bootstrap) {
+                    return;
+                }
+                const modal = new bootstrap.Modal(modalEl, {
+                    backdrop: "static",
+                    keyboard: false,
+                });
+                modal.show();
+            });
+        </script>
+    {% endif %}
+{% endblock inline_javascript %}

@@ -13,9 +13,10 @@ source "${FEDERATION_ROOT}/scripts/lib/site_env.sh"
 FEDERATION_TOML="${FEDERATION_ROOT}/federation.toml"
 
 usage() {
-	die "usage: $0 --name NAME --fqdn FQDN [--display-name NAME] [--gateway-api-base URL] [--sync-url URL] [--ca-cert-path PATH]"
+	die "usage: $0 --fqdn FQDN [--discover] [--name NAME] [--display-name NAME] [--gateway-api-base URL] [--sync-url URL] [--ca-cert-path PATH]"
 }
 
+DISCOVER=0
 while [[ $# -gt 0 ]]; do
 	case "$1" in
 	--name) PEER_NAME=$2; shift 2 ;;
@@ -24,12 +25,37 @@ while [[ $# -gt 0 ]]; do
 	--gateway-api-base) PEER_GATEWAY=$2; shift 2 ;;
 	--sync-url) PEER_SYNC=$2; shift 2 ;;
 	--ca-cert-path) PEER_CA=$2; shift 2 ;;
+	--discover) DISCOVER=1; shift ;;
 	-h | --help) usage ;;
 	*) die "unknown argument: $1" ;;
 	esac
 done
 
-[[ -n "${PEER_NAME:-}" && -n "${PEER_FQDN:-}" ]] || usage
+[[ -n "${PEER_FQDN:-}" ]] || usage
+
+if [[ "${DISCOVER}" -eq 1 ]]; then
+	DISCOVER_SCRIPT="${FEDERATION_ROOT}/scripts/lib/discover_peer_well_known.py"
+	require_file "${DISCOVER_SCRIPT}"
+	DISCOVER_OUTPUT=""
+	if ! DISCOVER_OUTPUT="$(python3 "${DISCOVER_SCRIPT}" "${PEER_FQDN}")"; then
+		die "discover failed for https://${PEER_FQDN}/.well-known/sds-federation.json"
+	fi
+	while IFS= read -r line; do
+		key="${line%%=*}"
+		value="${line#*=}"
+		case "${key}" in
+		name) PEER_NAME="${value}" ;;
+		fqdn) PEER_FQDN="${value}" ;;
+		display_name) PEER_DISPLAY="${value}" ;;
+		gateway_api_base) PEER_GATEWAY="${value}" ;;
+		sync_service_url) PEER_SYNC="${value}" ;;
+		*) die "unexpected discover output: ${line}" ;;
+		esac
+	done <<< "${DISCOVER_OUTPUT}"
+	info "Discovered peer identity from https://${PEER_FQDN}/.well-known/sds-federation.json"
+fi
+
+[[ -n "${PEER_NAME:-}" ]] || die "--name is required (or use --discover)"
 PEER_DISPLAY="${PEER_DISPLAY:-${PEER_NAME}}"
 PEER_GATEWAY="${PEER_GATEWAY:-https://${PEER_FQDN}/api/v1}"
 PEER_SYNC="${PEER_SYNC:-https://${PEER_FQDN}/sync/}"

@@ -18,6 +18,7 @@ from sds_gateway.api_methods.federation.redis_channel import (
 from config.settings.logs import ColoredFormatter
 from config.settings.utils import guess_admin_console_env
 from config.settings.utils import guess_max_web_download_size
+from config.settings.utils import resolve_federation_registry_intake_enabled
 
 __rng = random.SystemRandom()
 
@@ -757,8 +758,52 @@ SDS_SITE_FQDN: str = env.str("SDS_SITE_FQDN", default="localhost")
 # Export/OpenSearch ``site_name`` uses SDS_SITE_FQDN
 # (matches federation.toml [site].fqdn).
 FEDERATION_SITE_NAME: str = env.str("FEDERATION_SITE_NAME", default="").strip()
+# Matches federation.toml [site].display_name (well-known JSON, not UI branding).
+SDS_SITE_DISPLAY_NAME: str = env.str("SDS_SITE_DISPLAY_NAME", default="").strip()
+# Optional override for well-known gateway_api_base (local lab Docker DNS).
+# When unset, non-local hosts use https://{SDS_SITE_FQDN}/api/{API_VERSION}.
+FEDERATION_GATEWAY_API_BASE: str = env.str(
+    "FEDERATION_GATEWAY_API_BASE", default=""
+).strip()
+# Optional override for well-known sync_service_url (render sets this from onboarding).
+# When unset, non-local hosts use https://{SDS_SITE_FQDN}/sync/.
+FEDERATION_SYNC_SERVICE_URL: str = env.str(
+    "FEDERATION_SYNC_SERVICE_URL", default=""
+).strip()
+FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
+    "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
+    default="",
+).strip()
+# Local lab: registry verify fetch base when application FQDN == SDS_SITE_FQDN.
+# Default http://sds-gateway-local-app:8000. Production uses https://{fqdn}/...
+FEDERATION_REGISTRY_VERIFY_FETCH_BASE: str = env.str(
+    "FEDERATION_REGISTRY_VERIFY_FETCH_BASE",
+    default="",
+).strip()
+FEDERATION_REGISTRY_WELL_KNOWN_URL: str = env.str(
+    "FEDERATION_REGISTRY_WELL_KNOWN_URL",
+    default="",
+).strip()
+FEDERATION_REGISTRY_PUBKEY_FINGERPRINT: str = env.str(
+    "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT",
+    default="",
+).strip()
+SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
+    "SDS_FEDERATION_WELL_KNOWN_CONTACT",
+    default="",
+).strip()
 # Master switch: when False, federation export and Redis events are inactive.
 FEDERATION_ENABLED: bool = env.bool("FEDERATION_ENABLED", default=False)
+# Federation registry mothership; intake only when SDS_SITE_FQDN matches.
+FLAGSHIP_GATEWAY_HOST: str = (
+    env.str("FLAGSHIP_GATEWAY_HOST", default="sds.crc.nd.edu").strip().lower()
+)
+# Env alone cannot enable intake off-flagship (see resolve_federation_registry_intake).
+FEDERATION_REGISTRY_INTAKE_ENABLED: bool = resolve_federation_registry_intake_enabled(
+    site_fqdn=SDS_SITE_FQDN,
+    flagship_gateway_host=FLAGSHIP_GATEWAY_HOST,
+    intake_requested=env.bool("FEDERATION_REGISTRY_INTAKE_ENABLED", default=False),
+)
 _federation_events_channel_override: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
     default="",
