@@ -36,6 +36,10 @@ done
 if [[ "${DISCOVER}" -eq 1 ]]; then
 	DISCOVER_SCRIPT="${FEDERATION_ROOT}/scripts/lib/discover_peer_well_known.py"
 	require_file "${DISCOVER_SCRIPT}"
+	DISCOVER_OUTPUT=""
+	if ! DISCOVER_OUTPUT="$(python3 "${DISCOVER_SCRIPT}" "${PEER_FQDN}")"; then
+		die "discover failed for https://${PEER_FQDN}/.well-known/sds-federation.json"
+	fi
 	while IFS= read -r line; do
 		key="${line%%=*}"
 		value="${line#*=}"
@@ -47,7 +51,7 @@ if [[ "${DISCOVER}" -eq 1 ]]; then
 		sync_service_url) PEER_SYNC="${value}" ;;
 		*) die "unexpected discover output: ${line}" ;;
 		esac
-	done < <(python3 "${DISCOVER_SCRIPT}" "${PEER_FQDN}")
+	done <<< "${DISCOVER_OUTPUT}"
 	info "Discovered peer identity from https://${PEER_FQDN}/.well-known/sds-federation.json"
 fi
 

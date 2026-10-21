@@ -77,7 +77,12 @@ def apply_verification_result(
     message: str,
     well_known: dict[str, Any] | None = None,
 ) -> VerifyResult:
-    update_fields = ["status", "last_verification_error", "verification_attempts"]
+    update_fields = [
+        "status",
+        "last_verification_error",
+        "verification_attempts",
+        "updated_at",
+    ]
 
     application.verification_attempts += 1
     if ok:
