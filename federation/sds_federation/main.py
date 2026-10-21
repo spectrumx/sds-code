@@ -123,6 +123,8 @@ async def lifespan(app: FastAPI):
     # Pubsub listen may surface TimeoutError while cancelling the blocked read.
     with suppress(asyncio.CancelledError, TimeoutError, RedisTimeoutError):
         await sub_task
+    with suppress(asyncio.CancelledError):
+        await registry_task
     await http.aclose()
 
 

@@ -19,7 +19,9 @@ from .views import quick_add_capture_to_dataset_view
 from .views import registry_application_approve_view
 from .views import registry_application_detail_view
 from .views import registry_application_list_view
+from .views import registry_application_reissue_challenge_view
 from .views import registry_application_reject_view
+from .views import registry_application_withdraw_view
 from .views import registry_application_verify_view
 from .views import registry_application_view
 from .views import render_html_fragment_view
@@ -167,6 +169,16 @@ urlpatterns = [
         "federation/registry/applications/<uuid:pk>/verify/",
         registry_application_verify_view,
         name="registry_application_verify",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/reissue-challenge/",
+        registry_application_reissue_challenge_view,
+        name="registry_application_reissue_challenge",
+    ),
+    path(
+        "federation/registry/applications/<uuid:pk>/withdraw/",
+        registry_application_withdraw_view,
+        name="registry_application_withdraw",
     ),
     path(
         "federation/registry/applications/<uuid:pk>/approve/",

@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 from fastapi import Request
 
+from sds_federation.models import snapshot_runtime_peers
+
 sites_router = APIRouter(tags=["sites"])
 
 
@@ -21,6 +23,6 @@ async def list_sites(request: Request) -> dict:
                 "sync_service_url": str(peer.sync_service_url),
                 "hello_received": peer_registry.get(peer.fqdn) is not None,
             }
-            for peer in config.peers
+            for peer in snapshot_runtime_peers(config)
         ],
     }

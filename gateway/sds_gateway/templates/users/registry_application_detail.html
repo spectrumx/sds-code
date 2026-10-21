@@ -69,15 +69,35 @@
                         {% translate "Staff view" %} — {% translate "applicant" %}: {{ application.contact.email }}
                     </div>
                 {% endif %}
-                {% if application.status == "pending_verification" or application.status == "verification_failed" %}
-                    {% if not challenge_token_once %}
-                        <div class="alert alert-info">
-                            {% translate "Verification token was already displayed. Request a new challenge from support if you lost it." %}
-                        </div>
-                    {% endif %}
+                {% if challenge_expired %}
+                    <div class="alert alert-warning">
+                        {% translate "Your verification challenge has expired. Issue a new token below, then update your well-known JSON and verify again." %}
+                    </div>
+                {% elif can_applicant_manage and not challenge_token_once %}
+                    <div class="alert alert-info">
+                        {% translate "Verification token was already displayed. Use “Issue new verification token” if you need another copy." %}
+                    </div>
                 {% endif %}
                 {% if application.last_verification_error %}
                     <div class="alert alert-danger">{{ application.last_verification_error }}</div>
+                {% endif %}
+                {% if can_applicant_manage %}
+                    <div class="d-flex flex-wrap gap-2 mb-4">
+                        <form method="post"
+                              action="{% url 'users:registry_application_reissue_challenge' pk=application.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-primary">
+                                {% translate "Issue new verification token" %}
+                            </button>
+                        </form>
+                        <form method="post"
+                              action="{% url 'users:registry_application_withdraw' pk=application.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-outline-secondary">
+                                {% translate "Withdraw application" %}
+                            </button>
+                        </form>
+                    </div>
                 {% endif %}
                 {% if can_verify_domain %}
                     <form method="post"

@@ -46,6 +46,31 @@ def test_verify_registry_application_success(user) -> None:
 
 
 @pytest.mark.django_db
+def test_verify_fetch_failure_stores_generic_message(user) -> None:
+    from sds_gateway.api_methods.federation.registry_verify_fetch import (
+        RegistryVerifyFetchError,
+    )
+
+    application = RegistryApplication.objects.create(
+        fqdn="site.example.edu",
+        display_name="Site",
+        contact=user,
+        challenge_token_hash=hash_registry_challenge_token("token"),
+        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+    )
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_verify.fetch_well_known_json",
+        side_effect=RegistryVerifyFetchError("Could not fetch well-known JSON."),
+    ):
+        result = verify_registry_application(application)
+
+    assert not result.ok
+    application.refresh_from_db()
+    assert application.last_verification_error == "Could not fetch well-known JSON."
+    assert "Traceback" not in application.last_verification_error
+
+
+@pytest.mark.django_db
 def test_verify_registry_application_wrong_challenge(user) -> None:
     application = RegistryApplication.objects.create(
         fqdn="site.example.edu",

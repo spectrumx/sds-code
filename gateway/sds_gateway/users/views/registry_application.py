@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.contrib import messages
+from django.utils import timezone
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError
 from django.db.models import QuerySet
@@ -21,6 +22,15 @@ from sds_gateway.api_methods.federation.registry_application_review import (
 )
 from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
+)
+from sds_gateway.api_methods.federation.registry_application_challenge import (
+    applicant_can_manage_challenge,
+)
+from sds_gateway.api_methods.federation.registry_application_challenge import (
+    reissue_registry_challenge,
+)
+from sds_gateway.api_methods.federation.registry_application_challenge import (
+    withdraw_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
@@ -148,16 +158,60 @@ class RegistryApplicationDetailView(
         context["well_known_url"] = (
             f"https://{application.fqdn}/.well-known/sds-federation.json"
         )
-        context["can_verify_domain"] = application.status in (
-            RegistryApplicationStatus.PENDING_VERIFICATION.value,
-            RegistryApplicationStatus.VERIFICATION_FAILED.value,
+        context["challenge_expired"] = (
+            applicant_can_manage_challenge(application)
+            and application.challenge_expires_at <= timezone.now()
         )
+        context["can_applicant_manage"] = (
+            application.contact_id == self.request.user.pk
+            and applicant_can_manage_challenge(application)
+        )
+        context["can_verify_domain"] = context["can_applicant_manage"]
         context["can_staff_review"] = (
             self.request.user.is_staff
             and application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
         )
         context["is_staff_viewer"] = self.request.user.is_staff
         return context
+
+
+class RegistryApplicationReissueChallengeView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+):
+    """Applicant: issue a new verification token for this application."""
+
+    def post(self, request: HttpRequest, pk: str) -> HttpResponse:
+        application = get_registry_application_for_user(request.user, pk)
+        if application.contact_id != request.user.id:
+            messages.error(request, "Only the applicant can request a new challenge.")
+            return redirect("users:registry_application_detail", pk=application.pk)
+        result = reissue_registry_challenge(application)
+        if result.ok and result.raw_token:
+            stash_challenge_token_for_display(request, application, result.raw_token)
+            messages.success(request, result.message)
+        elif result.ok:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("users:registry_application_detail", pk=application.pk)
+
+
+class RegistryApplicationWithdrawView(
+    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+):
+    """Applicant: withdraw and release the FQDN for a new application."""
+
+    def post(self, request: HttpRequest, pk: str) -> HttpResponse:
+        application = get_registry_application_for_user(request.user, pk)
+        if application.contact_id != request.user.id:
+            messages.error(request, "Only the applicant can withdraw this application.")
+            return redirect("users:registry_application_detail", pk=application.pk)
+        result = withdraw_registry_application(application)
+        if result.ok:
+            messages.success(request, result.message)
+            return redirect("users:registry_application_list")
+        messages.error(request, result.message)
+        return redirect("users:registry_application_detail", pk=application.pk)
 
 
 class RegistryApplicationVerifyView(
@@ -264,6 +318,12 @@ class RegistryApplicationRejectView(
 registry_application_list_view = RegistryApplicationListView.as_view()
 registry_application_view = RegistryApplicationView.as_view()
 registry_application_detail_view = RegistryApplicationDetailView.as_view()
+registry_application_reissue_challenge_view = require_POST(
+    RegistryApplicationReissueChallengeView.as_view(),
+)
+registry_application_withdraw_view = require_POST(
+    RegistryApplicationWithdrawView.as_view(),
+)
 registry_application_verify_view = require_POST(
     RegistryApplicationVerifyView.as_view(),
 )

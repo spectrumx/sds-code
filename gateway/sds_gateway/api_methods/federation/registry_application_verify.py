@@ -3,14 +3,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-import requests
 from django.utils import timezone
-from requests import RequestException
 
 from sds_gateway.api_methods.federation.registry_challenge import (
     verify_registry_challenge_token,
 )
-from sds_gateway.api_methods.federation.well_known import resolve_well_known_fetch_url
+from sds_gateway.api_methods.federation.registry_verify_fetch import (
+    RegistryVerifyFetchError,
+)
+from sds_gateway.api_methods.federation.registry_verify_fetch import (
+    fetch_well_known_json,
+)
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
@@ -21,7 +24,6 @@ _VERIFYABLE_STATUSES = frozenset(
     },
 )
 
-_DEFAULT_FETCH_TIMEOUT_SECONDS = 30
 _MAX_ERROR_LENGTH = 2000
 
 
@@ -29,20 +31,6 @@ _MAX_ERROR_LENGTH = 2000
 class VerifyResult:
     ok: bool
     message: str
-
-
-def fetch_well_known_json(
-    fqdn: str, timeout: int = _DEFAULT_FETCH_TIMEOUT_SECONDS
-) -> dict[str, Any]:
-    """GET applicant well-known JSON (HTTPS in prod; local lab may use internal HTTP)."""
-    url = resolve_well_known_fetch_url(fqdn)
-    response = requests.get(url, timeout=timeout)
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        msg = "well-known response is not a JSON object"
-        raise ValueError(msg)
-    return payload
 
 
 def parse_and_match_challenge(payload: dict[str, Any], stored_hash: str) -> bool:
@@ -115,19 +103,18 @@ def verify_registry_application(application: RegistryApplication) -> VerifyResul
         )
 
     if application.challenge_expires_at <= timezone.now():
-        return VerifyResult(
-            ok=False,
-            message="The verification challenge has expired. Request a new challenge.",
-        )
+        msg = ("The verification challenge has expired. "
+               "Issue a new verification token on the application page.")
+        return VerifyResult(ok=False, message=msg)
 
     fqdn = application.fqdn
     try:
         well_known_json = fetch_well_known_json(fqdn)
-    except (RequestException, ValueError, TypeError) as exc:
+    except RegistryVerifyFetchError as exc:
         return apply_verification_result(
             application,
             ok=False,
-            message=f"Could not fetch or parse well-known JSON: {exc}",
+            message=str(exc),
         )
 
     if not parse_and_match_challenge(well_known_json, application.challenge_token_hash):
