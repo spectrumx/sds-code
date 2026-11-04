@@ -41,6 +41,12 @@ from sds_gateway.api_methods.federation.registry_manifest_publish import (
 from sds_gateway.api_methods.federation.registry_manifest_publish import (
     publish_registry_manifest,
 )
+from sds_gateway.api_methods.federation.registry_sync_capabilities import (
+    registry_sync_capabilities,
+)
+from sds_gateway.api_methods.federation.registry_sync_publish import (
+    publish_registry_manifest_via_sync,
+)
 from sds_gateway.api_methods.federation.registry_challenge import (
     generate_registry_challenge_token,
 )
@@ -237,6 +243,12 @@ class RegistryApplicationWithdrawView(
 def _staff_can_publish_manifest(user) -> bool:
     if not user.is_staff:
         return False
+    backend = str(
+        getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
+    ).strip().lower()
+    if backend == "sync":
+        caps = registry_sync_capabilities()
+        return bool(caps and caps.get("publish_enabled"))
     if not is_flagship_gateway_deployment(
         site_fqdn=str(getattr(settings, "SDS_SITE_FQDN", "") or ""),
         flagship_gateway_host=str(getattr(settings, "FLAGSHIP_GATEWAY_HOST", "") or ""),
@@ -337,8 +349,14 @@ class RegistryApplicationPublishManifestView(
     """Staff: sign and publish the federation registry manifest (flagship only)."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
+        backend = str(
+            getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
+        ).strip().lower()
         try:
-            result = publish_registry_manifest()
+            if backend == "sync":
+                result = publish_registry_manifest_via_sync()
+            else:
+                result = publish_registry_manifest()
         except RegistryManifestPublishError as exc:
             messages.error(request, str(exc))
             return redirect("users:registry_application_list")

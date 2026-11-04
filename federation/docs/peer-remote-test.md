@@ -117,3 +117,19 @@ Fallback if Traefik/TLS is not ready on fed1: open host **:8000** and use
 
 Same idea on one machine: `just deploy-local-peer-2-peer` then `just seed-peer`
 (see [../README.md](../README.md) and [../scripts/local_e2e/README.md](../scripts/local_e2e/README.md)).
+
+## Registry apply from a sync-only peer
+
+Domain verification reads `GET /.well-known/sds-federation.json` from the applicant host
+(Traefik routes that path to sync on fed1). Set the applicant challenge on the **peer sync**
+container, not the mothership gateway:
+
+```bash
+# federation/.env.peer (or compose environment)
+FEDERATION_REGISTRY_CHALLENGE_TOKEN=<one-time token from mothership UI>
+```
+
+After Traefik serves well-known from sync, applicants publish the token in JSON as
+`registry_challenge`, then run **Verify** on the mothership gateway UI with
+`FEDERATION_REGISTRY_BACKEND=sync` and `FEDERATION_SYNC_INTERNAL_URL` pointed at the
+flagship sync container.

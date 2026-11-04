@@ -22,3 +22,21 @@
 
 [[http.services.sds-federation-peer-sync.loadBalancer.servers]]
     url = "http://sds-federation-peer-sync:8000"
+
+[http.routers.sds-federation-prod-wellknown]
+    entryPoints = ["web", "web-secure"]
+    rule        = "(Host(`sds.crc.nd.edu`) || Host(`sds-dev.crc.nd.edu`)) && (Path(`/.well-known/sds-federation.json`) || PathPrefix(`/.well-known/sds-registry/`))"
+    service     = "sds-federation-prod-sync"
+    priority    = 100
+
+    [http.routers.sds-federation-prod-wellknown.tls]
+        certResolver = "letsencrypt"
+
+[http.routers.sds-federation-peer-wellknown]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`sds-fed1.crc.nd.edu`) && Path(`/.well-known/sds-federation.json`)"
+    service     = "sds-federation-peer-sync"
+    priority    = 100
+
+    [http.routers.sds-federation-peer-wellknown.tls]
+        certResolver = "letsencrypt"

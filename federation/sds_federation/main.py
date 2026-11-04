@@ -12,14 +12,17 @@ from sds_opensearch_query.client import build_opensearch_client
 
 from sds_federation.models import load_federation_config
 from sds_federation.routes.health import health_router
+from sds_federation.routes.internal_registry import internal_registry_router
 from sds_federation.routes.sites import sites_router
 from sds_federation.routes.webhooks import webhooks_router
+from sds_federation.routes.well_known import well_known_router
 from sds_federation.services.bootstrap import run_bootstrap
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.fed_index import ensure_fed_indices
 from sds_federation.services.local_events import run_federation_subscriber
 from sds_federation.services.peer_http import build_peer_http_client
 from sds_federation.services.peer_registry import PeerRegistry
+from sds_federation.services.site_registry import RegistryTrustError
 from sds_federation.services.site_registry import apply_peers
 from sds_federation.services.site_registry import resolve_peers
 from sds_federation.services.site_registry import run_registry_refresh
@@ -54,7 +57,12 @@ sync_app.include_router(sites_router, prefix=API_PREFIX)
 async def lifespan(app: FastAPI):
     config = load_federation_config()
     http = build_peer_http_client()
-    await apply_peers(config, await resolve_peers(http, config))
+    try:
+        peers = await resolve_peers(http, config)
+    except RegistryTrustError as exc:
+        logger.error("Federation registry trust failure at startup: {}", exc)
+        raise
+    await apply_peers(config, peers)
 
     os_client = build_opensearch_client(
         host=get_setting("OPENSEARCH_HOST", "opensearch"),
@@ -113,7 +121,9 @@ async def lifespan(app: FastAPI):
         run_registry_refresh(http, config, fed_indexer, stop),
     )
     app.state.subscriber_task = sub_task
+    app.state.registry_task = registry_task
     sync_app.state.subscriber_task = sub_task
+    sync_app.state.registry_task = registry_task
 
     yield
 
@@ -129,4 +139,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SDS Federation", lifespan=lifespan)
+app.include_router(well_known_router)
+app.include_router(internal_registry_router)
 app.mount(SYNC_PREFIX, sync_app)

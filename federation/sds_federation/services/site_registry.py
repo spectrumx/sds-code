@@ -62,6 +62,13 @@ def _last_serial(policy: RegistryPolicy) -> int:
         return -1
 
 
+def _cached_manifest_payload(policy: RegistryPolicy) -> bytes | None:
+    path = Path(policy.cache_dir) / _MANIFEST_NAME
+    if not path.is_file():
+        return None
+    return path.read_bytes()
+
+
 def _accept(
     policy: RegistryPolicy,
     payload: bytes,
@@ -85,12 +92,20 @@ def _accept(
     if manifest.serial < last:
         msg = f"registry serial {manifest.serial} older than accepted {last}"
         raise RegistryTrustError(msg)
+    if manifest.serial == last:
+        previous = _cached_manifest_payload(policy)
+        if previous is not None and previous != payload:
+            msg = (
+                f"registry serial {manifest.serial} reused with different manifest bytes"
+            )
+            raise RegistryTrustError(msg)
     return manifest
 
 
 def _cache(
     policy: RegistryPolicy, payload: bytes, signature: bytes, serial: int
 ) -> None:
+    """Persist manifest bytes and base64-encoded Ed25519 signature (matches gateway .sig)."""
     cache_dir = Path(policy.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / _MANIFEST_NAME).write_bytes(payload)
