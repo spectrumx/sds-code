@@ -35,6 +35,12 @@ from sds_gateway.api_methods.federation.registry_application_review import (
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
 )
+from sds_gateway.api_methods.federation.registry_challenge import (
+    generate_registry_challenge_token,
+)
+from sds_gateway.api_methods.federation.registry_challenge import (
+    hash_registry_challenge_token,
+)
 from sds_gateway.api_methods.federation.registry_manifest_publish import (
     RegistryManifestPublishError,
 )
@@ -46,12 +52,6 @@ from sds_gateway.api_methods.federation.registry_sync_capabilities import (
 )
 from sds_gateway.api_methods.federation.registry_sync_publish import (
     publish_registry_manifest_via_sync,
-)
-from sds_gateway.api_methods.federation.registry_challenge import (
-    generate_registry_challenge_token,
-)
-from sds_gateway.api_methods.federation.registry_challenge import (
-    hash_registry_challenge_token,
 )
 from sds_gateway.api_methods.models import ChallengeMethod
 from sds_gateway.api_methods.models import RegistryApplication
@@ -243,9 +243,11 @@ class RegistryApplicationWithdrawView(
 def _staff_can_publish_manifest(user) -> bool:
     if not user.is_staff:
         return False
-    backend = str(
-        getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
-    ).strip().lower()
+    backend = (
+        str(getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway")
+        .strip()
+        .lower()
+    )
     if backend == "sync":
         caps = registry_sync_capabilities()
         return bool(caps and caps.get("publish_enabled"))
@@ -349,9 +351,13 @@ class RegistryApplicationPublishManifestView(
     """Staff: sign and publish the federation registry manifest (flagship only)."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
-        backend = str(
-            getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
-        ).strip().lower()
+        backend = (
+            str(
+                getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
+            )
+            .strip()
+            .lower()
+        )
         try:
             if backend == "sync":
                 result = publish_registry_manifest_via_sync()

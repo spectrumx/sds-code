@@ -8,6 +8,9 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from django.utils import timezone
 
+from sds_gateway.api_methods.federation.registry_challenge import (
+    hash_registry_challenge_token,
+)
 from sds_gateway.api_methods.federation.registry_manifest_publish import (
     RegistryManifestPublishError,
 )
@@ -62,7 +65,7 @@ def test_publish_manifest_writes_files_and_marks_applications(
         site_name="peer",
         gateway_api_base="https://peer.example.edu/api/v1",
         sync_service_url="https://peer.example.edu/sync",
-        challenge_token_hash="hash",
+        challenge_token_hash=hash_registry_challenge_token("publish-test"),
         status=RegistryApplicationStatus.APPROVED.value,
     )
 
@@ -70,7 +73,9 @@ def test_publish_manifest_writes_files_and_marks_applications(
     assert result.ok
     assert result.serial == 0
 
-    manifest_path = Path(settings.FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR) / "sites.json"
+    manifest_path = (
+        Path(settings.FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR) / "sites.json"
+    )
     sig_path = manifest_path.with_suffix(".json.sig")
     payload = manifest_path.read_bytes()
     sig_b64 = sig_path.read_bytes()

@@ -23,7 +23,9 @@ async def sds_federation_well_known(request: Request) -> JSONResponse:
     config = request.app.state.config
     doc = build_site_document(config)
     if not document_ready(doc):
-        raise HTTPException(status_code=503, detail="well-known document is not configured")
+        raise HTTPException(
+            status_code=503, detail="well-known document is not configured"
+        )
     return JSONResponse(content=doc, headers={"Cache-Control": "no-store"})
 
 
@@ -31,10 +33,14 @@ async def sds_federation_well_known(request: Request) -> JSONResponse:
 async def registry_sites_json(request: Request) -> Response:
     config = request.app.state.config
     if not config.registry.publish.enabled:
-        raise HTTPException(status_code=404, detail="registry manifest is not published")
+        raise HTTPException(
+            status_code=404, detail="registry manifest is not published"
+        )
     payload = read_published_manifest_bytes(config)
     if payload is None:
-        raise HTTPException(status_code=404, detail="registry manifest is not published")
+        raise HTTPException(
+            status_code=404, detail="registry manifest is not published"
+        )
     return Response(
         content=payload,
         media_type="application/json",
@@ -46,10 +52,14 @@ async def registry_sites_json(request: Request) -> Response:
 async def registry_sites_sig(request: Request) -> Response:
     config = request.app.state.config
     if not config.registry.publish.enabled:
-        raise HTTPException(status_code=404, detail="registry manifest is not published")
+        raise HTTPException(
+            status_code=404, detail="registry manifest is not published"
+        )
     payload = read_published_signature_bytes(config)
     if payload is None:
-        raise HTTPException(status_code=404, detail="registry manifest is not published")
+        raise HTTPException(
+            status_code=404, detail="registry manifest is not published"
+        )
     return Response(
         content=payload,
         media_type="text/plain",

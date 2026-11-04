@@ -11,7 +11,6 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from sds_federation.models import RegistryPolicy
 from sds_federation.schemas.registry import REGISTRY_SCHEMA_VERSION
 from sds_federation.services.site_registry import RegistryTrustError
@@ -144,7 +143,9 @@ def test_accept_rejects_equal_serial_with_different_bytes(tmp_path: Path) -> Non
     bad_sig = _sign(tampered, private_path)
     check_now = issued + timedelta(hours=1)
 
-    with pytest.raises(RegistryTrustError, match="reused with different manifest bytes"):
+    with pytest.raises(
+        RegistryTrustError, match="reused with different manifest bytes"
+    ):
         _accept(policy, tampered, bad_sig, now=check_now)
 
 

@@ -5,7 +5,6 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from sds_federation.services.registry_sign import RegistrySignError
 from sds_federation.services.registry_sign import canonical_manifest_json_bytes
 from sds_federation.services.registry_sign import encode_signature_for_well_known

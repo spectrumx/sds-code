@@ -9,13 +9,14 @@ import json
 import os
 import re
 import socket
+import ssl
 from typing import Any
 from urllib.parse import urlparse
 
 import httpx
 from loguru import logger
 
-from sds_federation.models import FederationConfig
+from sds_federation.models import FederationConfig  # noqa: TC001
 from sds_federation.services.well_known import WELL_KNOWN_SDS_FEDERATION_PATH
 
 _DEFAULT_FETCH_TIMEOUT_SECONDS = 30
@@ -112,25 +113,32 @@ def _resolve_global_addresses_for_verify(fqdn: str) -> list[str]:
         addr = ipaddress.ip_address(sockaddr[0])
         if not addr.is_global:
             raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED)
-        addresses.append(sockaddr[0])
+        addresses.append(str(sockaddr[0]))
     return list(dict.fromkeys(addresses))
 
 
-class _PinnedHTTPSConnection(http.client.HTTPSConnection):
-    def __init__(self, host: str, pinned_address: str, *, timeout: float) -> None:
-        self._pinned_address = pinned_address
-        super().__init__(host, port=443, timeout=timeout)
-
-    def connect(self) -> None:
-        self.sock = self._create_connection(
-            (self._pinned_address, self.port),
-            self.timeout,
-            self.source_address,
+def _pinned_https_request(
+    hostname: str,
+    pinned_address: str,
+    path: str,
+    timeout: float,
+) -> tuple[int, bytes]:
+    """GET over TLS to ``hostname`` while TCP connects to a pre-validated address."""
+    conn = http.client.HTTPSConnection(host=hostname, port=443, timeout=timeout)
+    raw_sock = socket.create_connection((pinned_address, 443), timeout=timeout)
+    try:
+        tls_sock = ssl.create_default_context().wrap_socket(
+            raw_sock,
+            server_hostname=hostname,
         )
-        server_hostname = self._tunnel_host or self.host
-        self.sock = self._context.wrap_socket(
-            self.sock, server_hostname=server_hostname
-        )
+        conn.sock = tls_sock
+        conn.request("GET", path, headers={"Accept": "application/json"})
+        response = conn.getresponse()
+        body = _read_response_body_limited(response, _MAX_RESPONSE_BYTES)
+        return response.status, body
+    finally:
+        conn.close()
+        raw_sock.close()
 
 
 def _read_response_body_limited(
@@ -163,25 +171,24 @@ def _pinned_https_get(
 
     last_error: BaseException | None = None
     for pinned in pinned_addresses:
-        conn = _PinnedHTTPSConnection(hostname, pinned, timeout=timeout)
         try:
-            conn.request("GET", path, headers={"Accept": "application/json"})
-            response = conn.getresponse()
-            body = _read_response_body_limited(response, _MAX_RESPONSE_BYTES)
+            response_status, body = _pinned_https_request(
+                hostname,
+                pinned,
+                path,
+                float(timeout),
+            )
         except RegistryVerifyFetchError:
             raise
         except (OSError, TimeoutError, http.client.HTTPException) as exc:
             last_error = exc
         else:
             if (
-                response.status < _HTTP_SUCCESS_STATUS_MIN
-                or response.status > _HTTP_SUCCESS_STATUS_MAX
+                response_status < _HTTP_SUCCESS_STATUS_MIN
+                or response_status > _HTTP_SUCCESS_STATUS_MAX
             ):
-                msg = f"HTTP {response.status}"
                 raise RegistryVerifyFetchError(_COULD_NOT_FETCH_WELL_KNOWN) from None
             return body
-        finally:
-            conn.close()
 
     if last_error is not None:
         raise RegistryVerifyFetchError(_COULD_NOT_FETCH_WELL_KNOWN) from last_error
@@ -247,6 +254,11 @@ def _fetch_well_known_json_sync(
 async def fetch_well_known_json(
     fqdn: str,
     config: FederationConfig,
-    timeout: int = _DEFAULT_FETCH_TIMEOUT_SECONDS,
+    fetch_timeout_seconds: int = _DEFAULT_FETCH_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    return await asyncio.to_thread(_fetch_well_known_json_sync, fqdn, config, timeout)
+    return await asyncio.to_thread(
+        _fetch_well_known_json_sync,
+        fqdn,
+        config,
+        fetch_timeout_seconds,
+    )

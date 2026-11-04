@@ -19,9 +19,8 @@
                             <form method="post"
                                   action="{% url 'users:registry_application_publish_manifest' %}">
                                 {% csrf_token %}
-                                <button type="submit" class="btn btn-warning">
-                                    {% translate "Publish Signed Registry" %}
-                                </button>
+                                <button type="submit"
+                                        class="btn btn-warning">{% translate "Publish Signed Registry" %}</button>
                             </form>
                         {% endif %}
                         <button type="button"

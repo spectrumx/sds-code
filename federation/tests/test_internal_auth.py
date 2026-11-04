@@ -7,13 +7,6 @@ from sds_federation.services.registry_challenge import hash_registry_challenge_t
 from tests.conftest import build_registry_root_app
 
 
-@pytest.fixture
-def admin_token(monkeypatch: pytest.MonkeyPatch) -> str:
-    token = "test-sync-admin-token"
-    monkeypatch.setenv("FEDERATION_SYNC_ADMIN_TOKEN", token)
-    return token
-
-
 @pytest.mark.asyncio
 async def test_internal_capabilities_requires_bearer(
     test_site_config,
@@ -70,7 +63,7 @@ async def test_internal_verify_success(
     raw = "verify-me"
     monkeypatch.setenv("FEDERATION_REGISTRY_CHALLENGE_TOKEN", raw)
 
-    async def _local_fetch(fqdn: str, config, timeout: int = 30):
+    async def _local_fetch(fqdn: str, config, **_kwargs: object):
         return build_site_document(config)
 
     monkeypatch.setattr(

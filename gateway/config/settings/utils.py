@@ -86,8 +86,10 @@ def is_flagship_gateway_deployment(
     """True when this gateway's public FQDN is the federation mothership."""
     normalized_site = (site_fqdn or os.getenv("SDS_SITE_FQDN", "")).strip().lower()
     normalized_flagship = (
-        flagship_gateway_host or os.getenv("FLAGSHIP_GATEWAY_HOST", "sds.crc.nd.edu")
-    ).strip().lower()
+        (flagship_gateway_host or os.getenv("FLAGSHIP_GATEWAY_HOST", "sds.crc.nd.edu"))
+        .strip()
+        .lower()
+    )
     if not normalized_site or not normalized_flagship:
         return False
     return normalized_site == normalized_flagship

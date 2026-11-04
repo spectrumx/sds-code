@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from sds_federation.models import FederationConfig
+from sds_federation.models import FederationConfig  # noqa: TC001
 
 SDS_FEDERATION_WELL_KNOWN_SCHEMA_VERSION = 1
 WELL_KNOWN_SDS_FEDERATION_PATH = "/.well-known/sds-federation.json"

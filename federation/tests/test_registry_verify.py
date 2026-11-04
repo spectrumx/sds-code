@@ -7,12 +7,13 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
-
 from sds_federation.models import FederationConfig
 from sds_federation.models import SiteInfo
 from sds_federation.services.registry_verify import RegistryVerifyFetchError
 from sds_federation.services.registry_verify import fetch_well_known_json
-from sds_federation.services.registry_verify import validate_applicant_hostname_for_verify
+from sds_federation.services.registry_verify import (
+    validate_applicant_hostname_for_verify,
+)
 
 
 def _mothership_config() -> FederationConfig:

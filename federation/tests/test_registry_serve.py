@@ -4,7 +4,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-
 from sds_federation.models import FederationConfig
 from sds_federation.models import RegistryPolicy
 from sds_federation.models import RegistryPublishPolicy
@@ -35,7 +34,7 @@ def _published_config(tmp_path: Path) -> FederationConfig:
             ),
         ),
     )
-    publish_manifest(config, [], None, False)
+    publish_manifest(config, [], None, dry_run=False)
     return config
 
 

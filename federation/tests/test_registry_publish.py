@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 from pydantic import AnyHttpUrl
-
 from sds_federation.models import FederationConfig
 from sds_federation.models import RegistryPolicy
 from sds_federation.models import RegistryPublishPolicy
@@ -85,8 +84,8 @@ def test_publish_writes_files_and_includes_flagship_and_peer(
 def test_publish_increments_serial(tmp_path: Path) -> None:
     private_path, _ = write_ed25519_keypair(tmp_path)
     config = _flagship_config(tmp_path, private_path=private_path)
-    first = publish_manifest(config, [], None, False)
-    second = publish_manifest(config, [], None, False)
+    first = publish_manifest(config, [], None, dry_run=False)
+    second = publish_manifest(config, [], None, dry_run=False)
     assert first["serial"] == 0
     assert second["serial"] == 1
 
@@ -111,18 +110,20 @@ def test_publish_missing_key_raises(tmp_path: Path) -> None:
     config = _flagship_config(tmp_path, private_path=private_path)
     config.registry.publish.signing_key_path = str(tmp_path / "missing.pem")
     with pytest.raises(RegistrySignError, match="not found"):
-        publish_manifest(config, [], None, False)
+        publish_manifest(config, [], None, dry_run=False)
 
 
 def test_published_manifest_passes_site_registry_accept(tmp_path: Path) -> None:
-    private_path, public_path = write_ed25519_keypair(tmp_path)
+    private_path, _public_path = write_ed25519_keypair(tmp_path)
     config = _flagship_config(tmp_path, private_path=private_path)
-    publish_manifest(config, [], None, False)
+    publish_manifest(config, [], None, dry_run=False)
     manifest_path = Path(config.registry.publish.manifest_dir) / MANIFEST_FILENAME
     sig_path = Path(config.registry.publish.manifest_dir) / SIGNATURE_FILENAME
     payload = manifest_path.read_bytes()
     import base64
 
     signature = base64.b64decode(sig_path.read_bytes().strip(), validate=True)
-    manifest = _accept(config.registry, payload, signature, now=datetime(2020, 1, 1, tzinfo=UTC))
+    manifest = _accept(
+        config.registry, payload, signature, now=datetime(2020, 1, 1, tzinfo=UTC)
+    )
     assert manifest.serial == 0

@@ -7,7 +7,6 @@ from sds_federation.models import SiteInfo
 
 from tests.conftest import build_registry_root_app
 
-
 GATEWAY_WELL_KNOWN_KEYS = frozenset(
     {
         "schema_version",
