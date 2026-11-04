@@ -4,7 +4,6 @@ import httpx
 import pytest
 
 from tests.conftest import build_registry_root_app
-from tests.conftest import test_site_config
 
 
 @pytest.mark.asyncio

@@ -43,7 +43,7 @@ def _cmd_publish(args: argparse.Namespace) -> int:
             config,
             sites,
             args.min_serial,
-            args.dry_run,
+            dry_run=args.dry_run,
         )
     except RegistrySignError as exc:
         print(str(exc), file=sys.stderr)
@@ -82,12 +82,18 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="sds_federation.cli.registry")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    fp = sub.add_parser("fingerprint", help="Print sha256 fingerprint of registry public key")
+    fp = sub.add_parser(
+        "fingerprint", help="Print sha256 fingerprint of registry public key"
+    )
     fp.add_argument("--public-key-path", default="")
     fp.set_defaults(func=_cmd_fingerprint)
 
-    pub = sub.add_parser("publish", help="Sign and write registry manifest on this sync host")
-    pub.add_argument("--sites-json", required=True, help="JSON file: list of RegistrySite objects")
+    pub = sub.add_parser(
+        "publish", help="Sign and write registry manifest on this sync host"
+    )
+    pub.add_argument(
+        "--sites-json", required=True, help="JSON file: list of RegistrySite objects"
+    )
     pub.add_argument("--min-serial", type=int, default=None)
     pub.add_argument("--dry-run", action="store_true")
     pub.set_defaults(func=_cmd_publish)

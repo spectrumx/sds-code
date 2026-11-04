@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -11,6 +12,9 @@ from django.urls import reverse
 from sds_gateway.api_methods.federation.registry_manifest_publish import (
     publish_registry_manifest,
 )
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _write_ed25519_keypair(directory: Path) -> Path:
@@ -27,7 +31,9 @@ def _write_ed25519_keypair(directory: Path) -> Path:
 
 
 @pytest.mark.django_db
-def test_registry_manifest_well_known_endpoints(settings, client, tmp_path: Path) -> None:
+def test_registry_manifest_well_known_endpoints(
+    settings, client, tmp_path: Path
+) -> None:
     settings.SDS_SITE_FQDN = "sds.crc.nd.edu"
     settings.FLAGSHIP_GATEWAY_HOST = "sds.crc.nd.edu"
     settings.FEDERATION_SITE_NAME = "crc"
@@ -37,12 +43,13 @@ def test_registry_manifest_well_known_endpoints(settings, client, tmp_path: Path
         _write_ed25519_keypair(tmp_path),
     )
 
-    assert client.get(reverse("sds_registry_manifest")).status_code == 404
+    missing_manifest = client.get(reverse("sds_registry_manifest"))
+    assert missing_manifest.status_code == HTTPStatus.NOT_FOUND
 
     publish_registry_manifest()
     manifest_response = client.get(reverse("sds_registry_manifest"))
     sig_response = client.get(reverse("sds_registry_manifest_signature"))
-    assert manifest_response.status_code == 200
-    assert sig_response.status_code == 200
+    assert manifest_response.status_code == HTTPStatus.OK
+    assert sig_response.status_code == HTTPStatus.OK
     assert json.loads(manifest_response.content)["schema_version"] == 1
     assert manifest_response["Content-Type"].startswith("application/json")

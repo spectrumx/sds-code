@@ -9,7 +9,7 @@ from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
-from sds_federation.models import FederationConfig
+from sds_federation.models import FederationConfig  # noqa: TC001
 from sds_federation.schemas.registry import REGISTRY_SCHEMA_VERSION
 from sds_federation.schemas.registry import RegistrySite
 from sds_federation.schemas.registry import SiteStatusEnum
@@ -154,6 +154,7 @@ def publish_manifest(
     config: FederationConfig,
     sites: list[RegistrySite],
     min_serial: int | None,
+    *,
     dry_run: bool,
 ) -> dict[str, Any]:
     publish = config.registry.publish

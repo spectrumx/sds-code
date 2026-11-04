@@ -9,10 +9,7 @@ import pytest
 from fastapi import FastAPI
 from sds_federation.models import FederationConfig
 from sds_federation.models import site_name_for_federation
-from sds_federation.routes.internal_registry import internal_registry_router
-from sds_federation.routes.sites import sites_router
 from sds_federation.routes.webhooks import webhooks_router
-from sds_federation.routes.well_known import well_known_router
 from sds_federation.schemas.webhooks import AssetTypeEnum
 from sds_federation.services.fed_index import FederatedAssetIndexer
 from sds_federation.services.peer_registry import PeerRegistry
@@ -90,19 +87,6 @@ def build_webhook_app(
     return root
 
 
-def build_registry_root_app(config: FederationConfig) -> FastAPI:
-    """Root federation app with well-known + internal registry (mirrors main.py mount layout)."""
-    sync_app = FastAPI()
-    sync_app.state.config = config
-    sync_app.include_router(sites_router, prefix=API_PREFIX)
-    root = FastAPI()
-    root.state.config = config
-    root.include_router(well_known_router)
-    root.include_router(internal_registry_router)
-    root.mount("/sync", sync_app)
-    return root
-
-
 @pytest.fixture
 def recording_opensearch() -> RecordingOpenSearch:
     return RecordingOpenSearch()
@@ -115,7 +99,7 @@ def test_site_config() -> FederationConfig:
 
 @pytest.fixture
 def admin_token(monkeypatch: pytest.MonkeyPatch) -> str:
-    token = "test-sync-admin-token"  # noqa: S105
+    token = "test-sync-admin-token"
     monkeypatch.setenv("FEDERATION_SYNC_ADMIN_TOKEN", token)
     return token
 

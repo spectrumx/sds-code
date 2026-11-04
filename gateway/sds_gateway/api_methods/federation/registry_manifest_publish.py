@@ -5,17 +5,17 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from config.settings.utils import is_flagship_gateway_deployment
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from config.settings.utils import is_flagship_gateway_deployment
-from sds_gateway.api_methods.federation.registry_manifest_build import build_manifest_dict
-from sds_gateway.api_methods.federation.registry_manifest_sign import (
-    MANIFEST_FILENAME,
-    SERIAL_FILENAME,
-    SIGNATURE_FILENAME,
+from sds_gateway.api_methods.federation.registry_manifest_build import (
+    build_manifest_dict,
 )
+from sds_gateway.api_methods.federation.registry_manifest_sign import MANIFEST_FILENAME
+from sds_gateway.api_methods.federation.registry_manifest_sign import SERIAL_FILENAME
+from sds_gateway.api_methods.federation.registry_manifest_sign import SIGNATURE_FILENAME
 from sds_gateway.api_methods.federation.registry_manifest_sign import (
     RegistryManifestSignError,
 )
@@ -28,7 +28,9 @@ from sds_gateway.api_methods.federation.registry_manifest_sign import (
 from sds_gateway.api_methods.federation.registry_manifest_sign import (
     load_signing_private_key,
 )
-from sds_gateway.api_methods.federation.registry_manifest_sign import sign_manifest_payload
+from sds_gateway.api_methods.federation.registry_manifest_sign import (
+    sign_manifest_payload,
+)
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
@@ -152,7 +154,9 @@ def publish_registry_manifest(
 
     key_path = (
         signing_key_path
-        or str(getattr(settings, "FEDERATION_REGISTRY_SIGNING_KEY_PATH", "") or "").strip()
+        or str(
+            getattr(settings, "FEDERATION_REGISTRY_SIGNING_KEY_PATH", "") or ""
+        ).strip()
     )
     try:
         private_key = load_signing_private_key(key_path)
@@ -176,11 +180,12 @@ def publish_registry_manifest(
     now = timezone.now()
     marked = _mark_applications_published(serial, now)
     site_word = "site" if marked == 1 else "sites"
+    members = len(manifest["sites"])
     return PublishResult(
         ok=True,
         message=(
             f"Published registry manifest serial {serial} "
-            f"({len(manifest['sites'])} members; marked {marked} approved {site_word} published)."
+            f"({members} members; marked {marked} approved {site_word} published)."
         ),
         serial=serial,
         storage_dir=str(storage_dir),

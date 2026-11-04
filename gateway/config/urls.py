@@ -16,7 +16,9 @@ from sds_gateway.api_methods.views.federation_registry_manifest import (
 from sds_gateway.api_methods.views.federation_registry_manifest import (
     sds_registry_manifest_view,
 )
-from sds_gateway.api_methods.views.federation_well_known import sds_federation_well_known_view
+from sds_gateway.api_methods.views.federation_well_known import (
+    sds_federation_well_known_view,
+)
 from sds_gateway.users.views import home_page_view
 from sds_gateway.users.views import spx_dac_dataset_alt_view
 

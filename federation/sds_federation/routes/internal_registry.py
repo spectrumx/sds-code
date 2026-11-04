@@ -27,7 +27,9 @@ def require_admin_token(request: Request) -> None:
         raise HTTPException(status_code=503, detail="admin token not configured")
     header = request.headers.get("Authorization", "")
     scheme, _, supplied = header.partition(" ")
-    if scheme.lower() != "bearer" or not hmac.compare_digest(supplied.strip(), expected):
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
+        supplied.strip(), expected
+    ):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
@@ -74,7 +76,7 @@ async def get_registry_capabilities(request: Request) -> CapabilitiesOut:
     config = request.app.state.config
     publish = config.registry.publish
     key_path = publish.signing_key_path.strip()
-    key_ok = bool(key_path) and Path(key_path).is_file()
+    key_ok = bool(key_path) and await asyncio.to_thread(Path(key_path).is_file)
     return CapabilitiesOut(
         publish_enabled=publish.enabled and key_ok,
         site_fqdn=config.site.fqdn,
@@ -103,14 +105,16 @@ async def verify(body: VerifyIn, request: Request) -> VerifyOut:
 async def publish(body: PublishIn, request: Request) -> PublishOut:
     config = request.app.state.config
     if not config.registry.publish.enabled:
-        raise HTTPException(status_code=409, detail="publish is not enabled on this site")
+        raise HTTPException(
+            status_code=409, detail="publish is not enabled on this site"
+        )
     try:
         result = await asyncio.to_thread(
             publish_manifest,
             config,
             body.sites,
             body.min_serial,
-            body.dry_run,
+            dry_run=body.dry_run,
         )
     except RegistrySignError as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

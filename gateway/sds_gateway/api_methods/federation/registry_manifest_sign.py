@@ -83,7 +83,8 @@ def verify_manifest_payload(
     try:
         public_key.verify(signature, payload)
     except InvalidSignature as exc:
-        raise RegistryManifestSignError("registry signature verification failed") from exc
+        msg = "registry signature verification failed"
+        raise RegistryManifestSignError(msg) from exc
 
 
 def registry_public_key_fingerprint(public_key_pem_path: str | Path) -> str:

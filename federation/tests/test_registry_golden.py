@@ -33,6 +33,7 @@ def test_golden_signing_key_matches_fixture(tmp_path: Path) -> None:
     payload = (FIXTURES / "sites.json").read_bytes()
     private_key = load_signing_private_key(FIXTURES / "sign.pem")
     signature = sign_manifest_payload(payload, private_key)
-    assert encode_signature_for_well_known(signature) == (
-        FIXTURES / "sites.json.sig"
-    ).read_bytes()
+    assert (
+        encode_signature_for_well_known(signature)
+        == (FIXTURES / "sites.json.sig").read_bytes()
+    )

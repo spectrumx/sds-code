@@ -96,7 +96,8 @@ def _accept(
         previous = _cached_manifest_payload(policy)
         if previous is not None and previous != payload:
             msg = (
-                f"registry serial {manifest.serial} reused with different manifest bytes"
+                f"registry serial {manifest.serial} reused with "
+                "different manifest bytes"
             )
             raise RegistryTrustError(msg)
     return manifest
@@ -105,7 +106,7 @@ def _accept(
 def _cache(
     policy: RegistryPolicy, payload: bytes, signature: bytes, serial: int
 ) -> None:
-    """Persist manifest bytes and base64-encoded Ed25519 signature (matches gateway .sig)."""
+    """Persist manifest bytes and base64-encoded Ed25519 signature (gateway .sig)."""
     cache_dir = Path(policy.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / _MANIFEST_NAME).write_bytes(payload)

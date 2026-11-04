@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 
-
 CHALLENGE_MISMATCH_MESSAGE = (
     "registry_challenge is missing or does not match your verification token."
 )
