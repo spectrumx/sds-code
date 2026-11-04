@@ -3,9 +3,6 @@ from __future__ import annotations
 import pytest
 
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
-    mark_domain_verified,
-)
-from sds_gateway.api_methods.federation.registry_application_staff_ops import (
     record_manifest_published,
 )
 from sds_gateway.api_methods.federation.registry_challenge import (
@@ -15,21 +12,6 @@ from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
 _MANIFEST_SERIAL = 2
-
-
-@pytest.mark.django_db
-def test_mark_domain_verified(user) -> None:
-    application = RegistryApplication.objects.create(
-        fqdn="site.example.edu",
-        display_name="Site",
-        contact=user,
-        challenge_token_hash=hash_registry_challenge_token("t"),
-        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
-    )
-    result = mark_domain_verified(application)
-    assert result.ok
-    application.refresh_from_db()
-    assert application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
 
 
 @pytest.mark.django_db

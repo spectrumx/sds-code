@@ -15,9 +15,9 @@ def _env(name: str, default: str = "") -> str:
     return os.environ.get(name, default).strip()
 
 
-def _default_gateway_api_base(config: FederationConfig) -> str:
+def default_gateway_api_base(config: FederationConfig) -> str:
     if config.site.gateway_api_base is not None:
-        return str(config.site.gateway_api_base)
+        return str(config.site.gateway_api_base).rstrip("/")
     explicit = _env("FEDERATION_GATEWAY_API_BASE")
     if explicit:
         return explicit.rstrip("/")
@@ -26,7 +26,7 @@ def _default_gateway_api_base(config: FederationConfig) -> str:
     return f"https://{fqdn}/api/{api_version}"
 
 
-def _default_sync_service_url(config: FederationConfig) -> str:
+def default_sync_service_url(config: FederationConfig) -> str:
     if config.site.sync_service_url is not None:
         return str(config.site.sync_service_url).rstrip("/")
     explicit = _env("FEDERATION_SYNC_SERVICE_URL")
@@ -43,8 +43,8 @@ def build_site_document(config: FederationConfig) -> dict[str, Any]:
         "name": site.name,
         "fqdn": site.fqdn,
         "display_name": site.display_name,
-        "gateway_api_base": _default_gateway_api_base(config),
-        "sync_service_url": _default_sync_service_url(config),
+        "gateway_api_base": default_gateway_api_base(config),
+        "sync_service_url": default_sync_service_url(config),
     }
     challenge = _env("FEDERATION_REGISTRY_CHALLENGE_TOKEN")
     if challenge:

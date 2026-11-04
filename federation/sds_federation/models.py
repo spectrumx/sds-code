@@ -36,7 +36,7 @@ class RegistryPublishPolicy(BaseModel):
     enabled: bool = False
     signing_key_path: str = ""
     manifest_dir: str = "/var/lib/sds/registry-publish"
-    ttl_hours: int = 168
+    ttl_hours: int = Field(default=168, ge=1)
 
 
 class RegistryPolicy(BaseModel):
@@ -75,7 +75,7 @@ def allowed_federated_origin_fqdns(config: FederationConfig) -> set[str]:
     return {peer.fqdn for peer in snapshot_runtime_peers(config)} | {config.site.fqdn}
 
 
-def _env_bool(key: str) -> bool | None:
+def env_bool(key: str) -> bool | None:
     raw = os.environ.get(key, "").strip().lower()
     if not raw:
         return None
@@ -100,15 +100,12 @@ def _registry_policy(data: dict) -> RegistryPolicy:
         value = os.environ.get(env, "").strip()
         if value:
             publish_table[key] = value
-    manifest_dir = os.environ.get("FEDERATION_REGISTRY_MANIFEST_DIR", "").strip()
-    if manifest_dir:
-        publish_table["manifest_dir"] = manifest_dir
-    enabled = _env_bool("FEDERATION_REGISTRY_PUBLISH_ENABLED")
+    enabled = env_bool("FEDERATION_REGISTRY_PUBLISH_ENABLED")
     if enabled is not None:
         publish_table["enabled"] = enabled
     ttl = os.environ.get("FEDERATION_REGISTRY_MANIFEST_TTL_HOURS", "").strip()
     if ttl:
-        publish_table["ttl_hours"] = int(ttl)
+        publish_table["ttl_hours"] = ttl  # pydantic coerces/validates (ge=1)
     table["publish"] = publish_table
     return RegistryPolicy.model_validate(table)
 

@@ -233,7 +233,7 @@ sys.exit(0 if r.status_code == 200 else 1)
 	pub_path="/etc/sds/certs/sds-registry.pub.pem"
 	if [[ -n "${env_fp}" && -r "${FEDERATION_ROOT}/certs/sds-registry.pub.pem" ]]; then
 		if docker ps --format '{{.Names}}' | grep -qx "${sync_container}"; then
-			computed_fp="$(docker exec "${sync_container}" uv run sds-federation-registry fingerprint "${pub_path}" 2>/dev/null || true)"
+			computed_fp="$(docker exec "${sync_container}" uv run sds-federation-registry fingerprint --public-key-path "${pub_path}" 2>/dev/null || true)"
 			if [[ -n "${computed_fp}" && "${computed_fp}" != "${env_fp}" ]]; then
 				record_fail "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT mismatch (env ${env_fp} vs ${computed_fp})"
 			fi

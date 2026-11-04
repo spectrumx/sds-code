@@ -5,8 +5,17 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Any
 
+from sds_gateway.api_methods.models import RegistryApplicationStatus
+
 if TYPE_CHECKING:
     from sds_gateway.api_methods.models import RegistryApplication
+
+VERIFYABLE_STATUSES = frozenset(
+    {
+        RegistryApplicationStatus.PENDING_VERIFICATION.value,
+        RegistryApplicationStatus.VERIFICATION_FAILED.value,
+    },
+)
 
 
 def backfill_urls_from_well_known(

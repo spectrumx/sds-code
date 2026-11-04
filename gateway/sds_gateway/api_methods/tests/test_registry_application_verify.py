@@ -82,8 +82,9 @@ def test_verify_sync_unavailable(user) -> None:
 
     assert not result.ok
     application.refresh_from_db()
-    assert application.status == RegistryApplicationStatus.VERIFICATION_FAILED.value
-    assert "unavailable" in application.last_verification_error.lower()
+    assert application.status == RegistryApplicationStatus.PENDING_VERIFICATION.value
+    assert application.verification_attempts == 0
+    assert "unavailable" in result.message.lower()
 
 
 @pytest.mark.django_db

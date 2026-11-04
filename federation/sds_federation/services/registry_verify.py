@@ -16,7 +16,8 @@ from urllib.parse import urlparse
 import httpx
 from loguru import logger
 
-from sds_federation.models import FederationConfig  # noqa: TC001
+from sds_federation.models import FederationConfig
+from sds_federation.models import env_bool
 from sds_federation.services.well_known import WELL_KNOWN_SDS_FEDERATION_PATH
 
 _DEFAULT_FETCH_TIMEOUT_SECONDS = 30
@@ -48,15 +49,11 @@ def _normalized_host(fqdn: str) -> str:
 
 
 def _local_lab_enabled() -> bool:
-    return os.environ.get("FEDERATION_REGISTRY_LOCAL_LAB", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    return bool(env_bool("FEDERATION_REGISTRY_LOCAL_LAB"))
 
 
 def _is_self_site_fetch(fqdn: str, config: FederationConfig) -> bool:
-    site_fqdn = config.site.fqdn.strip().lower()
+    site_fqdn = _normalized_host(config.site.fqdn)
     if not site_fqdn:
         return False
     if _normalized_host(fqdn) != site_fqdn:
@@ -74,14 +71,22 @@ def resolve_well_known_fetch_url(fqdn: str, config: FederationConfig) -> str:
             or "http://127.0.0.1:8000"
         )
         return f"{base.rstrip('/')}{WELL_KNOWN_SDS_FEDERATION_PATH}"
-    if not normalized:
-        return f"https://{normalized}{WELL_KNOWN_SDS_FEDERATION_PATH}"
     return f"https://{normalized}{WELL_KNOWN_SDS_FEDERATION_PATH}"
 
 
 def validate_applicant_hostname_for_verify(fqdn: str) -> None:
     """Reject private, link-local, and non-public resolved targets."""
     _resolve_global_addresses_for_verify(fqdn)
+
+
+def _require_global(address: str) -> str:
+    try:
+        addr = ipaddress.ip_address(address.split("%", 1)[0])
+    except ValueError:
+        raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED) from None
+    if not addr.is_global:
+        raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED)
+    return address
 
 
 def _resolve_global_addresses_for_verify(fqdn: str) -> list[str]:
@@ -108,12 +113,7 @@ def _resolve_global_addresses_for_verify(fqdn: str) -> list[str]:
     if not infos:
         raise RegistryVerifyFetchError(_COULD_NOT_RESOLVE_HOSTNAME)
 
-    addresses: list[str] = []
-    for *_, sockaddr in infos:
-        addr = ipaddress.ip_address(sockaddr[0])
-        if not addr.is_global:
-            raise RegistryVerifyFetchError(_APPLICANT_HOSTNAME_NOT_ALLOWED)
-        addresses.append(str(sockaddr[0]))
+    addresses = [_require_global(str(sockaddr[0])) for *_, sockaddr in infos]
     return list(dict.fromkeys(addresses))
 
 
@@ -180,7 +180,7 @@ def _pinned_https_get(
             )
         except RegistryVerifyFetchError:
             raise
-        except (OSError, TimeoutError, http.client.HTTPException) as exc:
+        except (OSError, http.client.HTTPException) as exc:
             last_error = exc
         else:
             if (
@@ -200,9 +200,9 @@ def _fetch_well_known_json_sync(
     config: FederationConfig,
     timeout: int = _DEFAULT_FETCH_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    url = resolve_well_known_fetch_url(fqdn, config)
     expected_host = _normalized_host(fqdn)
     use_pinned = not _is_self_site_fetch(fqdn, config)
+    url = resolve_well_known_fetch_url(fqdn, config)
 
     try:
         if use_pinned:
@@ -225,7 +225,6 @@ def _fetch_well_known_json_sync(
             content = response.content
             if len(content) > _MAX_RESPONSE_BYTES:
                 raise RegistryVerifyFetchError(_WELL_KNOWN_TOO_LARGE)
-        payload = json.loads(content)
     except httpx.HTTPError as exc:
         logger.warning(
             "registry verify HTTP failed fqdn={} url={}",
@@ -234,7 +233,7 @@ def _fetch_well_known_json_sync(
             exc_info=True,
         )
         raise RegistryVerifyFetchError(_COULD_NOT_FETCH_WELL_KNOWN) from exc
-    except (OSError, TimeoutError, http.client.HTTPException):
+    except (OSError, http.client.HTTPException):
         logger.warning(
             "registry verify HTTP failed fqdn={} url={}",
             fqdn,
@@ -242,10 +241,12 @@ def _fetch_well_known_json_sync(
             exc_info=True,
         )
         raise RegistryVerifyFetchError(_COULD_NOT_FETCH_WELL_KNOWN) from None
+
+    try:
+        payload = json.loads(content)
     except ValueError:
         logger.warning("registry verify JSON parse failed fqdn={}", fqdn, exc_info=True)
         raise RegistryVerifyFetchError(_WELL_KNOWN_INVALID_JSON) from None
-
     if not isinstance(payload, dict):
         raise RegistryVerifyFetchError(_WELL_KNOWN_NOT_OBJECT)
     return payload

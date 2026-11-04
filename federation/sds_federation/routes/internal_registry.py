@@ -9,6 +9,7 @@ from fastapi import APIRouter
 from fastapi import Depends
 from fastapi import HTTPException
 from fastapi import Request
+from loguru import logger
 from pydantic import BaseModel
 from pydantic import Field
 
@@ -28,7 +29,7 @@ def require_admin_token(request: Request) -> None:
     header = request.headers.get("Authorization", "")
     scheme, _, supplied = header.partition(" ")
     if scheme.lower() != "bearer" or not hmac.compare_digest(
-        supplied.strip(), expected
+        supplied.strip().encode("utf-8"), expected.encode("utf-8")
     ):
         raise HTTPException(status_code=401, detail="unauthorized")
 
@@ -93,7 +94,9 @@ async def verify(body: VerifyIn, request: Request) -> VerifyOut:
         return VerifyOut(ok=False, error=str(exc))
     if not challenge_matches(doc, body.challenge_hash):
         return VerifyOut(ok=False, error=CHALLENGE_MISMATCH_MESSAGE)
-    if str(doc.get("fqdn", "")).strip().lower() != body.fqdn.strip().lower():
+    if str(doc.get("fqdn", "")).strip().lower().rstrip(
+        "."
+    ) != body.fqdn.strip().lower().rstrip("."):
         return VerifyOut(
             ok=False,
             error="fqdn in well-known JSON does not match this application.",
@@ -116,6 +119,11 @@ async def publish(body: PublishIn, request: Request) -> PublishOut:
             body.min_serial,
             dry_run=body.dry_run,
         )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RegistrySignError as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        logger.error("registry publish failed: {}", exc)
+        raise HTTPException(
+            status_code=500, detail="registry publish failed; see sync logs"
+        ) from exc
     return PublishOut(**result)
