@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import fcntl
+import json
+from contextlib import suppress
 from datetime import UTC
 from datetime import datetime
 from datetime import timedelta
@@ -17,12 +19,13 @@ from sds_federation.services.registry_sign import MANIFEST_FILENAME
 from sds_federation.services.registry_sign import SERIAL_FILENAME
 from sds_federation.services.registry_sign import SIGNATURE_FILENAME
 from sds_federation.services.registry_sign import RegistrySignError
+from sds_federation.services.registry_sign import atomic_write_bytes
 from sds_federation.services.registry_sign import canonical_manifest_json_bytes
 from sds_federation.services.registry_sign import encode_signature_for_well_known
 from sds_federation.services.registry_sign import load_signing_private_key
 from sds_federation.services.registry_sign import sign_manifest_payload
-from sds_federation.services.well_known import _default_gateway_api_base
-from sds_federation.services.well_known import _default_sync_service_url
+from sds_federation.services.well_known import default_gateway_api_base
+from sds_federation.services.well_known import default_sync_service_url
 
 _SITE_STATUS_ACTIVE = SiteStatusEnum.ACTIVE
 
@@ -33,18 +36,20 @@ def _format_manifest_datetime(dt: datetime) -> str:
     return dt.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _flagship_site_entry(config: FederationConfig) -> dict[str, Any]:
+def _flagship_site(config: FederationConfig) -> RegistrySite:
     site = config.site
-    return {
-        "name": site.name,
-        "fqdn": site.fqdn,
-        "display_name": site.display_name,
-        "status": _SITE_STATUS_ACTIVE.value,
-        "gateway_api_base": _default_gateway_api_base(config),
-        "sync_service_url": _default_sync_service_url(config),
-        "ca_cert_file": "",
-        "client_cert_fingerprints": [],
-    }
+    return RegistrySite(
+        name=site.name,
+        fqdn=site.fqdn,
+        display_name=site.display_name,
+        status=_SITE_STATUS_ACTIVE,
+        gateway_api_base=default_gateway_api_base(config),
+        sync_service_url=default_sync_service_url(config),
+    )
+
+
+def _normalized_fqdn(fqdn: str) -> str:
+    return fqdn.strip().lower().rstrip(".")
 
 
 def _site_to_manifest_entry(site: RegistrySite) -> dict[str, Any]:
@@ -64,15 +69,22 @@ def build_manifest_sites(
     config: FederationConfig,
     extra_sites: list[RegistrySite],
 ) -> list[dict[str, Any]]:
-    flagship = _flagship_site_entry(config)
-    flagship_fqdn = flagship["fqdn"].strip().lower()
-    by_name: dict[str, dict[str, Any]] = {flagship["name"]: flagship}
+    """Flagship first-class entry plus extras, keyed by FQDN (matches peer merge)."""
+    flagship = _flagship_site(config)
+    by_fqdn: dict[str, RegistrySite] = {_normalized_fqdn(flagship.fqdn): flagship}
     for site in extra_sites:
-        entry = _site_to_manifest_entry(site)
-        if entry["fqdn"].strip().lower() == flagship_fqdn:
-            continue
-        by_name[entry["name"]] = entry
-    return [by_name[key] for key in sorted(by_name)]
+        key = _normalized_fqdn(site.fqdn)
+        if key == _normalized_fqdn(flagship.fqdn) or site.name == flagship.name:
+            continue  # flagship identity cannot be overridden by an extra site
+        by_fqdn[key] = site
+    names = [site.name for site in by_fqdn.values()]
+    if len(names) != len(set(names)):
+        msg = "registry sites must have unique names"
+        raise ValueError(msg)
+    return [
+        _site_to_manifest_entry(site)
+        for site in sorted(by_fqdn.values(), key=lambda s: s.name)
+    ]
 
 
 def build_manifest_dict(
@@ -107,13 +119,21 @@ def _manifest_dir(config: FederationConfig) -> Path:
 
 
 def read_published_serial(config: FederationConfig) -> int:
-    serial_path = _manifest_dir(config) / SERIAL_FILENAME
-    if not serial_path.is_file():
-        return -1
-    try:
-        return int(serial_path.read_text(encoding="utf-8").strip())
-    except ValueError:
-        return -1
+    """Last published serial; -1 if nothing published.
+
+    Falls back to the serial inside ``sites.json`` when the ``serial`` file is
+    missing or corrupt, so a damaged file can never roll the serial back.
+    """
+    storage_dir = _manifest_dir(config)
+    serial_path = storage_dir / SERIAL_FILENAME
+    if serial_path.is_file():
+        with suppress(ValueError, OSError):
+            return int(serial_path.read_text(encoding="utf-8").strip())
+    manifest_path = storage_dir / MANIFEST_FILENAME
+    if manifest_path.is_file():
+        with suppress(ValueError, OSError, TypeError):
+            return int(json.loads(manifest_path.read_bytes())["serial"])
+    return -1
 
 
 def _write_manifest_files(
@@ -123,17 +143,9 @@ def _write_manifest_files(
     serial: int,
 ) -> None:
     storage_dir.mkdir(parents=True, exist_ok=True)
-    manifest_path = storage_dir / MANIFEST_FILENAME
-    sig_path = storage_dir / SIGNATURE_FILENAME
-    serial_path = storage_dir / SERIAL_FILENAME
-
-    tmp_manifest = manifest_path.with_suffix(".json.tmp")
-    tmp_sig = sig_path.with_suffix(".sig.tmp")
-    tmp_manifest.write_bytes(payload)
-    tmp_sig.write_bytes(signature_b64)
-    tmp_manifest.replace(manifest_path)
-    tmp_sig.replace(sig_path)
-    serial_path.write_text(str(serial), encoding="utf-8")
+    atomic_write_bytes(storage_dir / MANIFEST_FILENAME, payload)
+    atomic_write_bytes(storage_dir / SIGNATURE_FILENAME, signature_b64)
+    atomic_write_bytes(storage_dir / SERIAL_FILENAME, str(serial).encode("utf-8"))
 
 
 def read_published_manifest_bytes(config: FederationConfig) -> bytes | None:
@@ -164,25 +176,37 @@ def publish_manifest(
         raise RegistrySignError(msg)
 
     storage_dir = _manifest_dir(config)
-    lock_path = storage_dir / ".lock"
+    if dry_run:
+        # No directory/lock side effects: read-only preview of the next manifest.
+        result, _, _ = _build_and_sign(config, sites, min_serial, key_path)
+        return {**result, "dry_run": True}
+
     storage_dir.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+b") as lock_file:
+    with (storage_dir / ".lock").open("a+b") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        file_serial = read_published_serial(config)
-        floor = (min_serial or 0) - 1
-        serial = max(file_serial, floor) + 1
-        manifest = build_manifest_dict(config, serial=serial, extra_sites=sites)
-        payload = canonical_manifest_json_bytes(manifest)
-        private_key = load_signing_private_key(key_path)
-        signature = sign_manifest_payload(payload, private_key)
-        signature_b64 = encode_signature_for_well_known(signature)
-        site_names = [str(s["name"]) for s in manifest["sites"]]
-        if not dry_run:
-            _write_manifest_files(storage_dir, payload, signature_b64, serial)
-        return {
-            "serial": serial,
-            "issued_at": manifest["issued_at"],
-            "expires_at": manifest["expires_at"],
-            "site_names": site_names,
-            "dry_run": dry_run,
-        }
+        result, payload, signature_b64 = _build_and_sign(
+            config, sites, min_serial, key_path
+        )
+        _write_manifest_files(storage_dir, payload, signature_b64, result["serial"])
+        return result
+
+
+def _build_and_sign(
+    config: FederationConfig,
+    sites: list[RegistrySite],
+    min_serial: int | None,
+    key_path: str,
+) -> tuple[dict[str, Any], bytes, bytes]:
+    floor = (min_serial or 0) - 1
+    serial = max(read_published_serial(config), floor) + 1
+    manifest = build_manifest_dict(config, serial=serial, extra_sites=sites)
+    payload = canonical_manifest_json_bytes(manifest)
+    signature = sign_manifest_payload(payload, load_signing_private_key(key_path))
+    result = {
+        "serial": serial,
+        "issued_at": manifest["issued_at"],
+        "expires_at": manifest["expires_at"],
+        "site_names": [str(s["name"]) for s in manifest["sites"]],
+        "dry_run": False,
+    }
+    return result, payload, encode_signature_for_well_known(signature)

@@ -184,9 +184,6 @@ class RegistryApplicationDetailView(
             and application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
         )
         context["is_staff_viewer"] = self.request.user.is_staff
-        context["can_staff_publish_manifest"] = _staff_can_record_publish(
-            self.request.user,
-        )
         return context
 
 
@@ -227,10 +224,6 @@ class RegistryApplicationWithdrawView(
             return redirect("users:registry_application_list")
         messages.error(request, result.message)
         return redirect("users:registry_application_detail", pk=application.pk)
-
-
-def _staff_can_record_publish(user) -> bool:
-    return user.is_staff
 
 
 class StaffRequiredMixin(UserPassesTestMixin):
@@ -278,9 +271,7 @@ class RegistryApplicationListView(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
         )
-        context["can_staff_publish_manifest"] = _staff_can_record_publish(
-            self.request.user,
-        )
+        context["can_staff_publish_manifest"] = self.request.user.is_staff
         return context
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:

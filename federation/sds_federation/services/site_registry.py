@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import json
 from contextlib import suppress
 from pathlib import Path
@@ -9,8 +8,6 @@ from typing import TYPE_CHECKING
 
 import httpx
 from cryptography.exceptions import InvalidSignature
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from cryptography.hazmat.primitives.serialization import load_pem_public_key
 from loguru import logger
 
 from sds_federation.models import PeerInfo
@@ -20,6 +17,14 @@ from sds_federation.schemas.registry import RegistryManifest
 from sds_federation.schemas.registry import RegistrySite
 from sds_federation.services.bootstrap import bootstrap_peer_sync_list
 from sds_federation.services.bootstrap import push_site_hello_to_peer
+from sds_federation.services.registry_sign import MANIFEST_FILENAME
+from sds_federation.services.registry_sign import SERIAL_FILENAME
+from sds_federation.services.registry_sign import SIGNATURE_FILENAME
+from sds_federation.services.registry_sign import RegistrySignError
+from sds_federation.services.registry_sign import atomic_write_bytes
+from sds_federation.services.registry_sign import decode_signature_from_well_known
+from sds_federation.services.registry_sign import encode_signature_for_well_known
+from sds_federation.services.registry_sign import load_verifying_public_key
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -28,32 +33,32 @@ if TYPE_CHECKING:
     from sds_federation.models import RegistryPolicy
     from sds_federation.services.fed_index import FederatedAssetIndexer
 
-_MANIFEST_NAME = "sites.json"
-_SIGNATURE_NAME = "sites.json.sig"
-_SERIAL_NAME = "serial"
-
 
 class RegistryTrustError(Exception):
     """Manifest failed signature, freshness, or rollback checks."""
 
 
-def _public_key(policy: RegistryPolicy) -> Ed25519PublicKey:
-    key = load_pem_public_key(Path(policy.public_key_path).read_bytes())
-    if not isinstance(key, Ed25519PublicKey):
-        msg = f"registry key at {policy.public_key_path} is not Ed25519"
-        raise RegistryTrustError(msg)
-    return key
-
-
 def _verify(policy: RegistryPolicy, payload: bytes, signature: bytes) -> None:
     try:
-        _public_key(policy).verify(signature, payload)
+        public_key = load_verifying_public_key(policy.public_key_path)
+    except RegistrySignError as exc:
+        raise RegistryTrustError(str(exc)) from exc
+    try:
+        public_key.verify(signature, payload)
     except InvalidSignature as exc:
-        raise RegistryTrustError("registry signature verification failed") from exc
+        msg = "registry signature verification failed"
+        raise RegistryTrustError(msg) from exc
+
+
+def _decode_signature(raw: bytes) -> bytes:
+    try:
+        return decode_signature_from_well_known(raw)
+    except RegistrySignError as exc:
+        raise RegistryTrustError(str(exc)) from exc
 
 
 def _last_serial(policy: RegistryPolicy) -> int:
-    path = Path(policy.cache_dir) / _SERIAL_NAME
+    path = Path(policy.cache_dir) / SERIAL_FILENAME
     if not path.is_file():
         return -1
     try:
@@ -63,7 +68,7 @@ def _last_serial(policy: RegistryPolicy) -> int:
 
 
 def _cached_manifest_payload(policy: RegistryPolicy) -> bytes | None:
-    path = Path(policy.cache_dir) / _MANIFEST_NAME
+    path = Path(policy.cache_dir) / MANIFEST_FILENAME
     if not path.is_file():
         return None
     return path.read_bytes()
@@ -109,23 +114,25 @@ def _cache(
     """Persist manifest bytes and base64-encoded Ed25519 signature (gateway .sig)."""
     cache_dir = Path(policy.cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    (cache_dir / _MANIFEST_NAME).write_bytes(payload)
-    (cache_dir / _SIGNATURE_NAME).write_bytes(base64.b64encode(signature))
-    (cache_dir / _SERIAL_NAME).write_text(str(serial), encoding="utf-8")
+    atomic_write_bytes(cache_dir / MANIFEST_FILENAME, payload)
+    atomic_write_bytes(
+        cache_dir / SIGNATURE_FILENAME, encode_signature_for_well_known(signature)
+    )
+    atomic_write_bytes(cache_dir / SERIAL_FILENAME, str(serial).encode("utf-8"))
 
 
 def load_cached_manifest(policy: RegistryPolicy) -> RegistryManifest | None:
     """Last-known-good manifest, still subject to signature and expiry checks."""
     cache_dir = Path(policy.cache_dir)
-    payload_path = cache_dir / _MANIFEST_NAME
-    signature_path = cache_dir / _SIGNATURE_NAME
+    payload_path = cache_dir / MANIFEST_FILENAME
+    signature_path = cache_dir / SIGNATURE_FILENAME
     if not (payload_path.is_file() and signature_path.is_file()):
         return None
     try:
         return _accept(
             policy,
             payload_path.read_bytes(),
-            base64.b64decode(signature_path.read_bytes(), validate=True),
+            _decode_signature(signature_path.read_bytes()),
         )
     except (RegistryTrustError, ValueError) as exc:
         logger.error("cached registry manifest rejected: {}", exc)
@@ -137,9 +144,10 @@ async def fetch_manifest(
     policy: RegistryPolicy,
 ) -> RegistryManifest:
     base = str(policy.url).rstrip("/")
-    payload = (await http.get(f"{base}/{_MANIFEST_NAME}")).raise_for_status().content
-    raw_sig = (await http.get(f"{base}/{_SIGNATURE_NAME}")).raise_for_status().content
-    signature = base64.b64decode(raw_sig.strip(), validate=True)
+    manifest_resp = await http.get(f"{base}/{MANIFEST_FILENAME}")
+    sig_resp = await http.get(f"{base}/{SIGNATURE_FILENAME}")
+    payload = manifest_resp.raise_for_status().content
+    signature = _decode_signature(sig_resp.raise_for_status().content)
     manifest = _accept(policy, payload, signature)
     _cache(policy, payload, signature, manifest.serial)
     return manifest

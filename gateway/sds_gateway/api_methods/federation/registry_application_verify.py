@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from django.utils import timezone
+from loguru import logger
 
+from sds_gateway.api_methods.federation.registry_application_helpers import (
+    VERIFYABLE_STATUSES,
+)
 from sds_gateway.api_methods.federation.registry_application_helpers import (
     backfill_urls_from_well_known,
 )
@@ -15,14 +19,10 @@ from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
-_VERIFYABLE_STATUSES = frozenset(
-    {
-        RegistryApplicationStatus.PENDING_VERIFICATION.value,
-        RegistryApplicationStatus.VERIFICATION_FAILED.value,
-    },
-)
-
 _MAX_ERROR_LENGTH = 2000
+_SYNC_UNAVAILABLE_MESSAGE = (
+    "Domain verification is temporarily unavailable. Please try again later."
+)
 _VERIFY_SUCCESS_MESSAGE = (
     "Domain verified. Your application is awaiting admin approval."
 )
@@ -76,10 +76,24 @@ def apply_verification_result(
     return VerifyResult(ok=ok, message=message)
 
 
-def verify_registry_application(  # noqa: PLR0911
+def _validate_sync_payload(
+    payload: dict[str, Any], application: RegistryApplication
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Return ``(well_known, None)`` on success or ``(None, error_message)``."""
+    if not payload.get("ok"):
+        return None, str(payload.get("error") or "Domain verification failed.")
+    well_known = payload.get("well_known")
+    if not isinstance(well_known, dict):
+        return None, _WELL_KNOWN_NOT_OBJECT_MESSAGE
+    if not validate_site_identity(well_known, application):
+        return None, _FQDN_MISMATCH_MESSAGE
+    return well_known, None
+
+
+def verify_registry_application(
     application: RegistryApplication,
 ) -> VerifyResult:
-    if application.status not in _VERIFYABLE_STATUSES:
+    if application.status not in VERIFYABLE_STATUSES:
         return VerifyResult(
             ok=False,
             message="This application cannot be verified in its current status.",
@@ -96,32 +110,15 @@ def verify_registry_application(  # noqa: PLR0911
     try:
         client = FederationSyncClient.from_settings()
         payload = client.verify_domain(fqdn, application.challenge_token_hash)
-    except SyncUnavailableError as exc:
-        return apply_verification_result(
-            application,
-            ok=False,
-            message=str(exc),
-        )
-    if not payload.get("ok"):
-        error = payload.get("error") or "Domain verification failed."
-        return apply_verification_result(
-            application,
-            ok=False,
-            message=str(error),
-        )
-    well_known_json = payload.get("well_known")
-    if not isinstance(well_known_json, dict):
-        return apply_verification_result(
-            application,
-            ok=False,
-            message=_WELL_KNOWN_NOT_OBJECT_MESSAGE,
-        )
-    if not validate_site_identity(well_known_json, application):
-        return apply_verification_result(
-            application,
-            ok=False,
-            message=_FQDN_MISMATCH_MESSAGE,
-        )
+    except SyncUnavailableError:
+        # Infrastructure failure: not the applicant's fault, so keep state
+        # unchanged and do not expose internal config details.
+        logger.exception("registry verify: federation sync unavailable")
+        return VerifyResult(ok=False, message=_SYNC_UNAVAILABLE_MESSAGE)
+
+    well_known_json, error = _validate_sync_payload(payload, application)
+    if error:
+        return apply_verification_result(application, ok=False, message=error)
     return apply_verification_result(
         application,
         ok=True,

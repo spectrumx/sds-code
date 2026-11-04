@@ -127,3 +127,50 @@ def test_published_manifest_passes_site_registry_accept(tmp_path: Path) -> None:
         config.registry, payload, signature, now=datetime(2020, 1, 1, tzinfo=UTC)
     )
     assert manifest.serial == 0
+
+
+def _extra_site(name: str, fqdn: str) -> RegistrySite:
+    return RegistrySite(
+        name=name,
+        fqdn=fqdn,
+        display_name=name,
+        gateway_api_base=AnyHttpUrl(f"https://{fqdn}/api/v1"),
+        sync_service_url=AnyHttpUrl(f"https://{fqdn}/sync"),
+    )
+
+
+def test_extra_site_cannot_override_flagship_by_name(tmp_path: Path) -> None:
+    private_path, _ = write_ed25519_keypair(tmp_path)
+    config = _flagship_config(tmp_path, private_path=private_path)
+    result = publish_manifest(
+        config, [_extra_site("crc", "evil.example.edu")], None, dry_run=False
+    )
+    assert result["site_names"] == ["crc"]
+    manifest_dir = Path(config.registry.publish.manifest_dir)
+    data = json.loads((manifest_dir / MANIFEST_FILENAME).read_bytes())
+    assert data["sites"][0]["fqdn"] == "sds.crc.nd.edu"
+
+
+def test_duplicate_site_names_rejected(tmp_path: Path) -> None:
+    private_path, _ = write_ed25519_keypair(tmp_path)
+    config = _flagship_config(tmp_path, private_path=private_path)
+    sites = [_extra_site("dup", "a.example.edu"), _extra_site("dup", "b.example.edu")]
+    with pytest.raises(ValueError, match="unique names"):
+        publish_manifest(config, sites, None, dry_run=False)
+
+
+def test_corrupt_serial_file_does_not_roll_back_serial(tmp_path: Path) -> None:
+    private_path, _ = write_ed25519_keypair(tmp_path)
+    config = _flagship_config(tmp_path, private_path=private_path)
+    publish_manifest(config, [], min_serial=7, dry_run=False)
+    manifest_dir = Path(config.registry.publish.manifest_dir)
+    (manifest_dir / SERIAL_FILENAME).write_text("", encoding="utf-8")
+    assert publish_manifest(config, [], None, dry_run=False)["serial"] == 8
+
+
+def test_dry_run_has_no_filesystem_side_effects(tmp_path: Path) -> None:
+    private_path, _ = write_ed25519_keypair(tmp_path)
+    config = _flagship_config(tmp_path, private_path=private_path)
+    result = publish_manifest(config, [], None, dry_run=True)
+    assert result["dry_run"] is True
+    assert not Path(config.registry.publish.manifest_dir).exists()

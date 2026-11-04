@@ -10,42 +10,11 @@ from django.utils import timezone
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
-_VERIFYABLE = frozenset(
-    {
-        RegistryApplicationStatus.PENDING_VERIFICATION.value,
-        RegistryApplicationStatus.VERIFICATION_FAILED.value,
-    },
-)
-
 
 @dataclass(frozen=True, slots=True)
 class StaffOpResult:
     ok: bool
     message: str
-
-
-def mark_domain_verified(application: RegistryApplication) -> StaffOpResult:
-    """Staff: applicant passed sync domain verify (run on sync host first)."""
-    if application.status not in _VERIFYABLE:
-        return StaffOpResult(
-            ok=False,
-            message="This application is not awaiting domain verification.",
-        )
-    application.status = RegistryApplicationStatus.PENDING_APPROVAL.value
-    application.verified_at = timezone.now()
-    application.last_verification_error = ""
-    application.save(
-        update_fields=[
-            "status",
-            "verified_at",
-            "last_verification_error",
-            "updated_at",
-        ]
-    )
-    return StaffOpResult(
-        ok=True,
-        message="Marked as verified. Application is awaiting staff approval.",
-    )
 
 
 @transaction.atomic

@@ -20,14 +20,10 @@ class FederationSyncClient:
         admin_token: str,
         *,
         verify_timeout: float = 45.0,
-        publish_timeout: float = 30.0,
-        capabilities_timeout: float = 10.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._admin_token = admin_token.strip()
         self._verify_timeout = verify_timeout
-        self._publish_timeout = publish_timeout
-        self._capabilities_timeout = capabilities_timeout
 
     @classmethod
     def from_settings(cls) -> FederationSyncClient:
@@ -69,14 +65,14 @@ class FederationSyncClient:
         except requests.RequestException as exc:
             msg = "Federation sync is unavailable."
             raise SyncUnavailableError(msg) from exc
+        if response.status_code == HTTPStatus.SERVICE_UNAVAILABLE:
+            msg = "Federation sync admin API is not configured."
+            raise SyncUnavailableError(msg)
         if response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR:
             msg = "Federation sync is unavailable."
             raise SyncUnavailableError(msg)
         if response.status_code == HTTPStatus.UNAUTHORIZED:
             msg = "Federation sync rejected the admin token."
-            raise SyncUnavailableError(msg)
-        if response.status_code == HTTPStatus.SERVICE_UNAVAILABLE:
-            msg = "Federation sync admin API is not configured."
             raise SyncUnavailableError(msg)
         try:
             payload = response.json()
@@ -91,35 +87,10 @@ class FederationSyncClient:
             raise SyncUnavailableError(str(detail))
         return payload
 
-    def capabilities(self) -> dict[str, Any]:
-        return self._request(
-            "GET",
-            "/internal/registry/capabilities",
-            timeout=self._capabilities_timeout,
-        )
-
     def verify_domain(self, fqdn: str, challenge_hash: str) -> dict[str, Any]:
         return self._request(
             "POST",
             "/internal/registry/verify",
             timeout=self._verify_timeout,
             json_body={"fqdn": fqdn, "challenge_hash": challenge_hash},
-        )
-
-    def publish(
-        self,
-        sites: list[dict[str, Any]],
-        min_serial: int | None,
-        *,
-        dry_run: bool,
-    ) -> dict[str, Any]:
-        return self._request(
-            "POST",
-            "/internal/registry/publish",
-            timeout=self._publish_timeout,
-            json_body={
-                "sites": sites,
-                "min_serial": min_serial,
-                "dry_run": dry_run,
-            },
         )
