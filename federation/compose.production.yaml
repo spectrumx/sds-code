@@ -22,8 +22,11 @@ services:
     volumes:
       - ./federation.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro
+      - ./secrets/registry:/etc/sds/secrets/registry:ro
+      - sds-federation-prod-registry-publish:/var/lib/sds/registry-publish
+      - sds-federation-prod-registry-cache:/var/lib/sds/registry
     ports:
-      - "8001:8000"
+      - "127.0.0.1:8001:8000"
     healthcheck:
       test:
         [
@@ -40,3 +43,7 @@ services:
     networks:
       - sds-network-prod
       - sds-gateway-prod-opensearch-net
+
+volumes:
+  sds-federation-prod-registry-publish:
+  sds-federation-prod-registry-cache:

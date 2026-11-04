@@ -32,7 +32,7 @@ def _two_drf_captures_same_group() -> tuple[Capture, Capture]:
     """Two DRF captures sharing ``top_level_dir`` (multi-channel group)."""
     user = User.objects.create(
         email="composite-ser@example.com",
-        password="testpassword",  # noqa: S106
+        password="testpassword",
         is_approved=True,
     )
     top = _normalize_top_level_dir("test-composite-serialization-group")

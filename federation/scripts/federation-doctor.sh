@@ -152,6 +152,102 @@ check_sync_url() {
 	fi
 }
 
+registry_publish_enabled() {
+	local flag
+	flag="$(env_value "${SITE_ENV}" FEDERATION_REGISTRY_PUBLISH_ENABLED)"
+	case "${flag}" in
+	true | 1 | yes | TRUE) printf 'true\n'; return 0 ;;
+	esac
+	if awk '/^\[registry\.publish\]/{found=1; next} /^\[/{found=0} found && /^enabled[[:space:]]*=[[:space:]]*true/{print "true"; exit}' \
+		"${FEDERATION_TOML}" 2>/dev/null | grep -qx true; then
+		printf 'true\n'
+		return 0
+	fi
+	printf 'false\n'
+}
+
+toml_registry_signing_key_path() {
+	awk '/^\[registry\.publish\]/{found=1; next} /^\[/{found=0} found && /^signing_key_path/{
+		sub(/^[^=]+=[[:space:]]*"/, ""); sub(/".*$/, ""); print; exit
+	}' "${FEDERATION_TOML}" 2>/dev/null
+}
+
+sync_container_name() {
+	"${ENV_SELECTION}" sync_container
+}
+
+check_registry() {
+	if [[ "${FEDERATION_DOCTOR_SKIP_REGISTRY:-0}" == "1" ]]; then
+		return 0
+	fi
+	local fqdn sync_container publish_enabled signing_path host_path admin_token backend
+	fqdn="$(toml_site_value fqdn)"
+	[[ -n "${fqdn}" ]] || return 0
+	sync_container="$(sync_container_name)"
+	publish_enabled="$(registry_publish_enabled)"
+
+	if [[ "${publish_enabled}" == "true" ]]; then
+		signing_path="$(toml_registry_signing_key_path)"
+		if [[ -z "${signing_path}" ]]; then
+			signing_path="/etc/sds/secrets/registry/sign.pem"
+		fi
+		host_path="${FEDERATION_ROOT}/secrets/registry/sign.pem"
+		if [[ ! -r "${host_path}" ]]; then
+			record_fail "registry publish enabled but ${host_path} is not readable on the host"
+		fi
+		if docker ps --format '{{.Names}}' | grep -qx "${sync_container}"; then
+			if ! docker exec "${sync_container}" test -r "${signing_path}" 2>/dev/null; then
+				record_fail "signing key not readable in ${sync_container} at ${signing_path}"
+			fi
+		else
+			info "Skipping in-container signing key check (${sync_container} not running)"
+		fi
+	fi
+
+	if docker ps --format '{{.Names}}' | grep -qx "${sync_container}"; then
+		if ! docker exec "${sync_container}" uv run python -c "
+import sys, httpx
+r = httpx.get('http://127.0.0.1:8000/.well-known/sds-federation.json', timeout=8)
+sys.exit(0 if r.status_code == 200 else 1)
+" 2>/dev/null; then
+			record_fail "sync well-known /.well-known/sds-federation.json did not return 200 in ${sync_container}"
+		fi
+	else
+		info "Skipping sync well-known probe (${sync_container} not running)"
+	fi
+
+	if [[ "${FEDERATION_DOCTOR_SKIP_DNS:-0}" != "1" && "${SDS_ENV_TYPE}" == "production" ]]; then
+		local code
+		code="$(curl -ksS -o /dev/null -w '%{http_code}' \
+			"https://${fqdn}/internal/registry/capabilities" 2>/dev/null || printf '000')"
+		if [[ "${code}" == "200" || "${code}" == "401" || "${code}" == "503" ]]; then
+			record_fail "/internal/registry exposed on public hostname ${fqdn} (HTTP ${code})"
+		fi
+	fi
+
+	local env_fp pub_path computed_fp
+	env_fp="$(env_value "${SITE_ENV}" FEDERATION_REGISTRY_PUBKEY_FINGERPRINT)"
+	if [[ -z "${env_fp}" ]]; then
+		env_fp="$(env_value "${SHARED_ENV}" FEDERATION_REGISTRY_PUBKEY_FINGERPRINT)"
+	fi
+	pub_path="/etc/sds/certs/sds-registry.pub.pem"
+	if [[ -n "${env_fp}" && -r "${FEDERATION_ROOT}/certs/sds-registry.pub.pem" ]]; then
+		if docker ps --format '{{.Names}}' | grep -qx "${sync_container}"; then
+			computed_fp="$(docker exec "${sync_container}" uv run sds-federation-registry fingerprint --public-key-path "${pub_path}" 2>/dev/null || true)"
+			if [[ -n "${computed_fp}" && "${computed_fp}" != "${env_fp}" ]]; then
+				record_fail "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT mismatch (env ${env_fp} vs ${computed_fp})"
+			fi
+		fi
+	fi
+
+	if [[ "${publish_enabled}" == "true" ]]; then
+		admin_token="$(env_value "${SHARED_ENV}" FEDERATION_SYNC_ADMIN_TOKEN)"
+		if [[ -z "${admin_token}" ]]; then
+			record_fail "registry publish enabled but FEDERATION_SYNC_ADMIN_TOKEN missing in federation-shared.env (sync internal API)"
+		fi
+	fi
+}
+
 check_doc_site() {
 	local fqdn short
 	fqdn="$(toml_site_value fqdn)"
@@ -181,7 +277,7 @@ main() {
 	if [[ -n "${only}" ]]; then
 		run_check "${only}"
 	else
-		for c in identity token db_token networks dns ca sync_url doc_site; do
+		for c in identity token db_token networks dns ca sync_url registry doc_site; do
 			run_check "${c}"
 		done
 	fi

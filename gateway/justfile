@@ -309,6 +309,20 @@ test *args:
         just test-js
     fi
 
+# creates sds-network-local when missing (compose.local declares it external)
+[group('setup')]
+ensure-local-docker-network:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "{{ env }}" != "local" ]]; then
+        exit 0
+    fi
+    if docker network inspect sds-network-local >/dev/null 2>&1; then
+        exit 0
+    fi
+    echo "Creating docker network sds-network-local (required by compose.local.yaml)"
+    docker network create --driver bridge sds-network-local
+
 # ensures federation-shared.env exists (copies from example if missing)
 [group('qa')]
 ensure-federation-shared-env:
@@ -324,6 +338,7 @@ ensure-federation-shared-env:
 test-py *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    just ensure-local-docker-network
     just ensure-federation-shared-env
     echo "Validating templates"
     {{ uv_runner }} manage.py validate_templates
@@ -348,6 +363,7 @@ test-js *args:
 up *args:
     #!/usr/bin/env bash
     set -euo pipefail
+    just ensure-local-docker-network
     echo "Starting sds-gateway in detached mode"
     echo "Environment: '{{ env }}'"
     echo "Compose file: '{{ compose_file }}'"

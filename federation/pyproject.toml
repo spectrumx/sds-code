@@ -23,6 +23,9 @@ module-root = ""
         "uvicorn[standard]>=0.34.0",
     ]
 
+[project.scripts]
+sds-federation-registry = "sds_federation.cli.registry:main"
+
 [project.optional-dependencies]
 dev = [
     "deptry>=0.24.0",
@@ -134,17 +137,26 @@ dev = [
         [tool.ruff.lint.pylint]
             max-args = 9
 
+        [tool.ruff.lint.flake8-type-checking]
+            runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
         [tool.ruff.lint.per-file-ignores]
             "**/tests/**" = [
                 "FBT001",
                 "FBT002",
+                "FBT003",
                 "PLR2004",
                 "E501",
                 "PT011",
                 "B017",
                 "PLC0415",
+                "S105",
+                "ASYNC109",
+                "TC003",
             ]
             "**/scripts/**" = ["T201", "EXE001", "E501"]
+            "sds_federation/services/registry_verify.py" = ["ASYNC109"]
+            "**/cli/**" = ["T201", "PLC0415", "E501"]
 
     [tool.ruff.format]
         indent-style = "space"

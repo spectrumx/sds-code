@@ -29,7 +29,7 @@ class WaterfallVisualizationViewTestCases(TestCase):
         """Set up test data."""
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -94,7 +94,7 @@ class WaterfallVisualizationViewTestCases(TestCase):
         """Test that users cannot access captures they don't own."""
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -138,7 +138,7 @@ class WaterfallAPIViewTestCases(TestCase):
         """Set up test data."""
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -224,7 +224,7 @@ class WaterfallAPIViewTestCases(TestCase):
         """Test that users cannot create waterfall for others' captures via API."""
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -352,7 +352,7 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         """Set up test data."""
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         # Create test capture
@@ -416,7 +416,7 @@ class SpectrogramVisualizationViewTestCases(TestCase):
         """Test that users cannot access captures they don't own."""
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -488,7 +488,7 @@ class SpectrogramAPIViewTestCases(TestCase):
         """Set up test data."""
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -586,7 +586,7 @@ class SpectrogramAPIViewTestCases(TestCase):
         """Test that users cannot create spectrogram for others' captures via API."""
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 

@@ -19,6 +19,7 @@ from .views import quick_add_capture_to_dataset_view
 from .views import registry_application_approve_view
 from .views import registry_application_detail_view
 from .views import registry_application_list_view
+from .views import registry_application_publish_manifest_view
 from .views import registry_application_reissue_challenge_view
 from .views import registry_application_reject_view
 from .views import registry_application_verify_view
@@ -189,5 +190,10 @@ urlpatterns = [
         "federation/registry/applications/<uuid:pk>/reject/",
         registry_application_reject_view,
         name="registry_application_reject",
+    ),
+    path(
+        "federation/registry/publish-manifest/",
+        registry_application_publish_manifest_view,
+        name="registry_application_publish_manifest",
     ),
 ]

@@ -1,3 +1,5 @@
+"""Tests ported from gateway registry verify fetch (SSRF boundary)."""
+
 from __future__ import annotations
 
 import socket
@@ -5,17 +7,22 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 
 import pytest
-from django.test import override_settings
-
-from sds_gateway.api_methods.federation.registry_verify_fetch import (
-    RegistryVerifyFetchError,
-)
-from sds_gateway.api_methods.federation.registry_verify_fetch import (
-    fetch_well_known_json,
-)
-from sds_gateway.api_methods.federation.registry_verify_fetch import (
+from sds_federation.models import FederationConfig
+from sds_federation.models import SiteInfo
+from sds_federation.services.registry_verify import RegistryVerifyFetchError
+from sds_federation.services.registry_verify import fetch_well_known_json
+from sds_federation.services.registry_verify import (
     validate_applicant_hostname_for_verify,
 )
+
+
+def _mothership_config() -> FederationConfig:
+    return FederationConfig(
+        site=SiteInfo(name="crc", fqdn="sds.crc.nd.edu", display_name="CRC"),
+        gateway_api_base="https://sds.crc.nd.edu/api/v1",
+        sync_service_url="https://sds.crc.nd.edu/sync",
+        peers=[],
+    )
 
 
 def test_rejects_private_literal_ip() -> None:
@@ -31,7 +38,7 @@ def test_rejects_loopback_literal_ip() -> None:
 def test_rejects_private_resolved_ip() -> None:
     with (
         patch(
-            "sds_gateway.api_methods.federation.registry_verify_fetch.socket.getaddrinfo",
+            "sds_federation.services.registry_verify.socket.getaddrinfo",
             return_value=[
                 (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 443)),
             ],
@@ -41,13 +48,12 @@ def test_rejects_private_resolved_ip() -> None:
         validate_applicant_hostname_for_verify("evil.example.edu")
 
 
-@override_settings(ADMIN_CONSOLE_ENV="production", SDS_SITE_FQDN="sds.crc.nd.edu")
 @patch(
-    "sds_gateway.api_methods.federation.registry_verify_fetch._pinned_https_get",
-    return_value=(200, b'{"fqdn":"public.example.edu"}'),
+    "sds_federation.services.registry_verify._pinned_https_get",
+    return_value=b'{"fqdn":"public.example.edu"}',
 )
 @patch(
-    "sds_gateway.api_methods.federation.registry_verify_fetch.socket.getaddrinfo",
+    "sds_federation.services.registry_verify.socket.getaddrinfo",
     return_value=[
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
     ],
@@ -56,28 +62,33 @@ def test_fetch_uses_pinned_https(
     mock_getaddrinfo: MagicMock,
     mock_pinned_get: MagicMock,
 ) -> None:
-    payload = fetch_well_known_json("public.example.edu")
+    import asyncio
+
+    config = _mothership_config()
+    payload = asyncio.run(fetch_well_known_json("public.example.edu", config))
     assert payload["fqdn"] == "public.example.edu"
     mock_pinned_get.assert_called_once()
     assert mock_pinned_get.call_args.args[2] == ["93.184.216.34"]
 
 
-@override_settings(ADMIN_CONSOLE_ENV="production", SDS_SITE_FQDN="sds.crc.nd.edu")
 @patch(
-    "sds_gateway.api_methods.federation.registry_verify_fetch.socket.getaddrinfo",
+    "sds_federation.services.registry_verify.socket.getaddrinfo",
 )
 def test_fetch_dns_rebind_does_not_use_second_resolution(
     mock_getaddrinfo: MagicMock,
 ) -> None:
+    import asyncio
+
     mock_getaddrinfo.return_value = [
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
     ]
+    config = _mothership_config()
 
     with patch(
-        "sds_gateway.api_methods.federation.registry_verify_fetch._pinned_https_get",
-        return_value=(200, b'{"fqdn":"public.example.edu"}'),
+        "sds_federation.services.registry_verify._pinned_https_get",
+        return_value=b'{"fqdn":"public.example.edu"}',
     ) as mock_pinned_get:
-        fetch_well_known_json("public.example.edu")
+        asyncio.run(fetch_well_known_json("public.example.edu", config))
 
     assert mock_getaddrinfo.call_count == 1
     mock_pinned_get.assert_called_once_with(
@@ -88,20 +99,22 @@ def test_fetch_dns_rebind_does_not_use_second_resolution(
     )
 
 
-@override_settings(ADMIN_CONSOLE_ENV="production", SDS_SITE_FQDN="sds.crc.nd.edu")
 @patch(
-    "sds_gateway.api_methods.federation.registry_verify_fetch.socket.getaddrinfo",
+    "sds_federation.services.registry_verify.socket.getaddrinfo",
     return_value=[
         (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443)),
     ],
 )
 def test_fetch_error_message_is_generic(mock_getaddrinfo: MagicMock) -> None:
+    import asyncio
+
+    config = _mothership_config()
     with (
         patch(
-            "sds_gateway.api_methods.federation.registry_verify_fetch._pinned_https_get",
+            "sds_federation.services.registry_verify._pinned_https_get",
             side_effect=OSError("connection refused"),
         ),
         pytest.raises(RegistryVerifyFetchError, match="Could not fetch"),
     ):
-        fetch_well_known_json("public.example.edu")
+        asyncio.run(fetch_well_known_json("public.example.edu", config))
     assert mock_getaddrinfo.called

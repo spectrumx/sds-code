@@ -78,6 +78,23 @@ def guess_admin_console_env(*, is_debug: bool) -> str:
     return "production"
 
 
+def is_flagship_gateway_deployment(
+    *,
+    site_fqdn: str | None = None,
+    flagship_gateway_host: str | None = None,
+) -> bool:
+    """True when this gateway's public FQDN is the federation mothership."""
+    normalized_site = (site_fqdn or os.getenv("SDS_SITE_FQDN", "")).strip().lower()
+    normalized_flagship = (
+        (flagship_gateway_host or os.getenv("FLAGSHIP_GATEWAY_HOST", "sds.crc.nd.edu"))
+        .strip()
+        .lower()
+    )
+    if not normalized_site or not normalized_flagship:
+        return False
+    return normalized_site == normalized_flagship
+
+
 def resolve_federation_registry_intake_enabled(
     *,
     site_fqdn: str,
@@ -87,8 +104,7 @@ def resolve_federation_registry_intake_enabled(
     """True only when intake is requested and this deployment is the flagship host."""
     if not intake_requested:
         return False
-    normalized_site = site_fqdn.strip().lower()
-    normalized_flagship = flagship_gateway_host.strip().lower()
-    if not normalized_site or not normalized_flagship:
-        return False
-    return normalized_site == normalized_flagship
+    return is_flagship_gateway_deployment(
+        site_fqdn=site_fqdn,
+        flagship_gateway_host=flagship_gateway_host,
+    )

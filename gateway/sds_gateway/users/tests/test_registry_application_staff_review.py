@@ -22,7 +22,7 @@ def test_staff_can_approve_from_detail_post(client, user, settings) -> None:
     applicant = user
     staff = user.__class__.objects.create_user(
         email="staff@example.com",
-        password="test-pass-12345",  # noqa: S106
+        password="test-pass-12345",
         is_staff=True,
     )
     application = RegistryApplication.objects.create(

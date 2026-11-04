@@ -30,6 +30,9 @@ from sds_gateway.api_methods.federation.registry_application_review import (
 from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
 )
+from sds_gateway.api_methods.federation.registry_application_staff_ops import (
+    record_manifest_published,
+)
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
 )
@@ -223,10 +226,17 @@ class RegistryApplicationWithdrawView(
         return redirect("users:registry_application_detail", pk=application.pk)
 
 
+class StaffRequiredMixin(UserPassesTestMixin):
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
+
+
 class RegistryApplicationVerifyView(
-    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    View,
 ):
-    """Run domain verification for the applicant's well-known endpoint."""
+    """Run domain verification on federation sync for the applicant's FQDN."""
 
     def post(self, request: HttpRequest, pk: str) -> HttpResponse:
         application = get_registry_application_for_user(request.user, pk)
@@ -261,6 +271,7 @@ class RegistryApplicationListView(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
         )
+        context["can_staff_publish_manifest"] = self.request.user.is_staff
         return context
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
@@ -271,11 +282,6 @@ class RegistryApplicationListView(
         self.object_list = self.get_queryset()
         context = self.get_context_data(form=form, open_apply_modal=True)
         return self.render_to_response(context)
-
-
-class StaffRequiredMixin(UserPassesTestMixin):
-    def test_func(self) -> bool:
-        return self.request.user.is_staff
 
 
 class RegistryApplicationApproveView(
@@ -299,6 +305,29 @@ class RegistryApplicationApproveView(
         else:
             messages.error(request, result.message)
         return redirect("users:registry_application_detail", pk=application.pk)
+
+
+class RegistryApplicationPublishManifestView(
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    StaffRequiredMixin,
+    View,
+):
+    """Staff: record manifest serial after publish on federation sync."""
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        raw_serial = (request.POST.get("manifest_serial") or "").strip()
+        try:
+            serial = int(raw_serial)
+        except ValueError:
+            messages.error(request, "Manifest serial must be an integer.")
+            return redirect("users:registry_application_list")
+        result = record_manifest_published(serial=serial)
+        if result.ok:
+            messages.success(request, result.message)
+        else:
+            messages.error(request, result.message)
+        return redirect("users:registry_application_list")
 
 
 class RegistryApplicationRejectView(
@@ -341,4 +370,7 @@ registry_application_approve_view = require_POST(
 )
 registry_application_reject_view = require_POST(
     RegistryApplicationRejectView.as_view(),
+)
+registry_application_publish_manifest_view = require_POST(
+    RegistryApplicationPublishManifestView.as_view(),
 )

@@ -651,6 +651,7 @@
             max-args = 9
 
         [tool.ruff.lint.per-file-ignores]
+            "**/tests/**" = ["TC003", "PLR2004", "S106"]
             "sds_gateway/api_methods/tests/test_composite_capture_serialization.py" = [
                 "PLR2004",
             ]

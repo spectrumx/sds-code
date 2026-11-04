@@ -28,7 +28,7 @@ def test_create_ci_superuser_creates_when_none_exists() -> None:
 def test_create_ci_superuser_skips_when_superuser_exists() -> None:
     User.objects.create_superuser(  # pyright: ignore[reportCallIssue]
         email="existing-admin@example.com",
-        password="something-r@nd0m!",  # noqa: S106
+        password="something-r@nd0m!",
     )
 
     assert User.objects.filter(is_superuser=True).count() == 1

@@ -13,6 +13,7 @@ class SiteInfo(BaseModel):
     name: str
     fqdn: str
     display_name: str
+    gateway_api_base: AnyHttpUrl | None = None
     sync_service_url: AnyHttpUrl | None = None
 
 
@@ -31,6 +32,13 @@ def site_name_for_federation(site: SiteInfo | PeerInfo) -> str:
     return site.fqdn
 
 
+class RegistryPublishPolicy(BaseModel):
+    enabled: bool = False
+    signing_key_path: str = ""
+    manifest_dir: str = "/var/lib/sds/registry-publish"
+    ttl_hours: int = Field(default=168, ge=1)
+
+
 class RegistryPolicy(BaseModel):
     url: AnyHttpUrl | None = None
     public_key_path: str = ""
@@ -39,6 +47,7 @@ class RegistryPolicy(BaseModel):
     refresh_secs: int = 900
     required: bool = False
     deny: list[str] = Field(default_factory=list)
+    publish: RegistryPublishPolicy = Field(default_factory=RegistryPublishPolicy)
 
 
 class FederationConfig(BaseModel):
@@ -66,8 +75,16 @@ def allowed_federated_origin_fqdns(config: FederationConfig) -> set[str]:
     return {peer.fqdn for peer in snapshot_runtime_peers(config)} | {config.site.fqdn}
 
 
+def env_bool(key: str) -> bool | None:
+    raw = os.environ.get(key, "").strip().lower()
+    if not raw:
+        return None
+    return raw in ("1", "true", "yes")
+
+
 def _registry_policy(data: dict) -> RegistryPolicy:
     table = dict(data.get("registry", {}))
+    publish_table = dict(table.pop("publish", {}))
     for key, env in (
         ("url", "FEDERATION_REGISTRY_URL"),
         ("public_key_path", "FEDERATION_REGISTRY_PUBKEY_PATH"),
@@ -76,6 +93,20 @@ def _registry_policy(data: dict) -> RegistryPolicy:
         value = os.environ.get(env, "").strip()
         if value:
             table[key] = value
+    for key, env in (
+        ("signing_key_path", "FEDERATION_REGISTRY_SIGNING_KEY_PATH"),
+        ("manifest_dir", "FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR"),
+    ):
+        value = os.environ.get(env, "").strip()
+        if value:
+            publish_table[key] = value
+    enabled = env_bool("FEDERATION_REGISTRY_PUBLISH_ENABLED")
+    if enabled is not None:
+        publish_table["enabled"] = enabled
+    ttl = os.environ.get("FEDERATION_REGISTRY_MANIFEST_TTL_HOURS", "").strip()
+    if ttl:
+        publish_table["ttl_hours"] = ttl  # pydantic coerces/validates (ge=1)
+    table["publish"] = publish_table
     return RegistryPolicy.model_validate(table)
 
 

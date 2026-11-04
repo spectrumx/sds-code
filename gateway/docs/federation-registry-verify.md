@@ -1,7 +1,7 @@
 # Federation registry: domain verification
 
 How to apply for federation registry membership on the gateway (mothership intake),
-publish a domain-control challenge on the applicant site, and run **Verify domain**.
+publish a domain-control challenge on the applicant site, and click **Verify domain** in the gateway UI (verification runs on **federation sync**).
 
 + [Federation registry: domain verification](#federation-registry-domain-verification)
     + [Overview](#overview)
@@ -12,7 +12,7 @@ publish a domain-control challenge on the applicant site, and run **Verify domai
         + [2. Create a registry application](#2-create-a-registry-application)
         + [3. Publish the challenge on the applicant site](#3-publish-the-challenge-on-the-applicant-site)
         + [4. Preflight the well-known document](#4-preflight-the-well-known-document)
-        + [5. Verify domain](#5-verify-domain)
+        + [5. Verify domain (UI)](#5-verify-domain-ui)
     + [Local development](#local-development)
     + [Automated tests](#automated-tests)
     + [Troubleshooting](#troubleshooting)
@@ -25,36 +25,33 @@ Registry **domain verification** proves that the applicant controls the hostname
 registered. The mothership gateway:
 
 1. Stores a **hashed** challenge when the user applies (raw token shown once in the UI).
-2. On **Verify domain**, fetches `https://{fqdn}/.well-known/sds-federation.json` from
-   the app container.
-3. Checks `registry_challenge` against the stored hash and `fqdn` against the application.
-4. On success, sets status to **`pending_approval`** (human approval and signed registry
-   manifest are separate work).
+2. On **Verify domain**, the gateway calls federation sync `POST /internal/registry/verify`
+   (challenge hash only; sync fetches applicant well-known).
+3. On success, status becomes **`pending_approval`** (staff approval and manifest publish are separate).
+
+Gateway django does **not** fetch well-known JSON, sign manifests, or publish locally.
 
 ## Roles
 
 | Role | Responsibility |
 |------|----------------|
-| **Mothership** | Logged-in users apply and click **Verify domain** (e.g. CRC gateway). |
-| **Applicant** | Serves well-known JSON at the **public FQDN** with the one-time challenge token. |
+| **Mothership** | Registry intake UI; applicants click **Verify domain** (gateway → sync internal API). |
+| **Applicant** | Serves well-known JSON at the **public FQDN** with the one-time challenge token (via **sync** env). |
+| **Staff** | Approve applications; record publish serial after sync manifest publish. |
 
-The same physical gateway can be both mothership and applicant (typical for a single-site
-lab test).
+The same physical host can be mothership gateway + applicant sync (typical lab).
 
 ## Prerequisites
 
 + **Flagship host only:** `SDS_SITE_FQDN` must equal **`FLAGSHIP_GATEWAY_HOST`**
   (default `sds.crc.nd.edu`) **and** `FEDERATION_REGISTRY_INTAKE_ENABLED=true`.
-  Setting the env var on a peer host has no effect — intake stays off. Peer gateways
-  use `FEDERATION_ENABLED` for sync only.
-+ Local lab acting as mothership: align `SDS_SITE_FQDN` with `FLAGSHIP_GATEWAY_HOST`
-  (e.g. both `sds.localhost` by setting `FLAGSHIP_GATEWAY_HOST=sds.localhost` only on
-  that dev machine — never on production peers).
-+ Gateway running with migration `0022_registry_application` applied.
-+ [OAuth (Auth0) setup](./oauth-setup.md) so you can sign in.
-+ Applicant **`SDS_SITE_FQDN`** matches the FQDN on the registry application.
-+ **HTTPS** on the applicant FQDN, reachable from the **mothership app container**
-  (see [Local development](#local-development)).
++ Local lab mothership: align `SDS_SITE_FQDN` with `FLAGSHIP_GATEWAY_HOST`
+  (e.g. both `sds.localhost` on that dev machine only).
++ Gateway migration `0022_registry_application` applied; [OAuth](./oauth-setup.md) for sign-in.
++ Gateway `FEDERATION_SYNC_INTERNAL_URL` (e.g. `http://sds-federation-local-sync:8000`) and
+  `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env` (compose loads both on app + sync).
++ Applicant **`SDS_SITE_FQDN`** matches the registry application FQDN.
++ **HTTPS** on the applicant FQDN, reachable from the **sync** container doing verify.
 
 ## Step-by-step
 
@@ -67,119 +64,88 @@ cd gateway
 just up
 ```
 
-> On macOS, `generate-secrets.sh` may warn on `chmod --changes`; env files are still
-> valid. Use `just up` if the script exits before starting compose.
-
 ### 2. Create a registry application
 
-1. Sign in and open **`/users/federation/registry/`** (or use the user menu link when
-   `FEDERATION_ENABLED` is true).
-2. **New application** — enter **Site FQDN** (hostname only, no `https://`), display
-   name, and proposed site id.
-3. On the detail page, copy the **verification token** (shown **once**; not stored in
-   the database).
+1. Sign in and open **`/users/federation/registry/`**.
+2. **New application** — **Site FQDN**, display name, proposed site id.
+3. Copy the **verification token** (shown **once**).
 
 ### 3. Publish the challenge on the applicant site
 
-On the **applicant** gateway, set in **`gateway/.envs/local/django.env`** (or production
-`django.env`):
+Set `FEDERATION_REGISTRY_CHALLENGE_TOKEN` on the process that serves
+`GET /.well-known/sds-federation.json` at the application **FQDN** — almost always
+**federation sync** (`federation/.env.local`, `.env.peer`, or production `site.env`).
 
-```bash
-FEDERATION_REGISTRY_CHALLENGE_TOKEN=<paste the one-time token>
-```
-
-Ensure **`SDS_SITE_FQDN`** equals the application FQDN.
-
-Recreate the app container so Compose reloads `env_file` ( **`restart` is not enough** ):
-
-```bash
-cd gateway
-docker compose -f compose.local.yaml up -d --force-recreate sds-gateway-local-app
-```
-
-Confirm the variable inside the container:
-
-```bash
-docker compose -f compose.local.yaml exec sds-gateway-local-app \
-  printenv FEDERATION_REGISTRY_CHALLENGE_TOKEN
-```
-
-The well-known builder only includes `registry_challenge` when that setting is non-empty
-(see `build_sds_federation_document()` in `api_methods/federation/well_known.py`).
-
-### 4. Preflight the well-known document
-
-**HTTP on port 8000** (sanity check only; verify does not use this URL):
-
-```bash
-curl -sS http://localhost:8000/.well-known/sds-federation.json \
-  | jq '{fqdn, registry_challenge}'
-```
-
-**HTTPS on the application FQDN** (what verify actually uses — run from the mothership
-container):
-
-```bash
-docker compose -f compose.local.yaml exec sds-gateway-local-app \
-  curl -sS "https://<fqdn>/.well-known/sds-federation.json" \
-  | jq '{fqdn, registry_challenge}'
-```
-
-Expect matching `fqdn` and the same challenge string as in `django.env`.
-
-### 5. Verify domain
-
-On the mothership UI, open the application detail page and click **Verify domain**.
-
-+ **Success:** status **`pending_approval`**, message that the domain is verified.
-+ **Failure:** status **`verification_failed`** (retry allowed); see
-  [Troubleshooting](#troubleshooting).
-
-## Local development
-
-Default lab: **`SDS_SITE_FQDN=sds.localhost`**, **`ADMIN_CONSOLE_ENV=local`** (default when
-`DJANGO_DEBUG=true`), gateway on **`http://localhost:8000`**.
-
-### Local verify without Traefik (same gateway)
-
-When **`ADMIN_CONSOLE_ENV` is `local`** and the application **FQDN equals `SDS_SITE_FQDN`**,
-verify fetches well-known over **HTTP** from the app container:
-
-```text
-http://sds-gateway-local-app:8000/.well-known/sds-federation.json
-```
-
-No HTTPS or `/etc/hosts` entry is required for that case. Requirements:
-
-1. Registry application FQDN = **`sds.localhost`** (or whatever `SDS_SITE_FQDN` is).
-2. `FEDERATION_REGISTRY_CHALLENGE_TOKEN` set and app container **recreated** (see step 3).
-3. Rebuild/restart the gateway app image so it includes current code.
-
-Optional override: `FEDERATION_REGISTRY_VERIFY_FETCH_BASE` (e.g. second local gateway
-container for `peer.local`).
-
-### Other FQDNs or production-like verify
-
-Applications for **other** hostnames still use **`https://{fqdn}/...`** from the
-container. Use Traefik ([`network/README.md`](../../network/README.md)), a tunnel, or a
-real staging host.
-
-### Continue to federation peer E2E
-
-Registry **`pending_approval`** is separate from **sync peer** testing. After verify
-succeeds (or even if you skip registry for sync-only work):
+#### Local lab (sync serves well-known)
 
 ```bash
 cd federation
-just up                                    # or just deploy-local-peer-2-peer
-# see federation/scripts/local_e2e/README.md
-just verify-federation-live
+# FEDERATION_REGISTRY_CHALLENGE_TOKEN=<token> in .env.local or env file for compose
+docker compose -f compose.local.yaml up -d --force-recreate sds-federation-local-sync
 ```
 
-Align `federation.toml` `[site].fqdn` with `SDS_SITE_FQDN` and `FEDERATION_SITE_NAME`
-with `django.env`.
+#### Sync-only peer
 
-For federation **sync** live tests (export/webhook), see
+See [`federation/env.peer.example`](../../federation/env.peer.example) and
+[`federation/docs/peer-remote-test.md`](../../federation/docs/peer-remote-test.md).
+
+Do **not** put the applicant token in mothership `django.env` or `federation-shared.env`.
+
+Confirm inside the serving container:
+
+```bash
+docker compose -f compose.local.yaml exec sds-federation-local-sync \
+  printenv FEDERATION_REGISTRY_CHALLENGE_TOKEN
+```
+
+Well-known JSON is built in `federation/sds_federation/services/well_known.py` (includes
+`registry_challenge` when the env var is set).
+
+### 4. Preflight the well-known document
+
+From a host that can reach the applicant FQDN (or from sync):
+
+```bash
+curl -sS "https://<fqdn>/.well-known/sds-federation.json" \
+  | jq '{fqdn, registry_challenge}'
+```
+
+Expect matching `fqdn` and the same challenge string as in sync env.
+
+Local sync port (sanity check on loopback):
+
+```bash
+curl -sS http://localhost:8001/.well-known/sds-federation.json | jq '{fqdn, registry_challenge}'
+```
+
+### 5. Verify domain (UI)
+
+On the application detail page, click **Verify domain** (applicant only).
+
+The gateway calls flagship sync internal verify; sync fetches `https://{fqdn}/.well-known/sds-federation.json`.
+
++ **Success:** status **`pending_approval`**.
++ **Failure:** status **`verification_failed`**; message on the page — fix well-known and retry.
+
+Optional manual curl (same API the UI uses):
+
+```bash
+curl -sS -X POST "http://localhost:8001/internal/registry/verify" \
+  -H "Authorization: Bearer $(grep '^FEDERATION_SYNC_ADMIN_TOKEN=' ../federation-shared.env | cut -d= -f2-)" \
+  -H "Content-Type: application/json" \
+  -d '{"fqdn":"<application-fqdn>","challenge_hash":"<hash from DB>"}'
+```
+
+## Local development
+
+Default lab: **`SDS_SITE_FQDN=sds.localhost`**, gateway **`http://localhost:8000`**, sync
+**`http://localhost:8001`**.
+
+1. Start gateway + federation sync (`cd federation && just up`).
+2. Application FQDN = applicant `SDS_SITE_FQDN` in sync/federation config.
+3. Challenge token on **sync**, recreate sync after env edits.
+
+Registry **`pending_approval`** is separate from sync **peer** E2E; see
 [`federation/scripts/local_e2e/README.md`](../../federation/scripts/local_e2e/README.md).
 
 ## Automated tests
@@ -188,73 +154,78 @@ From `gateway/`:
 
 ```bash
 just test-py sds_gateway/api_methods/tests/test_registry_application_verify.py \
+  sds_gateway/api_methods/tests/test_federation_sync_client.py \
   sds_gateway/api_methods/tests/test_registry_challenge.py \
-  sds_gateway/api_methods/tests/test_federation_well_known.py \
+  sds_gateway/users/tests/test_registry_application_verify_view.py \
   sds_gateway/users/tests/test_registry_application_form.py
 ```
 
-Quote the `-k` expression so the shell does not split on `or`:
-
-```bash
-just test-py -k 'registry_application or federation_well_known'
-```
+Federation verify engine tests: `federation/tests/test_registry_verify.py`.
 
 ## Troubleshooting
 
 | Message / behavior | What to check |
 |------------------|----------------|
-| `registry_challenge` is null in JSON | Token not in `django.env`, or container not **recreated** after edit. |
-| Challenge mismatch | Token in env ≠ token from apply; re-apply and update env. |
-| `fqdn` mismatch | `SDS_SITE_FQDN` and JSON `fqdn` ≠ application FQDN. |
-| Challenge expired | Default ~72h; use **Issue new verification token** on the application page. |
-| Could not fetch well-known | HTTPS/DNS/TLS from app container to `https://<fqdn>/...`. |
+| `registry_challenge` is null in JSON | Token not set on **applicant sync**, or container not **recreated** after edit. |
+| Challenge mismatch | Token in env ≠ token from apply; re-apply and update sync env. |
+| `fqdn` mismatch | Sync/federation `SDS_SITE_FQDN` and JSON `fqdn` ≠ application FQDN. |
+| Challenge expired | Default ~72h; **Issue new verification token** on the application page. |
+| Sync verify fetch error | HTTPS/DNS/TLS from **sync** container to `https://<fqdn>/...`. |
 | Duplicate FQDN | Another open application exists for that hostname. |
 
-**Lost the one-time token:** create a new application (or clear the old row) and set a
-new `FEDERATION_REGISTRY_CHALLENGE_TOKEN`.
+**Lost the one-time token:** new application (or withdraw old) and set a new challenge on sync.
 
 ## Staff approval
 
-Requires a user with **`is_staff`** (e.g. `createsuperuser`).
+Requires **`is_staff`**.
 
-1. Open **`/users/federation/registry/`** — staff see **all** applications in the list.
-2. Open a row with status **`pending_approval`**.
-3. On the detail page, use the **Staff review** card: **Approve application** (optional site id) or **Reject application**.
+1. **`/users/federation/registry/`** — staff see all applications.
+2. **`pending_approval`** → **Approve application** (optional site id) or **Reject**.
 
-URL: `/users/federation/registry/applications/<uuid>/`.
-
-Approval sets status **`approved`** and `site_name`; it does **not** publish the signed registry manifest automatically.
+Approval sets **`approved`** and `site_name`; it does not publish the signed manifest.
 
 ## Publish signed registry (flagship)
 
-After one or more applications are **`approved`**, staff publish the manifest:
+Signing and manifest files live on **federation sync** (`[registry.publish]` in
+`federation.toml`, signing key volume). Gateway only records the outcome in the DB.
 
-1. Set **`FEDERATION_REGISTRY_SIGNING_KEY_PATH`** (Ed25519 private PEM) and optional
-   **`FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR`** (default: `{BASE_DIR}/registry_manifest`).
-2. On **`/users/federation/registry/`**, click **Publish signed registry** (staff, flagship host only), **or** run:
-   `python manage.py publish_registry_manifest`
-3. Peers fetch:
-   + `/.well-known/sds-registry/sites.json`
-   + `/.well-known/sds-registry/sites.json.sig` (base64 Ed25519 over the raw JSON bytes)
+1. Enable publish on sync; `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`.
+2. Build site list from approved applications; call sync:
 
-Publish bumps **`serial`**, writes the files, and moves **`approved`** rows to **`published`**.
+```bash
+curl -sS -X POST "http://localhost:8001/internal/registry/publish" \
+  -H "Authorization: Bearer $(grep '^FEDERATION_SYNC_ADMIN_TOKEN=' ../federation-shared.env | cut -d= -f2-)" \
+  -H "Content-Type: application/json" \
+  -d '{"sites":[...],"min_serial":null,"dry_run":false}'
+```
 
-Fingerprint for well-known / peers: `python manage.py registry_pubkey_fingerprint`.
+3. On **`/users/federation/registry/`**, staff enter the returned **`serial`** and click
+   **Record publish** (marks **`approved`** rows **`published`**).
+
+Peers fetch from flagship sync (Traefik):
+
++ `/.well-known/sds-registry/sites.json`
++ `/.well-known/sds-registry/sites.json.sig`
+
+Fingerprint: `uv run sds-federation-registry fingerprint --public-key-path certs/sds-registry.pub.pem`
+→ `FEDERATION_REGISTRY_PUBKEY_FINGERPRINT` on sync.
 
 ## Challenge reissue and withdraw
 
-On the application detail page (before staff approval), applicants can:
+Applicants (before staff approval):
 
-+ **Issue new verification token** — new `registry_challenge` hash and 72h expiry; token shown once in the modal.
-+ **Withdraw application** — releases the FQDN so a new application can be submitted.
++ **Issue new verification token** — new hash and 72h expiry; update sync env with new token.
++ **Withdraw application** — releases the FQDN.
 
 ## Not implemented yet
 
 + `well_known_path` challenge method (ACME-style path).
 + DRF API for applications (UI only today).
++ Gateway UI for manifest publish (staff **Record publish** after sync CLI/API).
 
 ## Related docs
 
-+ [Federation README](../../federation/README.md) (peers, well-known, `--discover`)
++ [Federation README](../../federation/README.md)
++ [Registry sync refactor plan](../../federation/docs/registry-sync-refactor-plan.md)
 + [Network / Traefik / TLS](../../network/README.md)
 + [OAuth setup](./oauth-setup.md)

@@ -95,17 +95,15 @@
                             <button type="submit"
                                     class="btn btn-outline-secondary">{% translate "Withdraw application" %}</button>
                         </form>
+                        <form method="post"
+                              action="{% url 'users:registry_application_verify' pk=application.pk %}">
+                            {% csrf_token %}
+                            <button type="submit" class="btn btn-primary">{% translate "Verify domain" %}</button>
+                        </form>
                     </div>
-                {% endif %}
-                {% if can_verify_domain %}
-                    <form method="post"
-                          action="{% url 'users:registry_application_verify' pk=application.pk %}">
-                        {% csrf_token %}
-                        <p class="text-muted">
-                            {% translate "After publishing registry_challenge on your well-known URL, run verification." %}
-                        </p>
-                        <button type="submit" class="btn btn-primary">{% translate "Verify domain" %}</button>
-                    </form>
+                    <p class="text-muted mb-4">
+                        {% translate "Publish registry_challenge on your site well-known URL (federation sync), then click Verify domain." %}
+                    </p>
                 {% endif %}
                 {% if can_staff_review %}
                     <div class="card border-warning mb-4">

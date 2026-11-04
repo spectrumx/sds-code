@@ -770,23 +770,13 @@ FEDERATION_GATEWAY_API_BASE: str = env.str(
 FEDERATION_SYNC_SERVICE_URL: str = env.str(
     "FEDERATION_SYNC_SERVICE_URL", default=""
 ).strip()
-FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
-    "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
-    default="",
+# Docker/internal base for sync registry admin API (verify/publish).
+# Not the public /sync URL.
+FEDERATION_SYNC_INTERNAL_URL: str = env.str(
+    "FEDERATION_SYNC_INTERNAL_URL", default=""
 ).strip()
-# Local lab: registry verify fetch base when application FQDN == SDS_SITE_FQDN.
-# Default http://sds-gateway-local-app:8000. Production uses https://{fqdn}/...
-FEDERATION_REGISTRY_VERIFY_FETCH_BASE: str = env.str(
-    "FEDERATION_REGISTRY_VERIFY_FETCH_BASE",
-    default="",
-).strip()
-FEDERATION_REGISTRY_WELL_KNOWN_URL: str = env.str(
-    "FEDERATION_REGISTRY_WELL_KNOWN_URL",
-    default="",
-).strip()
-FEDERATION_REGISTRY_PUBKEY_FINGERPRINT: str = env.str(
-    "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT",
-    default="",
+FEDERATION_SYNC_ADMIN_TOKEN: str = env.str(
+    "FEDERATION_SYNC_ADMIN_TOKEN", default=""
 ).strip()
 SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
     "SDS_FEDERATION_WELL_KNOWN_CONTACT",

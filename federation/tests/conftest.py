@@ -31,6 +31,28 @@ SYNC_API_PREFIX = f"/sync{API_PREFIX}"
 PEER_SYNC_BASE = PEER_ONE_SYNC_ORIGIN
 
 
+def build_registry_root_app(config: FederationConfig) -> FastAPI:
+    """Root FastAPI app with /sync mount (matches production layout for registry tests)."""
+    from sds_federation.routes.health import health_router
+    from sds_federation.routes.internal_registry import internal_registry_router
+    from sds_federation.routes.sites import sites_router
+    from sds_federation.routes.webhooks import webhooks_router
+    from sds_federation.routes.well_known import well_known_router
+
+    sync_app = FastAPI()
+    sync_app.state.config = config
+    sync_app.include_router(health_router)
+    sync_app.include_router(webhooks_router, prefix=API_PREFIX)
+    sync_app.include_router(sites_router, prefix=API_PREFIX)
+
+    root = FastAPI()
+    root.state.config = config
+    root.include_router(well_known_router)
+    root.include_router(internal_registry_router)
+    root.mount("/sync", sync_app)
+    return root
+
+
 def make_peer_config(*, site_name: str = "peer-one") -> FederationConfig:
     """Receiver sync: allows webhooks whose site_name is listed in peers."""
     config = peer_one_config()
@@ -73,6 +95,13 @@ def recording_opensearch() -> RecordingOpenSearch:
 @pytest.fixture
 def test_site_config() -> FederationConfig:
     return testsite_config()
+
+
+@pytest.fixture
+def admin_token(monkeypatch: pytest.MonkeyPatch) -> str:
+    token = "test-sync-admin-token"
+    monkeypatch.setenv("FEDERATION_SYNC_ADMIN_TOKEN", token)
+    return token
 
 
 def seed_federated_dataset_in_opensearch(
