@@ -16,6 +16,8 @@ services:
     env_file:
       - ../gateway/.envs/local/opensearch.env
       - ../federation-shared.env
+    # Optional: federation/.env.local — FEDERATION_REGISTRY_CHALLENGE_TOKEN when sync serves
+    # well-known (see env.local.example). Domain verify/publish use sync internal API, not django.
     environment:
       FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
       GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-local-app:8000/api/v1
@@ -23,6 +25,9 @@ services:
     volumes:
       - ./federation.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro
+      - ./secrets/registry:/etc/sds/secrets/registry:ro
+      - sds-federation-local-registry-publish:/var/lib/sds/registry-publish
+      - sds-federation-local-registry-cache:/var/lib/sds/registry
     ports:
       - "8001:8000"
     healthcheck:
@@ -41,3 +46,7 @@ services:
     networks:
       - sds-network-local
       - sds-gateway-local-opensearch-net
+
+volumes:
+  sds-federation-local-registry-publish:
+  sds-federation-local-registry-cache:

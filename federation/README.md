@@ -95,11 +95,22 @@ SDS_ENV=production just federation-add-peer \
   --gateway-api-base https://peer.example.edu/api/v1
 ```
 
-Each gateway serves `GET https://<fqdn>/.well-known/sds-federation.json` (unsigned site identity).
-During registry apply, set `FEDERATION_REGISTRY_CHALLENGE_TOKEN` on the applicant gateway so that
-document includes `registry_challenge` for mothership verification.
+Each site exposes `GET https://<fqdn>/.well-known/sds-federation.json` (unsigned identity).
+Traefik may route that path to **federation sync** (sync-only peers) or the **gateway**.
 
-Step-by-step (apply, env token, verify, local HTTPS caveats):
+**`FEDERATION_REGISTRY_CHALLENGE_TOKEN`** (applicant only — not mothership, not
+`federation-shared.env`):
+
+| Who serves applicant well-known | Where to set the raw token |
+|--------------------------------|----------------------------|
+| Gateway (typical local lab, same FQDN as `SDS_SITE_FQDN`) | `gateway/.envs/local/django.env` — recreate gateway app |
+| Sync-only peer (e.g. sds-fed1) | `federation/.env.peer` → `compose.peer.*.yaml` — recreate peer sync |
+| Flagship sync serves well-known (Traefik) | `federation/.env.local` + `compose.local.yaml` (see `env.local.example`) |
+
+Use `cp federation/env.peer.example federation/.env.peer`; do **not** use `federation/peer.env`
+(compose does not load it).
+
+Step-by-step verify flow:
 [`gateway/docs/federation-registry-verify.md`](../gateway/docs/federation-registry-verify.md).
 
 Optional `--ca-cert-path` (file under `federation/certs/` in the sync container).
@@ -145,12 +156,26 @@ docker compose -f compose.local.yaml exec sds-gateway-local-app \
 
 cd ../federation
 cp federation.example.toml federation.toml   # [site] matches gateway
+# Flagship registry: cp signing key to secrets/registry/sign.pem (see secrets/registry/README.md)
 just build && just up
 curl -s http://localhost:8001/sync/health | jq .
 ```
 
 Leave `FEDERATION_SYNC_SERVER_API_KEY` empty in `federation-shared.env` so sync mints
 the export key. Optional: `FEDERATION_SKIP_SYNC_HEALTH_PROBE=true` until sync is up.
+
+### Flagship registry (sync-owned manifest)
+
+| Item | Location |
+|------|----------|
+| Signing key | `federation/secrets/registry/sign.pem` → container `/etc/sds/secrets/registry/sign.pem` |
+| Published manifest | Docker volume `sds-federation-*-registry-publish` → `/var/lib/sds/registry-publish` |
+| Public key + fingerprint | `federation/certs/sds-registry.pub.pem`; set `FEDERATION_REGISTRY_PUBKEY_FINGERPRINT` in `site.env` or `.env.local` |
+| Gateway intake | Apply + **Verify domain** UI (→ sync internal API), staff approve, record publish serial |
+| Sync internal API | `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`; gateway `FEDERATION_SYNC_INTERNAL_URL` |
+
+Render/onboard with publish block: `FEDERATION_REGISTRY_PUBLISH_ENABLED=true` (see `site.example.env`).
+Preflight: `just federation-doctor` or `FEDERATION_DOCTOR_CHECK=registry ./scripts/federation-doctor.sh`.
 
 **Local peer mesh:**
 

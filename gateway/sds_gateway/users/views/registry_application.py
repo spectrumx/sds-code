@@ -3,8 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from typing import Any
 
-from config.settings.utils import is_flagship_gateway_deployment
-from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.db import IntegrityError
@@ -32,6 +30,9 @@ from sds_gateway.api_methods.federation.registry_application_review import (
 from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
 )
+from sds_gateway.api_methods.federation.registry_application_staff_ops import (
+    record_manifest_published,
+)
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
 )
@@ -40,18 +41,6 @@ from sds_gateway.api_methods.federation.registry_challenge import (
 )
 from sds_gateway.api_methods.federation.registry_challenge import (
     hash_registry_challenge_token,
-)
-from sds_gateway.api_methods.federation.registry_manifest_publish import (
-    RegistryManifestPublishError,
-)
-from sds_gateway.api_methods.federation.registry_manifest_publish import (
-    publish_registry_manifest,
-)
-from sds_gateway.api_methods.federation.registry_sync_capabilities import (
-    registry_sync_capabilities,
-)
-from sds_gateway.api_methods.federation.registry_sync_publish import (
-    publish_registry_manifest_via_sync,
 )
 from sds_gateway.api_methods.models import ChallengeMethod
 from sds_gateway.api_methods.models import RegistryApplication
@@ -195,7 +184,7 @@ class RegistryApplicationDetailView(
             and application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
         )
         context["is_staff_viewer"] = self.request.user.is_staff
-        context["can_staff_publish_manifest"] = _staff_can_publish_manifest(
+        context["can_staff_publish_manifest"] = _staff_can_record_publish(
             self.request.user,
         )
         return context
@@ -240,31 +229,21 @@ class RegistryApplicationWithdrawView(
         return redirect("users:registry_application_detail", pk=application.pk)
 
 
-def _staff_can_publish_manifest(user) -> bool:
-    if not user.is_staff:
-        return False
-    backend = (
-        str(getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway")
-        .strip()
-        .lower()
-    )
-    if backend == "sync":
-        caps = registry_sync_capabilities()
-        return bool(caps and caps.get("publish_enabled"))
-    if not is_flagship_gateway_deployment(
-        site_fqdn=str(getattr(settings, "SDS_SITE_FQDN", "") or ""),
-        flagship_gateway_host=str(getattr(settings, "FLAGSHIP_GATEWAY_HOST", "") or ""),
-    ):
-        return False
-    return bool(
-        str(getattr(settings, "FEDERATION_REGISTRY_SIGNING_KEY_PATH", "") or "").strip()
-    )
+def _staff_can_record_publish(user) -> bool:
+    return user.is_staff
+
+
+class StaffRequiredMixin(UserPassesTestMixin):
+    def test_func(self) -> bool:
+        return self.request.user.is_staff
 
 
 class RegistryApplicationVerifyView(
-    RegistryIntakeRequiredMixin, Auth0LoginRequiredMixin, View
+    RegistryIntakeRequiredMixin,
+    Auth0LoginRequiredMixin,
+    View,
 ):
-    """Run domain verification for the applicant's well-known endpoint."""
+    """Run domain verification on federation sync for the applicant's FQDN."""
 
     def post(self, request: HttpRequest, pk: str) -> HttpResponse:
         application = get_registry_application_for_user(request.user, pk)
@@ -299,7 +278,7 @@ class RegistryApplicationListView(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
         )
-        context["can_staff_publish_manifest"] = _staff_can_publish_manifest(
+        context["can_staff_publish_manifest"] = _staff_can_record_publish(
             self.request.user,
         )
         return context
@@ -312,11 +291,6 @@ class RegistryApplicationListView(
         self.object_list = self.get_queryset()
         context = self.get_context_data(form=form, open_apply_modal=True)
         return self.render_to_response(context)
-
-
-class StaffRequiredMixin(UserPassesTestMixin):
-    def test_func(self) -> bool:
-        return self.request.user.is_staff
 
 
 class RegistryApplicationApproveView(
@@ -348,24 +322,16 @@ class RegistryApplicationPublishManifestView(
     StaffRequiredMixin,
     View,
 ):
-    """Staff: sign and publish the federation registry manifest (flagship only)."""
+    """Staff: record manifest serial after publish on federation sync."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
-        backend = (
-            str(
-                getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway"
-            )
-            .strip()
-            .lower()
-        )
+        raw_serial = (request.POST.get("manifest_serial") or "").strip()
         try:
-            if backend == "sync":
-                result = publish_registry_manifest_via_sync()
-            else:
-                result = publish_registry_manifest()
-        except RegistryManifestPublishError as exc:
-            messages.error(request, str(exc))
+            serial = int(raw_serial)
+        except ValueError:
+            messages.error(request, "Manifest serial must be an integer.")
             return redirect("users:registry_application_list")
+        result = record_manifest_published(serial=serial)
         if result.ok:
             messages.success(request, result.message)
         else:

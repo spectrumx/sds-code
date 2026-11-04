@@ -10,35 +10,12 @@ from drf_spectacular.views import SpectacularSwaggerView
 from loguru import logger as log
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.permissions import AllowAny
-from sds_gateway.api_methods.views.federation_registry_manifest import (
-    sds_registry_manifest_signature_view,
-)
-from sds_gateway.api_methods.views.federation_registry_manifest import (
-    sds_registry_manifest_view,
-)
-from sds_gateway.api_methods.views.federation_well_known import (
-    sds_federation_well_known_view,
-)
 from sds_gateway.users.views import home_page_view
 from sds_gateway.users.views import spx_dac_dataset_alt_view
 
 urlpatterns = [
     path("", home_page_view, name="home"),
-    path(
-        ".well-known/sds-federation.json",
-        sds_federation_well_known_view,
-        name="sds_federation_well_known",
-    ),
-    path(
-        ".well-known/sds-registry/sites.json",
-        sds_registry_manifest_view,
-        name="sds_registry_manifest",
-    ),
-    path(
-        ".well-known/sds-registry/sites.json.sig",
-        sds_registry_manifest_signature_view,
-        name="sds_registry_manifest_signature",
-    ),
+    # Site identity + signed registry: federation sync (see network/traefik and federation compose).
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management

@@ -770,56 +770,12 @@ FEDERATION_GATEWAY_API_BASE: str = env.str(
 FEDERATION_SYNC_SERVICE_URL: str = env.str(
     "FEDERATION_SYNC_SERVICE_URL", default=""
 ).strip()
-FEDERATION_REGISTRY_CHALLENGE_TOKEN: str = env.str(
-    "FEDERATION_REGISTRY_CHALLENGE_TOKEN",
-    default="",
-).strip()
-# Local lab: registry verify fetch base when application FQDN == SDS_SITE_FQDN.
-# Default http://sds-gateway-local-app:8000. Production uses https://{fqdn}/...
-FEDERATION_REGISTRY_VERIFY_FETCH_BASE: str = env.str(
-    "FEDERATION_REGISTRY_VERIFY_FETCH_BASE",
-    default="",
-).strip()
-FEDERATION_REGISTRY_WELL_KNOWN_URL: str = env.str(
-    "FEDERATION_REGISTRY_WELL_KNOWN_URL",
-    default="",
-).strip()
-FEDERATION_REGISTRY_PUBKEY_FINGERPRINT: str = env.str(
-    "FEDERATION_REGISTRY_PUBKEY_FINGERPRINT",
-    default="",
-).strip()
-FEDERATION_REGISTRY_SIGNING_KEY_PATH: str = env.str(
-    "FEDERATION_REGISTRY_SIGNING_KEY_PATH",
-    default="",
-).strip()
-FEDERATION_REGISTRY_PUBLIC_KEY_PATH: str = env.str(
-    "FEDERATION_REGISTRY_PUBLIC_KEY_PATH",
-    default="",
-).strip()
-FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR: str = env.str(
-    "FEDERATION_REGISTRY_MANIFEST_STORAGE_DIR",
-    default="",
-).strip()
-FEDERATION_REGISTRY_MANIFEST_TTL_HOURS: int = env.int(
-    "FEDERATION_REGISTRY_MANIFEST_TTL_HOURS",
-    default=168,
-)
-# Registry verify/sign/publish backend: "gateway" (default) or "sync" (federation API).
-FEDERATION_REGISTRY_BACKEND: str = (
-    env.str(
-        "FEDERATION_REGISTRY_BACKEND",
-        default="gateway",
-    )
-    .strip()
-    .lower()
-)
+# Docker/internal base for sync registry admin API (verify/publish); not the public /sync URL.
 FEDERATION_SYNC_INTERNAL_URL: str = env.str(
-    "FEDERATION_SYNC_INTERNAL_URL",
-    default="",
+    "FEDERATION_SYNC_INTERNAL_URL", default=""
 ).strip()
 FEDERATION_SYNC_ADMIN_TOKEN: str = env.str(
-    "FEDERATION_SYNC_ADMIN_TOKEN",
-    default="",
+    "FEDERATION_SYNC_ADMIN_TOKEN", default=""
 ).strip()
 SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
     "SDS_FEDERATION_WELL_KNOWN_CONTACT",

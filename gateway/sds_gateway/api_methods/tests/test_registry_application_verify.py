@@ -12,111 +12,18 @@ from sds_gateway.api_methods.federation.registry_application_verify import (
 from sds_gateway.api_methods.federation.registry_challenge import (
     hash_registry_challenge_token,
 )
+from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
 
 @pytest.mark.django_db
-def test_verify_registry_application_success(user) -> None:
-    raw = "test-challenge-token-value"
-    application = RegistryApplication.objects.create(
-        fqdn="site.example.edu",
-        display_name="Site",
-        contact=user,
-        challenge_token_hash=hash_registry_challenge_token(raw),
-        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
-    )
-    well_known = {
-        "fqdn": "site.example.edu",
-        "registry_challenge": raw,
-        "gateway_api_base": "https://site.example.edu/api/v1",
-        "sync_service_url": "https://site.example.edu/sync",
-    }
-    with patch(
-        "sds_gateway.api_methods.federation.registry_application_verify.fetch_well_known_json",
-        return_value=well_known,
-    ):
-        result = verify_registry_application(application)
-
-    assert result.ok
-    application.refresh_from_db()
-    assert application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
-    assert application.verified_well_known == well_known
-    assert application.gateway_api_base == "https://site.example.edu/api/v1"
-    assert application.verification_attempts == 1
-
-
-@pytest.mark.django_db
-def test_verify_fetch_failure_stores_generic_message(user) -> None:
-    from sds_gateway.api_methods.federation.registry_verify_fetch import (
-        RegistryVerifyFetchError,
-    )
-
-    application = RegistryApplication.objects.create(
-        fqdn="site.example.edu",
-        display_name="Site",
-        contact=user,
-        challenge_token_hash=hash_registry_challenge_token("token"),
-        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
-    )
-    with patch(
-        "sds_gateway.api_methods.federation.registry_application_verify.fetch_well_known_json",
-        side_effect=RegistryVerifyFetchError("Could not fetch well-known JSON."),
-    ):
-        result = verify_registry_application(application)
-
-    assert not result.ok
-    application.refresh_from_db()
-    assert application.last_verification_error == "Could not fetch well-known JSON."
-    assert "Traceback" not in application.last_verification_error
-
-
-@pytest.mark.django_db
-def test_verify_registry_application_wrong_challenge(user) -> None:
-    application = RegistryApplication.objects.create(
-        fqdn="site.example.edu",
-        display_name="Site",
-        contact=user,
-        challenge_token_hash=hash_registry_challenge_token("correct"),
-        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
-    )
-    with patch(
-        "sds_gateway.api_methods.federation.registry_application_verify.fetch_well_known_json",
-        return_value={"fqdn": "site.example.edu", "registry_challenge": "wrong"},
-    ):
-        result = verify_registry_application(application)
-
-    assert not result.ok
-    application.refresh_from_db()
-    assert application.status == RegistryApplicationStatus.VERIFICATION_FAILED.value
-    assert application.last_verification_error
-
-
-@pytest.mark.django_db
-def test_verify_registry_application_expired_challenge(user) -> None:
-    application = RegistryApplication.objects.create(
-        fqdn="site.example.edu",
-        display_name="Site",
-        contact=user,
-        challenge_token_hash=hash_registry_challenge_token("token"),
-        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
-        challenge_expires_at=timezone.now() - timezone.timedelta(hours=1),
-    )
-    result = verify_registry_application(application)
-    assert not result.ok
-    application.refresh_from_db()
-    assert application.status == RegistryApplicationStatus.PENDING_VERIFICATION.value
-    assert application.verification_attempts == 0
-
-
-@pytest.mark.django_db
 @override_settings(
-    FEDERATION_REGISTRY_BACKEND="sync",
     FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
-def test_verify_registry_application_sync_backend(user) -> None:
-    raw = "sync-backend-token"
+def test_verify_registry_application_success(user) -> None:
+    raw = "test-challenge-token-value"
     application = RegistryApplication.objects.create(
         fqdn="site.example.edu",
         display_name="Site",
@@ -141,7 +48,82 @@ def test_verify_registry_application_sync_backend(user) -> None:
         result = verify_registry_application(application)
 
     assert result.ok
+    application.refresh_from_db()
+    assert application.status == RegistryApplicationStatus.PENDING_APPROVAL.value
+    assert application.verified_well_known == well_known
+    assert application.gateway_api_base == "https://site.example.edu/api/v1"
+    assert application.verification_attempts == 1
     mock_client.verify_domain.assert_called_once_with(
         "site.example.edu",
         application.challenge_token_hash,
     )
+
+
+@pytest.mark.django_db
+@override_settings(
+    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
+)
+def test_verify_sync_unavailable(user) -> None:
+    application = RegistryApplication.objects.create(
+        fqdn="site.example.edu",
+        display_name="Site",
+        contact=user,
+        challenge_token_hash=hash_registry_challenge_token("token"),
+        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+    )
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_verify.FederationSyncClient.from_settings",
+        side_effect=SyncUnavailableError("Federation sync is unavailable."),
+    ):
+        result = verify_registry_application(application)
+
+    assert not result.ok
+    application.refresh_from_db()
+    assert application.status == RegistryApplicationStatus.VERIFICATION_FAILED.value
+    assert "unavailable" in application.last_verification_error.lower()
+
+
+@pytest.mark.django_db
+@override_settings(
+    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
+)
+def test_verify_sync_returns_error(user) -> None:
+    application = RegistryApplication.objects.create(
+        fqdn="site.example.edu",
+        display_name="Site",
+        contact=user,
+        challenge_token_hash=hash_registry_challenge_token("token"),
+        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+    )
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_verify.FederationSyncClient.from_settings",
+    ) as mock_factory:
+        mock_client = mock_factory.return_value
+        mock_client.verify_domain.return_value = {
+            "ok": False,
+            "error": "Could not fetch well-known JSON.",
+        }
+        result = verify_registry_application(application)
+
+    assert not result.ok
+    application.refresh_from_db()
+    assert application.last_verification_error == "Could not fetch well-known JSON."
+
+
+@pytest.mark.django_db
+def test_verify_registry_application_expired_challenge(user) -> None:
+    application = RegistryApplication.objects.create(
+        fqdn="site.example.edu",
+        display_name="Site",
+        contact=user,
+        challenge_token_hash=hash_registry_challenge_token("token"),
+        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+        challenge_expires_at=timezone.now() - timezone.timedelta(hours=1),
+    )
+    result = verify_registry_application(application)
+    assert not result.ok
+    application.refresh_from_db()
+    assert application.status == RegistryApplicationStatus.PENDING_VERIFICATION.value
+    assert application.verification_attempts == 0

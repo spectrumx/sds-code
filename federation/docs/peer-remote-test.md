@@ -120,16 +120,28 @@ Same idea on one machine: `just deploy-local-peer-2-peer` then `just seed-peer`
 
 ## Registry apply from a sync-only peer
 
-Domain verification reads `GET /.well-known/sds-federation.json` from the applicant host
-(Traefik routes that path to sync on fed1). Set the applicant challenge on the **peer sync**
-container, not the mothership gateway:
+Domain verification reads `GET /.well-known/sds-federation.json` from the **applicant**
+public hostname (Traefik routes that path to **this** peer’s sync — not the mothership gateway).
+
+1. On the mothership, create a registry application and copy the **one-time verification token**.
+2. On **sds-fed1**, set the token on the peer sync container env (not on mothership django.env):
 
 ```bash
-# federation/.env.peer (or compose environment)
-FEDERATION_REGISTRY_CHALLENGE_TOKEN=<one-time token from mothership UI>
+cd federation
+cp env.peer.example .env.peer
+# Edit .env.peer:
+FEDERATION_REGISTRY_CHALLENGE_TOKEN=<paste raw token from mothership UI>
+docker compose -f compose.peer.remote.yaml --env-file .env.peer up -d --force-recreate sds-federation-peer-sync
 ```
 
-After Traefik serves well-known from sync, applicants publish the token in JSON as
-`registry_challenge`, then run **Verify** on the mothership gateway UI with
-`FEDERATION_REGISTRY_BACKEND=sync` and `FEDERATION_SYNC_INTERNAL_URL` pointed at the
-flagship sync container.
+3. Preflight:
+
+```bash
+curl -sS https://sds-fed1.crc.nd.edu/.well-known/sds-federation.json | jq '{fqdn, registry_challenge}'
+```
+
+4. Run domain verify via the mothership UI (**Verify domain**) or curl against flagship sync.
+   Set `FEDERATION_SYNC_INTERNAL_URL=http://sds-federation-local-sync:8000` on gateway django env.
+
+Do not put `FEDERATION_REGISTRY_CHALLENGE_TOKEN` in `federation-shared.env` or on the
+mothership sync unless the mothership is also the applicant.

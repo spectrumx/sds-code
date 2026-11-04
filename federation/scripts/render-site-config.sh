@@ -67,6 +67,15 @@ export_vars_for_render() {
 	export FEDERATION_SYNC_HEALTH_URL="${FEDERATION_SYNC_HEALTH_URL:-$(default_sync_health_url)}"
 	export FEDERATION_SYNC_USER_EMAIL="${FEDERATION_SYNC_USER_EMAIL:-federation-sync@internal.local}"
 	export FEDERATION_PEER_CA_PATH="${FEDERATION_PEER_CA_PATH:-}"
+	export FEDERATION_REGISTRY_PUBLISH_ENABLED="${FEDERATION_REGISTRY_PUBLISH_ENABLED:-false}"
+	case "${FEDERATION_REGISTRY_PUBLISH_ENABLED}" in
+	true | 1 | yes | TRUE)
+		export FEDERATION_REGISTRY_PUBLISH_TOML=$'[registry.publish]\nenabled = true\nsigning_key_path = "/etc/sds/secrets/registry/sign.pem"\nmanifest_dir = "/var/lib/sds/registry-publish"\nttl_hours = 168\n'
+		;;
+	*)
+		export FEDERATION_REGISTRY_PUBLISH_TOML=""
+		;;
+	esac
 	default_peer_values
 }
 
