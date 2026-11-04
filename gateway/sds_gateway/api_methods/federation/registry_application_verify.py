@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from django.conf import settings
 from django.utils import timezone
 
 from sds_gateway.api_methods.federation.registry_challenge import (
@@ -14,6 +15,8 @@ from sds_gateway.api_methods.federation.registry_verify_fetch import (
 from sds_gateway.api_methods.federation.registry_verify_fetch import (
     fetch_well_known_json,
 )
+from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
+from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
@@ -118,6 +121,44 @@ def verify_registry_application(application: RegistryApplication) -> VerifyResul
         return VerifyResult(ok=False, message=msg)
 
     fqdn = application.fqdn
+    backend = str(getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway").strip().lower()
+    if backend == "sync":
+        try:
+            client = FederationSyncClient.from_settings()
+            payload = client.verify_domain(fqdn, application.challenge_token_hash)
+        except SyncUnavailableError as exc:
+            return apply_verification_result(
+                application,
+                ok=False,
+                message=str(exc),
+            )
+        if not payload.get("ok"):
+            error = payload.get("error") or "Domain verification failed."
+            return apply_verification_result(
+                application,
+                ok=False,
+                message=str(error),
+            )
+        well_known_json = payload.get("well_known")
+        if not isinstance(well_known_json, dict):
+            return apply_verification_result(
+                application,
+                ok=False,
+                message="Well-known response was not a JSON object.",
+            )
+        if not validate_site_identity(well_known_json, application):
+            return apply_verification_result(
+                application,
+                ok=False,
+                message="fqdn in well-known JSON does not match this application.",
+            )
+        return apply_verification_result(
+            application,
+            ok=True,
+            message="Domain verified. Your application is awaiting admin approval.",
+            well_known=well_known_json,
+        )
+
     try:
         well_known_json = fetch_well_known_json(fqdn)
     except RegistryVerifyFetchError as exc:

@@ -24,6 +24,7 @@ SECONDARY_ACCESS_KEY_ID=""
 SECONDARY_SECRET_ACCESS_KEY=""
 
 FEDERATION_SYNC_DRF_TOKEN=""
+FEDERATION_SYNC_ADMIN_TOKEN=""
 
 function ensure_federation_sync_drf_token() {
 	local env_type="$1"
@@ -34,6 +35,18 @@ function ensure_federation_sync_drf_token() {
 		FEDERATION_SYNC_DRF_TOKEN="ci-federation-sync-drf-01234567890123456"
 	else
 		FEDERATION_SYNC_DRF_TOKEN=$(generate_secret 40)
+	fi
+}
+
+function ensure_federation_sync_admin_token() {
+	local env_type="$1"
+	if [[ -n "${FEDERATION_SYNC_ADMIN_TOKEN}" ]]; then
+		return 0
+	fi
+	if [[ "${env_type}" == "ci" ]]; then
+		FEDERATION_SYNC_ADMIN_TOKEN="ci-federation-sync-admin-token"
+	else
+		FEDERATION_SYNC_ADMIN_TOKEN=$(generate_secret 48)
 	fi
 }
 
@@ -191,7 +204,9 @@ function process_env_file() {
 
 	if [[ "${filename}" == "federation-shared.example.env" ]]; then
 		ensure_federation_sync_drf_token "${env_type}"
+		ensure_federation_sync_admin_token "${env_type}"
 		content="${content//FEDERATION_SYNC_DRF_TOKEN=/FEDERATION_SYNC_DRF_TOKEN=${FEDERATION_SYNC_DRF_TOKEN}}"
+		content="${content//FEDERATION_SYNC_ADMIN_TOKEN=/FEDERATION_SYNC_ADMIN_TOKEN=${FEDERATION_SYNC_ADMIN_TOKEN}}"
 	fi
 
 	if [[ "${filename}" == "storage.env" ]]; then

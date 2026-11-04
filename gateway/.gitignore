@@ -4,6 +4,7 @@
 data/*
 opensearch/data/*
 version.json
+secrets/*
 
 # data dirs
 data/*

@@ -51,6 +51,7 @@ services:
       OPENSEARCH_VERIFY_CERTS: "false"
       # No mint: leave FEDERATION_SYNC_* unset
       FEDERATION_SITE_NAME: peer
+      FEDERATION_REGISTRY_CHALLENGE_TOKEN: ${FEDERATION_REGISTRY_CHALLENGE_TOKEN:-}
     volumes:
       - ./federation.peer.toml:/etc/sds/federation.toml:ro
     ports:

@@ -2,6 +2,8 @@
 name = "your-site"
 fqdn = "your-site.domain"
 display_name = "Your Site"
+# Optional; defaults to https://{fqdn}/api/v1 in well-known and manifest flagship entry.
+# gateway_api_base = "https://your-site.domain/api/v1"
 # Advertised in site-hello. Use the Traefik HTTPS /sync URL (not host :8001).
 # Defaults to http://{fqdn}/sync/ if unset.
 # sync_service_url = "https://your-site.domain/sync"
@@ -15,3 +17,10 @@ display_name = "Notre Dame CRC"
 gateway_api_base = "https://sds.crc.nd.edu/api/v1"
 sync_service_url = "https://sds.crc.nd.edu/sync/"
 ca_cert_path = "/etc/sds/certs/crc-ca.pem"
+
+# Flagship registry signing (sync only; peers omit [registry.publish])
+# [registry.publish]
+# enabled = true
+# signing_key_path = "/etc/sds/secrets/registry/sign.pem"
+# manifest_dir = "/var/lib/sds/registry-publish"
+# ttl_hours = 168

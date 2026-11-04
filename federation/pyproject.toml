@@ -23,6 +23,9 @@ module-root = ""
         "uvicorn[standard]>=0.34.0",
     ]
 
+[project.scripts]
+sds-federation-registry = "sds_federation.cli.registry:main"
+
 [project.optional-dependencies]
 dev = [
     "deptry>=0.24.0",
@@ -145,6 +148,7 @@ dev = [
                 "PLC0415",
             ]
             "**/scripts/**" = ["T201", "EXE001", "E501"]
+            "**/cli/**" = ["T201", "PLC0415", "E501"]
 
     [tool.ruff.format]
         indent-style = "space"

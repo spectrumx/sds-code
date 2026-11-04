@@ -121,6 +121,23 @@ def build_manifest_sites() -> list[dict[str, Any]]:
     return [by_name[key] for key in sorted(by_name)]
 
 
+def build_sync_publish_site_entries() -> list[dict[str, Any]]:
+    """Manifest members for sync publish (flagship entry is added by sync)."""
+    flagship_fqdn = build_flagship_site_entry()["fqdn"].strip().lower()
+    by_name: dict[str, dict[str, Any]] = {}
+    applications = (
+        RegistryApplication.objects.filter(status__in=_MANIFEST_MEMBER_STATUSES)
+        .exclude(site_name="")
+        .order_by("site_name")
+    )
+    for application in applications:
+        entry = site_entry_from_application(application)
+        if entry["fqdn"].strip().lower() == flagship_fqdn:
+            continue
+        by_name[entry["name"]] = entry
+    return [by_name[key] for key in sorted(by_name)]
+
+
 def build_manifest_dict(
     *,
     serial: int,

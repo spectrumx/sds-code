@@ -63,6 +63,7 @@ services:
       OPENSEARCH_VERIFY_CERTS: "false"
       FEDERATION_SITE_NAME: ${PEER_SITE_NAME:-fed1}
       FEDERATION_BOOTSTRAP_ON_START: ${FEDERATION_BOOTSTRAP_ON_START:-true}
+      FEDERATION_REGISTRY_CHALLENGE_TOKEN: ${FEDERATION_REGISTRY_CHALLENGE_TOKEN:-}
     volumes:
       - ./federation.peer.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro

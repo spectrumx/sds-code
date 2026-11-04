@@ -10,3 +10,12 @@
 
 [[http.services.${TRAEFIK_SYNC_ROUTER_ID}.loadBalancer.servers]]
     url = "http://${FEDERATION_SYNC_CONTAINER}:8000"
+
+[http.routers.${TRAEFIK_SYNC_ROUTER_ID}-wellknown]
+    entryPoints = ["web", "web-secure"]
+    rule        = "Host(`${SDS_SITE_FQDN}`) && (Path(`/.well-known/sds-federation.json`) || PathPrefix(`/.well-known/sds-registry/`))"
+    service     = "${TRAEFIK_SYNC_ROUTER_ID}"
+    priority    = 100
+
+    [http.routers.${TRAEFIK_SYNC_ROUTER_ID}-wellknown.tls]
+        certResolver = "letsencrypt"

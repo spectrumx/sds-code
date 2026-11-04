@@ -804,6 +804,19 @@ FEDERATION_REGISTRY_MANIFEST_TTL_HOURS: int = env.int(
     "FEDERATION_REGISTRY_MANIFEST_TTL_HOURS",
     default=168,
 )
+# Registry verify/sign/publish backend: "gateway" (default) or "sync" (federation internal API).
+FEDERATION_REGISTRY_BACKEND: str = env.str(
+    "FEDERATION_REGISTRY_BACKEND",
+    default="gateway",
+).strip().lower()
+FEDERATION_SYNC_INTERNAL_URL: str = env.str(
+    "FEDERATION_SYNC_INTERNAL_URL",
+    default="",
+).strip()
+FEDERATION_SYNC_ADMIN_TOKEN: str = env.str(
+    "FEDERATION_SYNC_ADMIN_TOKEN",
+    default="",
+).strip()
 SDS_FEDERATION_WELL_KNOWN_CONTACT: str = env.str(
     "SDS_FEDERATION_WELL_KNOWN_CONTACT",
     default="",
