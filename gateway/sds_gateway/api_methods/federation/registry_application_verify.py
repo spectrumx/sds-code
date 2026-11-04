@@ -1,19 +1,14 @@
+"""Domain verification via federation sync internal API (gateway UI orchestration)."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-from django.conf import settings
 from django.utils import timezone
 
-from sds_gateway.api_methods.federation.registry_challenge import (
-    verify_registry_challenge_token,
-)
-from sds_gateway.api_methods.federation.registry_verify_fetch import (
-    RegistryVerifyFetchError,
-)
-from sds_gateway.api_methods.federation.registry_verify_fetch import (
-    fetch_well_known_json,
+from sds_gateway.api_methods.federation.registry_application_helpers import (
+    backfill_urls_from_well_known,
 )
 from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
 from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
@@ -28,22 +23,17 @@ _VERIFYABLE_STATUSES = frozenset(
 )
 
 _MAX_ERROR_LENGTH = 2000
-_CHALLENGE_MISMATCH_MESSAGE = (
-    "registry_challenge is missing or does not match your verification token."
+_VERIFY_SUCCESS_MESSAGE = (
+    "Domain verified. Your application is awaiting admin approval."
 )
+_FQDN_MISMATCH_MESSAGE = "fqdn in well-known JSON does not match this application."
+_WELL_KNOWN_NOT_OBJECT_MESSAGE = "Well-known response was not a JSON object."
 
 
 @dataclass(frozen=True, slots=True)
 class VerifyResult:
     ok: bool
     message: str
-
-
-def parse_and_match_challenge(payload: dict[str, Any], stored_hash: str) -> bool:
-    raw = payload.get("registry_challenge")
-    if not isinstance(raw, str):
-        return False
-    return verify_registry_challenge_token(raw.strip(), stored_hash)
 
 
 def validate_site_identity(
@@ -53,24 +43,6 @@ def validate_site_identity(
     if not isinstance(doc_fqdn, str):
         return False
     return doc_fqdn.strip().lower() == application.fqdn.strip().lower()
-
-
-def _backfill_urls_from_well_known(
-    application: RegistryApplication,
-    well_known: dict[str, Any],
-) -> list[str]:
-    updated: list[str] = []
-    for field, key in (
-        ("gateway_api_base", "gateway_api_base"),
-        ("sync_service_url", "sync_service_url"),
-    ):
-        if getattr(application, field):
-            continue
-        value = well_known.get(key)
-        if isinstance(value, str) and value.strip():
-            setattr(application, field, value.strip())
-            updated.append(field)
-    return updated
 
 
 def apply_verification_result(
@@ -95,9 +67,7 @@ def apply_verification_result(
         application.last_verification_error = ""
         update_fields.extend(["verified_at", "verified_well_known"])
         if well_known:
-            update_fields.extend(
-                _backfill_urls_from_well_known(application, well_known)
-            )
+            update_fields.extend(backfill_urls_from_well_known(application, well_known))
     else:
         application.status = RegistryApplicationStatus.VERIFICATION_FAILED.value
         application.last_verification_error = message[:_MAX_ERROR_LENGTH]
@@ -106,53 +76,21 @@ def apply_verification_result(
     return VerifyResult(ok=ok, message=message)
 
 
-_VERIFY_SUCCESS_MESSAGE = (
-    "Domain verified. Your application is awaiting admin approval."
-)
-_FQDN_MISMATCH_MESSAGE = "fqdn in well-known JSON does not match this application."
-_WELL_KNOWN_NOT_OBJECT_MESSAGE = "Well-known response was not a JSON object."
-
-
-def _registry_backend() -> str:
-    return (
-        str(getattr(settings, "FEDERATION_REGISTRY_BACKEND", "gateway") or "gateway")
-        .strip()
-        .lower()
-    )
-
-
-def _complete_well_known_verification(
-    application: RegistryApplication,
-    well_known_json: dict[str, Any],
-    *,
-    check_challenge: bool,
-) -> VerifyResult:
-    if check_challenge and not parse_and_match_challenge(
-        well_known_json, application.challenge_token_hash
-    ):
-        return apply_verification_result(
-            application,
+def verify_registry_application(application: RegistryApplication) -> VerifyResult:
+    if application.status not in _VERIFYABLE_STATUSES:
+        return VerifyResult(
             ok=False,
-            message=_CHALLENGE_MISMATCH_MESSAGE,
+            message="This application cannot be verified in its current status.",
         )
-    if not validate_site_identity(well_known_json, application):
-        return apply_verification_result(
-            application,
-            ok=False,
-            message=_FQDN_MISMATCH_MESSAGE,
+
+    if application.challenge_expires_at <= timezone.now():
+        msg = (
+            "The verification challenge has expired. "
+            "Issue a new verification token on the application page."
         )
-    return apply_verification_result(
-        application,
-        ok=True,
-        message=_VERIFY_SUCCESS_MESSAGE,
-        well_known=well_known_json,
-    )
+        return VerifyResult(ok=False, message=msg)
 
-
-def _verify_via_sync(
-    application: RegistryApplication,
-    fqdn: str,
-) -> VerifyResult:
+    fqdn = application.fqdn
     try:
         client = FederationSyncClient.from_settings()
         payload = client.verify_domain(fqdn, application.challenge_token_hash)
@@ -176,47 +114,15 @@ def _verify_via_sync(
             ok=False,
             message=_WELL_KNOWN_NOT_OBJECT_MESSAGE,
         )
-    return _complete_well_known_verification(
-        application,
-        well_known_json,
-        check_challenge=False,
-    )
-
-
-def _verify_via_gateway(
-    application: RegistryApplication,
-    fqdn: str,
-) -> VerifyResult:
-    try:
-        well_known_json = fetch_well_known_json(fqdn)
-    except RegistryVerifyFetchError as exc:
+    if not validate_site_identity(well_known_json, application):
         return apply_verification_result(
             application,
             ok=False,
-            message=str(exc),
+            message=_FQDN_MISMATCH_MESSAGE,
         )
-    return _complete_well_known_verification(
+    return apply_verification_result(
         application,
-        well_known_json,
-        check_challenge=True,
+        ok=True,
+        message=_VERIFY_SUCCESS_MESSAGE,
+        well_known=well_known_json,
     )
-
-
-def verify_registry_application(application: RegistryApplication) -> VerifyResult:
-    if application.status not in _VERIFYABLE_STATUSES:
-        return VerifyResult(
-            ok=False,
-            message="This application cannot be verified in its current status.",
-        )
-
-    if application.challenge_expires_at <= timezone.now():
-        msg = (
-            "The verification challenge has expired. "
-            "Issue a new verification token on the application page."
-        )
-        return VerifyResult(ok=False, message=msg)
-
-    fqdn = application.fqdn
-    if _registry_backend() == "sync":
-        return _verify_via_sync(application, fqdn)
-    return _verify_via_gateway(application, fqdn)

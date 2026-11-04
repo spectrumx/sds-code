@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING
 
 from django.utils import timezone
 
-from sds_gateway.api_methods.federation.registry_application_verify import (
-    _backfill_urls_from_well_known,
+from sds_gateway.api_methods.federation.registry_application_helpers import (
+    backfill_urls_from_well_known,
 )
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
@@ -90,7 +90,7 @@ def approve_registry_application(
     ]
     if application.verified_well_known:
         update_fields.extend(
-            _backfill_urls_from_well_known(application, application.verified_well_known)
+            backfill_urls_from_well_known(application, application.verified_well_known)
         )
 
     application.save(update_fields=list(dict.fromkeys(update_fields)))

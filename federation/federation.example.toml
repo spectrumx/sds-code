@@ -8,6 +8,9 @@ display_name = "Your Site"
 # Defaults to http://{fqdn}/sync/ if unset.
 # sync_service_url = "https://your-site.domain/sync"
 
+# registry_challenge for domain verify is NOT in this file — set FEDERATION_REGISTRY_CHALLENGE_TOKEN
+# on the process that serves /.well-known/sds-federation.json (gateway django.env or .env.peer).
+
 [[peers]]
 # Notre Dame SDS site is the original site deployment
 # and is included as a peer by default.

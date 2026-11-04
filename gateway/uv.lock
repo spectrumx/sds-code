@@ -3,7 +3,7 @@ revision = 3
 requires-python = "==3.13.*"
 
 [options]
-exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
+exclude-newer = "2026-10-28T17:03:14.876902Z"
 exclude-newer-span = "P1W"
 
 [[package]]
@@ -2112,7 +2112,6 @@ dependencies = [
     { name = "celery" },
     { name = "coverage" },
     { name = "crispy-bootstrap5" },
-    { name = "cryptography" },
     { name = "deptry" },
     { name = "digital-rf" },
     { name = "django" },
@@ -2190,7 +2189,6 @@ requires-dist = [
     { name = "celery", specifier = "==5.5.2" },
     { name = "coverage", specifier = ">=7.6" },
     { name = "crispy-bootstrap5", specifier = ">=2024.10" },
-    { name = "cryptography", specifier = ">=44.0" },
     { name = "deptry", specifier = ">=0.24.0" },
     { name = "digital-rf", specifier = ">=2.6.11" },
     { name = "django", specifier = "~=4.2" },

@@ -17,10 +17,21 @@
                     <div class="d-flex gap-2">
                         {% if can_staff_publish_manifest %}
                             <form method="post"
-                                  action="{% url 'users:registry_application_publish_manifest' %}">
+                                  action="{% url 'users:registry_application_publish_manifest' %}"
+                                  class="d-flex gap-2 align-items-center">
                                 {% csrf_token %}
+                                <label class="visually-hidden"
+                                       for="manifest-serial">{% translate "Manifest serial" %}</label>
+                                <input type="number"
+                                       class="form-control form-control-sm"
+                                       style="width: 7rem"
+                                       id="manifest-serial"
+                                       name="manifest_serial"
+                                       min="0"
+                                       required
+                                       placeholder="{% translate "serial" %}" />
                                 <button type="submit"
-                                        class="btn btn-warning">{% translate "Publish Signed Registry" %}</button>
+                                        class="btn btn-warning btn-sm">{% translate "Record publish" %}</button>
                             </form>
                         {% endif %}
                         <button type="button"

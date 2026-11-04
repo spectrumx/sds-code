@@ -54,6 +54,7 @@ services:
       FEDERATION_REGISTRY_CHALLENGE_TOKEN: ${FEDERATION_REGISTRY_CHALLENGE_TOKEN:-}
     volumes:
       - ./federation.peer.toml:/etc/sds/federation.toml:ro
+      - ./certs:/etc/sds/certs:ro
     ports:
       - "8002:8000"
     depends_on:
