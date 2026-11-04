@@ -84,7 +84,7 @@ class FileTestCases(APITestCase):
         self.client = APIClient()
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,  # allows creating API keys
         )
 
@@ -159,7 +159,7 @@ class FileTestCases(APITestCase):
         """A user should not see a file that they do not have access to."""
         user_mallory = User.objects.create(
             email="mallory@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         _, key = UserAPIKey.objects.create_key(
@@ -191,7 +191,7 @@ class FileTestCases(APITestCase):
         """A user should not see files that they do not have access to."""
         user = User.objects.create(
             email="john-doe@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         _, key = UserAPIKey.objects.create_key(
@@ -432,7 +432,7 @@ class FileTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="other@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -528,7 +528,7 @@ class FileTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="other@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -586,7 +586,7 @@ class FileTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="other@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -634,7 +634,7 @@ class FileTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="other@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 

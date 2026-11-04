@@ -18,7 +18,7 @@ class TestDatasetAuthors(TestCase):
         """Set up test data."""
         self.user = User.objects.create_user(
             email="test@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             name="Test User",
             is_approved=True,
         )

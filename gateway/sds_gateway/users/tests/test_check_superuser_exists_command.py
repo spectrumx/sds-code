@@ -24,7 +24,7 @@ def test_check_superuser_exists_outputs_no_when_none_exist() -> None:
 def test_check_superuser_exists_outputs_yes_when_one_exists() -> None:
     User.objects.create_superuser(  # pyright: ignore[reportCallIssue]
         email="existing-admin@example.com",
-        password="something-r@nd0m!",  # noqa: S106
+        password="something-r@nd0m!",
     )
 
     out = StringIO()

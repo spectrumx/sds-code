@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
 from typing import Any
 
-from sds_gateway.api_methods.models import RegistryApplication
+if TYPE_CHECKING:
+    from sds_gateway.api_methods.models import RegistryApplication
 
 
 def backfill_urls_from_well_known(

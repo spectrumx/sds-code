@@ -16,10 +16,12 @@ from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
+_SYNC_TEST_URL = "http://sync.test:8000"
+
 
 @pytest.mark.django_db
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_verify_registry_application_success(user) -> None:
@@ -61,7 +63,7 @@ def test_verify_registry_application_success(user) -> None:
 
 @pytest.mark.django_db
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_verify_sync_unavailable(user) -> None:
@@ -86,7 +88,7 @@ def test_verify_sync_unavailable(user) -> None:
 
 @pytest.mark.django_db
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_verify_sync_returns_error(user) -> None:

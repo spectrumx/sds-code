@@ -10,9 +10,11 @@ from django.test import override_settings
 from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
 from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 
+_SYNC_TEST_URL = "http://sync.test:8000"
+
 
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_capabilities_success() -> None:
@@ -29,7 +31,7 @@ def test_capabilities_success() -> None:
 
 
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_verify_returns_ok_payload() -> None:
@@ -56,7 +58,7 @@ def test_from_settings_requires_url() -> None:
 
 
 @override_settings(
-    FEDERATION_SYNC_INTERNAL_URL="http://sync.test:8000",
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
     FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
 )
 def test_connection_error_raises_sync_unavailable() -> None:

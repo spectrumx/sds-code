@@ -94,7 +94,7 @@ class CaptureTestCases(APITestCase):
         self._temp_files: list[File] = []
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,  # allows creating API keys
         )
 
@@ -961,7 +961,7 @@ class CaptureTestCases(APITestCase):
         """Test that retrieving a capture not accessible to the user returns 403."""
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         other_capture = Capture.objects.create(
@@ -1715,7 +1715,7 @@ class CaptureTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -1766,7 +1766,7 @@ class CaptureTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -1803,7 +1803,7 @@ class CaptureTestCases(APITestCase):
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -1937,12 +1937,12 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "slices" in data
-        assert len(data["slices"]) == 5  # noqa: PLR2004
-        assert data["total_slices"] == 10  # noqa: PLR2004
+        assert len(data["slices"]) == 5
+        assert data["total_slices"] == 10
         assert data["start_index"] == 0
-        assert data["end_index"] == 5  # noqa: PLR2004
+        assert data["end_index"] == 5
         assert "metadata" in data
-        assert data["metadata"]["total_slices"] == 10  # noqa: PLR2004
+        assert data["metadata"]["total_slices"] == 10
 
         # Verify slice indices
         for i, slice_data in enumerate(data["slices"]):
@@ -2110,8 +2110,8 @@ class CaptureTestCases(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["end_index"] == 5  # noqa: PLR2004  # Clamped to total_slices
-        assert len(data["slices"]) == 3  # noqa: PLR2004  # Only slices 2, 3, 4
+        assert data["end_index"] == 5  # Clamped to total_slices
+        assert len(data["slices"]) == 3  # Only slices 2, 3, 4
 
     def test_waterfall_slices_custom_processing_type(self) -> None:
         """Test waterfall_slices with custom processing_type."""
@@ -2152,14 +2152,14 @@ class CaptureTestCases(APITestCase):
 
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert len(data["slices"]) == 2  # noqa: PLR2004
+        assert len(data["slices"]) == 2
 
     def test_waterfall_slices_other_user_capture(self) -> None:
         """Test that users cannot access waterfall slices for other users' captures."""
         # Create another user
         other_user = User.objects.create(
             email="otheruser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
 
@@ -2302,7 +2302,7 @@ class CaptureTestCases(APITestCase):
         """Test that users cannot access stream endpoint for other users' captures."""
         other_user = User.objects.create(
             email="otherstream@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         other_capture = Capture.objects.create(
@@ -2373,10 +2373,10 @@ class CaptureTestCases(APITestCase):
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
         assert "slices" in data
-        assert len(data["slices"]) == 5  # noqa: PLR2004
-        assert data["total_slices"] == 10  # noqa: PLR2004
+        assert len(data["slices"]) == 5
+        assert data["total_slices"] == 10
         assert data["start_index"] == 0
-        assert data["end_index"] == 5  # noqa: PLR2004
+        assert data["end_index"] == 5
         mock_reconstruct_drf_files.assert_called_once()
         mock_compute_slices_on_demand.assert_called_once()
         assert stream_file.capture_id == capture.pk
@@ -2389,7 +2389,7 @@ class StorageUnavailableErrorTestCases(APITestCase):
         self.client = APIClient()
         self.user = User.objects.create(
             email="storage-error-user@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         _api_key, key = UserAPIKey.objects.create_key(
@@ -2456,7 +2456,7 @@ class OpenSearchErrorTestCases(APITestCase):
         self.client = APIClient()
         self.user = User.objects.create(
             email="testuser@example.com",
-            password="testpassword",  # noqa: S106
+            password="testpassword",
             is_approved=True,
         )
         _api_key, key = UserAPIKey.objects.create_key(
@@ -2541,7 +2541,7 @@ class CaptureBulkMetadataLoadingTests(APITestCase):
     def setUp(self) -> None:
         self.user = User.objects.create(
             email="bulk-test@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             is_approved=True,
         )
         api_key, key = UserAPIKey.objects.create_key(
@@ -2589,10 +2589,10 @@ class CaptureBulkMetadataLoadingTests(APITestCase):
 
         Capture.set_bulk_metadata_cache([cap1, cap2], bulk_meta)
 
-        assert cap1._opensearch_metadata_cache["center_frequency"] == 1_000_000_000.0  # noqa: PLR2004,SLF001
-        assert cap1._opensearch_metadata_cache["start_time"] == 1_000_000_000  # noqa: PLR2004,SLF001
-        assert cap2._opensearch_metadata_cache["center_frequency"] == 2_000_000_000.0  # noqa: PLR2004,SLF001
-        assert cap2._opensearch_metadata_cache["start_time"] == 1_000_000_010  # noqa: PLR2004,SLF001
+        assert cap1._opensearch_metadata_cache["center_frequency"] == 1_000_000_000.0  # noqa: SLF001
+        assert cap1._opensearch_metadata_cache["start_time"] == 1_000_000_000  # noqa: SLF001
+        assert cap2._opensearch_metadata_cache["center_frequency"] == 2_000_000_000.0  # noqa: SLF001
+        assert cap2._opensearch_metadata_cache["start_time"] == 1_000_000_010  # noqa: SLF001
 
     def test_set_bulk_metadata_cache_handles_missing_uuid(self) -> None:
         """Missing UUIDs get empty dict, not KeyError."""
@@ -2645,8 +2645,8 @@ class CaptureBulkMetadataLoadingTests(APITestCase):
         # Now call get_opensearch_metadata - should NOT hit OpenSearch
         meta = cap.get_opensearch_metadata()
 
-        assert meta["center_frequency"] == 3_000_000_000.0  # noqa: PLR2004
-        assert meta["sample_rate"] == 15_000_000  # noqa: PLR2004
+        assert meta["center_frequency"] == 3_000_000_000.0
+        assert meta["sample_rate"] == 15_000_000
         assert mock_get_client.return_value.search.call_count == 0
 
     @patch(
@@ -2774,8 +2774,8 @@ class CaptureBulkMetadataLoadingTests(APITestCase):
 
         # Should hit thread-local cache, not OpenSearch
         meta = fresh_cap.get_opensearch_metadata()
-        assert meta["center_frequency"] == 3_000_000_000.0  # noqa: PLR2004
-        assert meta["sample_rate"] == 15_000_000  # noqa: PLR2004
+        assert meta["center_frequency"] == 3_000_000_000.0
+        assert meta["sample_rate"] == 15_000_000
         assert mock_get_client.return_value.search.call_count == 0
 
     @patch(
@@ -2928,7 +2928,7 @@ class CaptureListWithBulkMetadataTests(APITestCase):
     def setUp(self) -> None:
         self.user = User.objects.create(
             email="bulk-int@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             is_approved=True,
         )
         api_key, key = UserAPIKey.objects.create_key(

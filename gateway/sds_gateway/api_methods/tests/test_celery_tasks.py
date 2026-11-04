@@ -73,7 +73,7 @@ class TestCeleryTasks(TestCase):
 
         self.user = User.objects.create_user(
             email="test@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             is_approved=True,
         )
 

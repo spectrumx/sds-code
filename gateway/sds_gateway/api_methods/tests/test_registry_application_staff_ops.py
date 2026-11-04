@@ -14,6 +14,8 @@ from sds_gateway.api_methods.federation.registry_challenge import (
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
 
+_MANIFEST_SERIAL = 2
+
 
 @pytest.mark.django_db
 def test_mark_domain_verified(user) -> None:
@@ -40,8 +42,8 @@ def test_record_manifest_published(user) -> None:
         challenge_token_hash=hash_registry_challenge_token("p"),
         status=RegistryApplicationStatus.APPROVED.value,
     )
-    result = record_manifest_published(serial=2)
+    result = record_manifest_published(serial=_MANIFEST_SERIAL)
     assert result.ok
     app = RegistryApplication.objects.get(site_name="peer")
     assert app.status == RegistryApplicationStatus.PUBLISHED.value
-    assert app.published_manifest_serial == 2
+    assert app.published_manifest_serial == _MANIFEST_SERIAL

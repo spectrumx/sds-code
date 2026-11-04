@@ -16,7 +16,7 @@ class APIKeyAuthenticationTest(APITestCase):
         """Set up any necessary data or state for the tests."""
         self.user = User.objects.create(
             email="test@example.com",
-            password="password",  # noqa: S106
+            password="password",
         )
         self.api_key, self.key = UserAPIKey.objects.create_key(
             name="test-key",

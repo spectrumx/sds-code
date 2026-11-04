@@ -31,17 +31,17 @@ class AssetAccessControlTestCase(TestCase):
         """Set up test data."""
         self.owner = User.objects.create_user(
             email="owner@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             name="Asset Owner",
         )
         self.viewer = User.objects.create_user(
             email="viewer@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             name="Asset Viewer",
         )
         self.other_user = User.objects.create_user(
             email="other@example.com",
-            password="testpass123",  # noqa: S106
+            password="testpass123",
             name="Other User",
         )
 

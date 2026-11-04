@@ -1,4 +1,4 @@
-"""Staff workflow updates after verification/publish on federation sync (no gateway HTTP)."""
+"""Staff workflow after verification/publish on federation sync (no gateway HTTP)."""
 
 from __future__ import annotations
 
@@ -77,6 +77,7 @@ def record_manifest_published(*, serial: int) -> StaffOpResult:
     return StaffOpResult(
         ok=True,
         message=(
-            f"Recorded manifest serial {serial}; marked {count} approved {word} as published."
+            f"Recorded manifest serial {serial}; marked {count} approved "
+            f"{word} as published."
         ),
     )

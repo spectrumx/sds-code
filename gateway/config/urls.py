@@ -15,7 +15,8 @@ from sds_gateway.users.views import spx_dac_dataset_alt_view
 
 urlpatterns = [
     path("", home_page_view, name="home"),
-    # Site identity + signed registry: federation sync (see network/traefik and federation compose).
+    # Site identity + signed registry: federation sync
+    # (see network/traefik and federation compose).
     # Django Admin, use {% url 'admin:index' %}
     path(settings.ADMIN_URL, admin.site.urls),
     # User management
