@@ -76,7 +76,9 @@ def apply_verification_result(
     return VerifyResult(ok=ok, message=message)
 
 
-def verify_registry_application(application: RegistryApplication) -> VerifyResult:
+def verify_registry_application(  # noqa: PLR0911
+    application: RegistryApplication,
+) -> VerifyResult:
     if application.status not in _VERIFYABLE_STATUSES:
         return VerifyResult(
             ok=False,

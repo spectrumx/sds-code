@@ -182,7 +182,7 @@ class TestFederationAvailability:
 class TestFederationExportCidrParsing:
     def test_parse_cidrs_skips_blank_tokens(self) -> None:
         networks = _parse_cidrs(["10.0.0.0/8", "", "  ", "192.168.0.0/16"])
-        assert len(networks) == 2  # noqa: PLR2004
+        assert len(networks) == 2
 
     def test_coerce_empty_env_tokens_to_defaults(self) -> None:
         with patch(

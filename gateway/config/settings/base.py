@@ -770,7 +770,8 @@ FEDERATION_GATEWAY_API_BASE: str = env.str(
 FEDERATION_SYNC_SERVICE_URL: str = env.str(
     "FEDERATION_SYNC_SERVICE_URL", default=""
 ).strip()
-# Docker/internal base for sync registry admin API (verify/publish); not the public /sync URL.
+# Docker/internal base for sync registry admin API (verify/publish).
+# Not the public /sync URL.
 FEDERATION_SYNC_INTERNAL_URL: str = env.str(
     "FEDERATION_SYNC_INTERNAL_URL", default=""
 ).strip()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from http import HTTPStatus
 from typing import Any
 
 import requests
@@ -68,13 +69,13 @@ class FederationSyncClient:
         except requests.RequestException as exc:
             msg = "Federation sync is unavailable."
             raise SyncUnavailableError(msg) from exc
-        if response.status_code >= 500:
+        if response.status_code >= HTTPStatus.INTERNAL_SERVER_ERROR:
             msg = "Federation sync is unavailable."
             raise SyncUnavailableError(msg)
-        if response.status_code == 401:
+        if response.status_code == HTTPStatus.UNAUTHORIZED:
             msg = "Federation sync rejected the admin token."
             raise SyncUnavailableError(msg)
-        if response.status_code == 503:
+        if response.status_code == HTTPStatus.SERVICE_UNAVAILABLE:
             msg = "Federation sync admin API is not configured."
             raise SyncUnavailableError(msg)
         try:
@@ -85,7 +86,7 @@ class FederationSyncClient:
         if not isinstance(payload, dict):
             msg = "Federation sync returned an invalid response."
             raise SyncUnavailableError(msg)
-        if response.status_code >= 400 and "ok" not in payload:
+        if response.status_code >= HTTPStatus.BAD_REQUEST and "ok" not in payload:
             detail = payload.get("detail") or response.text
             raise SyncUnavailableError(str(detail))
         return payload
@@ -109,6 +110,7 @@ class FederationSyncClient:
         self,
         sites: list[dict[str, Any]],
         min_serial: int | None,
+        *,
         dry_run: bool,
     ) -> dict[str, Any]:
         return self._request(
