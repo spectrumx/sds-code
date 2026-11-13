@@ -124,7 +124,7 @@ On the application detail page, click **Verify domain** (applicant only).
 
 The gateway calls flagship sync internal verify; sync fetches `https://{fqdn}/.well-known/sds-federation.json`.
 
-+ **Success:** status **`pending_approval`**.
++ **Success:** status **`pending_approval`**; staff receive HTML email (`templates/emails/registry_application_pending_approval.*`; recipients: `FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS` or active staff / `ADMINS`).
 + **Failure:** status **`verification_failed`**; message on the page — fix well-known and retry.
 
 Optional manual curl (same API the UI uses):
