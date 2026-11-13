@@ -20,7 +20,8 @@ Set `[site].sync_service_url` / `FEDERATION_SYNC_SERVICE_URL` to that public HTT
 (not `:8001`). Production compose loads sync URL and related vars from gitignored
 `site.env` (see `site.example.env`).
 
-See also: [scripts/local_e2e/README.md](scripts/local_e2e/README.md),
+See also: [docs/federation-registry-deploy.md](docs/federation-registry-deploy.md),
+[scripts/local_e2e/README.md](scripts/local_e2e/README.md),
 [docs/peer-remote-test.md](docs/peer-remote-test.md).
 
 ---
@@ -95,22 +96,26 @@ SDS_ENV=production just federation-add-peer \
   --gateway-api-base https://peer.example.edu/api/v1
 ```
 
-Each site exposes `GET https://<fqdn>/.well-known/sds-federation.json` (unsigned identity).
-Traefik may route that path to **federation sync** (sync-only peers) or the **gateway**.
+Each site exposes `GET https://<fqdn>/.well-known/sds-federation.json` from **federation
+sync** when Traefik routes that path to sync (recommended for production, sync-only peers,
+and local lab with `compose.local.yaml`). Set the applicant challenge token on **sync**,
+not the gateway django process.
+
+**Registry operator runbook:** [docs/federation-registry-deploy.md](docs/federation-registry-deploy.md)
 
 **`FEDERATION_REGISTRY_CHALLENGE_TOKEN`** (applicant only — not mothership, not
 `federation-shared.env`):
 
-| Who serves applicant well-known | Where to set the raw token |
-|--------------------------------|----------------------------|
-| Gateway (typical local lab, same FQDN as `SDS_SITE_FQDN`) | `gateway/.envs/local/django.env` — recreate gateway app |
-| Sync-only peer (e.g. sds-fed1) | `federation/.env.peer` → `compose.peer.*.yaml` — recreate peer sync |
-| Flagship sync serves well-known (Traefik) | `federation/.env.local` + `compose.local.yaml` (see `env.local.example`) |
+| Applicant deployment | Env file | After edit |
+|---------------------|----------|------------|
+| Local flagship / lab sync | `federation/.env.local` or env for `compose.local.yaml` | recreate `sds-federation-local-sync` |
+| Sync-only peer (e.g. sds-fed1) | `federation/.env.peer` from `env.peer.example` | `compose.peer.*.yaml` recreate sync |
+| Production site sync | `federation/site.env` | production compose recreate sync |
 
 Use `cp federation/env.peer.example federation/.env.peer`; do **not** use `federation/peer.env`
 (compose does not load it).
 
-Step-by-step verify flow:
+Verify UI and troubleshooting:
 [`gateway/docs/federation-registry-verify.md`](../gateway/docs/federation-registry-verify.md).
 
 Optional `--ca-cert-path` (file under `federation/certs/` in the sync container).
@@ -171,7 +176,7 @@ the export key. Optional: `FEDERATION_SKIP_SYNC_HEALTH_PROBE=true` until sync is
 | Signing key | `federation/secrets/registry/sign.pem` → container `/etc/sds/secrets/registry/sign.pem` |
 | Published manifest | Docker volume `sds-federation-*-registry-publish` → `/var/lib/sds/registry-publish` |
 | Public key + fingerprint | `federation/certs/sds-registry.pub.pem`; set `FEDERATION_REGISTRY_PUBKEY_FINGERPRINT` in `site.env` or `.env.local` |
-| Gateway intake | Apply + **Verify domain** UI (→ sync internal API), staff approve, record publish serial |
+| Gateway intake | Apply + **Verify domain** UI (→ sync internal API), staff approve, **Publish registry** |
 | Sync internal API | `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`; gateway `FEDERATION_SYNC_INTERNAL_URL` |
 
 Render/onboard with publish block: `FEDERATION_REGISTRY_PUBLISH_ENABLED=true` (see `site.example.env`).
