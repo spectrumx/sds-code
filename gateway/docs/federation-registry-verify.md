@@ -187,20 +187,12 @@ Approval sets **`approved`** and `site_name`; it does not publish the signed man
 ## Publish signed registry (flagship)
 
 Signing and manifest files live on **federation sync** (`[registry.publish]` in
-`federation.toml`, signing key volume). Gateway only records the outcome in the DB.
+`federation.toml`, signing key volume). The gateway builds the site list from
+**approved** and **published** applications and calls sync internal publish.
 
 1. Enable publish on sync; `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`.
-2. Build site list from approved applications; call sync:
-
-```bash
-curl -sS -X POST "http://localhost:8001/internal/registry/publish" \
-  -H "Authorization: Bearer $(grep '^FEDERATION_SYNC_ADMIN_TOKEN=' ../federation-shared.env | cut -d= -f2-)" \
-  -H "Content-Type: application/json" \
-  -d '{"sites":[...],"min_serial":null,"dry_run":false}'
-```
-
-3. On **`/users/federation/registry/`**, staff enter the returned **`serial`** and click
-   **Record publish** (marks **`approved`** rows **`published`**).
+2. On **`/users/federation/registry/`**, staff click **Publish registry** (visible when
+   sync reports `publish_enabled`).
 
 Peers fetch from flagship sync (Traefik):
 
@@ -221,7 +213,7 @@ Applicants (before staff approval):
 
 + `well_known_path` challenge method (ACME-style path).
 + DRF API for applications (UI only today).
-+ Gateway UI for manifest publish (staff **Record publish** after sync CLI/API).
++ Dry-run publish in the UI (staff CLI/API only today).
 
 ## Related docs
 

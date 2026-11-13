@@ -31,7 +31,10 @@ from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
-    record_manifest_published,
+    publish_registry_manifest,
+)
+from sds_gateway.api_methods.federation.registry_application_staff_ops import (
+    registry_sync_publish_enabled,
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
@@ -271,7 +274,9 @@ class RegistryApplicationListView(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
         )
-        context["can_staff_publish_manifest"] = self.request.user.is_staff
+        context["can_staff_publish_manifest"] = (
+            self.request.user.is_staff and registry_sync_publish_enabled()
+        )
         return context
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
@@ -313,16 +318,11 @@ class RegistryApplicationPublishManifestView(
     StaffRequiredMixin,
     View,
 ):
-    """Staff: record manifest serial after publish on federation sync."""
+    """Staff: build manifest from applications and publish on federation sync."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
-        raw_serial = (request.POST.get("manifest_serial") or "").strip()
-        try:
-            serial = int(raw_serial)
-        except ValueError:
-            messages.error(request, "Manifest serial must be an integer.")
-            return redirect("users:registry_application_list")
-        result = record_manifest_published(serial=serial)
+        dry_run = request.POST.get("dry_run") == "1"
+        result = publish_registry_manifest(dry_run=dry_run)
         if result.ok:
             messages.success(request, result.message)
         else:
