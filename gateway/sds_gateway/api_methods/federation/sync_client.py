@@ -20,10 +20,12 @@ class FederationSyncClient:
         admin_token: str,
         *,
         verify_timeout: float = 45.0,
+        publish_timeout: float = 30.0,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._admin_token = admin_token.strip()
         self._verify_timeout = verify_timeout
+        self._publish_timeout = publish_timeout
 
     @classmethod
     def from_settings(cls) -> FederationSyncClient:
@@ -93,4 +95,29 @@ class FederationSyncClient:
             "/internal/registry/verify",
             timeout=self._verify_timeout,
             json_body={"fqdn": fqdn, "challenge_hash": challenge_hash},
+        )
+
+    def capabilities(self) -> dict[str, Any]:
+        return self._request(
+            "GET",
+            "/internal/registry/capabilities",
+            timeout=self._publish_timeout,
+        )
+
+    def publish(
+        self,
+        sites: list[dict[str, Any]],
+        *,
+        min_serial: int | None = None,
+        dry_run: bool = False,
+    ) -> dict[str, Any]:
+        return self._request(
+            "POST",
+            "/internal/registry/publish",
+            timeout=self._publish_timeout,
+            json_body={
+                "sites": sites,
+                "min_serial": min_serial,
+                "dry_run": dry_run,
+            },
         )

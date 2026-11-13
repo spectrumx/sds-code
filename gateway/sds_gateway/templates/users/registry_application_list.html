@@ -18,20 +18,10 @@
                         {% if can_staff_publish_manifest %}
                             <form method="post"
                                   action="{% url 'users:registry_application_publish_manifest' %}"
-                                  class="d-flex gap-2 align-items-center">
+                                  class="d-inline">
                                 {% csrf_token %}
-                                <label class="visually-hidden"
-                                       for="manifest-serial">{% translate "Manifest serial" %}</label>
-                                <input type="number"
-                                       class="form-control form-control-sm"
-                                       size="6"
-                                       id="manifest-serial"
-                                       name="manifest_serial"
-                                       min="0"
-                                       required
-                                       placeholder="{% translate "serial" %}" />
                                 <button type="submit"
-                                        class="btn btn-warning btn-sm">{% translate "Record publish" %}</button>
+                                        class="btn btn-warning btn-sm">{% translate "Publish registry" %}</button>
                             </form>
                         {% endif %}
                         <button type="button"
