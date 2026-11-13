@@ -6,11 +6,14 @@ from unittest.mock import patch
 import pytest
 from django.urls import reverse
 
-from sds_gateway.api_methods.federation.registry_challenge import (
-    hash_registry_challenge_token,
-)
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
     StaffOpResult,
+)
+from sds_gateway.api_methods.federation.registry_application_staff_ops import (
+    StaffPublishUIState,
+)
+from sds_gateway.api_methods.federation.registry_challenge import (
+    hash_registry_challenge_token,
 )
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
@@ -41,8 +44,12 @@ def test_staff_publish_registry_post(client, user, settings) -> None:
     url = reverse("users:registry_application_publish_manifest")
     with (
         patch(
-            "sds_gateway.users.views.registry_application.registry_sync_publish_enabled",
-            return_value=True,
+            "sds_gateway.users.views.registry_application.registry_staff_publish_ui",
+            return_value=StaffPublishUIState(
+                show_controls=True,
+                publish_enabled=True,
+                disabled_hint="",
+            ),
         ),
         patch(
             "sds_gateway.users.views.registry_application.publish_registry_manifest",

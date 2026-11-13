@@ -39,6 +39,10 @@ default_sync_health_url() {
 	printf 'http://%s:8000/sync/health\n' "${FEDERATION_SYNC_CONTAINER}"
 }
 
+default_sync_internal_url() {
+	printf 'http://%s:8000\n' "${FEDERATION_SYNC_CONTAINER}"
+}
+
 default_peer_values() {
 	case "${SDS_ENV_TYPE}" in
 	production)
@@ -65,6 +69,7 @@ export_vars_for_render() {
 	export GATEWAY_INTERNAL_BASE_URL="${GATEWAY_INTERNAL_BASE_URL:-$(default_gateway_internal)}"
 	export REDIS_URL="${REDIS_URL:-$(default_redis_url)}"
 	export FEDERATION_SYNC_HEALTH_URL="${FEDERATION_SYNC_HEALTH_URL:-$(default_sync_health_url)}"
+	export FEDERATION_SYNC_INTERNAL_URL="${FEDERATION_SYNC_INTERNAL_URL:-$(default_sync_internal_url)}"
 	export FEDERATION_SYNC_USER_EMAIL="${FEDERATION_SYNC_USER_EMAIL:-federation-sync@internal.local}"
 	export FEDERATION_PEER_CA_PATH="${FEDERATION_PEER_CA_PATH:-}"
 	export FEDERATION_REGISTRY_PUBLISH_ENABLED="${FEDERATION_REGISTRY_PUBLISH_ENABLED:-false}"

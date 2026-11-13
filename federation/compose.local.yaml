@@ -16,12 +16,17 @@ services:
     env_file:
       - ../gateway/.envs/local/opensearch.env
       - ../federation-shared.env
-    # Optional: federation/.env.local — FEDERATION_REGISTRY_CHALLENGE_TOKEN when sync serves
-    # well-known (see env.local.example). Domain verify/publish use sync internal API, not django.
+      # Optional applicant / lab overrides (see env.local.example); gitignored when copied to .env.local
+      - path: ./.env.local
+        required: false
     environment:
       FEDERATION_CONFIG_PATH: /etc/sds/federation.toml
       GATEWAY_INTERNAL_BASE_URL: http://sds-gateway-local-app:8000/api/v1
       REDIS_URL: redis://sds-gateway-local-redis:6379/0
+      # Same interpolation pattern as compose.peer.* — values from shell, project .env, or compose --env-file
+      FEDERATION_REGISTRY_CHALLENGE_TOKEN: ${FEDERATION_REGISTRY_CHALLENGE_TOKEN:-}
+      FEDERATION_REGISTRY_WELL_KNOWN_URL: ${FEDERATION_REGISTRY_WELL_KNOWN_URL:-}
+      FEDERATION_REGISTRY_PUBKEY_FINGERPRINT: ${FEDERATION_REGISTRY_PUBKEY_FINGERPRINT:-}
     volumes:
       - ./federation.toml:/etc/sds/federation.toml:ro
       - ./certs:/etc/sds/certs:ro

@@ -6,9 +6,9 @@ member site **polls** the manifest to federate automatically.
 
 **Canonical path:** follow this doc in order. Deep dives:
 
-- Applicant verify steps and error table: [gateway/docs/federation-registry-verify.md](../../gateway/docs/federation-registry-verify.md)
-- Design rationale: [federation-registry-design.md](./federation-registry-design.md)
-- Sync refactor notes: [registry-sync-refactor-plan.md](./registry-sync-refactor-plan.md)
++ Applicant verify steps and error table: [gateway/docs/federation-registry-verify.md](../../gateway/docs/federation-registry-verify.md)
++ Design rationale: [federation-registry-design.md](./federation-registry-design.md)
++ Sync refactor notes: [registry-sync-refactor-plan.md](./registry-sync-refactor-plan.md)
 
 ---
 
@@ -104,9 +104,9 @@ These steps **require human action**; automation cannot replace them today.
 
 ### Checklist
 
-- [ ] Site is on the public internet with **HTTPS** on the application FQDN
-- [ ] Federation sync (or Traefik→sync) serves `GET https://<fqdn>/.well-known/sds-federation.json`
-- [ ] `[site].fqdn` / `SDS_SITE_FQDN` on applicant sync **equals** the FQDN you will apply with
++ [ ] Site is on the public internet with **HTTPS** on the application FQDN
++ [ ] Federation sync (or Traefik→sync) serves `GET https://<fqdn>/.well-known/sds-federation.json`
++ [ ] `[site].fqdn` / `SDS_SITE_FQDN` on applicant sync **equals** the FQDN you will apply with
 
 ### 1. Apply (gateway UI)
 
@@ -133,7 +133,7 @@ chmod +x scripts/set-registry-challenge.sh
 
 | Deployment | Env file | Recreate |
 |------------|----------|----------|
-| Local lab sync | `federation/.env.local` or `env.local.example` pattern | `docker compose -f compose.local.yaml up -d --force-recreate sds-federation-local-sync` |
+| Local lab sync | `federation/.env.local` (from `env.local.example`; loaded by `compose.local.yaml` `env_file`) | `docker compose -f compose.local.yaml up -d --force-recreate sds-federation-local-sync` |
 | Sync-only peer (e.g. fed1) | `federation/.env.peer` from `env.peer.example` | `compose.peer.local.yaml` / `compose.peer.remote.yaml` |
 | Production applicant | `federation/site.env` | production compose for that host |
 

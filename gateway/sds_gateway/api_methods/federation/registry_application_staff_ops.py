@@ -9,9 +9,13 @@ from django.db import transaction
 from django.utils import timezone
 
 from sds_gateway.api_methods.federation.registry_manifest import ManifestBuildError
-from sds_gateway.api_methods.federation.registry_manifest import build_manifest_site_list
+from sds_gateway.api_methods.federation.registry_manifest import (
+    build_manifest_site_list,
+)
 from sds_gateway.api_methods.federation.registry_manifest import manifest_min_serial
-from sds_gateway.api_methods.federation.registry_manifest import manifest_peer_site_names
+from sds_gateway.api_methods.federation.registry_manifest import (
+    manifest_peer_site_names,
+)
 from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
 from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
@@ -73,12 +77,20 @@ def registry_sync_publish_enabled(*, force_refresh: bool = False) -> bool:
 
 def registry_staff_publish_ui(*, is_staff: bool) -> StaffPublishUIState:
     if not is_staff:
-        return StaffPublishUIState(False, False, "")
+        return StaffPublishUIState(
+            show_controls=False,
+            publish_enabled=False,
+            disabled_hint="",
+        )
     enabled, hint = _sync_publish_capabilities(force_refresh=False)
-    return StaffPublishUIState(True, enabled, hint)
+    return StaffPublishUIState(
+        show_controls=True,
+        publish_enabled=enabled,
+        disabled_hint=hint,
+    )
 
 
-def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:
+def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:  # noqa: PLR0911
     """Build site list from DB, publish on sync, mark approved rows published."""
     if not registry_sync_publish_enabled(force_refresh=True):
         return StaffOpResult(ok=False, message=_PUBLISH_DISABLED_MESSAGE)

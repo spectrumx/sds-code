@@ -8,6 +8,8 @@ from django.test import override_settings
 
 from sds_gateway.api_methods.federation.registry_application_notify import (
     build_pending_approval_staff_context,
+)
+from sds_gateway.api_methods.federation.registry_application_notify import (
     build_pending_approval_staff_email,
 )
 from sds_gateway.api_methods.federation.registry_application_notify import (
@@ -18,6 +20,8 @@ from sds_gateway.api_methods.federation.registry_application_notify import (
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     apply_verification_result,
+)
+from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_challenge import (

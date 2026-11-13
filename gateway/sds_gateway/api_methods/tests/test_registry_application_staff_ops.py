@@ -21,7 +21,7 @@ _MANIFEST_SERIAL = 5
 @pytest.mark.django_db
 def test_publish_registry_manifest_marks_approved_published(user, settings) -> None:
     settings.FEDERATION_SYNC_INTERNAL_URL = "http://sync.test:8000"
-    settings.FEDERATION_SYNC_ADMIN_TOKEN = "token"
+    settings.FEDERATION_SYNC_ADMIN_TOKEN = "test-sync-admin-token"  # noqa: S105
     cache.clear()
 
     published = RegistryApplication.objects.create(

@@ -23,7 +23,9 @@ _HTML_TEMPLATE = "emails/registry_application_pending_approval.html"
 
 def registry_staff_notify_recipients() -> list[str]:
     """Explicit env list, else active staff users, else ADMINS."""
-    configured = getattr(settings, "FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS", None) or []
+    configured = (
+        getattr(settings, "FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS", None) or []
+    )
     emails = sorted({str(addr).strip() for addr in configured if str(addr).strip()})
     if emails:
         return emails
@@ -112,7 +114,10 @@ def build_pending_approval_staff_email(
     ctx = build_pending_approval_staff_context(application)
     subject = build_pending_approval_staff_email_subject(application)
     lines = [
-        "A federation registry application passed domain verification and needs staff review.",
+        (
+            "A federation registry application passed domain verification "
+            "and needs staff review."
+        ),
         "",
         f"FQDN: {ctx['fqdn']}",
         f"Display name: {ctx['display_name']}",

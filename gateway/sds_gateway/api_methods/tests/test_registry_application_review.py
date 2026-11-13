@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import pytest
-
 from unittest.mock import patch
 
+import pytest
 from django.test import override_settings
 
 from sds_gateway.api_methods.federation.registry_application_review import (
