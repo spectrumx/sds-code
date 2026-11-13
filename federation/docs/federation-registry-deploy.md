@@ -4,12 +4,6 @@ End-to-end guide: a new peer applies on the **mothership gateway**, proves domai
 staff approve and publish a **signed registry manifest** on **flagship sync**, and every
 member site **polls** the manifest to federate automatically.
 
-**Canonical path:** follow this doc in order. Deep dives:
-
-+ Applicant verify steps and error table: [gateway/docs/federation-registry-verify.md](../../gateway/docs/federation-registry-verify.md)
-+ Design rationale: [federation-registry-design.md](./federation-registry-design.md)
-+ Sync refactor notes: [registry-sync-refactor-plan.md](./registry-sync-refactor-plan.md)
-
 ---
 
 ## Architecture (one page)
@@ -243,4 +237,3 @@ Registry intake is **separate** from two-peer sync E2E: [scripts/local_e2e/READM
 
 + [gateway/docs/federation-registry-verify.md](../../gateway/docs/federation-registry-verify.md) — verify UI and troubleshooting
 + [peer-remote-test.md](./peer-remote-test.md) — remote sync-only peer
-+ [federation-registry-design.md](./federation-registry-design.md) — trust model and polling
