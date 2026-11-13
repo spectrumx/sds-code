@@ -1,7 +1,11 @@
 # Federation registry: domain verification
 
-How to apply for federation registry membership on the gateway (mothership intake),
-publish a domain-control challenge on the applicant site, and click **Verify domain** in the gateway UI (verification runs on **federation sync**).
+How to apply for federation registry membership on the mothership, publish a
+domain-control challenge on the **applicant sync**, and click **Verify domain** (sync
+performs the well-known fetch).
+
+**Full operator runbook** (flagship setup, staff publish, peer `[registry]` bootstrap):
+[`federation/docs/federation-registry-deploy.md`](../../federation/docs/federation-registry-deploy.md).
 
 + [Federation registry: domain verification](#federation-registry-domain-verification)
     + [Overview](#overview)
@@ -37,7 +41,7 @@ Gateway django does **not** fetch well-known JSON, sign manifests, or publish lo
 |------|----------------|
 | **Mothership** | Registry intake UI; applicants click **Verify domain** (gateway → sync internal API). |
 | **Applicant** | Serves well-known JSON at the **public FQDN** with the one-time challenge token (via **sync** env). |
-| **Staff** | Approve applications; record publish serial after sync manifest publish. |
+| **Staff** | Approve applications; **Publish registry** on the list page (gateway → sync). |
 
 The same physical host can be mothership gateway + applicant sync (typical lab).
 
@@ -175,32 +179,10 @@ Federation verify engine tests: `federation/tests/test_registry_verify.py`.
 
 **Lost the one-time token:** new application (or withdraw old) and set a new challenge on sync.
 
-## Staff approval
+## Staff approval and publish
 
-Requires **`is_staff`**.
-
-1. **`/users/federation/registry/`** — staff see all applications.
-2. **`pending_approval`** → **Approve application** (optional site id) or **Reject**.
-
-Approval sets **`approved`** and `site_name`; it does not publish the signed manifest.
-
-## Publish signed registry (flagship)
-
-Signing and manifest files live on **federation sync** (`[registry.publish]` in
-`federation.toml`, signing key volume). The gateway builds the site list from
-**approved** and **published** applications and calls sync internal publish.
-
-1. Enable publish on sync; `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`.
-2. On **`/users/federation/registry/`**, staff click **Publish registry** (visible when
-   sync reports `publish_enabled`).
-
-Peers fetch from flagship sync (Traefik):
-
-+ `/.well-known/sds-registry/sites.json`
-+ `/.well-known/sds-registry/sites.json.sig`
-
-Fingerprint: `uv run sds-federation-registry fingerprint --public-key-path certs/sds-registry.pub.pem`
-→ `FEDERATION_REGISTRY_PUBKEY_FINGERPRINT` on sync.
+See [federation-registry-deploy.md](../../federation/docs/federation-registry-deploy.md#flagship-staff-workflow)
+for approve → **Publish registry** → peer `[registry]` bootstrap.
 
 ## Challenge reissue and withdraw
 
@@ -217,6 +199,7 @@ Applicants (before staff approval):
 
 ## Related docs
 
++ [Federation registry deploy runbook](../../federation/docs/federation-registry-deploy.md)
 + [Federation README](../../federation/README.md)
 + [Network / Traefik / TLS](../../network/README.md)
 + [OAuth setup](./oauth-setup.md)
