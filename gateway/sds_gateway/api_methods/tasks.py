@@ -35,6 +35,11 @@ from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
 
+# Federation registry tasks (defined in federation package; import registers Celery)
+from sds_gateway.api_methods.federation.registry_application_notify import (  # noqa: E402, F401
+    notify_registry_pending_approval_staff,
+)
+
 
 def cleanup_orphaned_zips() -> int:
     """

@@ -794,6 +794,11 @@ FEDERATION_REGISTRY_INTAKE_ENABLED: bool = resolve_federation_registry_intake_en
     flagship_gateway_host=FLAGSHIP_GATEWAY_HOST,
     intake_requested=env.bool("FEDERATION_REGISTRY_INTAKE_ENABLED", default=False),
 )
+FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS: list[str] = [
+    str(item).strip()
+    for item in env.list("FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS", default=[])
+    if str(item).strip()
+]
 _federation_events_channel_override: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
     default="",

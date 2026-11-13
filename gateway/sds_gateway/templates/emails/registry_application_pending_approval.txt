@@ -1,0 +1,17 @@
+Federation registry: peer pending approval
+
+A new site passed domain verification and is awaiting staff approval before it can be published in the signed registry manifest.
+
+FQDN: {{ fqdn }}
+Display name: {{ display_name }}
+Proposed site id: {{ proposed_site_name }}
+Applicant email: {{ applicant_email }}
+{% if gateway_api_base %}Gateway API base: {{ gateway_api_base }}
+{% endif %}{% if sync_service_url %}Sync service URL: {{ sync_service_url }}
+{% endif %}
+Review and approve or reject:
+{{ review_url }}
+
+---
+This is an automated message from the SpectrumX Data System.
+If you have any questions, please contact our support team.

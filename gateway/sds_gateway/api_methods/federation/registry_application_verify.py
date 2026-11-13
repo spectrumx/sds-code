@@ -14,6 +14,9 @@ from sds_gateway.api_methods.federation.registry_application_helpers import (
 from sds_gateway.api_methods.federation.registry_application_helpers import (
     backfill_urls_from_well_known,
 )
+from sds_gateway.api_methods.federation.registry_application_notify import (
+    schedule_registry_pending_approval_staff_notify,
+)
 from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
 from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
 from sds_gateway.api_methods.models import RegistryApplication
@@ -52,6 +55,7 @@ def apply_verification_result(
     message: str,
     well_known: dict[str, Any] | None = None,
 ) -> VerifyResult:
+    previous_status = application.status
     update_fields = [
         "status",
         "last_verification_error",
@@ -73,6 +77,8 @@ def apply_verification_result(
         application.last_verification_error = message[:_MAX_ERROR_LENGTH]
 
     application.save(update_fields=list(dict.fromkeys(update_fields)))
+    if ok and previous_status != RegistryApplicationStatus.PENDING_APPROVAL.value:
+        schedule_registry_pending_approval_staff_notify(application.pk)
     return VerifyResult(ok=ok, message=message)
 
 
