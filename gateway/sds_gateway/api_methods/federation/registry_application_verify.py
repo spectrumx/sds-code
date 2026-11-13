@@ -29,7 +29,6 @@ _SYNC_UNAVAILABLE_MESSAGE = (
 _VERIFY_SUCCESS_MESSAGE = (
     "Domain verified. Your application is awaiting admin approval."
 )
-_FQDN_MISMATCH_MESSAGE = "fqdn in well-known JSON does not match this application."
 _WELL_KNOWN_NOT_OBJECT_MESSAGE = "Well-known response was not a JSON object."
 
 
@@ -37,15 +36,6 @@ _WELL_KNOWN_NOT_OBJECT_MESSAGE = "Well-known response was not a JSON object."
 class VerifyResult:
     ok: bool
     message: str
-
-
-def validate_site_identity(
-    payload: dict[str, Any], application: RegistryApplication
-) -> bool:
-    doc_fqdn = payload.get("fqdn")
-    if not isinstance(doc_fqdn, str):
-        return False
-    return doc_fqdn.strip().lower() == application.fqdn.strip().lower()
 
 
 def apply_verification_result(
@@ -91,8 +81,6 @@ def _validate_sync_payload(
     well_known = payload.get("well_known")
     if not isinstance(well_known, dict):
         return None, _WELL_KNOWN_NOT_OBJECT_MESSAGE
-    if not validate_site_identity(well_known, application):
-        return None, _FQDN_MISMATCH_MESSAGE
     return well_known, None
 
 

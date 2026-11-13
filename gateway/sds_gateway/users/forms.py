@@ -459,7 +459,7 @@ class PublishedDatasetSearchForm(forms.Form):
 _FQDN_HOSTNAME_ONLY = "Enter a hostname only (e.g. sds.example.edu)."
 _FQDN_OPEN_APPLICATION = (
     "An active registry application already exists for this FQDN "
-    "(pending verification, verified, or awaiting approval)."
+    "(pending verification or awaiting approval)."
 )
 _PROPOSED_SITE_ID_REQUIRED = "Enter a short site id."
 

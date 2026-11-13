@@ -37,20 +37,45 @@ class StaffOpResult:
     site_names: tuple[str, ...] = ()
 
 
-def registry_sync_publish_enabled(*, force_refresh: bool = False) -> bool:
-    """Whether flagship sync can sign and publish the registry manifest."""
+@dataclass(frozen=True, slots=True)
+class StaffPublishUIState:
+    """Staff list-page publish control (visible vs enabled)."""
+
+    show_controls: bool
+    publish_enabled: bool
+    disabled_hint: str
+
+
+def _sync_publish_capabilities(*, force_refresh: bool) -> tuple[bool, str]:
     if not force_refresh:
         cached = cache.get(_PUBLISH_ENABLED_CACHE_KEY)
         if cached is not None:
-            return bool(cached)
+            return bool(cached), ""
+    disabled_hint = ""
     try:
         client = FederationSyncClient.from_settings()
         payload = client.capabilities()
         enabled = bool(payload.get("publish_enabled"))
+        if not enabled:
+            disabled_hint = _PUBLISH_DISABLED_MESSAGE
     except SyncUnavailableError:
         enabled = False
+        disabled_hint = _SYNC_UNAVAILABLE_MESSAGE
     cache.set(_PUBLISH_ENABLED_CACHE_KEY, enabled, _PUBLISH_ENABLED_CACHE_SECS)
+    return enabled, disabled_hint
+
+
+def registry_sync_publish_enabled(*, force_refresh: bool = False) -> bool:
+    """Whether flagship sync can sign and publish the registry manifest."""
+    enabled, _hint = _sync_publish_capabilities(force_refresh=force_refresh)
     return enabled
+
+
+def registry_staff_publish_ui(*, is_staff: bool) -> StaffPublishUIState:
+    if not is_staff:
+        return StaffPublishUIState(False, False, "")
+    enabled, hint = _sync_publish_capabilities(force_refresh=False)
+    return StaffPublishUIState(True, enabled, hint)
 
 
 def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:

@@ -127,6 +127,26 @@
                                            value="{{ application.proposed_site_name }}"
                                            placeholder="{% translate "Defaults to proposed site id" %}" />
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label"
+                                           for="registry-approve-ca-cert">{% translate "CA cert file (optional)" %}</label>
+                                    <input type="text"
+                                           class="form-control"
+                                           id="registry-approve-ca-cert"
+                                           name="ca_cert_file"
+                                           maxlength="255"
+                                           value="{{ application.ca_cert_file }}"
+                                           placeholder="{% translate "Basename under peer federation/certs/, e.g. peer-ca.pem" %}" />
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label"
+                                           for="registry-approve-cert-fps">{% translate "Client cert fingerprints (optional)" %}</label>
+                                    <textarea class="form-control font-monospace"
+                                              id="registry-approve-cert-fps"
+                                              name="client_cert_fingerprints"
+                                              rows="2"
+                                              placeholder="sha256:abc..., sha256:def...">{% if application.client_cert_fingerprints %}{{ application.client_cert_fingerprints|join:", " }}{% endif %}</textarea>
+                                </div>
                                 <button type="submit"
                                         class="btn btn-success">{% translate "Approve application" %}</button>
                             </form>

@@ -28,13 +28,16 @@ from sds_gateway.api_methods.federation.registry_application_review import (
     approve_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_application_review import (
+    parse_client_cert_fingerprints,
+)
+from sds_gateway.api_methods.federation.registry_application_review import (
     reject_registry_application,
 )
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
     publish_registry_manifest,
 )
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
-    registry_sync_publish_enabled,
+    registry_staff_publish_ui,
 )
 from sds_gateway.api_methods.federation.registry_application_verify import (
     verify_registry_application,
@@ -274,9 +277,10 @@ class RegistryApplicationListView(
             "open_apply_modal",
             self.request.GET.get("new") == "1",
         )
-        context["can_staff_publish_manifest"] = (
-            self.request.user.is_staff and registry_sync_publish_enabled()
-        )
+        publish_ui = registry_staff_publish_ui(is_staff=self.request.user.is_staff)
+        context["staff_publish_show_controls"] = publish_ui.show_controls
+        context["can_staff_publish_manifest"] = publish_ui.publish_enabled
+        context["staff_publish_disabled_hint"] = publish_ui.disabled_hint
         return context
 
     def post(self, request: HttpRequest, *args: Any, **kwargs: Any) -> HttpResponse:
@@ -300,10 +304,19 @@ class RegistryApplicationApproveView(
     def post(self, request: HttpRequest, pk: str) -> HttpResponse:
         application = get_registry_application_for_user(request.user, pk)
         site_name = (request.POST.get("site_name") or "").strip() or None
+        ca_cert_file = (request.POST.get("ca_cert_file") or "").strip() or None
+        raw_fingerprints = request.POST.get("client_cert_fingerprints") or ""
+        try:
+            fingerprints = parse_client_cert_fingerprints(raw_fingerprints)
+        except ValueError as exc:
+            messages.error(request, str(exc))
+            return redirect("users:registry_application_detail", pk=application.pk)
         result = approve_registry_application(
             application,
             request.user,
             site_name=site_name,
+            ca_cert_file=ca_cert_file,
+            client_cert_fingerprints=fingerprints,
         )
         if result.ok:
             messages.success(request, result.message)

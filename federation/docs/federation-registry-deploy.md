@@ -122,6 +122,15 @@ Set on the **applicant** sync process only (never mothership `django.env` or `fe
 FEDERATION_REGISTRY_CHALLENGE_TOKEN=<paste-token-here>
 ```
 
+Helper (writes env + prints recreate command):
+
+```bash
+cd federation
+chmod +x scripts/set-registry-challenge.sh
+./scripts/set-registry-challenge.sh --token "<paste-token>" --peer
+# or: --env-file .env.local | --site-env
+```
+
 | Deployment | Env file | Recreate |
 |------------|----------|----------|
 | Local lab sync | `federation/.env.local` or `env.local.example` pattern | `docker compose -f compose.local.yaml up -d --force-recreate sds-federation-local-sync` |
@@ -157,6 +166,8 @@ Requires **`is_staff`**. Open **`/users/federation/registry/`**.
 | `approved` (+ any already `published` peers) | **Publish registry** on list page (enabled when sync reports `publish_enabled`) |
 
 **Publish registry** builds the site list from approved/published applications, calls sync internal publish, and marks rows **`published`** with the new manifest serial.
+
+Optional: `FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE=true` on the gateway runs publish immediately after each **Approve** (default `false`).
 
 Break-glass (no UI): `sds-federation-registry publish --sites-json ...` on flagship sync; then reconcile DB manually if needed.
 

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from django.conf import settings
 from django.utils import timezone
 
 from sds_gateway.api_methods.federation.registry_application_helpers import (
     backfill_urls_from_well_known,
+)
+from sds_gateway.api_methods.federation.registry_application_staff_ops import (
+    publish_registry_manifest,
 )
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
@@ -39,6 +44,28 @@ def _resolve_site_name(
     return site_name
 
 
+def parse_client_cert_fingerprints(raw: str) -> list[str]:
+    """Accept JSON array or comma/newline-separated sha256 fingerprints."""
+    text = (raw or "").strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError as exc:
+            msg = "client_cert_fingerprints must be a JSON array of strings."
+            raise ValueError(msg) from exc
+        if not isinstance(parsed, list):
+            msg = "client_cert_fingerprints must be a JSON array."
+            raise ValueError(msg)
+        return [str(item).strip() for item in parsed if str(item).strip()]
+    separators = [",", "\n"]
+    for sep in separators:
+        if sep in text:
+            return [part.strip() for part in text.split(sep) if part.strip()]
+    return [text]
+
+
 def site_name_taken(site_name: str, *, exclude_pk: str | None = None) -> bool:
     qs = RegistryApplication.objects.filter(
         site_name=site_name,
@@ -54,6 +81,8 @@ def approve_registry_application(
     reviewer: User,
     *,
     site_name: str | None = None,
+    ca_cert_file: str | None = None,
+    client_cert_fingerprints: list[str] | None = None,
 ) -> ReviewResult:
     if application.status != _APPROVABLE_STATUS:
         return ReviewResult(
@@ -88,16 +117,28 @@ def approve_registry_application(
         "rejected_reason",
         "updated_at",
     ]
+    if ca_cert_file is not None:
+        application.ca_cert_file = ca_cert_file.strip()
+        update_fields.append("ca_cert_file")
+    if client_cert_fingerprints is not None:
+        application.client_cert_fingerprints = client_cert_fingerprints
+        update_fields.append("client_cert_fingerprints")
     if application.verified_well_known:
         update_fields.extend(
             backfill_urls_from_well_known(application, application.verified_well_known)
         )
 
     application.save(update_fields=list(dict.fromkeys(update_fields)))
-    return ReviewResult(
-        ok=True,
-        message=f"Approved {application.fqdn} as site '{assigned_name}'.",
-    )
+    message = f"Approved {application.fqdn} as site '{assigned_name}'."
+
+    if getattr(settings, "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE", False):
+        publish = publish_registry_manifest()
+        if publish.ok:
+            message = f"{message} {publish.message}"
+        else:
+            message = f"{message} Registry publish failed: {publish.message}"
+
+    return ReviewResult(ok=True, message=message)
 
 
 def reject_registry_application(
