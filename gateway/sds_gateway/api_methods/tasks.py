@@ -19,6 +19,10 @@ from django.template.loader import render_to_string
 from loguru import logger as log
 from redis import Redis
 
+# Federation registry tasks (defined in federation package; import registers Celery)
+from sds_gateway.api_methods.federation.registry_application_notify import (  # noqa: F401
+    notify_registry_pending_approval_staff,
+)
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType
 from sds_gateway.api_methods.models import Dataset
@@ -34,11 +38,6 @@ from sds_gateway.api_methods.utils.disk_utils import format_file_size
 from sds_gateway.api_methods.utils.minio_client import get_minio_client
 from sds_gateway.api_methods.utils.sds_files import sanitize_path_rel_to_user
 from sds_gateway.users.models import User
-
-# Federation registry tasks (defined in federation package; import registers Celery)
-from sds_gateway.api_methods.federation.registry_application_notify import (  # noqa: E402, F401
-    notify_registry_pending_approval_staff,
-)
 
 
 def cleanup_orphaned_zips() -> int:

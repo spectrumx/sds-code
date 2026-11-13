@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from sds_gateway.api_methods.federation.registry_challenge import (
+    hash_registry_challenge_token,
+)
 from sds_gateway.api_methods.federation.registry_manifest import ManifestBuildError
 from sds_gateway.api_methods.federation.registry_manifest import (
     build_manifest_site_list,
@@ -9,9 +12,6 @@ from sds_gateway.api_methods.federation.registry_manifest import (
 from sds_gateway.api_methods.federation.registry_manifest import manifest_min_serial
 from sds_gateway.api_methods.federation.registry_manifest import (
     site_entry_from_application,
-)
-from sds_gateway.api_methods.federation.registry_challenge import (
-    hash_registry_challenge_token,
 )
 from sds_gateway.api_methods.models import RegistryApplication
 from sds_gateway.api_methods.models import RegistryApplicationStatus
