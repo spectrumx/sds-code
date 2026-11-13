@@ -226,6 +226,5 @@ Applicants (before staff approval):
 ## Related docs
 
 + [Federation README](../../federation/README.md)
-+ [Registry sync refactor plan](../../federation/docs/registry-sync-refactor-plan.md)
 + [Network / Traefik / TLS](../../network/README.md)
 + [OAuth setup](./oauth-setup.md)
