@@ -799,6 +799,10 @@ FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS: list[str] = [
     for item in env.list("FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS", default=[])
     if str(item).strip()
 ]
+FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE: bool = env.bool(
+    "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE",
+    default=False,
+)
 _federation_events_channel_override: str = env.str(
     "FEDERATION_EVENTS_CHANNEL",
     default="",

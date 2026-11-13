@@ -1,1 +1,1 @@
-0023_registry_application_service_urls_charfield
+0024_registry_application_drop_verified_status
