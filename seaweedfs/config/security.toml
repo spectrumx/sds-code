@@ -16,7 +16,7 @@
 # the jwt defaults to expire after 10 seconds.
 # PRODUCTION: Set via WEED_JWT_SIGNING_KEY env var in compose (overrides this empty value).
 [jwt.signing]
-    expires_after_seconds = 10  # seconds
+    expires_after_seconds = 100  # seconds
     key                   = ""
 
     # this jwt signing key is read by master and volume server, and it is used for read operations:
@@ -25,7 +25,7 @@
     # NOTE: jwt for read is only supported with master+volume setup. Filer does not support this mode.
     # Not set for production read auth — gRPC traffic stays within Docker network.
     [jwt.signing.read]
-        expires_after_seconds = 10  # seconds
+        expires_after_seconds = 100  # seconds
         key                   = ""
 
 # If this JWT key is configured, Filer only accepts writes over HTTP if they are signed with this JWT:
@@ -35,7 +35,7 @@
 # the jwt defaults to expire after 10 seconds.
 # PRODUCTION: Set via WEED_JWT_FILER_SIGNING_KEY env var in compose (overrides this empty value).
 [jwt.filer_signing]
-    expires_after_seconds = 10  # seconds
+    expires_after_seconds = 100  # seconds
     key                   = ""
 
     # If this JWT key is configured, Filer only accepts reads over HTTP if they are signed with this JWT:
@@ -43,7 +43,7 @@
     # - the Filer server validates the JWT on reading
     # the jwt defaults to expire after 10 seconds.
     [jwt.filer_signing.read]
-        expires_after_seconds = 10  # seconds
+        expires_after_seconds = 100  # seconds
         key                   = ""
 
 # by default, if the signing key above is set, the Volume UI over HTTP is disabled.

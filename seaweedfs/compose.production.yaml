@@ -113,6 +113,7 @@ services:
         volumes:
             - ./data/d1/data:/data
             - ./data/d1/idx:/idx
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -160,6 +161,7 @@ services:
         volumes:
             - ./data/d2/data:/data
             - ./data/d2/idx:/idx
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -207,6 +209,7 @@ services:
         volumes:
             - ./data/d3/data:/data
             - ./data/d3/idx:/idx
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -254,6 +257,7 @@ services:
         volumes:
             - ./data/d4/data:/data
             - ./data/d4/idx:/idx
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -301,6 +305,7 @@ services:
         volumes:
             - ./data/d5/data:/data
             - ./data/d5/idx:/idx
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -395,6 +400,7 @@ services:
             WEED_S3_SSE_KEK: "${S3_SSE_KEK:?required}"
         volumes:
             - ./config/s3-config.json:/etc/seaweedfs/s3.json:ro
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         healthcheck:
             test:
@@ -426,6 +432,8 @@ services:
             - sfs-filer
         networks:
             - sds-gateway-prod-seaweed-net
+        volumes:
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         command: |
             webdav
@@ -468,6 +476,8 @@ services:
             - sfs-admin
         networks:
             - sds-gateway-prod-seaweed-net
+        volumes:
+            - ./config/security.toml:/etc/seaweedfs/security.toml:ro
         logging: *default-logging
         command: |
             worker
