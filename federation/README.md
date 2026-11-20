@@ -20,9 +20,9 @@ Set `[site].sync_service_url` / `FEDERATION_SYNC_SERVICE_URL` to that public HTT
 (not `:8001`). Production compose loads sync URL and related vars from gitignored
 `site.env` (see `site.example.env`).
 
-See also: [docs/federation-registry-deploy.md](docs/federation-registry-deploy.md),
-[scripts/local_e2e/README.md](scripts/local_e2e/README.md),
-[docs/peer-remote-test.md](docs/peer-remote-test.md).
+**Registry / mesh operators:** [docs/federation-operator-runbook.md](docs/federation-operator-runbook.md).
+
+Local E2E: [scripts/local_e2e/README.md](scripts/local_e2e/README.md).
 
 ---
 
@@ -101,22 +101,7 @@ sync** when Traefik routes that path to sync (recommended for production, sync-o
 and local lab with `compose.local.yaml`). Set the applicant challenge token on **sync**,
 not the gateway django process.
 
-**Registry operator runbook:** [docs/federation-registry-deploy.md](docs/federation-registry-deploy.md)
-
-**`FEDERATION_REGISTRY_CHALLENGE_TOKEN`** (applicant only — not mothership, not
-`federation-shared.env`):
-
-| Applicant deployment | Env file | After edit |
-|---------------------|----------|------------|
-| Local flagship / lab sync | `federation/.env.local` or env for `compose.local.yaml` | recreate `sds-federation-local-sync` |
-| Sync-only peer (e.g. sds-fed1) | `federation/.env.peer` from `env.peer.example` | `compose.peer.*.yaml` recreate sync |
-| Production site sync | `federation/site.env` | production compose recreate sync |
-
-Use `cp federation/env.peer.example federation/.env.peer`; do **not** use `federation/peer.env`
-(compose does not load it).
-
-Verify UI and troubleshooting:
-[`gateway/docs/federation-registry-verify.md`](../gateway/docs/federation-registry-verify.md).
+Registry apply, verify, and staff publish: [docs/federation-operator-runbook.md](docs/federation-operator-runbook.md).
 
 Optional `--ca-cert-path` (file under `federation/certs/` in the sync container).
 Reciprocal `[[peers]]` on the remote site is still manual.
@@ -193,7 +178,7 @@ docker restart sds-federation-local-sync
 Tear down: `just down-peer-2-peer` or
 `docker compose -f compose.local.yaml -f compose.peer.local.yaml down`.
 
-Two-server peer: [docs/peer-remote-test.md](docs/peer-remote-test.md).
+Two-server peer lab: [docs/federation-operator-runbook.md#8-local-lab](docs/federation-operator-runbook.md#8-local-lab).
 
 ---
 
@@ -232,8 +217,11 @@ There is **no** `create_federation_sync_api_key` command.
 | Recipe | Purpose |
 |--------|---------|
 | `just federation-onboard` | Site onboarding wizard |
+| `just federation-preflight-apply` | Pre–registry-apply checks |
+| `just federation-join-registry` | Challenge token + post-recreate preflight |
 | `just federation-render-config` | Render `site.env`, `federation.toml`, django block, Traefik |
 | `just federation-doctor` | Identity, token, URL, network checks |
+| `just federation-fetch-registry-pubkey` | Pull mothership registry verifying PEM |
 | `just federation-add-peer` | Append `[[peers]]`, restart sync |
 | `just build` / `just up` / `just down` | Sync container (`SDS_ENV=local\|production`) |
 | `just deploy-local-peer-2-peer` | Local + peer stacks |

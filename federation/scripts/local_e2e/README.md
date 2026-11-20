@@ -99,4 +99,4 @@ match what the local gateway expects before `publish_for_federation`.
 
 ## Remote peer (two servers)
 
-See [../../docs/peer-remote-test.md](../../docs/peer-remote-test.md).
+See [../../docs/federation-operator-runbook.md#8-local-lab](../../docs/federation-operator-runbook.md#8-local-lab).

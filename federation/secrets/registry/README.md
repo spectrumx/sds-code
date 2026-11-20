@@ -1,5 +1,7 @@
 # Registry signing key (flagship sync only)
 
+Operator workflow: [../../docs/federation-operator-runbook.md](../../docs/federation-operator-runbook.md).
+
 Place the Ed25519 **private** signing key here as `sign.pem` (mode `600` on the host).
 
 - **Container path:** `/etc/sds/secrets/registry/sign.pem` (see `[registry.publish]` in `federation.toml`)

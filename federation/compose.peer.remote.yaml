@@ -1,5 +1,5 @@
 # Sync-only peer on a remote host (no gateway / Postgres).
-# Pair with federation.peer.remote.toml and docs/peer-remote-test.md.
+# Pair with federation.peer.remote.toml; see docs/federation-operator-runbook.md §8.
 #
 # On the peer machine (sds-fed1):
 #   cd ../network && just up    # Traefik + sds-network-local
