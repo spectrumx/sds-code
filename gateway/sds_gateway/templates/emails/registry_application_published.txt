@@ -1,0 +1,17 @@
+Federation registry: your site is published
+
+Your federation registry application was included in the signed manifest. Peer sites can discover your site from the registry poll.
+
+FQDN: {{ fqdn }}
+Display name: {{ display_name }}
+Site id: {{ site_name }}
+Manifest serial: {{ manifest_serial }}
+
+View your application:
+{{ application_url }}
+
+Next steps: ensure federation sync on your site is running so it can refresh peers from the registry manifest.
+
+---
+This is an automated message from the SpectrumX Data System.
+If you have any questions, please contact our support team.

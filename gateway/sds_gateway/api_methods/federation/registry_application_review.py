@@ -31,6 +31,7 @@ _SITE_NAME_RESERVED_STATUSES = (
 class ReviewResult:
     ok: bool
     message: str
+    warnings: tuple[str, ...] = ()
 
 
 def _resolve_site_name(
@@ -130,15 +131,17 @@ def approve_registry_application(
 
     application.save(update_fields=list(dict.fromkeys(update_fields)))
     message = f"Approved {application.fqdn} as site '{assigned_name}'."
+    warnings: tuple[str, ...] = ()
 
     if getattr(settings, "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE", False):
         publish = publish_registry_manifest()
+        warnings = publish.warnings
         if publish.ok:
             message = f"{message} {publish.message}"
         else:
             message = f"{message} Registry publish failed: {publish.message}"
 
-    return ReviewResult(ok=True, message=message)
+    return ReviewResult(ok=True, message=message, warnings=warnings)
 
 
 def reject_registry_application(

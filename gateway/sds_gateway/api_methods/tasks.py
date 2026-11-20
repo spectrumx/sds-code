@@ -19,9 +19,9 @@ from django.template.loader import render_to_string
 from loguru import logger as log
 from redis import Redis
 
-# Federation registry tasks (defined in federation package; import registers Celery)
-from sds_gateway.api_methods.federation.registry_application_notify import (  # noqa: F401
-    notify_registry_pending_approval_staff,
+# Federation registry tasks (import registers Celery)
+from sds_gateway.api_methods.federation.registry_application_applicant_notify import (  # noqa: F401
+    notify_registry_application_published,
 )
 from sds_gateway.api_methods.models import Capture
 from sds_gateway.api_methods.models import CaptureType

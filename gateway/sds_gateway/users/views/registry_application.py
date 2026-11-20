@@ -320,6 +320,8 @@ class RegistryApplicationApproveView(
         )
         if result.ok:
             messages.success(request, result.message)
+            for warning in result.warnings:
+                messages.warning(request, warning)
         else:
             messages.error(request, result.message)
         return redirect("users:registry_application_detail", pk=application.pk)
@@ -338,8 +340,12 @@ class RegistryApplicationPublishManifestView(
         result = publish_registry_manifest(dry_run=dry_run)
         if result.ok:
             messages.success(request, result.message)
+            for warning in result.warnings:
+                messages.warning(request, warning)
         else:
             messages.error(request, result.message)
+            for warning in result.warnings:
+                messages.warning(request, warning)
         return redirect("users:registry_application_list")
 
 

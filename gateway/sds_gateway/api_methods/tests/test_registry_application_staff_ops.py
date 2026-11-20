@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import pytest
 from django.core.cache import cache
+from django.test import override_settings
 
 from sds_gateway.api_methods.federation.registry_application_staff_ops import (
     publish_registry_manifest,
@@ -56,6 +57,10 @@ def test_publish_registry_manifest_marks_approved_published(user, settings) -> N
             "registry_sync_publish_enabled",
             return_value=True,
         ),
+        patch(
+            "sds_gateway.api_methods.federation.registry_application_staff_ops."
+            "schedule_registry_application_applicant_notify",
+        ) as mock_notify,
     ):
         client = mock_from_settings.return_value
         client.publish.return_value = {
@@ -75,6 +80,68 @@ def test_publish_registry_manifest_marks_approved_published(user, settings) -> N
     assert call.kwargs["min_serial"] == 3
     sites = call.args[0]
     assert {s["name"] for s in sites} == {"old", "peer"}
+    mock_notify.assert_called_once_with(approved.pk)
+
+
+@pytest.mark.django_db
+@override_settings(FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH=True)
+def test_publish_registry_manifest_includes_health_warnings(user, settings) -> None:
+    settings.FEDERATION_SYNC_INTERNAL_URL = "http://sync.test:8000"
+    settings.FEDERATION_SYNC_ADMIN_TOKEN = "test-sync-admin-token"  # noqa: S105
+    cache.clear()
+
+    RegistryApplication.objects.create(
+        fqdn="old.example.edu",
+        display_name="Old",
+        contact=user,
+        site_name="old",
+        gateway_api_base="https://old.example.edu/api/v1",
+        sync_service_url="https://old.example.edu/sync",
+        challenge_token_hash=hash_registry_challenge_token("o"),
+        status=RegistryApplicationStatus.PUBLISHED.value,
+        published_manifest_serial=2,
+    )
+    RegistryApplication.objects.create(
+        fqdn="peer.example.edu",
+        display_name="Peer",
+        contact=user,
+        site_name="peer",
+        gateway_api_base="https://peer.example.edu/api/v1",
+        sync_service_url="https://peer.example.edu/sync",
+        challenge_token_hash=hash_registry_challenge_token("p"),
+        status=RegistryApplicationStatus.APPROVED.value,
+    )
+
+    with (
+        patch(
+            "sds_gateway.api_methods.federation.registry_application_staff_ops."
+            "FederationSyncClient.from_settings"
+        ) as mock_from_settings,
+        patch(
+            "sds_gateway.api_methods.federation.registry_application_staff_ops."
+            "registry_sync_publish_enabled",
+            return_value=True,
+        ),
+        patch(
+            "sds_gateway.api_methods.federation.registry_application_staff_ops."
+            "schedule_registry_application_applicant_notify",
+        ),
+        patch(
+            "sds_gateway.api_methods.federation.registry_application_publish_health."
+            "applicant_sync_health_ok",
+            return_value=False,
+        ),
+    ):
+        client = mock_from_settings.return_value
+        client.publish.return_value = {
+            "serial": _MANIFEST_SERIAL,
+            "site_names": ["old", "peer"],
+        }
+        result = publish_registry_manifest()
+
+    assert result.ok
+    assert len(result.warnings) == 1
+    assert "peer" in result.warnings[0]
 
 
 @pytest.mark.django_db

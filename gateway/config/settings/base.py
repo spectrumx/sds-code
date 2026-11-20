@@ -794,13 +794,12 @@ FEDERATION_REGISTRY_INTAKE_ENABLED: bool = resolve_federation_registry_intake_en
     flagship_gateway_host=FLAGSHIP_GATEWAY_HOST,
     intake_requested=env.bool("FEDERATION_REGISTRY_INTAKE_ENABLED", default=False),
 )
-FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS: list[str] = [
-    str(item).strip()
-    for item in env.list("FEDERATION_REGISTRY_STAFF_NOTIFY_EMAILS", default=[])
-    if str(item).strip()
-]
 FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE: bool = env.bool(
     "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE",
+    default=False,
+)
+FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH: bool = env.bool(
+    "FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH",
     default=False,
 )
 _federation_events_channel_override: str = env.str(

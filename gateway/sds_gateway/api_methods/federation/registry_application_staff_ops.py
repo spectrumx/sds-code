@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db import transaction
 from django.utils import timezone
@@ -15,6 +16,12 @@ from sds_gateway.api_methods.federation.registry_manifest import (
 from sds_gateway.api_methods.federation.registry_manifest import manifest_min_serial
 from sds_gateway.api_methods.federation.registry_manifest import (
     manifest_peer_site_names,
+)
+from sds_gateway.api_methods.federation.registry_application_applicant_notify import (
+    schedule_registry_application_applicant_notify,
+)
+from sds_gateway.api_methods.federation.registry_application_publish_health import (
+    publish_health_warnings_for_applications,
 )
 from sds_gateway.api_methods.federation.sync_client import FederationSyncClient
 from sds_gateway.api_methods.federation.sync_client import SyncUnavailableError
@@ -39,6 +46,7 @@ class StaffOpResult:
     message: str
     serial: int | None = None
     site_names: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +118,18 @@ def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:  # noq
             ),
         )
 
+    publish_health_warnings = tuple(
+        publish_health_warnings_for_applications(
+            RegistryApplication.objects.filter(
+                site_name__in=peer_names,
+                status=RegistryApplicationStatus.APPROVED.value,
+            ),
+            enabled=bool(
+                getattr(settings, "FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH", False)
+            ),
+        )
+    )
+
     min_serial = manifest_min_serial()
     try:
         client = FederationSyncClient.from_settings()
@@ -126,18 +146,33 @@ def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:  # noq
             message=f"Dry run: manifest serial would be {serial} ({name_list}).",
             serial=serial,
             site_names=names,
+            warnings=publish_health_warnings,
         )
 
     now = timezone.now()
+    newly_published_pks = list(
+        RegistryApplication.objects.filter(
+            site_name__in=peer_names,
+            status=RegistryApplicationStatus.APPROVED.value,
+        ).values_list("pk", flat=True)
+    )
     with transaction.atomic():
         updated = RegistryApplication.objects.filter(site_name__in=peer_names).update(
             status=RegistryApplicationStatus.PUBLISHED.value,
             published_manifest_serial=serial,
             published_at=now,
         )
+        for pk in newly_published_pks:
+            schedule_registry_application_applicant_notify(pk)
     if updated == 0:
         msg = "Manifest published on sync but no matching applications were updated."
-        return StaffOpResult(ok=False, message=msg, serial=serial, site_names=names)
+        return StaffOpResult(
+            ok=False,
+            message=msg,
+            serial=serial,
+            site_names=names,
+            warnings=publish_health_warnings,
+        )
 
     name_list = ", ".join(names)
     return StaffOpResult(
@@ -145,4 +180,5 @@ def publish_registry_manifest(*, dry_run: bool = False) -> StaffOpResult:  # noq
         message=f"Published registry manifest serial {serial} ({name_list}).",
         serial=serial,
         site_names=names,
+        warnings=publish_health_warnings,
     )
