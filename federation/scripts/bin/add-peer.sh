@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib/common.sh
-source "${FEDERATION_ROOT}/scripts/lib/common.sh"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 # shellcheck source=lib/bootstrap.sh
 source "${FEDERATION_ROOT}/scripts/lib/bootstrap.sh"
 federation_script_init

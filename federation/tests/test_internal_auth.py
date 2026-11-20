@@ -87,3 +87,42 @@ async def test_internal_verify_success(
     body = response.json()
     assert body["ok"] is True
     assert body["well_known"]["fqdn"] == "localhost"
+
+
+@pytest.mark.asyncio
+async def test_internal_verify_rejects_fqdn_mismatch(
+    test_site_config,
+    admin_token: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sds_federation.services.well_known import build_site_document
+
+    raw = "verify-me"
+    monkeypatch.setenv("FEDERATION_REGISTRY_CHALLENGE_TOKEN", raw)
+
+    async def _local_fetch(fqdn: str, config, **_kwargs: object):
+        doc = build_site_document(config)
+        doc["fqdn"] = "wrong.example.edu"
+        return doc
+
+    monkeypatch.setattr(
+        "sds_federation.routes.internal_registry.fetch_well_known_json",
+        _local_fetch,
+    )
+    app = build_registry_root_app(test_site_config)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.post(
+            "/internal/registry/verify",
+            headers={"Authorization": f"Bearer {admin_token}"},
+            json={
+                "fqdn": "localhost",
+                "challenge_hash": hash_registry_challenge_token(raw),
+            },
+        )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ok"] is False
+    assert "fqdn" in (body.get("error") or "").lower()

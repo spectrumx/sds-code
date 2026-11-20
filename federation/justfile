@@ -3,7 +3,7 @@ set shell := ["bash", "-eu", "-o", "pipefail", "-c"]
 # TIP: Production on this machine? Add hostname to ../gateway/scripts/prod-hostnames.env
 #       or set SDS_ENV=production|local
 
-env_selection_script := "./scripts/env-selection.sh"
+env_selection_script := "./scripts/lib/env-selection.sh"
 
 # variables | run `just env` to see current values
 
@@ -77,11 +77,11 @@ pre-commit +args='':
 # dev PKI for mTLS experiments (see docs/mtls-certificates.md)
 [group('setup')]
 gen-certs +args='':
-    ./scripts/generate-dev-certs.sh all {{ args }}
+    ./scripts/bin/generate-dev-certs.sh all {{ args }}
 
 [group('setup')]
 gen-certs-ca:
-    ./scripts/generate-dev-certs.sh ca
+    ./scripts/bin/generate-dev-certs.sh ca
 
 # publish simulated federation:events to Redis
 [group('dev')]
@@ -95,25 +95,37 @@ verify-federation-live +args='':
 # Production / site onboarding wizard (see docs/onboarding-automation-plan.md)
 [group('setup')]
 federation-onboard +args='':
-    ./scripts/onboard-site.sh {{ args }}
+    ./scripts/bin/onboard-site.sh {{ args }}
 
 [group('setup')]
 federation-doctor +args='':
-    ./scripts/federation-doctor.sh {{ args }}
+    ./scripts/bin/federation-doctor.sh {{ args }}
+
+[group('setup')]
+federation-preflight-apply +args='':
+    ./scripts/bin/federation-preflight-apply.sh {{ args }}
+
+[group('setup')]
+federation-join-registry +args='':
+    ./scripts/bin/federation-join-registry.sh {{ args }}
+
+[group('setup')]
+federation-fetch-registry-pubkey +args='':
+    ./scripts/bin/fetch-registry-pubkey.sh {{ args }}
 
 [group('setup')]
 federation-add-peer +args='':
-    ./scripts/add-peer.sh {{ args }}
+    ./scripts/bin/add-peer.sh {{ args }}
 
 # Render site.env, federation.toml, gateway federation env from templates
 [group('setup')]
 federation-render-config:
-    ./scripts/render-site-config.sh
+    ./scripts/bin/render-site-config.sh
 
 # Deploy local + peer federation stacks (checks gateway, builds, waits for health)
 [group('dev')]
 deploy-local-peer-2-peer:
-    ./scripts/deploy-local-peer-2-peer.sh
+    ./scripts/bin/deploy-local-peer-2-peer.sh
 
 # Seed dummy peer.local docs into peer OpenSearch (:9201)
 [group('dev')]

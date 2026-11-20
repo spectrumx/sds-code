@@ -1,4 +1,4 @@
-# Dev PKI material — generate with scripts/generate-dev-certs.sh
+# Dev PKI material — generate with scripts/bin/generate-dev-certs.sh
 
 __pycache__/
 

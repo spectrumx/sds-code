@@ -2,11 +2,10 @@
 # Render site.env, federation.toml, gateway django federation block, optional Traefik drop-in.
 set -euo pipefail
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib/common.sh
-source "${FEDERATION_ROOT}/scripts/lib/common.sh"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 
-ENV_SELECTION="${FEDERATION_ROOT}/scripts/env-selection.sh"
+ENV_SELECTION="${FEDERATION_ROOT}/scripts/lib/env-selection.sh"
 SDS_ENV_TYPE="$("${ENV_SELECTION}" env)"
 COMPOSE_FILE="$("${ENV_SELECTION}" compose_file)"
 FEDERATION_SYNC_CONTAINER="$("${ENV_SELECTION}" sync_container)"
@@ -43,6 +42,17 @@ default_sync_internal_url() {
 	printf 'http://%s:8000\n' "${FEDERATION_SYNC_CONTAINER}"
 }
 
+default_registry_url() {
+	case "${SDS_ENV_TYPE}" in
+	production)
+		printf '%s\n' "https://${FEDERATION_PEER_FQDN:-sds.crc.nd.edu}/.well-known/sds-registry"
+		;;
+	*)
+		printf '%s\n' "http://${FEDERATION_PEER_FQDN:-sds.localhost}/.well-known/sds-registry"
+		;;
+	esac
+}
+
 default_peer_values() {
 	case "${SDS_ENV_TYPE}" in
 	production)
@@ -76,9 +86,23 @@ export_vars_for_render() {
 	case "${FEDERATION_REGISTRY_PUBLISH_ENABLED}" in
 	true | 1 | yes | TRUE)
 		export FEDERATION_REGISTRY_PUBLISH_TOML=$'[registry.publish]\nenabled = true\nsigning_key_path = "/etc/sds/secrets/registry/sign.pem"\nmanifest_dir = "/var/lib/sds/registry-publish"\nttl_hours = 168\n'
+		export FEDERATION_REGISTRY_CONSUMER_TOML=""
 		;;
 	*)
 		export FEDERATION_REGISTRY_PUBLISH_TOML=""
+		export FEDERATION_REGISTRY_CONSUMER_ENABLED="${FEDERATION_REGISTRY_CONSUMER_ENABLED:-true}"
+		case "${FEDERATION_REGISTRY_CONSUMER_ENABLED}" in
+		false | 0 | no | FALSE)
+			export FEDERATION_REGISTRY_CONSUMER_TOML=""
+			;;
+		*)
+			export FEDERATION_REGISTRY_URL="${FEDERATION_REGISTRY_URL:-$(default_registry_url)}"
+			export FEDERATION_REGISTRY_PUBKEY_PATH="${FEDERATION_REGISTRY_PUBKEY_PATH:-/etc/sds/certs/sds-registry.pub.pem}"
+			export FEDERATION_REGISTRY_REFRESH_SECS="${FEDERATION_REGISTRY_REFRESH_SECS:-900}"
+			export FEDERATION_REGISTRY_WELL_KNOWN_URL="${FEDERATION_REGISTRY_WELL_KNOWN_URL:-${FEDERATION_REGISTRY_URL}}"
+			export FEDERATION_REGISTRY_CONSUMER_TOML=$'[registry]\nurl = "${FEDERATION_REGISTRY_URL}"\npublic_key_path = "${FEDERATION_REGISTRY_PUBKEY_PATH}"\nrefresh_secs = ${FEDERATION_REGISTRY_REFRESH_SECS}\nrequired = false\n'
+			;;
+		esac
 		;;
 	esac
 	default_peer_values
@@ -183,11 +207,21 @@ render_gateway_federation_env() {
 	rm -f "${block}"
 }
 
-traefik_sync_route_exists_for_fqdn() {
-	local fqdn=$1 conf_dir=$2
-	# Gateway catch-alls use Host() only; federation sync requires PathPrefix(`/sync`).
-	local host_path='Host\(`'"${fqdn}"'`\)[[:space:]]*&&[[:space:]]*PathPrefix\(`/sync`\)'
-	[[ -d "${conf_dir}" ]] && grep -rqE "${host_path}" "${conf_dir}" 2>/dev/null
+# shellcheck source=lib/traefik.sh
+source "${FEDERATION_ROOT}/scripts/lib/traefik.sh"
+
+maybe_fetch_registry_pubkey() {
+	case "${FEDERATION_REGISTRY_PUBLISH_ENABLED:-false}" in
+	true | 1 | yes | TRUE) return 0 ;;
+	esac
+	case "${FEDERATION_REGISTRY_CONSUMER_ENABLED:-true}" in
+	false | 0 | no | FALSE) return 0 ;;
+	esac
+	[[ "${FEDERATION_REGISTRY_SKIP_PUBKEY_FETCH:-0}" == "1" ]] && return 0
+	[[ -n "${FEDERATION_REGISTRY_URL:-}" ]] || return 0
+	local dest="${FEDERATION_ROOT}/certs/sds-registry.pub.pem"
+	[[ -r "${dest}" ]] && return 0
+	"${FEDERATION_ROOT}/scripts/bin/fetch-registry-pubkey.sh"
 }
 
 render_traefik_sync_dropin() {
@@ -208,6 +242,7 @@ main() {
 	source "${FEDERATION_ROOT}/scripts/lib/site_env.sh"
 	load_site_env_for_render
 	export_vars_for_render
+	maybe_fetch_registry_pubkey
 	[[ -n "${SDS_SITE_NAME:-}" && -n "${SDS_SITE_FQDN:-}" ]] \
 		|| die "SDS_SITE_NAME and SDS_SITE_FQDN must be set"
 	export SDS_SITE_DISPLAY_NAME="${SDS_SITE_DISPLAY_NAME:-${SDS_SITE_NAME}}"

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib/common.sh
-source "${FEDERATION_ROOT}/scripts/lib/common.sh"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 # shellcheck source=lib/bootstrap.sh
 source "${FEDERATION_ROOT}/scripts/lib/bootstrap.sh"
 federation_script_init
@@ -16,6 +15,24 @@ default_hostname_fqdn() {
 	hostname -f 2>/dev/null || hostname
 }
 
+prompt_registry_consumer() {
+	if [[ "${SDS_ENV_TYPE}" != "production" ]]; then
+		return 0
+	fi
+	ask FEDERATION_REGISTRY_PUBLISH_ENABLED \
+		"Enable registry signing on this host (flagship mothership only)" "false"
+	case "${FEDERATION_REGISTRY_PUBLISH_ENABLED}" in
+	true | 1 | yes | TRUE)
+		info "Flagship: place signing key at federation/secrets/registry/sign.pem (see secrets/registry/README.md)"
+		return 0
+		;;
+	esac
+	ask FEDERATION_REGISTRY_URL \
+		"Signed registry base URL to poll" "https://${FEDERATION_PEER_FQDN:-sds.crc.nd.edu}/.well-known/sds-registry"
+	info "Registry verifying key will be fetched from ${FEDERATION_REGISTRY_URL} during config render (optional FEDERATION_REGISTRY_PUBKEY_FINGERPRINT in site.env)"
+	export FEDERATION_REGISTRY_CONSUMER_ENABLED="${FEDERATION_REGISTRY_CONSUMER_ENABLED:-true}"
+}
+
 prompt_site_identity() {
 	if [[ "${SDS_ENV_TYPE}" == "production" ]]; then
 		ask SDS_SITE_FQDN "Public FQDN for this site" "$(default_hostname_fqdn)"
@@ -23,6 +40,7 @@ prompt_site_identity() {
 		ask SDS_SITE_DISPLAY_NAME "Human-readable site name" "${SDS_SITE_NAME}"
 		ask FEDERATION_PEER_FQDN "Peer sync FQDN to bootstrap from" "sds.crc.nd.edu"
 		ask FEDERATION_PEER_CA_PATH "Peer CA PEM path under federation/certs/ (stored as /etc/sds/certs/... in toml; blank = omit)" ""
+		prompt_registry_consumer
 	else
 		ask SDS_SITE_FQDN "Site FQDN (OpenSearch site_name)" "sds.localhost"
 		ask SDS_SITE_NAME "Short site id (federation.toml [site].name)" "crc"
@@ -31,6 +49,7 @@ prompt_site_identity() {
 	fi
 	export SDS_SITE_FQDN SDS_SITE_NAME SDS_SITE_DISPLAY_NAME
 	export FEDERATION_PEER_FQDN FEDERATION_PEER_CA_PATH
+	export FEDERATION_REGISTRY_PUBLISH_ENABLED FEDERATION_REGISTRY_URL FEDERATION_REGISTRY_CONSUMER_ENABLED
 }
 
 print_peer_handoff() {
@@ -74,15 +93,15 @@ main() {
 		export FEDERATION_DOCTOR_SKIP_DNS="${FEDERATION_DOCTOR_SKIP_DNS:-1}"
 	fi
 	ensure_gateway_secrets
-	"${FEDERATION_ROOT}/scripts/render-site-config.sh"
+	"${FEDERATION_ROOT}/scripts/bin/render-site-config.sh"
 	load_rendered_site_env
-	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
+	FEDERATION_DOCTOR_SKIP_DB=1 "${FEDERATION_ROOT}/scripts/bin/federation-doctor.sh"
 	recreate_gateway_for_updated_env
 
 	wait_gateway_app_ready
 
 	init_sync_token
-	FEDERATION_DOCTOR_SKIP_DB=0 "${FEDERATION_ROOT}/scripts/federation-doctor.sh"
+	FEDERATION_DOCTOR_SKIP_DB=0 "${FEDERATION_ROOT}/scripts/bin/federation-doctor.sh"
 
 	info "Building and starting federation sync"
 	(
@@ -96,7 +115,14 @@ main() {
 	wait_sync_operational "${health_url}" "public sync"
 	restart_and_wait_sync "${SYNC_CONTAINER}" "${health_url}" "public sync"
 
-	"${FEDERATION_ROOT}/scripts/federation-doctor.sh"
+	"${FEDERATION_ROOT}/scripts/bin/federation-doctor.sh"
+
+	if [[ "${SDS_ENV_TYPE}" == "production" && "${FEDERATION_PREFLIGHT_SKIP:-0}" != "1" ]]; then
+		"${FEDERATION_ROOT}/scripts/bin/federation-preflight-apply.sh"
+	else
+		info "Skipping registry preflight (non-production or FEDERATION_PREFLIGHT_SKIP=1)"
+	fi
+
 	print_peer_handoff
 	info "Federation onboard complete"
 }

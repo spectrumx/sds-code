@@ -11,7 +11,9 @@ from fastapi.responses import Response
 
 from sds_federation.services.registry_publish import read_published_manifest_bytes
 from sds_federation.services.registry_publish import read_published_signature_bytes
+from sds_federation.services.registry_sign import REGISTRY_VERIFYING_PUBKEY_WELL_KNOWN_NAME
 from sds_federation.services.registry_sign import RegistrySignError
+from sds_federation.services.registry_sign import read_verifying_public_key_pem_bytes
 from sds_federation.services.well_known import WELL_KNOWN_SDS_FEDERATION_PATH
 from sds_federation.services.well_known import build_site_document
 from sds_federation.services.well_known import document_ready
@@ -25,6 +27,9 @@ well_known_router = APIRouter(tags=["well-known"])
 
 REGISTRY_SITES_PATH = "/.well-known/sds-registry/sites.json"
 REGISTRY_SIG_PATH = "/.well-known/sds-registry/sites.json.sig"
+REGISTRY_PUBKEY_PATH = (
+    f"/.well-known/sds-registry/{REGISTRY_VERIFYING_PUBKEY_WELL_KNOWN_NAME}"
+)
 
 
 @well_known_router.get(WELL_KNOWN_SDS_FEDERATION_PATH)
@@ -71,3 +76,29 @@ async def registry_sites_json(request: Request) -> Response:
 @well_known_router.get(REGISTRY_SIG_PATH)
 async def registry_sites_sig(request: Request) -> Response:
     return await _serve_published(request, read_published_signature_bytes, "text/plain")
+
+
+@well_known_router.get(REGISTRY_PUBKEY_PATH)
+async def registry_verifying_public_key_pem(request: Request) -> Response:
+    config = request.app.state.config
+    if not config.registry.publish.enabled:
+        raise HTTPException(
+            status_code=404,
+            detail="registry public key is not published",
+        )
+    pubkey_path = str(config.registry.public_key_path)
+
+    def _read() -> bytes | None:
+        return read_verifying_public_key_pem_bytes(pubkey_path)
+
+    payload = await asyncio.to_thread(_read)
+    if payload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="registry public key is not published",
+        )
+    return Response(
+        content=payload,
+        media_type="application/x-pem-file",
+        headers={"Cache-Control": "public, max-age=3600"},
+    )

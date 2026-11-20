@@ -30,6 +30,13 @@ _VERIFY_SUCCESS_MESSAGE = (
     "Domain verified. Your application is awaiting admin approval."
 )
 _WELL_KNOWN_NOT_OBJECT_MESSAGE = "Well-known response was not a JSON object."
+_FQDN_MISMATCH_MESSAGE = (
+    "fqdn in well-known JSON does not match this application."
+)
+
+
+def _normalized_registry_fqdn(fqdn: str) -> str:
+    return fqdn.strip().lower().rstrip(".")
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +88,11 @@ def _validate_sync_payload(
     well_known = payload.get("well_known")
     if not isinstance(well_known, dict):
         return None, _WELL_KNOWN_NOT_OBJECT_MESSAGE
+    wk_fqdn = well_known.get("fqdn")
+    if not isinstance(wk_fqdn, str) or not wk_fqdn.strip():
+        return None, _FQDN_MISMATCH_MESSAGE
+    if _normalized_registry_fqdn(wk_fqdn) != _normalized_registry_fqdn(application.fqdn):
+        return None, _FQDN_MISMATCH_MESSAGE
     return well_known, None
 
 

@@ -10,14 +10,15 @@ Writes or updates FEDERATION_REGISTRY_CHALLENGE_TOKEN=... in the target env file
 Does not recreate containers; prints the compose command to run next.
 
 Examples:
-  ./scripts/set-registry-challenge.sh --token "$TOKEN" --peer
-  ./scripts/set-registry-challenge.sh --token "$TOKEN" --env-file .env.local
-  ./scripts/set-registry-challenge.sh --token "$TOKEN" --site-env
+  ./scripts/bin/set-registry-challenge.sh --token "$TOKEN" --peer
+  ./scripts/bin/set-registry-challenge.sh --token "$TOKEN" --env-file .env.local
+  ./scripts/bin/set-registry-challenge.sh --token "$TOKEN" --site-env
 
 EOF
 }
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 TOKEN=""
 ENV_FILE=""
 

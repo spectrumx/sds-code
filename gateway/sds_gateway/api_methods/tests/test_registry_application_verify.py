@@ -116,6 +116,39 @@ def test_verify_sync_returns_error(user) -> None:
 
 
 @pytest.mark.django_db
+@override_settings(
+    FEDERATION_SYNC_INTERNAL_URL=_SYNC_TEST_URL,
+    FEDERATION_SYNC_ADMIN_TOKEN="admin-token",
+)
+def test_verify_rejects_well_known_fqdn_mismatch(user) -> None:
+    raw = "test-challenge-token-value"
+    application = RegistryApplication.objects.create(
+        fqdn="site.example.edu",
+        display_name="Site",
+        contact=user,
+        challenge_token_hash=hash_registry_challenge_token(raw),
+        status=RegistryApplicationStatus.PENDING_VERIFICATION.value,
+    )
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_verify.FederationSyncClient.from_settings",
+    ) as mock_factory:
+        mock_client = mock_factory.return_value
+        mock_client.verify_domain.return_value = {
+            "ok": True,
+            "well_known": {
+                "fqdn": "other.example.edu",
+                "registry_challenge": raw,
+            },
+        }
+        result = verify_registry_application(application)
+
+    assert not result.ok
+    application.refresh_from_db()
+    assert application.status == RegistryApplicationStatus.VERIFICATION_FAILED.value
+    assert "fqdn" in application.last_verification_error.lower()
+
+
+@pytest.mark.django_db
 def test_verify_registry_application_expired_challenge(user) -> None:
     application = RegistryApplication.objects.create(
         fqdn="site.example.edu",

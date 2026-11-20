@@ -180,7 +180,7 @@ the export key. Optional: `FEDERATION_SKIP_SYNC_HEALTH_PROBE=true` until sync is
 | Sync internal API | `FEDERATION_SYNC_ADMIN_TOKEN` in `federation-shared.env`; gateway `FEDERATION_SYNC_INTERNAL_URL` |
 
 Render/onboard with publish block: `FEDERATION_REGISTRY_PUBLISH_ENABLED=true` (see `site.example.env`).
-Preflight: `just federation-doctor` or `FEDERATION_DOCTOR_CHECK=registry ./scripts/federation-doctor.sh`.
+Preflight: `just federation-doctor` or `FEDERATION_DOCTOR_CHECK=registry ./scripts/bin/federation-doctor.sh`.
 
 **Local peer mesh:**
 

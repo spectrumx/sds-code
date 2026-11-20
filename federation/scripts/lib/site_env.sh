@@ -32,13 +32,15 @@ load_site_env_file() {
 
 # Restore persisted optional vars when re-rendering; never override exported identity.
 load_site_env_for_render() {
-	if [[ -n "${FEDERATION_PEER_CA_PATH:-}" ]]; then
-		return 0
-	fi
-	local stored
-	stored="$(site_env_value FEDERATION_PEER_CA_PATH)" || true
-	[[ -n "${stored}" ]] || return 0
-	export FEDERATION_PEER_CA_PATH="${stored}"
+	local key stored
+	for key in FEDERATION_PEER_CA_PATH FEDERATION_REGISTRY_URL FEDERATION_REGISTRY_PUBLISH_ENABLED FEDERATION_REGISTRY_CONSUMER_ENABLED; do
+		if [[ -n "${!key:-}" ]]; then
+			continue
+		fi
+		stored="$(site_env_value "${key}")" || true
+		[[ -n "${stored}" ]] || continue
+		export "${key}=${stored}"
+	done
 }
 
 load_rendered_site_env() {

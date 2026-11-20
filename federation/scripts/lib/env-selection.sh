@@ -2,7 +2,7 @@
 set -euo pipefail
 IFS=$'\n\t'
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 GATEWAY_ENV_SCRIPT="${FEDERATION_ROOT}/../gateway/scripts/env-selection.sh"
 
 function resolve_env_type() {

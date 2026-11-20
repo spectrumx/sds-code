@@ -2,6 +2,11 @@
 # Shared helpers for federation onboarding and local p2p deploy scripts.
 set -euo pipefail
 
+if [[ -z "${FEDERATION_ROOT:-}" ]]; then
+	FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+	export FEDERATION_ROOT
+fi
+
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
 

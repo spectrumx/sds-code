@@ -4,7 +4,8 @@
 # Does not require Traefik; creates sds-network-local if missing.
 set -euo pipefail
 
-FEDERATION_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
 GATEWAY_ROOT="${FEDERATION_ROOT}/../gateway"
 LOCAL_COMPOSE="${FEDERATION_ROOT}/compose.local.yaml"
 PEER_COMPOSE="${FEDERATION_ROOT}/compose.peer.local.yaml"
@@ -18,9 +19,6 @@ PEER_SYNC_URL="${PEER_SYNC_URL:-http://localhost:8002/sync/health}"
 PEER_OS_URL="${PEER_OS_URL:-http://localhost:9201/_cluster/health}"
 
 cd "${FEDERATION_ROOT}"
-
-# shellcheck source=lib/common.sh
-source "${FEDERATION_ROOT}/scripts/lib/common.sh"
 
 # --- configs ---
 info "Checking federation configs"

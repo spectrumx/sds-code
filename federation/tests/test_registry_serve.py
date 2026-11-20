@@ -15,7 +15,7 @@ from tests.test_registry_sign import write_ed25519_keypair
 
 
 def _published_config(tmp_path: Path) -> FederationConfig:
-    private_path, _ = write_ed25519_keypair(tmp_path)
+    private_path, public_path = write_ed25519_keypair(tmp_path)
     manifest_dir = tmp_path / "manifest"
     config = FederationConfig(
         site=SiteInfo(
@@ -27,6 +27,7 @@ def _published_config(tmp_path: Path) -> FederationConfig:
         sync_service_url="https://sds.crc.nd.edu/sync",
         peers=[],
         registry=RegistryPolicy(
+            public_key_path=str(public_path),
             publish=RegistryPublishPolicy(
                 enabled=True,
                 signing_key_path=str(private_path),
@@ -55,6 +56,33 @@ async def test_registry_manifest_routes_return_bytes(tmp_path: Path) -> None:
     assert sig.headers["content-type"].startswith("text/plain")
     assert len(manifest.content) > 10
     assert len(sig.content) > 10
+
+
+@pytest.mark.asyncio
+async def test_registry_pubkey_pem_route(tmp_path: Path) -> None:
+    config = _published_config(tmp_path)
+    app = build_registry_root_app(config)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/.well-known/sds-registry/sds-registry.pub.pem")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "public, max-age=3600"
+    assert b"BEGIN PUBLIC KEY" in response.content
+
+
+@pytest.mark.asyncio
+async def test_registry_pubkey_pem_404_when_publish_disabled(tmp_path: Path) -> None:
+    config = _published_config(tmp_path)
+    config.registry.publish.enabled = False
+    app = build_registry_root_app(config)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),
+        base_url="http://test",
+    ) as client:
+        response = await client.get("/.well-known/sds-registry/sds-registry.pub.pem")
+    assert response.status_code == 404
 
 
 @pytest.mark.asyncio

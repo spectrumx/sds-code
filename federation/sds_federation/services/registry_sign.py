@@ -20,6 +20,8 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key
 MANIFEST_FILENAME = "sites.json"
 SIGNATURE_FILENAME = "sites.json.sig"
 SERIAL_FILENAME = "serial"
+DEFAULT_REGISTRY_VERIFYING_PUBKEY_PATH = "/etc/sds/certs/sds-registry.pub.pem"
+REGISTRY_VERIFYING_PUBKEY_WELL_KNOWN_NAME = "sds-registry.pub.pem"
 
 
 class RegistrySignError(Exception):
@@ -95,6 +97,18 @@ def verify_manifest_payload(
     except InvalidSignature as exc:
         msg = "registry signature verification failed"
         raise RegistrySignError(msg) from exc
+
+
+def resolving_verifying_public_key_path(public_key_path: str) -> Path:
+    raw = public_key_path.strip() or DEFAULT_REGISTRY_VERIFYING_PUBKEY_PATH
+    return Path(raw)
+
+
+def read_verifying_public_key_pem_bytes(public_key_path: str) -> bytes | None:
+    pem_path = resolving_verifying_public_key_path(public_key_path)
+    if not pem_path.is_file():
+        return None
+    return pem_path.read_bytes()
 
 
 def registry_public_key_fingerprint(public_key_pem_path: str | Path) -> str:

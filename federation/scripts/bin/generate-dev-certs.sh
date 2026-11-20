@@ -6,10 +6,10 @@
 # Output directory defaults to federation/certs/ (mounted at /etc/sds/certs in compose).
 #
 # Usage:
-#   ./scripts/generate-dev-certs.sh all
-#   ./scripts/generate-dev-certs.sh ca
-#   ./scripts/generate-dev-certs.sh client --site-name crc
-#   ./scripts/generate-dev-certs.sh server --server-cn localhost --dns localhost --ip 127.0.0.1
+#   ./scripts/bin/generate-dev-certs.sh all
+#   ./scripts/bin/generate-dev-certs.sh ca
+#   ./scripts/bin/generate-dev-certs.sh client --site-name crc
+#   ./scripts/bin/generate-dev-certs.sh server --server-cn localhost --dns localhost --ip 127.0.0.1
 #
 # In federation.toml (peer HTTPS signed by this CA):
 #   ca_cert_path = "/etc/sds/certs/federation-ca.pem"
@@ -19,8 +19,9 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FEDERATION_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+# shellcheck source=../lib/common.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../lib/common.sh"
+
 CERT_DIR="${CERT_DIR:-${FEDERATION_ROOT}/certs}"
 
 CA_NAME="${CA_NAME:-federation-ca}"

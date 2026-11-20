@@ -8,8 +8,8 @@ gateway_compose() {
 	(
 		cd "${GATEWAY_ROOT}"
 		local gate_env env_file
-		gate_env="$("./scripts/env-selection.sh" env)"
-		env_file="$("./scripts/env-selection.sh" env_file)"
+		gate_env="$("${FEDERATION_ROOT}/scripts/lib/env-selection.sh" env)"
+		env_file="$("${FEDERATION_ROOT}/scripts/lib/env-selection.sh" env_file)"
 		docker compose -f "${compose_file}" \
 			--env-file "${env_file}" \
 			--env-file "./.envs/${gate_env}/storage.env" \
