@@ -60,7 +60,6 @@ In `gateway/.envs/<env>/django.env`:
 | `SDS_SITE_FQDN` | Must equal `FLAGSHIP_GATEWAY_HOST` (e.g. `sds.crc.nd.edu`) |
 | `FEDERATION_REGISTRY_INTAKE_ENABLED` | `true` on flagship only |
 | `FEDERATION_SYNC_INTERNAL_URL` | e.g. `http://sds-federation-prod-sync:8000` |
-| `FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE` | Optional; default `false` |
 | `FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH` | Optional; warn if applicant `/sync/health` fails at publish; default `false` |
 
 `FEDERATION_SYNC_ADMIN_TOKEN` lives in repo-root **`federation-shared.env`** (gateway + sync compose).
@@ -163,11 +162,9 @@ Requires `is_staff` on flagship gateway. List: `/users/federation/registry/`.
 | Status | Action |
 |--------|--------|
 | `pending_approval` | **Approve** (site id) or **Reject** |
-| `approved` (+ existing `published`) | **Publish registry** (when sync reports `publish_enabled`) |
+| `approved` (+ existing `published`) | **Publish registry** on the list page (re-publish / catch-up without a new approval) |
 
-Publish builds the site list, signs on sync, marks rows `published`, emails applicants for newly published rows.
-
-Optional: `FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE=true` publishes immediately after each approve.
+Each **Approve** automatically publishes the signed manifest (all approved + published sites), marks newly approved rows `published`, and emails those applicants.
 
 Break-glass: `sds-federation-registry publish` on flagship sync; reconcile DB manually.
 
@@ -235,5 +232,4 @@ Use `env.peer.example` → `.env.peer`; not `peer.env`.
 | `FEDERATION_REGISTRY_CHALLENGE_TOKEN` | Applicant sync env only | Well-known challenge |
 | `FEDERATION_REGISTRY_URL` | Peer `site.env` | Registry poll base URL |
 | `FEDERATION_REGISTRY_PUBLISH_ENABLED` | Flagship `site.env` | Signing on sync |
-| `FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE` | Gateway django.env | Publish on each approve |
 | `FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH` | Gateway django.env | Warn on unhealthy peer at publish |

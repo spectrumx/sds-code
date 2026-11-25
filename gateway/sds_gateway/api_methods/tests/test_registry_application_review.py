@@ -3,7 +3,6 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from django.test import override_settings
 
 from sds_gateway.api_methods.federation.registry_application_review import (
     approve_registry_application,
@@ -46,9 +45,17 @@ def test_approve_registry_application_success(user) -> None:
     staff.is_staff = True
     staff.save(update_fields=["is_staff"])
 
-    result = approve_registry_application(application, staff)
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_review."
+        "publish_registry_manifest",
+        return_value=StaffOpResult(
+            ok=True, message="Published registry manifest serial 1."
+        ),
+    ):
+        result = approve_registry_application(application, staff)
 
     assert result.ok
+    assert "Published registry manifest" in result.message
     application.refresh_from_db()
     assert application.status == RegistryApplicationStatus.APPROVED.value
     assert application.site_name == "mysite"
@@ -102,12 +109,19 @@ def test_approve_stores_ca_and_fingerprints(user) -> None:
     )
     user.is_staff = True
     user.save(update_fields=["is_staff"])
-    result = approve_registry_application(
-        application,
-        user,
-        ca_cert_file="peer-ca.pem",
-        client_cert_fingerprints=["sha256:abc"],
-    )
+    with patch(
+        "sds_gateway.api_methods.federation.registry_application_review."
+        "publish_registry_manifest",
+        return_value=StaffOpResult(
+            ok=True, message="Published registry manifest serial 1."
+        ),
+    ):
+        result = approve_registry_application(
+            application,
+            user,
+            ca_cert_file="peer-ca.pem",
+            client_cert_fingerprints=["sha256:abc"],
+        )
     assert result.ok
     application.refresh_from_db()
     assert application.ca_cert_file == "peer-ca.pem"
@@ -115,8 +129,7 @@ def test_approve_stores_ca_and_fingerprints(user) -> None:
 
 
 @pytest.mark.django_db
-@override_settings(FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE=True)
-def test_approve_auto_publish_when_enabled(user) -> None:
+def test_approve_publishes_registry_manifest(user) -> None:
     application = RegistryApplication.objects.create(
         fqdn="site.example.edu",
         display_name="Site",

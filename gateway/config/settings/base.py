@@ -794,10 +794,6 @@ FEDERATION_REGISTRY_INTAKE_ENABLED: bool = resolve_federation_registry_intake_en
     flagship_gateway_host=FLAGSHIP_GATEWAY_HOST,
     intake_requested=env.bool("FEDERATION_REGISTRY_INTAKE_ENABLED", default=False),
 )
-FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE: bool = env.bool(
-    "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE",
-    default=False,
-)
 FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH: bool = env.bool(
     "FEDERATION_REGISTRY_PREFLIGHT_PUBLISH_HEALTH",
     default=False,

@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from django.conf import settings
 from django.utils import timezone
 
 from sds_gateway.api_methods.federation.registry_application_helpers import (
@@ -133,13 +132,12 @@ def approve_registry_application(
     message = f"Approved {application.fqdn} as site '{assigned_name}'."
     warnings: tuple[str, ...] = ()
 
-    if getattr(settings, "FEDERATION_REGISTRY_AUTO_PUBLISH_ON_APPROVE", False):
-        publish = publish_registry_manifest()
-        warnings = publish.warnings
-        if publish.ok:
-            message = f"{message} {publish.message}"
-        else:
-            message = f"{message} Registry publish failed: {publish.message}"
+    publish = publish_registry_manifest()
+    warnings = publish.warnings
+    if publish.ok:
+        message = f"{message} {publish.message}"
+    else:
+        message = f"{message} Registry publish failed: {publish.message}"
 
     return ReviewResult(ok=True, message=message, warnings=warnings)
 
